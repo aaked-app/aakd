@@ -9,7 +9,6 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/clauseflow
-      REDIS_URL: redis://redis:6379
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: clauseflow
       STORAGE_ACCESS_KEY: minioadmin
@@ -25,7 +24,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: pgvector/pgvector:pg16
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: clauseflow
       POSTGRES_USER: postgres

@@ -4,6 +4,18 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { z } from "zod"
 
+// Allowed status transitions — prevents lifecycle corruption
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  DRAFT:               ["INTERNAL_REVIEW", "ARCHIVED"],
+  INTERNAL_REVIEW:     ["PENDING_APPROVAL", "DRAFT", "ARCHIVED"],
+  PENDING_APPROVAL:    ["AWAITING_SIGNATURE", "INTERNAL_REVIEW", "ARCHIVED"],
+  AWAITING_SIGNATURE:  ["ACTIVE", "ARCHIVED"],
+  ACTIVE:              ["EXPIRED", "TERMINATED", "ARCHIVED"],
+  EXPIRED:             ["ARCHIVED"],
+  TERMINATED:          ["ARCHIVED"],
+  ARCHIVED:            [], // terminal — no transitions out
+}
+
 const UpdateContractSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   contractType: z.enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"]).optional(),
@@ -73,7 +85,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     })
     if (!existing) return new Response("Not Found", { status: 404 })
 
+    // Validate status transition
     const { tagIds, startDate, endDate, renewalDate, status, ...rest } = parsed.data
+    if (status && status !== existing.status) {
+      const allowed = STATUS_TRANSITIONS[existing.status] ?? []
+      if (!allowed.includes(status)) {
+        return Response.json(
+          { error: `Invalid transition: ${existing.status} → ${status}. Allowed: ${allowed.join(", ") || "none"}` },
+          { status: 422 }
+        )
+      }
+    }
 
     const updated = await prisma.contract.update({
       where: { id: params.id },
@@ -110,9 +132,12 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   return requestContext.run(ctx, async () => {
     const existing = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { id: true },
+      select: { id: true, status: true },
     })
     if (!existing) return new Response("Not Found", { status: 404 })
+    if (existing.status === "ARCHIVED") {
+      return Response.json({ error: "Contract is already archived" }, { status: 409 })
+    }
 
     await prisma.contract.update({
       where: { id: params.id },
