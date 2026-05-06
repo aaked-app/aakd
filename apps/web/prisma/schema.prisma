@@ -129,7 +129,7 @@ model ApiKey {
 model Contract {
   id                  String         @id @default(cuid())
   title               String
-  contractType        ContractType
+  contractType        ContractType?
   status              ContractStatus @default(DRAFT)
   ownerId             String
   owner               User           @relation("ContractOwner", fields: [ownerId], references: [id])
