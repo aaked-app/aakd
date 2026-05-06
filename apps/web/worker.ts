@@ -17,8 +17,7 @@ import { PDFParse } from "pdf-parse"
 import Anthropic from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
+import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
 import type { ContractExtractJobData, ContractAiExtractJobData } from "@/lib/jobs/queues"
 import { contractAiExtractQueue } from "@/lib/jobs/queues"
@@ -57,7 +56,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
     console.log(`[extract] Processing job ${job.id} for contract ${contractId}, file ${fileId}`)
 
     // 1. Look up the ContractFile to get the mimeType and filename
-    const contractFile = await prisma.contractFile.findUnique({
+    const contractFile = await getWorkerPrisma().contractFile.findUnique({
       where: { id: fileId },
       select: { mimeType: true, filename: true },
     })
@@ -103,17 +102,14 @@ const extractWorker = new Worker<ContractExtractJobData>(
 
     // 4. Persist extracted text to the Contract record
     if (extractedText) {
-      await prisma.contract.update({
+      await getWorkerPrisma().contract.update({
         where: { id: contractId },
         data: { extractedText },
       })
 
-      await writeActivity(
-        contractId,
-        null,
-        "METADATA_EXTRACTED",
-        `Text extracted from ${contractFile.filename}`,
-      )
+      await getWorkerPrisma().activity.create({
+        data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `Text extracted from ${contractFile.filename}` },
+      })
 
       // 5. Enqueue AI extraction job
       await contractAiExtractQueue.add("ai_extract", { contractId, extractedText })
@@ -135,11 +131,12 @@ extractWorker.on("failed", (job, err) =>
 // Defaults to anthropic if ANTHROPIC_API_KEY is set, then openai, then ollama.
 
 async function callExtractionLLM(text: string): Promise<string | null> {
-  const provider = process.env.AI_PROVIDER?.toLowerCase()
-    ?? (process.env.ANTHROPIC_API_KEY ? "anthropic"
+  const provider = process.env.AI_PROVIDER?.toLowerCase() || (
+    process.env.ANTHROPIC_API_KEY ? "anthropic"
       : process.env.OPENAI_API_KEY     ? "openai"
       : process.env.OLLAMA_BASE_URL    ? "ollama"
-      : null)
+      : null
+  )
 
   if (!provider) {
     console.warn("[ai_extract] No AI provider configured — set AI_PROVIDER or one of ANTHROPIC_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL")
@@ -258,9 +255,10 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     }
 
     // Upsert AIExtraction records in a transaction
-    await prisma.$transaction(
+    const db = getWorkerPrisma()
+    await db.$transaction(
       nonNullFields.map((field) =>
-        prisma.aIExtraction.upsert({
+        db.aIExtraction.upsert({
           where: { contractId_field: { contractId, field } },
           create: {
             contractId,
@@ -279,12 +277,9 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       ),
     )
 
-    await writeActivity(
-      contractId,
-      null,
-      "METADATA_EXTRACTED",
-      `AI extracted ${nonNullFields.length} fields`,
-    )
+    await getWorkerPrisma().activity.create({
+      data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `AI extracted ${nonNullFields.length} fields` },
+    })
 
     console.log(
       `[ai_extract] Upserted ${nonNullFields.length} extraction records for contract ${contractId}: ${nonNullFields.join(", ")}`,
@@ -307,7 +302,7 @@ async function shutdown() {
   await extractWorker.close()
   await aiExtractWorker.close()
   await contractAiExtractQueue.close()
-  await prisma.$disconnect()
+  await getWorkerPrisma().$disconnect()
   process.exit(0)
 }
 
@@ -316,9 +311,10 @@ process.on("SIGINT", shutdown)
 
 console.log("[worker] ClauseFlow BullMQ worker started")
 console.log(`[worker] Redis: ${process.env.REDIS_URL ?? "redis://localhost:6379"}`)
-const _provider = process.env.AI_PROVIDER
-  ?? (process.env.ANTHROPIC_API_KEY ? "anthropic"
+const _provider = process.env.AI_PROVIDER?.toLowerCase() || (
+  process.env.ANTHROPIC_API_KEY ? "anthropic"
     : process.env.OPENAI_API_KEY     ? "openai"
     : process.env.OLLAMA_BASE_URL    ? "ollama"
-    : "none")
+    : "none"
+)
 console.log(`[worker] AI provider: ${_provider}`)
