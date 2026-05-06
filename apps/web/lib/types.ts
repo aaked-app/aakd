@@ -39,7 +39,7 @@ export type ActivityAction =
 export interface Contract {
   id: string
   title: string
-  contractType: ContractType
+  contractType: ContractType | null
   status: ContractStatus
   ownerId: string
   owner?: { id: string; name: string; email: string; image?: string | null }

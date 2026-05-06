@@ -5,6 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Contract } from "@/lib/types"
 
+async function fetchCount(params: string): Promise<number> {
+  try {
+    const cookieStore = await cookies()
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/contracts?${params}&limit=1`,
+      { headers: { cookie: cookieStore.toString() }, cache: "no-store" }
+    )
+    if (!res.ok) return 0
+    const data = await res.json()
+    return data.total ?? 0
+  } catch {
+    return 0
+  }
+}
+
 async function fetchContracts(params: string): Promise<Contract[]> {
   try {
     const cookieStore = await cookies()
@@ -42,18 +57,12 @@ function StatCard({ title, value, Icon, gradient }: {
 }
 
 export default async function DashboardPage() {
-  const [active, recent, pendingApproval, awaitingSig] = await Promise.all([
-    fetchContracts("status=ACTIVE&limit=1"),
+  const [activeCount, pendingCount, awaitingCount, recentContracts] = await Promise.all([
+    fetchCount("status=ACTIVE"),
+    fetchCount("status=PENDING_APPROVAL"),
+    fetchCount("status=AWAITING_SIGNATURE"),
     fetchContracts("limit=5"),
-    fetchContracts("status=PENDING_APPROVAL&limit=1"),
-    fetchContracts("status=AWAITING_SIGNATURE&limit=1"),
   ])
-
-  const activeCount = Array.isArray(active) ? active.length : 0
-  const pendingCount = Array.isArray(pendingApproval) ? pendingApproval.length : 0
-  const awaitingCount = Array.isArray(awaitingSig) ? awaitingSig.length : 0
-
-  const recentContracts: Contract[] = Array.isArray(recent) ? recent : []
 
   return (
     <div className="p-6 space-y-6">

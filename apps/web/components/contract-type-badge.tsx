@@ -11,7 +11,8 @@ const typeLabels: Record<ContractType, string> = {
   OTHER: "Other",
 }
 
-export function ContractTypeBadge({ type }: { type: ContractType }) {
+export function ContractTypeBadge({ type }: { type: ContractType | null | undefined }) {
+  if (!type) return null
   return (
     <Badge variant="outline" className="font-normal">
       {typeLabels[type] ?? type}
