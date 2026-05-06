@@ -152,6 +152,9 @@ model Contract {
   versions            ContractVersion[]
   activities          Activity[]
   tags                Tag[]
+  extractions         AIExtraction[]
+  alerts              ContractAlert[]
+  extractedText       String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 }
@@ -260,4 +263,37 @@ model Tag {
   createdAt      DateTime     @default(now())
 
   @@unique([name, organizationId])
+}
+
+// ─── M1: AI Extraction ───────────────────────────────────────────────────────
+
+model AIExtraction {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  field       String   // contractType | startDate | endDate | renewalDate | value | parties | governingLaw | noticePeriodDays | autoRenewal
+  rawValue    String?
+  confidence  Float    @default(0)
+  sourceText  String?
+  sourcePage  Int?
+  extractedBy String   @default("ai")
+  status      String   @default("pending") // pending | accepted | rejected
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([contractId, field])
+}
+
+// ─── M1: Renewal Alerts ──────────────────────────────────────────────────────
+
+model ContractAlert {
+  id          String    @id @default(cuid())
+  contractId  String
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  alertType   String    // EXPIRY_30 | EXPIRY_60 | EXPIRY_90 | RENEWAL_DUE | NOTICE_PERIOD
+  triggerDate DateTime
+  firedAt     DateTime?
+  emailSentAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

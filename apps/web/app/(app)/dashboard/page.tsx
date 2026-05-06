@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { cookies } from "next/headers"
-import { FileText, Clock, CheckSquare, PenSquare, Plus } from "lucide-react"
+import { FileText, Clock, CheckSquare, PenSquare, Plus, Bell } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
-import { Contract } from "@/lib/types"
+import { Contract, ContractAlert } from "@/lib/types"
+import { format, differenceInDays } from "date-fns"
 
 async function fetchCount(params: string): Promise<number> {
   try {
@@ -35,6 +36,21 @@ async function fetchContracts(params: string): Promise<Contract[]> {
   }
 }
 
+async function fetchUpcomingAlerts(limit = 5): Promise<ContractAlert[]> {
+  try {
+    const cookieStore = await cookies()
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/alerts?limit=${limit}`,
+      { headers: { cookie: cookieStore.toString() }, cache: "no-store" }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.alerts ?? []
+  } catch {
+    return []
+  }
+}
+
 function StatCard({ title, value, Icon, gradient }: {
   title: string
   value: number
@@ -56,13 +72,27 @@ function StatCard({ title, value, Icon, gradient }: {
   )
 }
 
+const ALERT_LABELS: Record<string, string> = {
+  EXPIRY_90:     "Expires in 90 days",
+  EXPIRY_30:     "Expires in 30 days",
+  EXPIRY_7:      "Expires in 7 days",
+  RENEWAL_DUE:   "Renewal Due",
+  NOTICE_PERIOD: "Notice Period",
+}
+
 export default async function DashboardPage() {
-  const [activeCount, pendingCount, awaitingCount, recentContracts] = await Promise.all([
+  const [activeCount, pendingCount, awaitingCount, recentContracts, upcomingAlerts] = await Promise.all([
     fetchCount("status=ACTIVE"),
     fetchCount("status=PENDING_APPROVAL"),
     fetchCount("status=AWAITING_SIGNATURE"),
     fetchContracts("limit=5"),
+    fetchUpcomingAlerts(5),
   ])
+
+  // Count contracts with EXPIRY_30 alert not yet fired
+  const expiring30Count = upcomingAlerts.filter(
+    (a) => a.alertType === "EXPIRY_30" && !a.firedAt
+  ).length
 
   return (
     <div className="p-6 space-y-6">
@@ -76,9 +106,73 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Active Contracts" value={activeCount} Icon={FileText} gradient="from-emerald-400 to-emerald-600" />
-        <StatCard title="Expiring in 30 days" value={0} Icon={Clock} gradient="from-amber-400 to-orange-500" />
+        <StatCard title="Expiring in 30 days" value={expiring30Count} Icon={Clock} gradient="from-amber-400 to-orange-500" />
         <StatCard title="Pending Approval" value={pendingCount} Icon={CheckSquare} gradient="from-blue-400 to-blue-600" />
         <StatCard title="Awaiting Signature" value={awaitingCount} Icon={PenSquare} gradient="from-violet-400 to-violet-600" />
+      </div>
+
+      {/* Renewal alerts widget */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+            <Bell className="h-3.5 w-3.5" />
+            Renewing Soon
+          </h2>
+          <Link href="/contracts" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            View all contracts
+          </Link>
+        </div>
+        {upcomingAlerts.length === 0 ? (
+          <div className="flex items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 py-8">
+            <p className="text-sm text-muted-foreground">No upcoming renewals</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Contract</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Alert</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Due Date</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Days Until</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingAlerts.map((alert) => {
+                  const daysUntil = differenceInDays(new Date(alert.triggerDate), new Date())
+                  const urgencyColor =
+                    daysUntil <= 7
+                      ? "text-red-600"
+                      : daysUntil <= 30
+                      ? "text-amber-600"
+                      : "text-emerald-600"
+                  return (
+                    <tr key={alert.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        {alert.contract ? (
+                          <Link href={`/contracts/${alert.contract.id}`} className="font-medium hover:text-primary transition-colors">
+                            {alert.contract.title}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {ALERT_LABELS[alert.alertType] ?? alert.alertType}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {format(new Date(alert.triggerDate), "MMM d, yyyy")}
+                      </td>
+                      <td className={`px-4 py-3 font-medium ${urgencyColor}`}>
+                        {daysUntil <= 0 ? "Today" : `${daysUntil}d`}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div>

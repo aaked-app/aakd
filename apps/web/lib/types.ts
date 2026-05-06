@@ -117,6 +117,20 @@ export interface ApiKey {
   createdAt: string
 }
 
+export type AlertType = "EXPIRY_90" | "EXPIRY_30" | "EXPIRY_7" | "RENEWAL_DUE" | "NOTICE_PERIOD"
+
+export interface ContractAlert {
+  id: string
+  contractId: string
+  contract?: { id: string; title: string; endDate?: string | null }
+  alertType: AlertType
+  triggerDate: string
+  firedAt?: string | null
+  emailSentAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface OrgMember {
   id: string
   userId: string

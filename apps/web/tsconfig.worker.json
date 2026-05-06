@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "noEmit": false,
+    "outDir": ".worker-dist",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["worker.ts", "lib/**/*.ts", "prisma/**/*.ts"]
+}

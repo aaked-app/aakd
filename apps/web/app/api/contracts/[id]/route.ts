@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { z } from "zod"
 
 // Allowed status transitions — prevents lifecycle corruption
@@ -81,7 +82,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const existing = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { status: true },
+      select: { status: true, endDate: true, renewalDate: true, noticePeriodDays: true },
     })
     if (!existing) return new Response("Not Found", { status: 404 })
 
@@ -119,6 +120,33 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     if (status && status !== existing.status) {
       await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`)
+    }
+
+    // Regenerate renewal alerts if any date-related field changed
+    const dateFieldsTouched =
+      endDate !== undefined ||
+      renewalDate !== undefined ||
+      parsed.data.noticePeriodDays !== undefined
+
+    if (dateFieldsTouched) {
+      // Merge patched values over existing values
+      const resolvedEndDate = endDate
+        ? new Date(endDate)
+        : existing.endDate ?? null
+      const resolvedRenewalDate = renewalDate
+        ? new Date(renewalDate)
+        : existing.renewalDate ?? null
+      const resolvedNoticePeriodDays =
+        parsed.data.noticePeriodDays !== undefined
+          ? parsed.data.noticePeriodDays
+          : existing.noticePeriodDays ?? null
+
+      await generateAlertsForContract(
+        params.id,
+        resolvedEndDate,
+        resolvedRenewalDate,
+        resolvedNoticePeriodDays
+      ).catch((err) => console.error("[alerts] generateAlertsForContract failed:", err))
     }
 
     return Response.json(updated)

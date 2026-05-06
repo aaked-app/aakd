@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { z } from "zod"
 
 const CreateContractSchema = z.object({
@@ -88,7 +89,8 @@ export async function POST(req: Request) {
       // organizationId is injected by the Prisma middleware from AsyncLocalStorage
       data: {
         ...rest,
-        ownerId: ctx.userId,
+        owner: { connect: { id: ctx.userId } },
+        organization: { connect: { id: ctx.organizationId } },
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         renewalDate: renewalDate ? new Date(renewalDate) : undefined,
@@ -103,6 +105,16 @@ export async function POST(req: Request) {
     })
 
     await writeActivity(contract.id, ctx.userId, "CREATED")
+
+    // Generate renewal alerts if date fields were provided
+    if (endDate || renewalDate || parsed.data.noticePeriodDays != null) {
+      await generateAlertsForContract(
+        contract.id,
+        endDate ? new Date(endDate) : null,
+        renewalDate ? new Date(renewalDate) : null,
+        parsed.data.noticePeriodDays ?? null
+      ).catch((err) => console.error("[alerts] generateAlertsForContract failed:", err))
+    }
 
     return Response.json(contract, { status: 201 })
   })

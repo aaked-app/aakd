@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   LayoutDashboard, FileText, Settings, Plus, LogOut,
@@ -15,11 +15,70 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
+import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { signOut } from "@/lib/auth/client"
+import { ContractStatus, ContractType } from "@/lib/types"
+
+interface SearchResult {
+  id: string
+  title: string
+  contractType: ContractType | null
+  status: ContractStatus
+  counterpartyName: string | null
+  createdAt: string
+}
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 export function CmdK() {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
   const router = useRouter()
+
+  const debouncedQuery = useDebounce(query, 200)
+
+  // Fetch search results whenever the debounced query changes
+  const fetchResults = useCallback(async (q: string) => {
+    if (q.length < 2) {
+      setResults([])
+      return
+    }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=8`)
+      if (res.ok) {
+        const data = await res.json()
+        setResults(data.results ?? [])
+      } else {
+        setResults([])
+      }
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchResults(debouncedQuery)
+  }, [debouncedQuery, fetchResults])
+
+  // Reset state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setResults([])
+    }
+  }, [open])
 
   useEffect(() => {
     function down(e: KeyboardEvent) {
@@ -37,11 +96,49 @@ export function CmdK() {
     fn()
   }
 
+  const showContractsGroup = query.length >= 2
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search commands..." />
+      <CommandInput
+        placeholder="Search contracts or commands..."
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>
+          {searching ? "Searching..." : "No results found."}
+        </CommandEmpty>
+
+        {/* Contract search results */}
+        {showContractsGroup && (
+          <>
+            <CommandGroup heading="Contracts">
+              {results.length === 0 && !searching ? (
+                <CommandItem disabled>
+                  No contracts found for &quot;{query}&quot;
+                </CommandItem>
+              ) : (
+                results.map((r) => (
+                  <CommandItem
+                    key={r.id}
+                    value={`contract-${r.id}`}
+                    onSelect={() => run(() => router.push(`/contracts/${r.id}`))}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{r.title}</span>
+                    </div>
+                    <ContractStatusBadge status={r.status} />
+                  </CommandItem>
+                ))
+              )}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
         <CommandGroup heading="Navigation">
           <CommandItem onSelect={() => run(() => router.push("/dashboard"))}>
             <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -50,6 +147,10 @@ export function CmdK() {
           <CommandItem onSelect={() => run(() => router.push("/contracts"))}>
             <FileText className="mr-2 h-4 w-4" />
             Go to Contracts
+          </CommandItem>
+          <CommandItem onSelect={() => run(() => router.push("/search"))}>
+            <Search className="mr-2 h-4 w-4" />
+            Go to Search
           </CommandItem>
           <CommandItem onSelect={() => run(() => router.push("/settings/org"))}>
             <Settings className="mr-2 h-4 w-4" />
@@ -62,7 +163,7 @@ export function CmdK() {
             <Plus className="mr-2 h-4 w-4" />
             New Contract
           </CommandItem>
-          <CommandItem onSelect={() => run(() => router.push("/contracts"))}>
+          <CommandItem onSelect={() => run(() => router.push(`/search${query ? `?q=${encodeURIComponent(query)}` : ``}`))}>
             <Search className="mr-2 h-4 w-4" />
             Search Contracts
           </CommandItem>

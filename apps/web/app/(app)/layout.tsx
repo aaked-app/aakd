@@ -5,7 +5,8 @@ import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import {
   LayoutDashboard, FileText, Folder, Settings, Bell,
-  ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, FileText as LogoIcon
+  ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, FileText as LogoIcon,
+  Search
 } from "lucide-react"
 import { useSession, useActiveOrganization, signOut } from "@/lib/auth/client"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Contracts", href: "/contracts", Icon: FileText },
   { label: "Folders", href: "/contracts?view=folders", Icon: Folder },
+  { label: "Search", href: "/search", Icon: Search },
   { label: "Settings", href: "/settings/org", Icon: Settings },
 ]
 
@@ -26,14 +28,16 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
 }
 
+const ID_RE = /^[a-z0-9]{20,}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function Breadcrumbs() {
   const pathname = usePathname()
-  const parts = pathname.split("/").filter(Boolean)
+  const parts = pathname.split("/").filter(Boolean).filter((p) => !ID_RE.test(p))
   return (
     <nav className="flex items-center gap-1 text-sm text-muted-foreground">
       {parts.map((part, i) => {
         const isLast = i === parts.length - 1
-        const label = part.charAt(0).toUpperCase() + part.slice(1)
+        const label = part.replace(/-/g, " ").charAt(0).toUpperCase() + part.replace(/-/g, " ").slice(1)
         return (
           <span key={i} className="flex items-center gap-1">
             {i > 0 && <ChevronRight className="h-3.5 w-3.5" />}

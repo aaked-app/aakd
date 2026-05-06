@@ -29,7 +29,7 @@ export default function NewContractPage() {
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState("")
   const [showDetails, setShowDetails] = useState(false)
-  const [folders, setFolders] = useState<Folder[]>([])
+  const [, setFolders] = useState<Folder[]>([])
 
   const [details, setDetails] = useState({
     contractType: "",
@@ -158,7 +158,7 @@ export default function NewContractPage() {
                     <SelectTrigger id="contractType" className="w-full">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[200]">
                       {CONTRACT_TYPES.map((t) => (
                         <SelectItem key={t} value={t}>{t}</SelectItem>
                       ))}
@@ -172,7 +172,7 @@ export default function NewContractPage() {
                     <SelectTrigger id="currency" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[200]">
                       {CURRENCIES.map((c) => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}

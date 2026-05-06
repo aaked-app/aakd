@@ -11,8 +11,6 @@ const ORG_SCOPED_MODELS = new Set([
   "Contract", "Folder", "Tag", "ApiKey",
 ])
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
-
 function createPrismaClient() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL ?? "",
@@ -40,7 +38,7 @@ function createPrismaClient() {
             ;(args as any).where = { ...(args as any).where, organizationId: ctx.organizationId }
           } else if (operation === "create") {
             args = { ...args } as typeof args
-            ;(args as any).data = { ...(args as any).data, organizationId: ctx.organizationId }
+            ;(args as any).data = { ...(args as any).data, organization: { connect: { id: ctx.organizationId } } }
           } else if (["update", "updateMany", "delete", "deleteMany"].includes(operation)) {
             args = { ...args } as typeof args
             ;(args as any).where = { ...(args as any).where, organizationId: ctx.organizationId }
@@ -53,5 +51,15 @@ function createPrismaClient() {
   })
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma as PrismaClient
+// The $extends call wraps the client in DynamicClientExtensionThis which,
+// due to a known Prisma TypeScript limitation with $allOperations, loses the
+// model delegate types (aIExtraction, contractAlert, etc.) from the inferred
+// type. Casting to PrismaClient restores those types; the runtime object is a
+// structural superset so this is safe.
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+
+export const prisma: PrismaClient = (
+  globalForPrisma.prisma ?? createPrismaClient()
+) as unknown as PrismaClient
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma

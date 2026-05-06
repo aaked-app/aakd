@@ -56,10 +56,10 @@ export async function POST(req: Request) {
     }
 
     const folder = await prisma.folder.create({
-      // organizationId is injected by Prisma middleware from AsyncLocalStorage
       data: {
         name: parsed.data.name,
         parentId: parsed.data.parentId ?? null,
+        organization: { connect: { id: ctx.organizationId } },
       } as any,
     })
 

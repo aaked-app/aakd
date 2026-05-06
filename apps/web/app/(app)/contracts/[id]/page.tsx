@@ -5,8 +5,9 @@ import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import {
-  Edit, Archive, Upload, Download
+  Edit, Archive, Upload, Download, Bell
 } from "lucide-react"
+import { differenceInDays, format as fmtDate } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +23,7 @@ import { ContractTypeBadge } from "@/components/contract-type-badge"
 import { ActivityTimeline } from "@/components/activity-timeline"
 import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
-import { Contract, ContractFile, Activity, ContractStatus } from "@/lib/types"
+import { Contract, ContractFile, Activity, ContractStatus, ContractAlert } from "@/lib/types"
 
 const STATUS_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   DRAFT: ["INTERNAL_REVIEW", "ARCHIVED"],
@@ -62,6 +63,7 @@ export default function ContractDetailPage() {
   const [contract, setContract] = useState<Contract | null>(null)
   const [files, setFiles] = useState<ContractFile[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [alerts, setAlerts] = useState<ContractAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(searchParams.get("edit") === "true")
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -72,13 +74,20 @@ export default function ContractDetailPage() {
 
   const fetchContract = useCallback(async () => {
     try {
-      const res = await fetch(`/api/contracts/${id}`)
-      if (!res.ok) { toast.error("Contract not found"); router.push("/contracts"); return }
-      const data = await res.json()
+      const [contractRes, alertsRes] = await Promise.all([
+        fetch(`/api/contracts/${id}`),
+        fetch(`/api/alerts?contractId=${id}`),
+      ])
+      if (!contractRes.ok) { toast.error("Contract not found"); router.push("/contracts"); return }
+      const data = await contractRes.json()
       setContract(data.contract ?? data)
       setFiles(data.files ?? [])
       setActivities(data.activities ?? [])
       setEditForm(data.contract ?? data)
+      if (alertsRes.ok) {
+        const alertData = await alertsRes.json()
+        setAlerts(alertData.alerts ?? [])
+      }
     } catch {
       toast.error("Failed to load contract")
     } finally {
@@ -254,12 +263,52 @@ export default function ContractDetailPage() {
               </div>
             </div>
           )}
+          {alerts.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                <Bell className="h-3 w-3" />
+                Renewal Alerts
+              </p>
+              <div className="space-y-2">
+                {alerts.map((alert) => {
+                  const daysUntil = differenceInDays(new Date(alert.triggerDate), new Date())
+                  const borderColor =
+                    daysUntil <= 30 ? "#ef4444" : daysUntil <= 60 ? "#f59e0b" : "#10b981"
+                  const label = {
+                    EXPIRY_90: "Expiry Warning (90 days)",
+                    EXPIRY_30: "Expiry Warning (30 days)",
+                    EXPIRY_7:  "Expiry Warning (7 days)",
+                    RENEWAL_DUE:   "Renewal Due",
+                    NOTICE_PERIOD: "Notice Period",
+                  }[alert.alertType] ?? alert.alertType
+                  return (
+                    <div
+                      key={alert.id}
+                      className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-sm"
+                      style={{ borderLeftWidth: 3, borderLeftColor: borderColor }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Bell className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium">{label}</span>
+                        <span className="text-muted-foreground">
+                          — {fmtDate(new Date(alert.triggerDate), "MMM d, yyyy")}
+                        </span>
+                      </div>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${alert.firedAt ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}>
+                        {alert.firedAt ? "Fired" : "Pending"}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Files */}
         <TabsContent value="files" className="mt-4">
           {files.length === 0 ? (
-            <div className="flex flex-col items-center py-12 gap-3">
+            <div className="flex w-full flex-col items-center py-12 gap-3">
               <p className="text-sm text-muted-foreground">No files uploaded yet</p>
               <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
                 <Upload className="mr-1.5 h-4 w-4" />
@@ -290,7 +339,7 @@ export default function ContractDetailPage() {
         </TabsContent>
 
         {/* Activity */}
-        <TabsContent value="activity" className="mt-4">
+        <TabsContent value="activity" className="mt-6">
           <ActivityTimeline activities={activities} />
         </TabsContent>
       </Tabs>
@@ -309,7 +358,7 @@ export default function ContractDetailPage() {
             <div className="space-y-1.5">
               <Label>Contract Type</Label>
               <Select value={editForm.contractType ?? ""} onValueChange={(v) => setEditForm((p) => ({ ...p, contractType: v as typeof p.contractType }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   {CONTRACT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
@@ -333,7 +382,7 @@ export default function ContractDetailPage() {
               <div className="space-y-1.5">
                 <Label>Currency</Label>
                 <Select value={editForm.currency ?? "USD"} onValueChange={(v) => setEditForm((p) => ({ ...p, currency: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
