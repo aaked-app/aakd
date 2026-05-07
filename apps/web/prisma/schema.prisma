@@ -157,9 +157,11 @@ model Contract {
   extractions         AIExtraction[]
   alerts              ContractAlert[]
   approvals           Approval[]
-  extractedText       String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  extractedText         String?
+  docusealSubmissionId  String?
+  signingUrl            String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 }
 
 enum ContractType {

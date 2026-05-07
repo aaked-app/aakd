@@ -8,9 +8,9 @@ vi.mock("@/lib/jobs/queues", () => ({
 
 vi.mock("@/lib/db/client", () => ({
   prisma: {
-    contract: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
+    contract: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     activity: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
-    contractFile: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+    contractFile: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     contractVersion: { create: vi.fn() },
     tag: { findMany: vi.fn(), findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn(), delete: vi.fn() },
     folder: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },

@@ -1,0 +1,116 @@
+import { prisma } from "@/lib/db/client"
+import { writeActivity } from "@/lib/db/activity"
+import { storage } from "@/lib/storage"
+
+// ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
+// Receives DocuSeal webhook events.
+// This route is intentionally unauthenticated — DocuSeal calls it directly.
+// We return 200 for all events to prevent DocuSeal retries on ignored events.
+
+interface DocuSealWebhookPayload {
+  event_type: string
+  data: {
+    id: number
+    status: string
+    documents: { url: string }[]
+  }
+}
+
+export async function POST(req: Request) {
+  let payload: DocuSealWebhookPayload
+
+  try {
+    payload = await req.json()
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  // Only process form.completed — acknowledge all others silently
+  if (payload.event_type !== "form.completed") {
+    return Response.json({ ok: true })
+  }
+
+  const { data } = payload
+
+  // ── find the contract by submission ID ────────────────────────────────────
+  const contract = await prisma.contract.findFirst({
+    where: { docusealSubmissionId: String(data.id) },
+    select: {
+      id: true,
+      organizationId: true,
+      ownerId: true,
+    },
+  })
+
+  // If not found, return 200 so DocuSeal stops retrying
+  if (!contract) {
+    return Response.json({ ok: true })
+  }
+
+  // ── download signed PDF from DocuSeal ─────────────────────────────────────
+  const signedDocUrl = data.documents?.[0]?.url
+  if (!signedDocUrl) {
+    console.warn(`[docuseal-webhook] No document URL in submission ${data.id}`)
+    return Response.json({ ok: true })
+  }
+
+  const signedRes = await fetch(signedDocUrl)
+  if (!signedRes.ok) {
+    console.error(`[docuseal-webhook] Failed to download signed PDF: ${signedRes.status}`)
+    return Response.json({ ok: true })
+  }
+
+  const arrayBuffer = await signedRes.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  // ── upload signed PDF to S3 ───────────────────────────────────────────────
+  const newKey = `contracts/${contract.id}/signed_${Date.now()}.pdf`
+  await storage.upload(newKey, buffer, "application/pdf")
+
+  // ── version bookkeeping ───────────────────────────────────────────────────
+  const latestFile = await prisma.contractFile.findFirst({
+    where: { contractId: contract.id, isLatest: true },
+    orderBy: { version: "desc" },
+    select: { id: true, version: true },
+  })
+
+  const nextVersion = (latestFile?.version ?? 0) + 1
+
+  // Mark previous latest file as no longer latest, then create the signed file
+  await prisma.$transaction([
+    ...(latestFile
+      ? [
+          prisma.contractFile.update({
+            where: { id: latestFile.id },
+            data: { isLatest: false },
+          }),
+        ]
+      : []),
+    prisma.contractFile.create({
+      data: {
+        contractId: contract.id,
+        filename: "signed_document.pdf",
+        storageKey: newKey,
+        mimeType: "application/pdf",
+        sizeBytes: buffer.length,
+        isSigned: true,
+        isLatest: true,
+        version: nextVersion,
+        uploadedById: contract.ownerId,
+      },
+    }),
+    prisma.contract.update({
+      where: { id: contract.id },
+      data: { status: "ACTIVE" },
+    }),
+  ])
+
+  await writeActivity(
+    contract.id,
+    null,
+    "SIGNED",
+    `Contract signed via DocuSeal (submission #${data.id})`,
+  )
+
+  return Response.json({ ok: true })
+}

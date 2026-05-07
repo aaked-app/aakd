@@ -60,6 +60,8 @@ export interface Contract {
   tags?: Tag[]
   files?: ContractFile[]
   activities?: Activity[]
+  docusealSubmissionId?: string | null
+  signingUrl?: string | null
   createdAt: string
   updatedAt: string
 }

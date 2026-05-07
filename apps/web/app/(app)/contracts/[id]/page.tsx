@@ -20,6 +20,8 @@ import {
   XCircle,
   Clock,
   UserCheck,
+  Send,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -127,6 +129,7 @@ export default function ContractDetailPage() {
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [tagInput, setTagInput] = useState("")
   const [addingTag, setAddingTag] = useState(false)
+  const [sendingForSignature, setSendingForSignature] = useState(false)
 
   const fetchContract = useCallback(async () => {
     try {
@@ -372,6 +375,26 @@ export default function ContractDetailPage() {
     }
   }
 
+  async function sendForSignature() {
+    setSendingForSignature(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/sign`, { method: "POST" })
+      if (res.ok) {
+        const { signingUrl } = await res.json()
+        toast.success("Sent for signature")
+        if (signingUrl) window.open(signingUrl, "_blank")
+        fetchContract()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "Failed to send for signature")
+      }
+    } catch {
+      toast.error("Failed to send for signature")
+    } finally {
+      setSendingForSignature(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-6 space-y-4">
@@ -439,6 +462,16 @@ export default function ContractDetailPage() {
             <Upload className="size-4" />
             Upload
           </Button>
+          {contract.status === "AWAITING_SIGNATURE" && !contract.signingUrl && (
+            <Button
+              size="sm"
+              disabled={sendingForSignature}
+              onClick={sendForSignature}
+            >
+              <Send className="size-4" />
+              {sendingForSignature ? "Sending..." : "Send for Signature"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             Edit
           </Button>
@@ -522,6 +555,19 @@ export default function ContractDetailPage() {
                   <div className="mt-4">
                     <p className="text-xs text-muted-foreground">Notes</p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{contract.notes}</p>
+                  </div>
+                )}
+                {contract.signingUrl && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Signing link:</p>
+                    <a
+                      href={contract.signingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      Open <ExternalLink className="size-3" />
+                    </a>
                   </div>
                 )}
                 {alerts.length > 0 && (
