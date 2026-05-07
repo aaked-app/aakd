@@ -37,8 +37,8 @@ export default function CreateOrgPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-lg font-semibold">Create your organization</h1>
-        <p className="text-sm text-muted-foreground">Set up your workspace to manage contracts</p>
+        <h1 className="text-xl font-semibold text-zinc-900">Create your organization</h1>
+        <p className="text-sm text-zinc-500">Set up your workspace to manage contracts</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -52,7 +52,7 @@ export default function CreateOrgPage() {
             required
           />
           {name && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-500">
               Slug: {name.toLowerCase().replace(/\s+/g, "-")}
             </p>
           )}

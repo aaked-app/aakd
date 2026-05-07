@@ -39,8 +39,8 @@ export default function LoginPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-lg font-semibold">Sign in</h1>
-        <p className="text-sm text-muted-foreground">Enter your credentials to continue</p>
+        <h1 className="text-xl font-semibold text-zinc-900">Sign in</h1>
+        <p className="text-sm text-zinc-500">Enter your credentials to continue</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -71,9 +71,9 @@ export default function LoginPage() {
           {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
-      <p className="mt-4 text-center text-sm text-muted-foreground">
+      <p className="mt-4 text-center text-sm text-zinc-500">
         No account?{" "}
-        <Link href="/register" className="text-primary hover:underline">
+        <Link href="/register" className="text-indigo-600 hover:underline">
           Create one
         </Link>
       </p>

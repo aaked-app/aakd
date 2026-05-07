@@ -127,7 +127,7 @@ export function CmdK() {
                     className="flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <FileText className="h-4 w-4 shrink-0 text-zinc-400" />
                       <span className="truncate">{r.title}</span>
                     </div>
                     <ContractStatusBadge status={r.status} />

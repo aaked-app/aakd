@@ -41,8 +41,8 @@ export default function RegisterPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-lg font-semibold">Create account</h1>
-        <p className="text-sm text-muted-foreground">Get started with ClauseFlow</p>
+        <h1 className="text-xl font-semibold text-zinc-900">Create account</h1>
+        <p className="text-sm text-zinc-500">Get started with ClauseFlow</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -86,9 +86,9 @@ export default function RegisterPage() {
           {loading ? "Creating account..." : "Create account"}
         </Button>
       </form>
-      <p className="mt-4 text-center text-sm text-muted-foreground">
+      <p className="mt-4 text-center text-sm text-zinc-500">
         Already have an account?{" "}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link href="/login" className="text-indigo-600 hover:underline">
           Sign in
         </Link>
       </p>

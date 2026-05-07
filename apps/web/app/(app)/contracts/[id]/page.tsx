@@ -597,18 +597,18 @@ export default function ContractDetailPage() {
                 </div>
                 {contract.notes && (
                   <div className="mt-4">
-                    <p className="text-xs text-muted-foreground">Notes</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{contract.notes}</p>
+                    <p className="text-xs text-zinc-500">Notes</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900">{contract.notes}</p>
                   </div>
                 )}
                 {contract.signingUrl && (
                   <div className="mt-4 flex items-center gap-2">
-                    <p className="text-xs text-muted-foreground">Signing link:</p>
+                    <p className="text-xs text-zinc-500">Signing link:</p>
                     <a
                       href={contract.signingUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
                     >
                       Open <ExternalLink className="size-3" />
                     </a>
@@ -616,7 +616,7 @@ export default function ContractDetailPage() {
                 )}
                 {alerts.length > 0 && (
                   <div className="mt-5">
-                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <p className="flex items-center gap-1 text-xs font-medium text-zinc-500">
                       <Bell className="size-3" />
                       Renewal Alerts
                     </p>
@@ -624,14 +624,14 @@ export default function ContractDetailPage() {
                       {alerts.map((alert) => (
                         <div
                           key={alert.id}
-                          className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm"
+                          className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm"
                         >
-                          <span className="text-foreground">
+                          <span className="text-zinc-900">
                             {alert.alertType.replace(/_/g, " ")}
                           </span>
                           <span className={cn(
                             "text-xs",
-                            alert.firedAt ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"
+                            alert.firedAt ? "text-zinc-500" : "text-amber-600"
                           )}>
                             {alert.firedAt ? "Fired" : format(new Date(alert.triggerDate), "MMM d, yyyy")}
                           </span>
@@ -645,8 +645,8 @@ export default function ContractDetailPage() {
               {/* Ask AI section — only shown when contract text has been extracted */}
               {contract.extractedText && (
                 <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4">
-                  <p className="text-sm font-medium text-foreground">Ask AI about this contract</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="text-sm font-medium text-zinc-900">Ask AI about this contract</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
                     Ask a question and get an answer based on the contract text.
                   </p>
                   <div className="mt-3 flex gap-2">
@@ -669,8 +669,8 @@ export default function ContractDetailPage() {
                     </Button>
                   </div>
                   {aiAnswer && (
-                    <div className="mt-3 rounded-md bg-muted p-3">
-                      <p className="whitespace-pre-wrap text-sm text-foreground">{aiAnswer}</p>
+                    <div className="mt-3 rounded-md bg-zinc-50 border border-zinc-200 p-3">
+                      <p className="whitespace-pre-wrap text-sm text-zinc-900">{aiAnswer}</p>
                     </div>
                   )}
                 </div>
@@ -682,7 +682,7 @@ export default function ContractDetailPage() {
               <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {files.length === 0 ? (
                   <div className="flex flex-col items-center py-8 gap-3">
-                    <p className="text-sm text-muted-foreground">No files uploaded yet</p>
+                    <p className="text-sm text-zinc-500">No files uploaded yet</p>
                     <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
                       <Upload className="size-4" />
                       Upload File
@@ -761,17 +761,17 @@ export default function ContractDetailPage() {
                             <TableRow
                               key={e.id}
                               className={cn(
-                                "hover:bg-muted/50",
+                                "hover:bg-zinc-50",
                                 (accepted || rejected) && "opacity-60",
                               )}
                             >
                               <TableCell className="py-2.5">
                                 <div className="flex items-center gap-1.5">
                                   {accepted && <Check className="size-3.5 text-emerald-600" />}
-                                  <span className="text-sm font-medium text-foreground">{e.field}</span>
+                                  <span className="text-sm font-medium text-zinc-900">{e.field}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2.5 text-sm text-muted-foreground">
+                              <TableCell className="py-2.5 text-sm text-zinc-500">
                                 {e.rawValue ?? "—"}
                               </TableCell>
                               <TableCell className="py-2.5">
@@ -787,7 +787,7 @@ export default function ContractDetailPage() {
                               </TableCell>
                               <TableCell className="max-w-[200px] py-2.5">
                                 {e.sourceText && (
-                                  <p className="truncate text-xs italic text-muted-foreground">
+                                  <p className="truncate text-xs italic text-zinc-500">
                                     &quot;{e.sourceText}&quot;
                                   </p>
                                 )}
@@ -817,7 +817,7 @@ export default function ContractDetailPage() {
                                   <span className="text-xs text-emerald-600">Accepted</span>
                                 )}
                                 {rejected && (
-                                  <span className="text-xs text-muted-foreground">Rejected</span>
+                                  <span className="text-xs text-zinc-500">Rejected</span>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -835,7 +835,7 @@ export default function ContractDetailPage() {
               <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-foreground">Approval Requests</h3>
+                  <h3 className="text-sm font-medium text-zinc-900">Approval Requests</h3>
                   {canRequestApproval && (
                     <Button size="sm" onClick={() => setApprovalOpen(true)}>
                       <UserCheck className="size-4" />
@@ -845,7 +845,7 @@ export default function ContractDetailPage() {
                 </div>
 
                 {approvals.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-8">
+                  <p className="text-center text-sm text-zinc-500 py-8">
                     No approvals requested yet
                   </p>
                 ) : (
@@ -858,20 +858,20 @@ export default function ContractDetailPage() {
                       return (
                         <div
                           key={approval.id}
-                          className="rounded-lg border border-border p-4 space-y-2"
+                          className="rounded-lg border border-zinc-200 p-4 space-y-2"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="flex size-7 items-center justify-center rounded-full bg-muted shrink-0">
-                                <span className="text-xs font-medium text-muted-foreground">
+                              <div className="flex size-7 items-center justify-center rounded-full bg-zinc-100 shrink-0">
+                                <span className="text-xs font-medium text-zinc-500">
                                   {approval.assignedTo.name.charAt(0).toUpperCase()}
                                 </span>
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">
+                                <p className="text-sm font-medium text-zinc-900 truncate">
                                   {approval.assignedTo.name}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-zinc-500">
                                   Requested by {approval.requestedBy.name} &middot;{" "}
                                   <RelativeTime date={approval.createdAt} />
                                 </p>
@@ -901,12 +901,12 @@ export default function ContractDetailPage() {
 
                           {/* Comment */}
                           {approval.comment && (
-                            <p className="text-sm text-muted-foreground pl-9">{approval.comment}</p>
+                            <p className="text-sm text-zinc-500 pl-9">{approval.comment}</p>
                           )}
 
                           {/* Decided at */}
                           {approval.decidedAt && (
-                            <p className="text-xs text-muted-foreground pl-9">
+                            <p className="text-xs text-zinc-500 pl-9">
                               Decided <RelativeTime date={approval.decidedAt} />
                             </p>
                           )}
@@ -984,7 +984,7 @@ export default function ContractDetailPage() {
             <TabsContent value="activity" className="mt-4">
               <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {activities.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-8">No activity yet</p>
+                  <p className="text-center text-sm text-zinc-500 py-8">No activity yet</p>
                 ) : (
                   <ActivityTimeline activities={activities} />
                 )}
@@ -1047,13 +1047,13 @@ export default function ContractDetailPage() {
                 {(contract.tags ?? []).map((tag) => (
                   <span
                     key={tag.id}
-                    className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
+                    className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700"
                   >
                     {tag.name}
                     <button
                       type="button"
                       onClick={() => removeTag(tag.id)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-zinc-400 hover:text-zinc-700"
                     >
                       <X className="size-2.5" />
                     </button>
@@ -1079,7 +1079,7 @@ export default function ContractDetailPage() {
                       onBlur={() => { if (!tagInput.trim()) { setAddingTag(false) } }}
                     />
                     {tagInput && (
-                      <div className="absolute left-0 top-full z-10 mt-1 w-40 rounded-md border border-border bg-card shadow-md">
+                      <div className="absolute left-0 top-full z-10 mt-1 w-40 rounded-md border border-zinc-200 bg-white shadow-md">
                         {allTags
                           .filter(t =>
                             t.name.toLowerCase().includes(tagInput.toLowerCase()) &&
@@ -1091,7 +1091,7 @@ export default function ContractDetailPage() {
                               key={t.id}
                               type="button"
                               onMouseDown={(e) => { e.preventDefault(); addTag(t.id) }}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-muted"
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-50"
                             >
                               {t.name}
                             </button>
@@ -1101,7 +1101,7 @@ export default function ContractDetailPage() {
                           <button
                             type="button"
                             onMouseDown={(e) => { e.preventDefault(); createAndAddTag(tagInput) }}
-                            className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted"
+                            className="w-full px-3 py-1.5 text-left text-xs text-zinc-500 hover:bg-zinc-50"
                           >
                             + Create &quot;{tagInput}&quot;
                           </button>
@@ -1113,7 +1113,7 @@ export default function ContractDetailPage() {
                   <button
                     type="button"
                     onClick={() => setAddingTag(true)}
-                    className="inline-flex items-center gap-0.5 rounded border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                    className="inline-flex items-center gap-0.5 rounded border border-dashed border-zinc-300 px-2 py-0.5 text-xs text-zinc-400 hover:text-zinc-700 hover:border-zinc-400 transition-colors"
                   >
                     <Plus className="size-2.5" />
                     Add
