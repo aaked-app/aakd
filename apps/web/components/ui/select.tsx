@@ -111,6 +111,7 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  onMouseEnter,
   ...props
 }: SelectPrimitive.Item.Props) {
   return (
@@ -120,6 +121,18 @@ function SelectItem({
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-highlighted:bg-indigo-50 data-highlighted:text-indigo-700 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
+      onMouseEnter={(e) => {
+        // Base UI Select only commits selection when `highlighted === true`.
+        // `highlighted` is set via `onMouseMove` (not `onMouseEnter`), so if the
+        // mouse doesn't move over the item the click is silently dropped.
+        // Dispatching a synthetic mousemove here ensures the floating-ui
+        // useListNavigation handler fires → sets activeIndex → React re-renders
+        // → highlighted = true → click commits the selection.
+        e.currentTarget.dispatchEvent(
+          new MouseEvent("mousemove", { bubbles: true, cancelable: true })
+        )
+        onMouseEnter?.(e)
+      }}
       {...props}
     >
       <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">

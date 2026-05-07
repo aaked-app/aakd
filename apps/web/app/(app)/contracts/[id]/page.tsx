@@ -66,7 +66,7 @@ interface AIExtraction {
   confidence: number
   sourceText: string
   sourcePage: number | null
-  status: "PENDING" | "ACCEPTED" | "REJECTED"
+  status: "pending" | "accepted" | "rejected"
 }
 
 const STATUS_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
@@ -244,6 +244,29 @@ export default function ContractDetailPage() {
     }
   }
 
+  async function previewFile(fileId: string) {
+    try {
+      const res = await fetch(`/api/contracts/${id}/upload?fileId=${fileId}`)
+      if (!res.ok) throw new Error("Preview failed")
+      const { url } = await res.json()
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch {
+      toast.error("Failed to open preview")
+    }
+  }
+
+  async function deleteContract() {
+    if (!confirm("Archive this contract? Archived contracts are removed from your active list.")) return
+    try {
+      const res = await fetch(`/api/contracts/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed")
+      toast.success("Contract archived")
+      router.push("/contracts")
+    } catch {
+      toast.error("Failed to archive contract")
+    }
+  }
+
   async function handleExtraction(extractionId: string, action: "accept" | "reject") {
     try {
       await fetch(`/api/contracts/${id}/extractions`, {
@@ -254,7 +277,7 @@ export default function ContractDetailPage() {
       setExtractions((prev) =>
         prev.map((e) =>
           e.id === extractionId
-            ? { ...e, status: action === "accept" ? "ACCEPTED" : "REJECTED" }
+            ? { ...e, status: action === "accept" ? "accepted" : "rejected" }
             : e,
         ),
       )
@@ -270,7 +293,7 @@ export default function ContractDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "accept_all" }),
       })
-      setExtractions((prev) => prev.map((e) => ({ ...e, status: "ACCEPTED" as const })))
+      setExtractions((prev) => prev.map((e) => ({ ...e, status: "accepted" as const })))
       toast.success("All extractions accepted")
     } catch {
       toast.error("Failed to accept all")
@@ -440,7 +463,7 @@ export default function ContractDetailPage() {
 
   const transitions = STATUS_TRANSITIONS[contract.status] ?? []
   const latestFile = files.find((f) => f.isLatest) ?? files[0]
-  const pendingExtractions = extractions.filter((e) => e.status === "PENDING")
+  const pendingExtractions = extractions.filter((e) => e.status === "pending")
   const pendingApprovals = approvals.filter((a) => a.status === "pending")
 
   // Determine if current user can request approvals (admin or legal in this org)
@@ -502,17 +525,6 @@ export default function ContractDetailPage() {
           <Button variant="outline" size="sm" className="border-zinc-300 text-zinc-700 hover:bg-zinc-50" onClick={() => setEditOpen(true)}>
             Edit
           </Button>
-          {contract.status !== "ARCHIVED" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
-              onClick={() => changeStatus("ARCHIVED")}
-            >
-              <Archive className="size-4" />
-              Archive
-            </Button>
-          )}
         </div>
       </div>
 
@@ -755,8 +767,8 @@ export default function ContractDetailPage() {
                       </TableHeader>
                       <TableBody>
                         {extractions.map((e) => {
-                          const accepted = e.status === "ACCEPTED"
-                          const rejected = e.status === "REJECTED"
+                          const accepted = e.status === "accepted"
+                          const rejected = e.status === "rejected"
                           return (
                             <TableRow
                               key={e.id}
@@ -1013,8 +1025,9 @@ export default function ContractDetailPage() {
                     variant="outline"
                     size="sm"
                     className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
-                    onClick={() => setUploadOpen(true)}
+                    onClick={() => previewFile(latestFile.id)}
                   >
+                    <ExternalLink className="size-4" />
                     Preview
                   </Button>
                   <Button
@@ -1123,21 +1136,23 @@ export default function ContractDetailPage() {
             </div>
 
             {/* Danger Zone */}
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Danger Zone</p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Archiving removes this contract from your active list.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 border-zinc-300 text-zinc-700 hover:bg-zinc-50"
-                onClick={() => changeStatus("ARCHIVED")}
-              >
-                <Archive className="size-4" />
-                Archive Contract
-              </Button>
-            </div>
+            {contract.status !== "ARCHIVED" && (
+              <div className="rounded-lg border border-red-100 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-red-500">Danger Zone</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Deleting moves this contract to the archive. It will no longer appear in your active list.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={deleteContract}
+                >
+                  <Archive className="size-4" />
+                  Delete Contract
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1159,7 +1174,7 @@ export default function ContractDetailPage() {
             <div className="space-y-1.5">
               <Label>Contract Type</Label>
               <Select
-                value={editForm.contractType ?? ""}
+                value={editForm.contractType ?? null}
                 onValueChange={(v) =>
                   setEditForm((p) => ({ ...p, contractType: v as typeof p.contractType }))
                 }

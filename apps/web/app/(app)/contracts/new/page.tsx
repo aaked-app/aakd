@@ -11,6 +11,7 @@ import {
   Sparkles,
   CheckCircle2,
   XCircle,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -196,7 +197,7 @@ interface ManualFieldInputProps {
 function ManualFieldInput({ fieldType, value, onChange }: ManualFieldInputProps) {
   if (fieldType === "contractType_select") {
     return (
-      <Select value={value || ""} onValueChange={(v) => { if (v) onChange(v) }}>
+      <Select value={value || null} onValueChange={(v) => { if (v) onChange(v) }}>
         <SelectTrigger className="h-7 text-xs w-40">
           <SelectValue placeholder="Select type" />
         </SelectTrigger>
@@ -211,7 +212,7 @@ function ManualFieldInput({ fieldType, value, onChange }: ManualFieldInputProps)
 
   if (fieldType === "currency_select") {
     return (
-      <Select value={value || ""} onValueChange={(v) => { if (v) onChange(v) }}>
+      <Select value={value || null} onValueChange={(v) => { if (v) onChange(v) }}>
         <SelectTrigger className="h-7 text-xs w-24">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
@@ -279,6 +280,8 @@ export default function NewContractPage() {
   const [tags, setTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const [newTagName, setNewTagName] = useState("")
+  const [newFolderName, setNewFolderName] = useState("")
+  const [creatingFolder, setCreatingFolder] = useState(false)
 
   // ── Polling refs ──────────────────────────────────────────────────────────────
   const pollTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -561,6 +564,28 @@ export default function NewContractPage() {
         setNewTagName("")
       }
     } catch {}
+  }
+
+  async function createNewFolder() {
+    if (!newFolderName.trim()) return
+    try {
+      const res = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newFolderName.trim() }),
+      })
+      if (res.ok) {
+        const folder: Folder = await res.json()
+        setFolders((prev) => [...prev, folder])
+        setFolderId(folder.id)
+        setNewFolderName("")
+        setCreatingFolder(false)
+      } else {
+        toast.error("Failed to create folder")
+      }
+    } catch {
+      toast.error("Failed to create folder")
+    }
   }
 
   async function handleFinish() {
@@ -896,17 +921,63 @@ export default function NewContractPage() {
             {/* Folder */}
             <div className="space-y-1.5">
               <Label htmlFor="folder">Folder</Label>
-              <Select value={folderId || "none"} onValueChange={(v) => setFolderId(!v || v === "none" ? "" : v)}>
-                <SelectTrigger id="folder" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No folder</SelectItem>
-                  {folders.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={folderId || "none"} onValueChange={(v) => setFolderId(!v || v === "none" ? "" : v)}>
+                  <SelectTrigger id="folder" className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No folder</SelectItem>
+                    {folders.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => setCreatingFolder((v) => !v)}
+                  title="New folder"
+                >
+                  <Plus className="size-3.5" />
+                  New
+                </Button>
+              </div>
+              {creatingFolder && (
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Input
+                    autoFocus
+                    placeholder="Folder name…"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="h-8 text-sm flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); createNewFolder() }
+                      if (e.key === "Escape") { setCreatingFolder(false); setNewFolderName("") }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    onClick={createNewFolder}
+                    disabled={!newFolderName.trim()}
+                  >
+                    Create
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => { setCreatingFolder(false); setNewFolderName("") }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Tags */}
