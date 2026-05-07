@@ -81,7 +81,7 @@ const STATUS_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
 }
 
 const CONTRACT_TYPES = ["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"] as const
-const CURRENCIES = ["USD", "EUR", "GBP", "OTHER"] as const
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "OTHER"] as const
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
