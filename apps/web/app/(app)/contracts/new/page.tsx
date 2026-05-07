@@ -127,10 +127,16 @@ export default function NewContractPage() {
       if (file) {
         const fd = new FormData()
         fd.append("file", file)
-        await fetch(`/api/contracts/${contract.id}/upload`, {
+        const uploadRes = await fetch(`/api/contracts/${contract.id}/upload`, {
           method: "POST",
           body: fd,
         })
+        if (!uploadRes.ok) {
+          const uploadErr = await uploadRes.text().catch(() => "Upload failed")
+          toast.error(`Contract created but file upload failed: ${uploadErr}`)
+          router.push(`/contracts/${contract.id}`)
+          return
+        }
       }
 
       toast.success("Contract created")
