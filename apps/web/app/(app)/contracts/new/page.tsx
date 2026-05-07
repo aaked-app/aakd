@@ -373,11 +373,12 @@ export default function NewContractPage() {
             {/* Folder */}
             <div className="space-y-1.5">
               <Label htmlFor="folder">Folder</Label>
-              <Select value={folderId} onValueChange={(v) => setFolderId(v ?? "")}>
+              <Select value={folderId || "none"} onValueChange={(v) => setFolderId(v === "none" ? "" : v)}>
                 <SelectTrigger id="folder" className="w-full">
-                  <SelectValue placeholder="No folder" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">No folder</SelectItem>
                   {folders.map((f) => (
                     <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
