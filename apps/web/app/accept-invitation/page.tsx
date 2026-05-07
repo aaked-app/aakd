@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Shield, CheckCircle, XCircle, Loader2 } from "lucide-react"
@@ -10,7 +10,8 @@ import { organization, useSession } from "@/lib/auth/client"
 
 type State = "loading" | "accepting" | "success" | "no_id" | "error"
 
-export default function AcceptInvitationPage() {
+// Inner component that uses useSearchParams — must be inside <Suspense>
+function AcceptInvitationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, isPending: sessionLoading } = useSession()
@@ -128,5 +129,19 @@ export default function AcceptInvitationPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// useSearchParams() must be inside <Suspense> in Next.js App Router.
+// The outer page provides the boundary; the inner component does the work.
+export default function AcceptInvitationPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+        <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+      </div>
+    }>
+      <AcceptInvitationContent />
+    </Suspense>
   )
 }
