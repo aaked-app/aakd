@@ -34,11 +34,15 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma
 # prisma.config.ts is needed by Prisma 7 at runtime for migrate deploy
 COPY --from=builder /app/apps/web/prisma.config.ts ./
-# public/ is optional — only copy if it exists (Next.js creates it if needed)
+# With outputFileTracingRoot set to the monorepo root, the standalone
+# output mirrors the monorepo structure: server.js lives at apps/web/server.js
+# and root node_modules are at the top level.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./.next/static
+# Static assets must be at the path server.js expects
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
+WORKDIR /app
 # Run pending migrations then start the server
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node apps/web/server.js"]
