@@ -25,6 +25,8 @@ model User {
   versions       ContractVersion[]
   activities     Activity[]
   apiKeys        ApiKey[]
+  approvalRequests    Approval[] @relation("ApprovalRequester")
+  approvalAssignments Approval[] @relation("ApprovalAssignee")
 }
 
 model Session {
@@ -154,6 +156,7 @@ model Contract {
   tags                Tag[]
   extractions         AIExtraction[]
   alerts              ContractAlert[]
+  approvals           Approval[]
   extractedText       String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
@@ -296,4 +299,21 @@ model ContractAlert {
   emailSentAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// ─── M2: Approval Workflow ────────────────────────────────────────────────────
+
+model Approval {
+  id             String    @id @default(cuid())
+  contractId     String
+  contract       Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  assignedToId   String
+  assignedTo     User      @relation("ApprovalAssignee", fields: [assignedToId], references: [id])
+  status         String    @default("pending") // pending | approved | rejected
+  comment        String?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

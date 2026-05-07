@@ -139,3 +139,17 @@ export interface OrgMember {
   createdAt: string
   user: { id: string; name: string; email: string; image?: string | null }
 }
+
+export interface Approval {
+  id: string
+  contractId: string
+  requestedById: string
+  requestedBy: { id: string; name: string; email: string; image?: string | null }
+  assignedToId: string
+  assignedTo: { id: string; name: string; email: string; image?: string | null }
+  status: "pending" | "approved" | "rejected"
+  comment?: string | null
+  decidedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}

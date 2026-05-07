@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
+import { useSession } from "@/lib/auth/client"
 import Link from "next/link"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -14,8 +15,11 @@ import {
   Check,
   X,
   Plus,
-  AlertTriangle,
   Bell,
+  CheckCircle,
+  XCircle,
+  Clock,
+  UserCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,7 +54,7 @@ import { StatusBadge, TypeBadge } from "@/components/contract-badges"
 import { ActivityTimeline } from "@/components/activity-timeline"
 import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
-import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag } from "@/lib/types"
+import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface AIExtraction {
@@ -98,11 +102,21 @@ export default function ContractDetailPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
+  const { data: session } = useSession()
+
   const [contract, setContract] = useState<Contract | null>(null)
   const [files, setFiles] = useState<ContractFile[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [alerts, setAlerts] = useState<ContractAlert[]>([])
   const [extractions, setExtractions] = useState<AIExtraction[]>([])
+  const [approvals, setApprovals] = useState<Approval[]>([])
+  const [members, setMembers] = useState<OrgMember[]>([])
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [approvalAssigneeId, setApprovalAssigneeId] = useState("")
+  const [approvalMessage, setApprovalMessage] = useState("")
+  const [requestingApproval, setRequestingApproval] = useState(false)
+  const [decidingId, setDecidingId] = useState<string | null>(null)
+  const [decideComment, setDecideComment] = useState("")
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(searchParams.get("edit") === "true")
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -116,10 +130,11 @@ export default function ContractDetailPage() {
 
   const fetchContract = useCallback(async () => {
     try {
-      const [contractRes, alertsRes, extractionsRes] = await Promise.all([
+      const [contractRes, alertsRes, extractionsRes, approvalsRes] = await Promise.all([
         fetch(`/api/contracts/${id}`),
         fetch(`/api/alerts?contractId=${id}`),
         fetch(`/api/contracts/${id}/extractions`),
+        fetch(`/api/contracts/${id}/approvals`),
       ])
       if (!contractRes.ok) {
         toast.error("Contract not found")
@@ -139,6 +154,10 @@ export default function ContractDetailPage() {
         const extData = await extractionsRes.json()
         setExtractions(extData.extractions ?? [])
       }
+      if (approvalsRes.ok) {
+        const approvalData = await approvalsRes.json()
+        setApprovals(approvalData.approvals ?? [])
+      }
     } catch {
       toast.error("Failed to load contract")
     } finally {
@@ -149,6 +168,7 @@ export default function ContractDetailPage() {
   useEffect(() => {
     fetchContract()
     fetch("/api/tags").then(r => r.json()).then(d => setAllTags(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch("/api/org/members").then(r => r.json()).then(d => setMembers(Array.isArray(d) ? d : [])).catch(() => {})
   }, [fetchContract])
 
   async function changeStatus(newStatus: ContractStatus) {
@@ -313,6 +333,45 @@ export default function ContractDetailPage() {
     }
   }
 
+  async function requestApproval() {
+    if (!approvalAssigneeId) return
+    setRequestingApproval(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/approvals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedToId: approvalAssigneeId, message: approvalMessage || undefined }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      toast.success("Approval requested")
+      setApprovalOpen(false)
+      setApprovalAssigneeId("")
+      setApprovalMessage("")
+      fetchContract()
+    } catch {
+      toast.error("Failed to request approval")
+    } finally {
+      setRequestingApproval(false)
+    }
+  }
+
+  async function decideApproval(approvalId: string, decision: "approved" | "rejected", comment?: string) {
+    try {
+      const res = await fetch(`/api/contracts/${id}/approvals/${approvalId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, comment }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      toast.success(decision === "approved" ? "Approved" : "Rejected")
+      setDecidingId(null)
+      setDecideComment("")
+      fetchContract()
+    } catch {
+      toast.error("Failed to submit decision")
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-6 space-y-4">
@@ -332,6 +391,11 @@ export default function ContractDetailPage() {
   const transitions = STATUS_TRANSITIONS[contract.status] ?? []
   const latestFile = files.find((f) => f.isLatest) ?? files[0]
   const pendingExtractions = extractions.filter((e) => e.status === "PENDING")
+  const pendingApprovals = approvals.filter((a) => a.status === "pending")
+
+  // Determine if current user can request approvals (admin or legal in this org)
+  const currentMember = members.find((m) => m.userId === session?.user?.id)
+  const canRequestApproval = currentMember?.role === "admin" || currentMember?.role === "legal"
 
   return (
     <div className="p-6">
@@ -407,6 +471,14 @@ export default function ContractDetailPage() {
                 {pendingExtractions.length > 0 && (
                   <span className="ml-1.5 rounded bg-foreground px-1.5 py-0.5 text-xs font-medium text-background">
                     {pendingExtractions.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="approvals">
+                Approvals
+                {pendingApprovals.length > 0 && (
+                  <span className="ml-1.5 rounded bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white">
+                    {pendingApprovals.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -631,6 +703,156 @@ export default function ContractDetailPage() {
                   </div>
                 </>
               )}
+            </TabsContent>
+
+            {/* Approvals */}
+            <TabsContent value="approvals" className="mt-4">
+              <div className="rounded-lg border border-border bg-card p-5">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-foreground">Approval Requests</h3>
+                  {canRequestApproval && (
+                    <Button size="sm" onClick={() => setApprovalOpen(true)}>
+                      <UserCheck className="size-4" />
+                      Request Approval
+                    </Button>
+                  )}
+                </div>
+
+                {approvals.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    No approvals requested yet
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {approvals.map((approval) => {
+                      const isPending = approval.status === "pending"
+                      const isMyApproval = approval.assignedToId === session?.user?.id && isPending
+                      const isDeciding = decidingId === approval.id
+
+                      return (
+                        <div
+                          key={approval.id}
+                          className="rounded-lg border border-border p-4 space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex size-7 items-center justify-center rounded-full bg-muted shrink-0">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {approval.assignedTo.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">
+                                  {approval.assignedTo.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Requested by {approval.requestedBy.name} &middot;{" "}
+                                  <RelativeTime date={approval.createdAt} />
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Status badge */}
+                            {approval.status === "pending" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
+                                <Clock className="size-3" />
+                                Pending
+                              </span>
+                            )}
+                            {approval.status === "approved" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 shrink-0">
+                                <CheckCircle className="size-3" />
+                                Approved
+                              </span>
+                            )}
+                            {approval.status === "rejected" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400 shrink-0">
+                                <XCircle className="size-3" />
+                                Rejected
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Comment */}
+                          {approval.comment && (
+                            <p className="text-sm text-muted-foreground pl-9">{approval.comment}</p>
+                          )}
+
+                          {/* Decided at */}
+                          {approval.decidedAt && (
+                            <p className="text-xs text-muted-foreground pl-9">
+                              Decided <RelativeTime date={approval.decidedAt} />
+                            </p>
+                          )}
+
+                          {/* Action buttons for assigned user */}
+                          {isMyApproval && !isDeciding && (
+                            <div className="flex gap-2 pl-9 pt-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+                                onClick={() => setDecidingId(approval.id)}
+                              >
+                                <Check className="size-3.5" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                                onClick={() => setDecidingId(approval.id)}
+                              >
+                                <X className="size-3.5" />
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Inline decision form */}
+                          {isMyApproval && isDeciding && (
+                            <div className="pl-9 pt-1 space-y-2">
+                              <Textarea
+                                rows={2}
+                                placeholder="Optional comment..."
+                                value={decideComment}
+                                onChange={(e) => setDecideComment(e.target.value)}
+                                className="text-sm"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  onClick={() => decideApproval(approval.id, "approved", decideComment || undefined)}
+                                >
+                                  Confirm Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                                  onClick={() => decideApproval(approval.id, "rejected", decideComment || undefined)}
+                                >
+                                  Confirm Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7"
+                                  onClick={() => { setDecidingId(null); setDecideComment("") }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {/* Activity */}
@@ -933,6 +1155,51 @@ export default function ContractDetailPage() {
                 {uploading ? "Uploading..." : "Upload"}
               </Button>
               <Button variant="outline" onClick={() => setUploadOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Approval Dialog */}
+      <Dialog open={approvalOpen} onOpenChange={setApprovalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Approval</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-4">
+            <div className="space-y-1.5">
+              <Label>Reviewer</Label>
+              <Select value={approvalAssigneeId} onValueChange={(v) => setApprovalAssigneeId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select reviewer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members
+                    .filter((m) => m.userId !== session?.user?.id)
+                    .map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>
+                        {m.user.name} ({m.user.email})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Message (optional)</Label>
+              <Textarea
+                rows={3}
+                placeholder="Any notes for the reviewer..."
+                value={approvalMessage}
+                onChange={(e) => setApprovalMessage(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={requestApproval} disabled={!approvalAssigneeId || requestingApproval}>
+                {requestingApproval ? "Requesting..." : "Request Approval"}
+              </Button>
+              <Button variant="outline" onClick={() => setApprovalOpen(false)}>
                 Cancel
               </Button>
             </div>

@@ -19,8 +19,8 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      ".prisma/client": ["./node_modules/.prisma/client/index.d.ts"],
-      ".prisma/client/*": ["./node_modules/.prisma/client/*"]
+      ".prisma/client": ["../../node_modules/.pnpm/@prisma+client@7.8.0_prisma@7.8.0_@types+react-dom@18.3.7_@types+react@18.3.28__@types+_5b0af57f8cc45a1bc338319b134a2f06/node_modules/.prisma/client/index.d.ts"],
+      ".prisma/client/*": ["../../node_modules/.pnpm/@prisma+client@7.8.0_prisma@7.8.0_@types+react-dom@18.3.7_@types+react@18.3.28__@types+_5b0af57f8cc45a1bc338319b134a2f06/node_modules/.prisma/client/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
