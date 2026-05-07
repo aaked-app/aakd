@@ -32,6 +32,8 @@ RUN npm install -g prisma
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma
+# prisma.config.ts is needed by Prisma 7 at runtime for migrate deploy
+COPY --from=builder /app/apps/web/prisma.config.ts ./
 # public/ is optional — only copy if it exists (Next.js creates it if needed)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./.next/static
