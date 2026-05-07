@@ -6,7 +6,9 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/create-org",
+  "/accept-invitation",
   "/api/auth",
+  "/api/webhooks",
 ]
 
 export function middleware(req: NextRequest) {

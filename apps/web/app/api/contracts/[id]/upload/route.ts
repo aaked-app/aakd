@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -40,8 +40,14 @@ function validateFileType(
   if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
     return "application/pdf"
   }
+  // PK\x03\x04 = ZIP file header. Any DOCX is a ZIP, but not every ZIP is a DOCX.
+  // OOXML docs always contain a "word/" entry in the central directory; reject
+  // bare ZIPs (XLSX, ODT, generic .zip renamed to .docx, etc).
   if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
-    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if (buffer.includes(Buffer.from("word/"))) {
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    }
+    return null
   }
   return null
 }
@@ -51,6 +57,8 @@ const MAX_SIZE = 50 * 1024 * 1024 // 50MB
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     const existing = await prisma.contract.findUnique({
@@ -90,41 +98,46 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await storage.upload(key, buffer, mimeType)
 
-    // Find the current latest version number
-    const latestFile = await prisma.contractFile.findFirst({
-      where: { contractId: params.id },
-      orderBy: { version: "desc" },
-      select: { version: true },
-    })
-    const nextVersion = (latestFile?.version ?? 0) + 1
+    // Atomic: find prior latest, flip it, create new file + version row.
+    // Without a transaction, a crash between the updateMany and create leaves
+    // the contract with zero rows marked isLatest.
+    const { contractFile } = await prisma.$transaction(async (tx) => {
+      const latestFile = await tx.contractFile.findFirst({
+        where: { contractId: params.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      })
+      const nextVersion = (latestFile?.version ?? 0) + 1
 
-    // Unset previous latest
-    await prisma.contractFile.updateMany({
-      where: { contractId: params.id, isLatest: true },
-      data: { isLatest: false },
-    })
+      await tx.contractFile.updateMany({
+        where: { contractId: params.id, isLatest: true },
+        data: { isLatest: false },
+      })
 
-    const contractFile = await prisma.contractFile.create({
-      data: {
-        contractId: params.id,
-        filename,
-        storageKey: key,
-        mimeType,
-        sizeBytes: buffer.byteLength,
-        isLatest: true,
-        version: nextVersion,
-        uploadedById: ctx.userId,
-      },
-    })
+      const contractFile = await tx.contractFile.create({
+        data: {
+          contractId: params.id,
+          filename,
+          storageKey: key,
+          mimeType,
+          sizeBytes: buffer.byteLength,
+          isLatest: true,
+          version: nextVersion,
+          uploadedById: ctx.userId,
+        },
+      })
 
-    await prisma.contractVersion.create({
-      data: {
-        contractId: params.id,
-        version: nextVersion,
-        fileId: contractFile.id,
-        createdById: ctx.userId,
-        changeNote: `Uploaded ${filename}`,
-      },
+      await tx.contractVersion.create({
+        data: {
+          contractId: params.id,
+          version: nextVersion,
+          fileId: contractFile.id,
+          createdById: ctx.userId,
+          changeNote: `Uploaded ${filename}`,
+        },
+      })
+
+      return { contractFile }
     })
 
     await writeActivity(params.id, ctx.userId, "UPLOADED", filename)

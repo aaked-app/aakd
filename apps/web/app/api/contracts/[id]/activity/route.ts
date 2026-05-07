@@ -8,8 +8,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   return requestContext.run(ctx, async () => {
     const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10))
-    const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") ?? "50", 10)))
+    const page = (() => {
+      const n = parseInt(url.searchParams.get("page") ?? "1", 10)
+      return Number.isNaN(n) ? 1 : Math.max(1, n)
+    })()
+    const limit = (() => {
+      const n = parseInt(url.searchParams.get("limit") ?? "50", 10)
+      return Number.isNaN(n) ? 50 : Math.min(Math.max(1, n), 200)
+    })()
 
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },

@@ -17,6 +17,7 @@ const mockViewerCtx = {
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue(mockAdminCtx),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 // Mock alertsCheckQueue so no real Redis calls happen

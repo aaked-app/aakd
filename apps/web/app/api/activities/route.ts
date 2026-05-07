@@ -8,7 +8,10 @@ export async function GET(req: Request) {
 
   return requestContext.run(ctx, async () => {
     const url = new URL(req.url)
-    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "10", 10)))
+    const limit = (() => {
+      const n = parseInt(url.searchParams.get("limit") ?? "10", 10)
+      return Number.isNaN(n) ? 10 : Math.min(Math.max(1, n), 50)
+    })()
 
     const activities = await prisma.activity.findMany({
       where: {

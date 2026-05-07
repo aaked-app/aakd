@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -62,6 +62,8 @@ const FIELD_MAP: Record<string, { column: string; coerce: CoerceFn }> = {
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     // Org-scope check

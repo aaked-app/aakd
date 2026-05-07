@@ -54,10 +54,23 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
       (await bcrypt.compare(bearer, apiKey.keyHash))
     ) {
       prisma.apiKey.update({ where: { lookupHash }, data: { lastUsedAt: new Date() } }).catch(() => {})
+
+      // Inherit the role from the creator's org membership; fall back to "member"
+      // so an API key never silently grants more privilege than its creator has.
+      const creatorMember = await prisma.member.findUnique({
+        where: {
+          userId_organizationId: {
+            userId: apiKey.createdById,
+            organizationId: apiKey.organizationId,
+          },
+        },
+        select: { role: true },
+      })
+
       return {
         userId: apiKey.createdById,
         organizationId: apiKey.organizationId,
-        role: "admin",
+        role: creatorMember?.role ?? "member",
         scopes: apiKey.scopes,
         source: "api_key",
       }
@@ -69,4 +82,18 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
 
 export function requireAuth(ctx: RequestContext | null): ctx is RequestContext {
   return ctx !== null
+}
+
+/**
+ * For API key contexts, enforce that the key carries the "write" scope.
+ * Session-based contexts always pass (scopes only apply to keys).
+ * Returns a 403 Response if the key is read-only, otherwise null.
+ */
+export function requireWriteScope(ctx: RequestContext): Response | null {
+  if (ctx.source !== "api_key") return null
+  if (ctx.scopes?.includes("write")) return null
+  return Response.json(
+    { error: "API key is read-only — write scope required" },
+    { status: 403 },
+  )
 }

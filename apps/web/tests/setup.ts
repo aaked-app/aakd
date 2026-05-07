@@ -7,8 +7,8 @@ vi.mock("@/lib/jobs/queues", () => ({
   contractEmbedQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
 }))
 
-vi.mock("@/lib/db/client", () => ({
-  prisma: {
+vi.mock("@/lib/db/client", () => {
+  const prisma: any = {
     contract: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     activity: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     contractFile: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
@@ -23,8 +23,16 @@ vi.mock("@/lib/db/client", () => ({
     aIExtraction: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), upsert: vi.fn() },
     contractAlert: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
     approval: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-    $transaction: vi.fn(),
     $use: vi.fn(),
     $queryRaw: vi.fn(),
-  },
-}))
+  }
+  // $transaction supports both array form (Promise.all) and callback form
+  // (interactive). Keep a default that mirrors real semantics so tests don't
+  // need to mock it per-case.
+  prisma.$transaction = vi.fn().mockImplementation(async (arg: unknown) => {
+    if (typeof arg === "function") return (arg as (tx: typeof prisma) => Promise<unknown>)(prisma)
+    if (Array.isArray(arg)) return Promise.all(arg)
+    return arg
+  })
+  return { prisma }
+})

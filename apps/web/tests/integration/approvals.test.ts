@@ -13,6 +13,7 @@ const mockCtx = {
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue(mockCtx),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 vi.mock("@/lib/db/activity", () => ({

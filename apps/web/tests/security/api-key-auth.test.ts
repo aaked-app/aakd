@@ -20,6 +20,7 @@ vi.mock("@/lib/auth/middleware", () => ({
     role: "admin",
     source: "session" as const,
   }),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 describe("API key GET response — no raw material leaked", () => {

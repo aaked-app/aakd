@@ -8,6 +8,7 @@ vi.mock("@/lib/auth/middleware", () => ({
     role: "admin",
     source: "session" as const,
   }),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 vi.mock("@/lib/db/activity", () => ({

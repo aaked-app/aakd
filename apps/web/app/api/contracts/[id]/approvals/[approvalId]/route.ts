@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -25,12 +25,14 @@ export async function PATCH(
 ) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     // Org-scope check on the contract
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { id: true, organizationId: true },
+      select: { id: true, organizationId: true, status: true },
     })
     if (!contract || contract.organizationId !== ctx.organizationId) {
       return Response.json({ error: "Not Found" }, { status: 404 })
@@ -58,6 +60,11 @@ export async function PATCH(
       return Response.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // Reject re-decisions — approvals are write-once.
+    if (approval.status !== "pending") {
+      return Response.json({ error: "Approval already decided" }, { status: 409 })
+    }
+
     // Update the approval record
     const updated = await prisma.approval.update({
       where: { id: params.approvalId },
@@ -81,6 +88,21 @@ export async function PATCH(
         : "Rejected"
 
     await writeActivity(params.id, ctx.userId, action, detail)
+
+    // On approval, auto-advance contract from PENDING_APPROVAL → AWAITING_SIGNATURE.
+    if (body.decision === "approved" && contract.status === "PENDING_APPROVAL") {
+      await prisma.contract.update({
+        where: { id: params.id },
+        data: { status: "AWAITING_SIGNATURE" },
+      })
+      await writeActivity(
+        params.id,
+        ctx.userId,
+        "STATUS_CHANGED",
+        "PENDING_APPROVAL → AWAITING_SIGNATURE",
+        { from: "PENDING_APPROVAL", to: "AWAITING_SIGNATURE" },
+      )
+    }
 
     return Response.json({ approval: updated })
   })

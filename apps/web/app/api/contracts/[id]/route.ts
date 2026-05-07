@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -43,11 +43,44 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   return requestContext.run(ctx, async () => {
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        contractType: true,
+        status: true,
+        ownerId: true,
+        counterpartyName: true,
+        counterpartyContact: true,
+        value: true,
+        currency: true,
+        governingLaw: true,
+        startDate: true,
+        endDate: true,
+        renewalDate: true,
+        noticePeriodDays: true,
+        autoRenewal: true,
+        notes: true,
+        organizationId: true,
+        folderId: true,
+        docusealSubmissionId: true,
+        signingUrl: true,
+        createdAt: true,
+        updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
         tags: true,
         folder: true,
-        files: { orderBy: { createdAt: "desc" }, take: 1 },
+        files: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            filename: true,
+            sizeBytes: true,
+            mimeType: true,
+            isLatest: true,
+            createdAt: true,
+          },
+        },
         versions: { orderBy: { version: "desc" } },
         activities: {
           orderBy: { createdAt: "desc" },
@@ -59,13 +92,23 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     })
 
     if (!contract) return new Response("Not Found", { status: 404 })
-    return Response.json(contract)
+
+    // The detail page only needs to know if extractedText exists (to gate the
+    // Ask AI panel) — /ask fetches the real text. Keep the response light by
+    // only fetching a presence flag.
+    const presence = await prisma.contract.count({
+      where: { id: params.id, extractedText: { not: null } },
+    })
+
+    return Response.json({ ...contract, hasExtractedText: presence > 0 })
   })
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     let body: unknown
@@ -156,6 +199,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     const existing = await prisma.contract.findUnique({

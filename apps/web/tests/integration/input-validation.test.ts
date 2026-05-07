@@ -8,6 +8,7 @@ vi.mock("@/lib/auth/middleware", () => ({
     role: "admin",
     source: "session" as const,
   }),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 vi.mock("@/lib/db/activity", () => ({
@@ -310,11 +311,34 @@ describe("Input validation — file upload", () => {
     vi.mocked(prisma.contractVersion.create).mockResolvedValue({} as any)
 
     const { POST } = await import("@/app/api/contracts/[id]/upload/route")
-    const docxBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+    // Real DOCX = ZIP (PK\x03\x04) containing a "word/" entry. We rebuild a
+    // minimal sniffable buffer rather than ship a fixture.
+    const docxBytes = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      Buffer.from("word/document.xml"),
+    ])
     const req = makeUploadRequest(docxBytes, "test.docx")
     const res = await POST(req, { params: { id: "c1" } })
 
     expect(res.status).toBe(201)
+  })
+
+  it("rejects a generic ZIP that is not a DOCX (PK header but no word/ entry)", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "c1",
+      organizationId: "org-1",
+    } as any)
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    // Looks like a ZIP (and could even be XLSX) but does not contain "word/"
+    const zipBytes = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      Buffer.from("xl/workbook.xml"),
+    ])
+    const req = makeUploadRequest(zipBytes, "test.xlsx")
+    const res = await POST(req, { params: { id: "c1" } })
+
+    expect(res.status).toBe(415)
   })
 
   it("rejects missing file field", async () => {

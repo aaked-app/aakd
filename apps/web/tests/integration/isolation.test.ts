@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db/client"
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn(),
+  requireWriteScope: vi.fn(() => null),
 }))
 
 vi.mock("@/lib/db/activity", () => ({
