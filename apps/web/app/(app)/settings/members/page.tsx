@@ -6,6 +6,7 @@ import { format } from "date-fns"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -88,13 +89,13 @@ export default function MembersPage() {
   return (
     <div className="p-6 space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold">Members</h1>
-        <p className="text-sm text-muted-foreground">Manage who has access to your organization</p>
+        <h1 className="text-xl font-semibold text-zinc-900">Members</h1>
+        <p className="text-sm text-zinc-500">Manage who has access to your organization</p>
       </div>
 
       {/* Invite form */}
-      <div className="rounded-xl border border-border p-4 space-y-4">
-        <h2 className="text-sm font-medium">Invite Member</h2>
+      <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-zinc-900">Invite Member</h2>
         <form onSubmit={invite} className="flex gap-2">
           <Input
             type="email"
@@ -119,27 +120,27 @@ export default function MembersPage() {
       </div>
 
       {/* Members table */}
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40">
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Member</th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Role</th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Joined</th>
+            <tr className="border-b border-zinc-200 bg-zinc-50">
+              <th className="text-left px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500">Member</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500">Role</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500">Joined</th>
               <th className="px-4 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
-                <tr key={i} className="border-b border-border last:border-0">
+                <tr key={i} className="border-b border-zinc-200 last:border-0">
                   {Array.from({ length: 4 }).map((_, j) => (
                     <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>
               ))
             ) : members.map((m) => (
-              <tr key={m.id} className="border-b border-border last:border-0">
+              <tr key={m.id} className="border-b border-zinc-200 last:border-0">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <Avatar size="sm">
@@ -147,8 +148,8 @@ export default function MembersPage() {
                       <AvatarFallback>{getInitials(m.user.name)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{m.user.name}</p>
-                      <p className="text-xs text-muted-foreground">{m.user.email}</p>
+                      <p className="font-medium text-zinc-900">{m.user.name}</p>
+                      <p className="text-xs text-zinc-500">{m.user.email}</p>
                     </div>
                   </div>
                 </td>
@@ -162,14 +163,14 @@ export default function MembersPage() {
                     </SelectContent>
                   </Select>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">
+                <td className="px-4 py-3 text-zinc-500">
                   {format(new Date(m.createdAt), "MMM d, yyyy")}
                 </td>
                 <td className="px-4 py-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    className="h-7 w-7 text-zinc-400 hover:text-destructive"
                     onClick={() => removeMember(m.id)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

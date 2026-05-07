@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, FileText, Search, Settings, LogOut, Moon, Sun } from "lucide-react"
+import { LayoutDashboard, FileText, Search, Settings, LogOut, Moon, Sun, Shield, ChevronLeft, ChevronRight } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useSession, useActiveOrganization, signOut } from "@/lib/auth/client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -32,7 +32,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="text-muted-foreground hover:text-foreground transition-colors"
+      className="text-zinc-400 hover:text-white transition-colors"
       aria-label="Toggle theme"
     >
       <Sun className="size-4 dark:hidden" />
@@ -46,6 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session, isPending } = useSession()
   const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -76,13 +77,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card">
+      <aside
+        className={cn(
+          "flex h-screen shrink-0 flex-col bg-zinc-900 text-white transition-all duration-200",
+          collapsed ? "w-16" : "w-[220px]",
+        )}
+      >
         {/* Logo */}
-        <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-          <div className="flex size-7 items-center justify-center rounded bg-foreground">
-            <span className="text-xs font-bold text-background">CF</span>
-          </div>
-          <span className="text-sm font-semibold text-foreground">ClauseFlow</span>
+        <div className="flex h-14 items-center gap-2 border-b border-zinc-800 px-3">
+          <Shield className="size-6 shrink-0 text-indigo-400" />
+          {!collapsed && (
+            <span className="text-sm font-semibold text-white">ClauseFlow</span>
+          )}
         </div>
 
         {/* Navigation */}
@@ -98,47 +104,70 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   key={href}
                   href={href}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                      ? "bg-indigo-600 text-white"
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-white",
                   )}
+                  title={collapsed ? label : undefined}
                 >
-                  <Icon className="size-4" />
-                  <span>{label}</span>
+                  <Icon className="size-4 shrink-0" />
+                  {!collapsed && <span>{label}</span>}
                 </Link>
               )
             })}
           </div>
         </nav>
 
+        {/* Collapse toggle */}
+        <div className="border-t border-zinc-800 px-3 py-2">
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="flex w-full items-center gap-2.5 rounded-md px-0 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <ChevronRight className="size-4 shrink-0" />
+            ) : (
+              <>
+                <ChevronLeft className="size-4 shrink-0" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* User section */}
-        <div className="border-t border-border p-3">
-          <div className="flex items-center gap-2.5">
-            <Avatar className="size-7">
+        <div className="border-t border-zinc-800 p-3">
+          <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
+            <Avatar className="size-7 shrink-0">
               {session.user.image && <AvatarImage src={session.user.image} />}
-              <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">
+              <AvatarFallback className="bg-zinc-700 text-xs font-medium text-white">
                 {getInitials(session.user.name ?? session.user.email)}
               </AvatarFallback>
             </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
-                {session.user.name ?? session.user.email}
-              </p>
-              {activeOrg && (
-                <p className="truncate text-xs text-muted-foreground">{activeOrg.name}</p>
-              )}
-            </div>
-            <ThemeToggle />
-            <button
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() =>
-                signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
-              }
-              aria-label="Sign out"
-            >
-              <LogOut className="size-4" />
-            </button>
+            {!collapsed && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">
+                    {session.user.name ?? session.user.email}
+                  </p>
+                  {activeOrg && (
+                    <p className="truncate text-xs text-zinc-400">{activeOrg.name}</p>
+                  )}
+                </div>
+                <ThemeToggle />
+                <button
+                  className="text-zinc-400 hover:text-white transition-colors"
+                  onClick={() =>
+                    signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
+                  }
+                  aria-label="Sign out"
+                >
+                  <LogOut className="size-4" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </aside>

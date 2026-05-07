@@ -1,58 +1,73 @@
 import { cn } from "@/lib/utils"
 import { ContractStatus, ContractType } from "@/lib/types"
 
-const statusConfig: Record<ContractStatus, { label: string; dot: string }> = {
-  ACTIVE:              { label: "Active",             dot: "bg-emerald-500" },
-  DRAFT:               { label: "Draft",              dot: "bg-zinc-400" },
-  INTERNAL_REVIEW:     { label: "Internal Review",    dot: "bg-blue-500" },
-  PENDING_APPROVAL:    { label: "Pending Approval",   dot: "bg-amber-500" },
-  AWAITING_SIGNATURE:  { label: "Awaiting Signature", dot: "bg-violet-500" },
-  EXPIRED:             { label: "Expired",            dot: "bg-red-500" },
-  TERMINATED:          { label: "Terminated",         dot: "bg-red-600" },
-  ARCHIVED:            { label: "Archived",           dot: "bg-zinc-300" },
+const statusConfig: Record<ContractStatus, { label: string; className: string }> = {
+  ACTIVE:              { label: "Active",             className: "bg-emerald-100 text-emerald-700" },
+  DRAFT:               { label: "Draft",              className: "bg-zinc-100 text-zinc-700" },
+  INTERNAL_REVIEW:     { label: "Internal Review",    className: "bg-blue-100 text-blue-700" },
+  PENDING_APPROVAL:    { label: "Pending Approval",   className: "bg-amber-100 text-amber-700" },
+  AWAITING_SIGNATURE:  { label: "Awaiting Signature", className: "bg-violet-100 text-violet-700" },
+  EXPIRED:             { label: "Expired",            className: "bg-red-100 text-red-700" },
+  TERMINATED:          { label: "Terminated",         className: "bg-red-200 text-red-800" },
+  ARCHIVED:            { label: "Archived",           className: "border border-zinc-300 bg-transparent text-zinc-500" },
 }
 
-const typeLabels: Record<ContractType, string> = {
-  NDA:        "NDA",
-  MSA:        "MSA",
-  SOW:        "SOW",
-  EMPLOYMENT: "Employment",
-  VENDOR:     "Vendor",
-  CUSTOMER:   "Customer",
-  OTHER:      "Other",
+const typeConfig: Record<ContractType, { label: string; className: string }> = {
+  NDA:        { label: "NDA",        className: "bg-indigo-100 text-indigo-700" },
+  MSA:        { label: "MSA",        className: "bg-violet-100 text-violet-700" },
+  SOW:        { label: "SOW",        className: "bg-cyan-100 text-cyan-700" },
+  EMPLOYMENT: { label: "Employment", className: "bg-emerald-100 text-emerald-700" },
+  VENDOR:     { label: "Vendor",     className: "bg-orange-100 text-orange-700" },
+  CUSTOMER:   { label: "Customer",   className: "bg-pink-100 text-pink-700" },
+  OTHER:      { label: "Other",      className: "bg-zinc-100 text-zinc-600" },
 }
 
 export function StatusBadge({ status }: { status: ContractStatus }) {
-  const config = statusConfig[status] ?? { label: status, dot: "bg-zinc-400" }
+  const config = statusConfig[status] ?? { label: status, className: "bg-zinc-100 text-zinc-600" }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("inline-block size-1.5 rounded-full", config.dot)} />
-      <span className="text-sm text-foreground">{config.label}</span>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        config.className,
+      )}
+    >
+      {config.label}
     </span>
   )
 }
 
 export function TypeBadge({ type }: { type: ContractType | null | undefined }) {
   if (!type) return null
+  const config = typeConfig[type] ?? { label: type, className: "bg-zinc-100 text-zinc-600" }
   return (
-    <span className="inline-flex items-center rounded bg-secondary px-2 py-0.5 text-xs font-medium text-foreground">
-      {typeLabels[type] ?? type}
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        config.className,
+      )}
+    >
+      {config.label}
     </span>
   )
 }
 
 export function DaysRemainingBadge({ days }: { days: number }) {
-  const color =
+  const className =
     days <= 0
-      ? "text-red-600 dark:text-red-400"
+      ? "bg-red-100 text-red-700"
       : days <= 7
-        ? "text-red-600 dark:text-red-400"
+        ? "bg-red-100 text-red-700"
         : days <= 30
-          ? "text-amber-600 dark:text-amber-400"
-          : "text-emerald-600 dark:text-emerald-400"
+          ? "bg-amber-100 text-amber-700"
+          : "bg-zinc-100 text-zinc-600"
 
   return (
-    <span className={cn("shrink-0 text-xs tabular-nums font-medium", color)}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+        className,
+      )}
+    >
       {days <= 0 ? "Expired" : `${days}d`}
     </span>
   )

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { cookies } from "next/headers"
 import { differenceInDays, formatDistanceToNow } from "date-fns"
+import { Upload, FileText, Archive, Sparkles, CheckCircle, XCircle } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge, DaysRemainingBadge } from "@/components/contract-badges"
 import {
@@ -12,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Contract, ContractAlert, Activity } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 async function apiFetch<T>(path: string): Promise<T | null> {
   try {
@@ -42,6 +44,56 @@ const ACTION_VERBS: Partial<Record<string, string>> = {
   REJECTED:           "rejected",
 }
 
+function ActivityIcon({ action }: { action: string }) {
+  if (action === "CREATED" || action === "UPLOADED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-indigo-50">
+        <Upload className="size-3 text-indigo-500" />
+      </span>
+    )
+  }
+  if (action === "UPDATED" || action === "METADATA_UPDATED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-zinc-100">
+        <FileText className="size-3 text-zinc-500" />
+      </span>
+    )
+  }
+  if (action === "ARCHIVED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-zinc-100">
+        <Archive className="size-3 text-zinc-500" />
+      </span>
+    )
+  }
+  if (action === "METADATA_EXTRACTED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-violet-50">
+        <Sparkles className="size-3 text-violet-500" />
+      </span>
+    )
+  }
+  if (action === "SIGNED" || action === "APPROVED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-emerald-50">
+        <CheckCircle className="size-3 text-emerald-500" />
+      </span>
+    )
+  }
+  if (action === "REJECTED") {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-red-50">
+        <XCircle className="size-3 text-red-500" />
+      </span>
+    )
+  }
+  return (
+    <span className="flex size-6 items-center justify-center rounded-full bg-zinc-100">
+      <FileText className="size-3 text-zinc-400" />
+    </span>
+  )
+}
+
 type ActivityWithContract = Activity & {
   contract?: { id: string; title: string } | null
 }
@@ -66,27 +118,27 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
+      <h1 className="text-xl font-semibold text-zinc-900">Dashboard</h1>
 
       {/* Stat Cards */}
-      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Total Contracts" value={total} />
-        <StatCard title="Active" value={active} />
-        <StatCard title="Expiring Soon" value={expiringSoon} subtitle="Next 30 days" />
-        <StatCard title="Expired" value={expired} />
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard title="Total Contracts" value={total} variant="default" />
+        <StatCard title="Active" value={active} variant="default" />
+        <StatCard title="Expiring Soon" value={expiringSoon} subtitle="Next 30 days" variant="warning" />
+        <StatCard title="Expired" value={expired} variant="danger" />
       </div>
 
       {/* Two Column Layout */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Recent Contracts */}
-        <div className="rounded-lg border border-border bg-card lg:col-span-2">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-medium text-foreground">Recent Contracts</h2>
+        <div className="rounded-lg border border-zinc-200 bg-white lg:col-span-2">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-zinc-900">Recent Contracts</h2>
           </div>
           {recentContracts.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="px-4 py-8 text-center text-sm text-zinc-500">
               No contracts yet.{" "}
-              <Link href="/contracts/new" className="text-foreground underline underline-offset-4">
+              <Link href="/contracts/new" className="text-zinc-900 underline underline-offset-4">
                 Upload your first
               </Link>
             </p>
@@ -94,30 +146,30 @@ export default async function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Name</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Counterparty</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Status</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">End Date</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Name</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Counterparty</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Status</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">End Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentContracts.map((c) => (
-                  <TableRow key={c.id} className="hover:bg-muted/50">
+                  <TableRow key={c.id} className="hover:bg-zinc-50">
                     <TableCell className="py-2.5">
                       <Link
                         href={`/contracts/${c.id}`}
-                        className="text-sm font-medium text-foreground hover:underline"
+                        className="text-sm font-medium text-zinc-900 hover:underline"
                       >
                         {c.title}
                       </Link>
                     </TableCell>
-                    <TableCell className="py-2.5 text-sm text-muted-foreground">
+                    <TableCell className="py-2.5 text-sm text-zinc-500">
                       {c.counterpartyName ?? "—"}
                     </TableCell>
                     <TableCell className="py-2.5">
                       <StatusBadge status={c.status} />
                     </TableCell>
-                    <TableCell className="py-2.5 text-sm text-muted-foreground">
+                    <TableCell className="py-2.5 text-sm text-zinc-500">
                       {c.endDate
                         ? new Date(c.endDate).toLocaleDateString("en-US", {
                             month: "short",
@@ -136,13 +188,13 @@ export default async function DashboardPage() {
         {/* Right Column */}
         <div className="space-y-4">
           {/* Expiring Soon */}
-          <div className="rounded-lg border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-medium text-foreground">Expiring Soon</h2>
+          <div className="rounded-lg border border-zinc-200 bg-white">
+            <div className="border-b border-zinc-200 px-4 py-3">
+              <h2 className="text-sm font-semibold text-zinc-900">Expiring Soon</h2>
             </div>
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-zinc-100">
               {alerts.filter((a) => !a.firedAt).length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <p className="px-4 py-6 text-center text-sm text-zinc-500">
                   No contracts expiring soon
                 </p>
               ) : (
@@ -160,14 +212,14 @@ export default async function DashboardPage() {
                           {alert.contract ? (
                             <Link
                               href={`/contracts/${alert.contract.id}`}
-                              className="block truncate text-sm font-medium text-foreground hover:underline"
+                              className="block truncate text-sm font-medium text-zinc-900 hover:underline"
                             >
                               {alert.contract.title}
                             </Link>
                           ) : (
-                            <p className="truncate text-sm text-muted-foreground">Unknown</p>
+                            <p className="truncate text-sm text-zinc-500">Unknown</p>
                           )}
-                          <p className="truncate text-xs text-muted-foreground">
+                          <p className="truncate text-xs text-zinc-500">
                             {alert.alertType.replace(/_/g, " ")}
                           </p>
                         </div>
@@ -180,13 +232,13 @@ export default async function DashboardPage() {
           </div>
 
           {/* Activity */}
-          <div className="rounded-lg border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-medium text-foreground">Activity</h2>
+          <div className="rounded-lg border border-zinc-200 bg-white">
+            <div className="border-b border-zinc-200 px-4 py-3">
+              <h2 className="text-sm font-semibold text-zinc-900">Activity</h2>
             </div>
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-zinc-100">
               {activities.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <p className="px-4 py-6 text-center text-sm text-zinc-500">
                   No recent activity
                 </p>
               ) : (
@@ -197,22 +249,25 @@ export default async function DashboardPage() {
                   const contractId = a.contract?.id
                   const ago = formatDistanceToNow(new Date(a.createdAt), { addSuffix: true })
                   return (
-                    <div key={a.id} className="px-4 py-2.5">
-                      <p className="text-sm text-muted-foreground leading-snug">
-                        <span className="font-medium text-foreground">{actor}</span>{" "}
-                        {verb}{" "}
-                        {contractTitle && contractId ? (
-                          <Link
-                            href={`/contracts/${contractId}`}
-                            className="font-medium text-foreground hover:underline"
-                          >
-                            {contractTitle}
-                          </Link>
-                        ) : contractTitle ? (
-                          <span className="font-medium text-foreground">{contractTitle}</span>
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{ago}</p>
+                    <div key={a.id} className="flex items-start gap-3 px-4 py-2.5">
+                      <ActivityIcon action={a.action} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-zinc-500 leading-snug">
+                          <span className="font-medium text-zinc-900">{actor}</span>{" "}
+                          {verb}{" "}
+                          {contractTitle && contractId ? (
+                            <Link
+                              href={`/contracts/${contractId}`}
+                              className="font-medium text-zinc-900 hover:underline"
+                            >
+                              {contractTitle}
+                            </Link>
+                          ) : contractTitle ? (
+                            <span className="font-medium text-zinc-900">{contractTitle}</span>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-500">{ago}</p>
+                      </div>
                     </div>
                   )
                 })

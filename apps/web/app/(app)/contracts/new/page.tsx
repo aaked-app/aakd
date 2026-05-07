@@ -145,10 +145,10 @@ export default function NewContractPage() {
   return (
     <div className="flex h-full flex-col items-center overflow-auto p-6">
       {/* Back button */}
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-2xl">
         <button
           onClick={() => (step > 1 ? setStep(step - 1) : router.back())}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
         >
           <ChevronLeft className="size-4" />
           {step > 1 ? "Back" : "Cancel"}
@@ -163,11 +163,9 @@ export default function NewContractPage() {
               <div
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full text-sm font-medium",
-                  step === s.number
-                    ? "bg-foreground text-background"
-                    : step > s.number
-                      ? "bg-foreground text-background opacity-40"
-                      : "border border-border bg-background text-muted-foreground",
+                  step === s.number || step > s.number
+                    ? "bg-indigo-600 text-white"
+                    : "bg-zinc-200 text-zinc-600",
                 )}
               >
                 {s.number}
@@ -175,7 +173,7 @@ export default function NewContractPage() {
               <span
                 className={cn(
                   "text-xs font-medium",
-                  step === s.number ? "text-foreground" : "text-muted-foreground",
+                  step === s.number ? "text-zinc-900" : "text-zinc-500",
                 )}
               >
                 {s.label}
@@ -185,7 +183,7 @@ export default function NewContractPage() {
               <div
                 className={cn(
                   "mx-3 mb-5 h-px w-20",
-                  step > s.number ? "bg-foreground/40" : "bg-border",
+                  step > s.number ? "bg-indigo-600" : "bg-zinc-200",
                 )}
               />
             )}
@@ -194,12 +192,12 @@ export default function NewContractPage() {
       </div>
 
       {/* Step content */}
-      <div className="mt-6 w-full max-w-lg">
+      <div className="mt-6 w-full max-w-2xl">
         {step === 1 && (
-          <div className="rounded-lg border border-border bg-card p-6 space-y-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-5">
             <div>
-              <p className="text-sm font-medium text-foreground">Upload Contract</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">Upload your document and enter basic information.</p>
+              <p className="text-sm font-medium text-zinc-900">Upload Contract</p>
+              <p className="mt-0.5 text-sm text-zinc-500">Upload your document and enter basic information.</p>
             </div>
 
             <FileUploadZone onFileSelect={handleFileSelect} />
@@ -257,10 +255,10 @@ export default function NewContractPage() {
         )}
 
         {step === 2 && (
-          <div className="rounded-lg border border-border bg-card p-6 space-y-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-5">
             <div>
-              <p className="text-sm font-medium text-foreground">Contract Details</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">Add dates, value, and any additional notes.</p>
+              <p className="text-sm font-medium text-zinc-900">Contract Details</p>
+              <p className="mt-0.5 text-sm text-zinc-500">Add dates, value, and any additional notes.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -294,10 +292,10 @@ export default function NewContractPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+            <div className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Auto-renewal</p>
-                <p className="text-xs text-muted-foreground">Contract renews automatically at expiry</p>
+                <p className="text-sm font-medium text-zinc-900">Auto-renewal</p>
+                <p className="text-xs text-zinc-500">Contract renews automatically at expiry</p>
               </div>
               <Switch checked={autoRenewal} onCheckedChange={setAutoRenewal} />
             </div>
@@ -366,10 +364,10 @@ export default function NewContractPage() {
         )}
 
         {step === 3 && (
-          <div className="rounded-lg border border-border bg-card p-6 space-y-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-5">
             <div>
-              <p className="text-sm font-medium text-foreground">Organize</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">Add this contract to a folder and tag it for easy discovery.</p>
+              <p className="text-sm font-medium text-zinc-900">Organize</p>
+              <p className="mt-0.5 text-sm text-zinc-500">Add this contract to a folder and tag it for easy discovery.</p>
             </div>
 
             {/* Folder */}
@@ -398,10 +396,10 @@ export default function NewContractPage() {
                       type="button"
                       onClick={() => toggleTag(tag.id)}
                       className={cn(
-                        "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                         selectedTagIds.has(tag.id)
-                          ? "bg-foreground text-background"
-                          : "bg-muted text-muted-foreground hover:text-foreground",
+                          ? "bg-indigo-600 text-white"
+                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
                       )}
                     >
                       {tag.name}

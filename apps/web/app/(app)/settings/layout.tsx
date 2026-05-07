@@ -9,12 +9,12 @@ const settingsLinks = [
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-full">
-      <nav className="w-48 shrink-0 border-r border-border p-4 space-y-0.5">
+      <nav className="w-48 shrink-0 border-r border-zinc-200 bg-white p-4 space-y-0.5">
         {settingsLinks.map(({ label, href }) => (
           <Link
             key={href}
             href={href}
-            className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="block rounded-md px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
           >
             {label}
           </Link>

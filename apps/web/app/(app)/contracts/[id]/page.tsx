@@ -93,8 +93,8 @@ function MetaField({ label, value }: { label: string; value?: string | number | 
   if (value == null || value === "") return null
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm text-foreground">{String(value)}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-0.5 text-sm text-zinc-900">{String(value)}</p>
     </div>
   )
 }
@@ -450,18 +450,18 @@ export default function ContractDetailPage() {
   return (
     <div className="p-6">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/contracts" className="hover:text-foreground">
+      <nav className="flex items-center gap-1 text-sm text-zinc-500">
+        <Link href="/contracts" className="hover:text-zinc-900">
           Contracts
         </Link>
         <ChevronRight className="size-3.5" />
-        <span className="text-foreground">{contract.title}</span>
+        <span className="text-zinc-900">{contract.title}</span>
       </nav>
 
       {/* Header */}
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl font-semibold text-foreground">{contract.title}</h1>
+          <h1 className="text-xl font-semibold text-zinc-900">{contract.title}</h1>
           <StatusBadge status={contract.status} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -480,12 +480,12 @@ export default function ContractDetailPage() {
             </Select>
           )}
           {latestFile && (
-            <Button variant="outline" size="sm" onClick={() => downloadFile(latestFile.id, latestFile.filename)}>
+            <Button variant="outline" size="sm" className="border-zinc-300 text-zinc-700 hover:bg-zinc-50" onClick={() => downloadFile(latestFile.id, latestFile.filename)}>
               <Download className="size-4" />
               Download
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+          <Button variant="outline" size="sm" className="border-zinc-300 text-zinc-700 hover:bg-zinc-50" onClick={() => setUploadOpen(true)}>
             <Upload className="size-4" />
             Upload
           </Button>
@@ -499,14 +499,14 @@ export default function ContractDetailPage() {
               {sendingForSignature ? "Sending..." : "Send for Signature"}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+          <Button variant="outline" size="sm" className="border-zinc-300 text-zinc-700 hover:bg-zinc-50" onClick={() => setEditOpen(true)}>
             Edit
           </Button>
           {contract.status !== "ARCHIVED" && (
             <Button
               variant="outline"
               size="sm"
-              className="border-destructive/30 text-destructive hover:bg-destructive/10"
+              className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
               onClick={() => changeStatus("ARCHIVED")}
             >
               <Archive className="size-4" />
@@ -521,20 +521,34 @@ export default function ContractDetailPage() {
         {/* Left Column — Tabs */}
         <div className="col-span-12 lg:col-span-8">
           <Tabs defaultValue="overview">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="documents">
+            <TabsList className="h-auto rounded-none border-b border-zinc-200 bg-transparent p-0">
+              <TabsTrigger
+                value="overview"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
+                Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="documents"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
                 Documents{files.length > 0 && ` (${files.length})`}
               </TabsTrigger>
-              <TabsTrigger value="ai-extractions">
+              <TabsTrigger
+                value="ai-extractions"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
                 AI Extractions
                 {pendingExtractions.length > 0 && (
-                  <span className="ml-1.5 rounded bg-foreground px-1.5 py-0.5 text-xs font-medium text-background">
+                  <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium text-white">
                     {pendingExtractions.length}
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="approvals">
+              <TabsTrigger
+                value="approvals"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
                 Approvals
                 {pendingApprovals.length > 0 && (
                   <span className="ml-1.5 rounded bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white">
@@ -542,14 +556,17 @@ export default function ContractDetailPage() {
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="activity">
+              <TabsTrigger
+                value="activity"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
                 Activity{activities.length > 0 && ` (${activities.length})`}
               </TabsTrigger>
             </TabsList>
 
             {/* Overview */}
             <TabsContent value="overview" className="mt-4">
-              <div className="rounded-lg border border-border bg-card p-5">
+              <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                   <MetaField label="Counterparty" value={contract.counterpartyName} />
                   <MetaField label="Contract Type" value={contract.contractType} />
@@ -627,7 +644,7 @@ export default function ContractDetailPage() {
 
               {/* Ask AI section — only shown when contract text has been extracted */}
               {contract.extractedText && (
-                <div className="mt-4 rounded-lg border border-border bg-card p-4">
+                <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4">
                   <p className="text-sm font-medium text-foreground">Ask AI about this contract</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Ask a question and get an answer based on the contract text.
@@ -662,7 +679,7 @@ export default function ContractDetailPage() {
 
             {/* Documents */}
             <TabsContent value="documents" className="mt-4">
-              <div className="rounded-lg border border-border bg-card p-5">
+              <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {files.length === 0 ? (
                   <div className="flex flex-col items-center py-8 gap-3">
                     <p className="text-sm text-muted-foreground">No files uploaded yet</p>
@@ -676,20 +693,21 @@ export default function ContractDetailPage() {
                     {files.map((f) => (
                       <div
                         key={f.id}
-                        className="flex items-center gap-3 rounded-lg border border-border p-3"
+                        className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3"
                       >
-                        <div className="flex size-10 items-center justify-center rounded bg-muted">
-                          <FileText className="size-5 text-muted-foreground" />
+                        <div className="flex size-10 items-center justify-center rounded bg-zinc-100">
+                          <FileText className="size-5 text-zinc-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">{f.filename}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="truncate text-sm font-medium text-zinc-900">{f.filename}</p>
+                          <p className="text-xs text-zinc-500">
                             {formatBytes(f.sizeBytes)} · <RelativeTime date={f.createdAt} />
                           </p>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
+                          className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                           onClick={() => downloadFile(f.id, f.filename)}
                         >
                           <Download className="size-4" />
@@ -705,16 +723,16 @@ export default function ContractDetailPage() {
             {/* AI Extractions */}
             <TabsContent value="ai-extractions" className="mt-4">
               {extractions.length === 0 ? (
-                <div className="rounded-lg border border-border bg-card p-5">
-                  <p className="text-center text-sm text-muted-foreground py-8">
+                <div className="rounded-lg border border-zinc-200 bg-white p-5">
+                  <p className="text-center text-sm text-zinc-500 py-8">
                     No AI extractions yet. Upload a document to trigger extraction.
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="mb-4 flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2.5">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{extractions.length} fields</span>{" "}
+                  <div className="mb-4 flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5">
+                    <p className="text-sm text-zinc-500">
+                      <span className="font-medium text-zinc-900">{extractions.length} fields</span>{" "}
                       extracted by AI
                       {pendingExtractions.length > 0 && ` · ${pendingExtractions.length} pending`}
                     </p>
@@ -724,15 +742,15 @@ export default function ContractDetailPage() {
                       </Button>
                     )}
                   </div>
-                  <div className="rounded-lg border border-border bg-card">
+                  <div className="rounded-lg border border-zinc-200 bg-white">
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="h-9 text-xs font-medium text-muted-foreground">Field</TableHead>
-                          <TableHead className="h-9 text-xs font-medium text-muted-foreground">Value</TableHead>
-                          <TableHead className="h-9 text-xs font-medium text-muted-foreground">Confidence</TableHead>
-                          <TableHead className="h-9 text-xs font-medium text-muted-foreground">Source</TableHead>
-                          <TableHead className="h-9 text-xs font-medium text-muted-foreground">Actions</TableHead>
+                          <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Field</TableHead>
+                          <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Value</TableHead>
+                          <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Confidence</TableHead>
+                          <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Source</TableHead>
+                          <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -760,9 +778,9 @@ export default function ContractDetailPage() {
                                 <div className="flex items-center gap-2">
                                   <Progress
                                     value={Math.round(e.confidence * 100)}
-                                    className="h-1.5 w-12"
+                                    className="h-1.5 w-12 [&>div]:bg-indigo-600"
                                   />
-                                  <span className="text-xs tabular-nums text-muted-foreground">
+                                  <span className="text-xs tabular-nums text-zinc-500">
                                     {Math.round(e.confidence * 100)}%
                                   </span>
                                 </div>
@@ -814,7 +832,7 @@ export default function ContractDetailPage() {
 
             {/* Approvals */}
             <TabsContent value="approvals" className="mt-4">
-              <div className="rounded-lg border border-border bg-card p-5">
+              <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-foreground">Approval Requests</h3>
@@ -964,7 +982,7 @@ export default function ContractDetailPage() {
 
             {/* Activity */}
             <TabsContent value="activity" className="mt-4">
-              <div className="rounded-lg border border-border bg-card p-5">
+              <div className="rounded-lg border border-zinc-200 bg-white p-5">
                 {activities.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-8">No activity yet</p>
                 ) : (
@@ -980,20 +998,21 @@ export default function ContractDetailPage() {
           <div className="sticky top-6 space-y-4">
             {/* File Card */}
             {latestFile && (
-              <div className="rounded-lg border border-border bg-card p-4">
+              <div className="rounded-lg border border-zinc-200 bg-white p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded bg-muted">
-                    <FileText className="size-4 text-muted-foreground" />
+                  <div className="flex size-9 items-center justify-center rounded bg-zinc-100">
+                    <FileText className="size-4 text-zinc-400" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{latestFile.filename}</p>
-                    <p className="text-xs text-muted-foreground">{formatBytes(latestFile.sizeBytes)}</p>
+                    <p className="truncate text-sm font-medium text-zinc-900">{latestFile.filename}</p>
+                    <p className="text-xs text-zinc-500">{formatBytes(latestFile.sizeBytes)}</p>
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                     onClick={() => setUploadOpen(true)}
                   >
                     Preview
@@ -1001,6 +1020,7 @@ export default function ContractDetailPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                     onClick={() => downloadFile(latestFile.id, latestFile.filename)}
                   >
                     <Download className="size-4" />
@@ -1012,8 +1032,8 @@ export default function ContractDetailPage() {
 
             {/* Contract Type */}
             {contract.contractType && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Contract Type</p>
+              <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Contract Type</p>
                 <div className="mt-1.5">
                   <TypeBadge type={contract.contractType} />
                 </div>
@@ -1021,8 +1041,8 @@ export default function ContractDetailPage() {
             )}
 
             {/* Tags */}
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground">Tags</p>
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Tags</p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {(contract.tags ?? []).map((tag) => (
                   <span
@@ -1103,15 +1123,15 @@ export default function ContractDetailPage() {
             </div>
 
             {/* Danger Zone */}
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-              <p className="text-xs font-medium text-destructive">Danger Zone</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Danger Zone</p>
+              <p className="mt-1 text-xs text-zinc-500">
                 Archiving removes this contract from your active list.
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-3 border-destructive/30 text-destructive hover:bg-destructive/10"
+                className="mt-3 border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                 onClick={() => changeStatus("ARCHIVED")}
               >
                 <Archive className="size-4" />

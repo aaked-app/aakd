@@ -155,10 +155,10 @@ export default function ContractsPage() {
   return (
     <div className="flex h-full">
       {/* Folders sidebar */}
-      <aside className="flex h-full w-48 shrink-0 flex-col border-r border-border bg-card">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-          <span className="text-xs font-medium text-muted-foreground">Folders</span>
-          <Settings2 className="size-3.5 text-muted-foreground" />
+      <aside className="flex h-full w-48 shrink-0 flex-col border-r border-zinc-200 bg-white">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2.5">
+          <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Folders</span>
+          <Settings2 className="size-3.5 text-zinc-400" />
         </div>
         <nav className="flex-1 overflow-y-auto p-1.5">
           <button
@@ -166,8 +166,8 @@ export default function ContractsPage() {
             className={cn(
               "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
               selectedFolder === null
-                ? "bg-secondary font-medium text-foreground"
-                : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                ? "bg-indigo-50 font-medium text-indigo-700"
+                : "text-zinc-700 hover:bg-zinc-100",
             )}
           >
             <span className="flex items-center gap-2">
@@ -183,8 +183,8 @@ export default function ContractsPage() {
               className={cn(
                 "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
                 selectedFolder === f.id
-                  ? "bg-secondary font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                  ? "bg-indigo-50 font-medium text-indigo-700"
+                  : "text-zinc-700 hover:bg-zinc-100",
               )}
             >
               <span className="flex items-center gap-2 min-w-0">
@@ -203,10 +203,10 @@ export default function ContractsPage() {
       <div className="flex h-full flex-1 flex-col overflow-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-foreground">Contracts</h1>
+          <h1 className="text-xl font-semibold text-zinc-900">Contracts</h1>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
               <Input
                 placeholder="Search..."
                 value={search}
@@ -234,10 +234,10 @@ export default function ContractsPage() {
                 setPage(1)
               }}
               className={cn(
-                "rounded px-2.5 py-1 text-sm font-medium transition-colors",
+                "rounded-full px-2.5 py-1 text-sm font-medium transition-colors",
                 statusFilter === filter
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground hover:text-foreground",
+                  ? "bg-indigo-600 text-white"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
               )}
             >
               {STATUS_LABELS[filter]}
@@ -247,17 +247,17 @@ export default function ContractsPage() {
 
         {/* Table */}
         {loading ? (
-          <div className="mt-4 rounded-lg border border-border bg-card">
+          <div className="mt-4 rounded-lg border border-zinc-200 bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-10" />
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Name</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Counterparty</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Type</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Status</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Value</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">End Date</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Name</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Counterparty</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Type</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Status</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Value</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">End Date</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -276,11 +276,11 @@ export default function ContractsPage() {
           </div>
         ) : contracts.length === 0 ? (
           <div className="mt-16 flex flex-col items-center justify-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-              <FileText className="size-6 text-muted-foreground" />
+            <div className="flex size-12 items-center justify-center rounded-full bg-zinc-100">
+              <FileText className="size-6 text-zinc-400" />
             </div>
-            <h3 className="mt-3 text-sm font-medium text-foreground">No contracts</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h3 className="mt-3 text-sm font-medium text-zinc-900">No contracts</h3>
+            <p className="mt-1 text-sm text-zinc-500">
               {search || statusFilter !== "ALL"
                 ? "No contracts match your filters"
                 : "Upload your first contract to get started"}
@@ -290,7 +290,7 @@ export default function ContractsPage() {
             )}
           </div>
         ) : (
-          <div className="mt-4 rounded-lg border border-border bg-card">
+          <div className="mt-4 rounded-lg border border-zinc-200 bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -299,39 +299,39 @@ export default function ContractsPage() {
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
-                      className="size-4 rounded border-input accent-foreground cursor-pointer"
+                      className="size-4 rounded border-zinc-300 accent-indigo-600 cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Name</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Counterparty</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Type</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Status</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">Value</TableHead>
-                  <TableHead className="h-9 text-xs font-medium text-muted-foreground">End Date</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Name</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Counterparty</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Type</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Status</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">Value</TableHead>
+                  <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-zinc-500">End Date</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {contracts.map((c) => (
-                  <TableRow key={c.id} className={cn("hover:bg-muted/50", selectedIds.has(c.id) && "bg-muted/30")}>
+                  <TableRow key={c.id} className={cn("hover:bg-zinc-50", selectedIds.has(c.id) && "bg-zinc-50")}>
                     <TableCell className="w-10 pl-4 py-2.5">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(c.id)}
                         onChange={() => toggleSelect(c.id)}
-                        className="size-4 rounded border-input accent-foreground cursor-pointer"
+                        className="size-4 rounded border-zinc-300 accent-indigo-600 cursor-pointer"
                         onClick={(e) => e.stopPropagation()}
                       />
                     </TableCell>
                     <TableCell className="py-2.5">
                       <Link
                         href={`/contracts/${c.id}`}
-                        className="text-sm font-medium text-foreground hover:underline"
+                        className="text-sm font-medium text-zinc-900 hover:underline"
                       >
                         {c.title}
                       </Link>
                     </TableCell>
-                    <TableCell className="py-2.5 text-sm text-muted-foreground">
+                    <TableCell className="py-2.5 text-sm text-zinc-500">
                       {c.counterpartyName ?? "—"}
                     </TableCell>
                     <TableCell className="py-2.5">
@@ -340,10 +340,10 @@ export default function ContractsPage() {
                     <TableCell className="py-2.5">
                       <StatusBadge status={c.status} />
                     </TableCell>
-                    <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
+                    <TableCell className="py-2.5 text-sm tabular-nums text-zinc-500">
                       {c.value != null ? formatCurrency(c.value, c.currency ?? "USD") : "—"}
                     </TableCell>
-                    <TableCell className="py-2.5 text-sm text-muted-foreground">
+                    <TableCell className="py-2.5 text-sm text-zinc-500">
                       {c.endDate
                         ? new Date(c.endDate).toLocaleDateString("en-US", {
                             month: "short",
@@ -354,7 +354,7 @@ export default function ContractsPage() {
                     </TableCell>
                     <TableCell className="py-2.5">
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <DropdownMenuTrigger className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700">
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -379,26 +379,26 @@ export default function ContractsPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-zinc-500">
               {total} contract{total !== 1 ? "s" : ""}
             </p>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-8 border-zinc-300"
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page === 1}
               >
                 <ChevronLeft className="size-4" />
               </Button>
-              <span className="px-2 text-sm">
+              <span className="px-2 text-sm text-zinc-700">
                 {page} / {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-8 border-zinc-300"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page === totalPages}
               >
