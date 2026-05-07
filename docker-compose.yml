@@ -48,8 +48,8 @@ services:
 
   app:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -88,8 +88,8 @@ services:
 
   worker:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile.worker
+      context: .
+      dockerfile: apps/web/Dockerfile.worker
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/clauseflow
       REDIS_URL: redis://redis:6379

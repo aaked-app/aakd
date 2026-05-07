@@ -13,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Contract, ContractAlert, Activity } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 async function apiFetch<T>(path: string): Promise<T | null> {
   try {

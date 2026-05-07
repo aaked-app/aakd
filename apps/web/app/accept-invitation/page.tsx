@@ -88,7 +88,7 @@ export default function AcceptInvitationPage() {
           {state === "success" && (
             <>
               <CheckCircle className="mx-auto mb-4 h-8 w-8 text-green-500" />
-              <h1 className="text-base font-semibold text-zinc-900">You're in!</h1>
+              <h1 className="text-base font-semibold text-zinc-900">You&apos;re in!</h1>
               <p className="mt-1 text-sm text-zinc-500">
                 {orgName
                   ? `Welcome to ${orgName}. Redirecting…`
