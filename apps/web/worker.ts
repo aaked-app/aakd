@@ -23,8 +23,9 @@ import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding } from "@/lib/embedding"
-import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData } from "@/lib/jobs/queues"
-import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue } from "@/lib/jobs/queues"
+import { getSubmission } from "@/lib/docuseal"
+import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData } from "@/lib/jobs/queues"
+import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue } from "@/lib/jobs/queues"
 
 // ─── Redis connection ─────────────────────────────────────────────────────────
 
@@ -480,6 +481,157 @@ alertsWorker.on("failed", (job, err) =>
   console.error(`[alerts] Job ${job?.id} failed:`, err),
 )
 
+// ─── Worker: signing.sync ─────────────────────────────────────────────────────
+
+type SyncableContract = {
+  id: string
+  ownerId: string
+  docusealSubmissionId: string | null
+  signingStatus: string | null
+}
+
+function normalizeDocuSealStatus(status: string): "completed" | "declined" | "expired" | "failed" | "sent" {
+  const normalized = status.toLowerCase()
+  if (normalized === "completed") return "completed"
+  if (normalized === "declined") return "declined"
+  if (normalized === "expired") return "expired"
+  if (normalized === "failed") return "failed"
+  return "sent"
+}
+
+async function persistSignedDocument(contract: SyncableContract, documentUrl: string) {
+  const signedRes = await fetch(documentUrl)
+  if (!signedRes.ok) {
+    throw new Error(`Failed to download signed PDF: ${signedRes.status}`)
+  }
+
+  const buffer = Buffer.from(await signedRes.arrayBuffer())
+  const newKey = `contracts/${contract.id}/signed_${Date.now()}.pdf`
+  await storage.upload(newKey, buffer, "application/pdf")
+
+  const db = getWorkerPrisma()
+  const latestFile = await db.contractFile.findFirst({
+    where: { contractId: contract.id, isLatest: true },
+    orderBy: { version: "desc" },
+    select: { id: true, version: true },
+  })
+
+  const nextVersion = (latestFile?.version ?? 0) + 1
+
+  await db.$transaction([
+    ...(latestFile
+      ? [
+          db.contractFile.update({
+            where: { id: latestFile.id },
+            data: { isLatest: false },
+          }),
+        ]
+      : []),
+    db.contractFile.create({
+      data: {
+        contractId: contract.id,
+        filename: "signed_document.pdf",
+        storageKey: newKey,
+        mimeType: "application/pdf",
+        sizeBytes: buffer.length,
+        isSigned: true,
+        isLatest: true,
+        version: nextVersion,
+        uploadedById: contract.ownerId,
+      },
+    }),
+    db.contract.update({
+      where: { id: contract.id },
+      data: {
+        status: "ACTIVE",
+        signingStatus: "completed",
+        signingUrl: null,
+      },
+    }),
+  ])
+
+  await db.activity.create({
+    data: {
+      contractId: contract.id,
+      userId: null,
+      actorLabel: "System",
+      action: "SIGNED",
+      detail: `Contract signed via DocuSeal sync (submission #${contract.docusealSubmissionId})`,
+    },
+  })
+}
+
+async function syncDocuSealContract(contract: SyncableContract) {
+  if (!contract.docusealSubmissionId) return
+
+  const submission = await getSubmission(Number(contract.docusealSubmissionId))
+  if (!submission) return
+
+  const signingStatus = normalizeDocuSealStatus(submission.status)
+  if (signingStatus === contract.signingStatus) return
+
+  if (signingStatus !== "completed") {
+    await getWorkerPrisma().contract.update({
+      where: { id: contract.id },
+      data: { signingStatus },
+    })
+    return
+  }
+
+  const signedDocUrl = submission.documents?.[0]?.url
+  if (!signedDocUrl) {
+    console.warn(`[signing] Submission ${contract.docusealSubmissionId} is completed but has no document URL`)
+    return
+  }
+
+  await persistSignedDocument(contract, signedDocUrl)
+}
+
+const signingWorker = new Worker<SigningSyncJobData>(
+  "signing.sync",
+  async (job: Job<SigningSyncJobData>) => {
+    console.log(`[signing] Running sync job ${job.id} (triggered: ${job.data.triggeredAt})`)
+
+    const where = job.data.contractId
+      ? { id: job.data.contractId }
+      : job.data.submissionId
+        ? { docusealSubmissionId: job.data.submissionId }
+        : {
+            docusealSubmissionId: { not: null },
+            OR: [{ signingStatus: null }, { signingStatus: { not: "completed" } }],
+          }
+
+    const contracts = await getWorkerPrisma().contract.findMany({
+      where,
+      select: {
+        id: true,
+        ownerId: true,
+        docusealSubmissionId: true,
+        signingStatus: true,
+      },
+      take: job.data.contractId || job.data.submissionId ? 1 : 100,
+    })
+
+    for (const contract of contracts) {
+      try {
+        await syncDocuSealContract(contract)
+      } catch (err) {
+        console.error(`[signing] Failed to sync contract ${contract.id}:`, err)
+      }
+    }
+
+    console.log(`[signing] Synced ${contracts.length} DocuSeal submission(s)`)
+  },
+  { connection },
+)
+
+signingWorker.on("completed", (job) =>
+  console.log(`[signing] Job ${job.id} completed`),
+)
+signingWorker.on("failed", (job, err) =>
+  console.error(`[signing] Job ${job?.id} failed:`, err),
+)
+
 // Register the daily cron (9 AM UTC). BullMQ deduplicates by name + pattern,
 // so restarting the worker is safe — no stacking of duplicate schedules.
 alertsCheckQueue.add(
@@ -489,6 +641,15 @@ alertsCheckQueue.add(
 ).then(() => console.log("[alerts] Daily cron registered (0 9 * * *)"))
   .catch((err) => console.error("[alerts] Failed to register cron:", err))
 
+// Webhooks are the primary path, but this periodic sync recovers missed or
+// delayed DocuSeal callbacks.
+signingSyncQueue.add(
+  "poll-docuseal",
+  { triggeredAt: new Date().toISOString() },
+  { repeat: { pattern: "*/15 * * * *" } },
+).then(() => console.log("[signing] Sync cron registered (*/15 * * * *)"))
+  .catch((err) => console.error("[signing] Failed to register sync cron:", err))
+
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 
 async function shutdown() {
@@ -497,9 +658,11 @@ async function shutdown() {
   await aiExtractWorker.close()
   await embedWorker.close()
   await alertsWorker.close()
+  await signingWorker.close()
   await contractAiExtractQueue.close()
   await contractEmbedQueue.close()
   await alertsCheckQueue.close()
+  await signingSyncQueue.close()
   await getWorkerPrisma().$disconnect()
   process.exit(0)
 }

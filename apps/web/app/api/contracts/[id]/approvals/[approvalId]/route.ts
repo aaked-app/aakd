@@ -89,18 +89,42 @@ export async function PATCH(
 
     await writeActivity(params.id, ctx.userId, action, detail)
 
-    // On approval, auto-advance contract from PENDING_APPROVAL → AWAITING_SIGNATURE.
+    // On approval, auto-advance only after every approval request has approved.
     if (body.decision === "approved" && contract.status === "PENDING_APPROVAL") {
+      const unresolvedApprovals = await prisma.approval.findMany({
+        where: {
+          contractId: params.id,
+          status: { in: ["pending", "rejected"] },
+        },
+        select: { id: true },
+      })
+
+      if (unresolvedApprovals.length === 0) {
+        await prisma.contract.update({
+          where: { id: params.id },
+          data: { status: "AWAITING_SIGNATURE" },
+        })
+        await writeActivity(
+          params.id,
+          ctx.userId,
+          "STATUS_CHANGED",
+          "PENDING_APPROVAL → AWAITING_SIGNATURE",
+          { from: "PENDING_APPROVAL", to: "AWAITING_SIGNATURE" },
+        )
+      }
+    }
+
+    if (body.decision === "rejected" && contract.status === "PENDING_APPROVAL") {
       await prisma.contract.update({
         where: { id: params.id },
-        data: { status: "AWAITING_SIGNATURE" },
+        data: { status: "INTERNAL_REVIEW" },
       })
       await writeActivity(
         params.id,
         ctx.userId,
         "STATUS_CHANGED",
-        "PENDING_APPROVAL → AWAITING_SIGNATURE",
-        { from: "PENDING_APPROVAL", to: "AWAITING_SIGNATURE" },
+        "PENDING_APPROVAL → INTERNAL_REVIEW",
+        { from: "PENDING_APPROVAL", to: "INTERNAL_REVIEW" },
       )
     }
 

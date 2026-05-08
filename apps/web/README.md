@@ -4,13 +4,15 @@ Next.js 14 App Router application for ClauseFlow, an open source, self-hostable 
 
 ## Current Scope
 
-M0 and M1 are complete in this app.
+M0, M1, and M2 are complete in this app.
 
 M0 includes contract CRUD, PDF/DOCX upload, S3-compatible storage, organization-scoped data access, RBAC, folders, tags, activity logs, API keys, Better Auth session/API-key auth, and Docker self-hosting.
 
 M1 includes document text extraction, AI metadata extraction with human review, contract embeddings, full-text search, semantic search, renewal alert generation, alert emails, and the BullMQ worker pipeline.
 
-M2 and later work may have early scaffolding in the repository, but M0/M1 are the finalized baseline.
+M2 includes approval requests/review decisions, approval emails, status advancement to signing, DocuSeal submission creation, signing status UI, DocuSeal webhook handling, periodic signing sync, signed-file versioning, and the authenticated MCP JSON-RPC endpoint.
+
+M3 and later work may have early scaffolding in the repository, but M0-M2 are the finalized baseline.
 
 ## Development
 

@@ -373,6 +373,77 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
     )
   })
 
+  it("advances to AWAITING_SIGNATURE only after all approvals are approved", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      status: "PENDING_APPROVAL",
+    } as any)
+    vi.mocked(prisma.approval.findUnique).mockResolvedValueOnce({
+      ...mockApproval,
+      assignedToId: "user-1",
+    } as any)
+    vi.mocked(prisma.approval.update).mockResolvedValueOnce({
+      ...mockApproval,
+      status: "approved",
+      decidedAt: new Date(),
+    } as any)
+    vi.mocked(prisma.approval.findMany).mockResolvedValueOnce([])
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+
+    const req = new Request(
+      "http://localhost/api/contracts/contract-1/approvals/approval-1",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "approved" }),
+      },
+    )
+    const res = await requestContext.run(mockCtx, () =>
+      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.contract.update).toHaveBeenCalledWith({
+      where: { id: "contract-1" },
+      data: { status: "AWAITING_SIGNATURE" },
+    })
+  })
+
+  it("keeps contract in PENDING_APPROVAL while other approvals remain unresolved", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      status: "PENDING_APPROVAL",
+    } as any)
+    vi.mocked(prisma.approval.findUnique).mockResolvedValueOnce({
+      ...mockApproval,
+      assignedToId: "user-1",
+    } as any)
+    vi.mocked(prisma.approval.update).mockResolvedValueOnce({
+      ...mockApproval,
+      status: "approved",
+      decidedAt: new Date(),
+    } as any)
+    vi.mocked(prisma.approval.findMany).mockResolvedValueOnce([{ id: "approval-2" }] as any)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+
+    const req = new Request(
+      "http://localhost/api/contracts/contract-1/approvals/approval-1",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "approved" }),
+      },
+    )
+    const res = await requestContext.run(mockCtx, () =>
+      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+  })
+
   it("rejects an approval and writes REJECTED activity", async () => {
     const { writeActivity } = await import("@/lib/db/activity")
 
@@ -412,5 +483,41 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       "REJECTED",
       expect.stringContaining("Missing clause 4."),
     )
+  })
+
+  it("moves a rejected pending-approval contract back to internal review", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      status: "PENDING_APPROVAL",
+    } as any)
+    vi.mocked(prisma.approval.findUnique).mockResolvedValueOnce({
+      ...mockApproval,
+      assignedToId: "user-1",
+    } as any)
+    vi.mocked(prisma.approval.update).mockResolvedValueOnce({
+      ...mockApproval,
+      status: "rejected",
+      decidedAt: new Date(),
+    } as any)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+
+    const req = new Request(
+      "http://localhost/api/contracts/contract-1/approvals/approval-1",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "rejected" }),
+      },
+    )
+    const res = await requestContext.run(mockCtx, () =>
+      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.contract.update).toHaveBeenCalledWith({
+      where: { id: "contract-1" },
+      data: { status: "INTERNAL_REVIEW" },
+    })
   })
 })
