@@ -32,13 +32,13 @@ export async function POST(req: Request) {
   // expiresAt, and triggers our sendInvitationEmail callback configured in
   // lib/auth/config.ts.
   try {
-    // Cast to any: Better Auth's default role union is "owner|admin|member".
+    // Cast through never: Better Auth's default role union is "owner|admin|member".
     // ClauseFlow extends this with custom roles (legal, viewer) which the
     // plugin accepts at runtime, but the static type union does not include.
     const invitation = await auth.api.createInvitation({
       body: {
         email: parsed.data.email,
-        role: parsed.data.role as any,
+        role: parsed.data.role as never,
         organizationId: ctx.organizationId,
       },
       headers: req.headers,

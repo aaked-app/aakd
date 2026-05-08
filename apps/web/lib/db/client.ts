@@ -11,6 +11,11 @@ const ORG_SCOPED_MODELS = new Set([
   "Contract", "Folder", "Tag", "ApiKey",
 ])
 
+type ScopedQueryArgs = {
+  where?: Record<string, unknown>
+  data?: Record<string, unknown>
+}
+
 function createPrismaClient() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL ?? "",
@@ -34,14 +39,20 @@ function createPrismaClient() {
           }
 
           if (["findFirst", "findMany", "count", "aggregate", "findUnique"].includes(operation)) {
-            args = { ...args } as typeof args
-            ;(args as any).where = { ...(args as any).where, organizationId: ctx.organizationId }
+            const scopedArgs = { ...args } as ScopedQueryArgs
+            scopedArgs.where = { ...scopedArgs.where, organizationId: ctx.organizationId }
+            args = scopedArgs as typeof args
           } else if (operation === "create") {
-            args = { ...args } as typeof args
-            ;(args as any).data = { ...(args as any).data, organization: { connect: { id: ctx.organizationId } } }
+            const scopedArgs = { ...args } as ScopedQueryArgs
+            scopedArgs.data = {
+              ...scopedArgs.data,
+              organization: { connect: { id: ctx.organizationId } },
+            }
+            args = scopedArgs as typeof args
           } else if (["update", "updateMany", "delete", "deleteMany"].includes(operation)) {
-            args = { ...args } as typeof args
-            ;(args as any).where = { ...(args as any).where, organizationId: ctx.organizationId }
+            const scopedArgs = { ...args } as ScopedQueryArgs
+            scopedArgs.where = { ...scopedArgs.where, organizationId: ctx.organizationId }
+            args = scopedArgs as typeof args
           }
 
           return query(args)

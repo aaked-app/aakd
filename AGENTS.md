@@ -1,4 +1,4 @@
-# ClauseFlow — CLAUDE.md
+# ClauseFlow — AGENTS.md
 > Single source of truth for every agent and developer working in this repo.
 > Read this fully before touching any code.
 

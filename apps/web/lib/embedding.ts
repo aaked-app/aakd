@@ -16,10 +16,9 @@ function warnOllamaDimensionMismatch() {
   const model = process.env.OLLAMA_EMBEDDING_MODEL
   if (!model) {
     console.error(
-      "[embedding] OLLAMA_EMBEDDING_MODEL is not set. The default Ollama embedding " +
-        "models (e.g. nomic-embed-text) produce 768-dim vectors, but the ContractEmbedding " +
-        "column is vector(1536). Inserts will fail. Set OLLAMA_EMBEDDING_MODEL to a " +
-        "1536-dim model such as 'mxbai-embed-large'.",
+      "[embedding] OLLAMA_EMBEDDING_MODEL is not set. ClauseFlow will use " +
+        "'mxbai-embed-large', which produces 1536-dim vectors to match the " +
+        "ContractEmbedding column.",
     )
   }
 }
@@ -58,7 +57,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       warnOllamaDimensionMismatch()
     }
     const base = process.env.OLLAMA_BASE_URL.replace(/\/$/, "")
-    const model = process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text:v1.5"
+    const model = process.env.OLLAMA_EMBEDDING_MODEL ?? "mxbai-embed-large"
 
     const res = await fetch(`${base}/api/embeddings`, {
       method: "POST",

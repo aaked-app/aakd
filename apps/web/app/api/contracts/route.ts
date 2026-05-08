@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 const CreateContractSchema = z.object({
@@ -104,18 +105,20 @@ export async function POST(req: Request) {
     if (rest.counterpartyName) rest.counterpartyName = stripHtml(rest.counterpartyName)
     if (rest.notes) rest.notes = stripHtml(rest.notes)
 
+    const data: Prisma.ContractCreateInput = {
+      ...rest,
+      owner: { connect: { id: ctx.userId } },
+      organization: { connect: { id: ctx.organizationId } },
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      renewalDate: renewalDate ? new Date(renewalDate) : undefined,
+      folder: folderId ? { connect: { id: folderId } } : undefined,
+      tags: tagIds.length > 0 ? { connect: tagIds.map((id) => ({ id })) } : undefined,
+    }
+
     const contract = await prisma.contract.create({
-      // organizationId is injected by the Prisma middleware from AsyncLocalStorage
-      data: {
-        ...rest,
-        owner: { connect: { id: ctx.userId } },
-        organization: { connect: { id: ctx.organizationId } },
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        renewalDate: renewalDate ? new Date(renewalDate) : undefined,
-        folderId: folderId ?? undefined,
-        tags: tagIds.length > 0 ? { connect: tagIds.map((id) => ({ id })) } : undefined,
-      } as any,
+      // organizationId is injected by the Prisma middleware from AsyncLocalStorage.
+      data,
       include: {
         owner: { select: { id: true, name: true, email: true } },
         tags: true,

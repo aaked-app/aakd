@@ -1,6 +1,7 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 const CreateFolderSchema = z.object({
@@ -49,15 +50,15 @@ export async function POST(req: Request) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const folder = await prisma.folder.create({
-      data: {
-        name: parsed.data.name,
-        ...(parsed.data.parentId
-          ? { parent: { connect: { id: parsed.data.parentId } } }
-          : {}),
-        organization: { connect: { id: ctx.organizationId } },
-      } as any,
-    })
+    const data: Prisma.FolderCreateInput = {
+      name: parsed.data.name,
+      parent: parsed.data.parentId
+        ? { connect: { id: parsed.data.parentId } }
+        : undefined,
+      organization: { connect: { id: ctx.organizationId } },
+    }
+
+    const folder = await prisma.folder.create({ data })
 
     return Response.json(folder, { status: 201 })
   })

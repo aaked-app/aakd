@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClauseFlow Web
 
-## Getting Started
+Next.js 14 App Router application for ClauseFlow, an open source, self-hostable Contract Lifecycle Management platform.
 
-First, run the development server:
+## Current Scope
+
+M0 and M1 are complete in this app.
+
+M0 includes contract CRUD, PDF/DOCX upload, S3-compatible storage, organization-scoped data access, RBAC, folders, tags, activity logs, API keys, Better Auth session/API-key auth, and Docker self-hosting.
+
+M1 includes document text extraction, AI metadata extraction with human review, contract embeddings, full-text search, semantic search, renewal alert generation, alert emails, and the BullMQ worker pipeline.
+
+M2 and later work may have early scaffolding in the repository, but M0/M1 are the finalized baseline.
+
+## Development
+
+Run from the repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
+pnpm worker:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The web app runs on `http://localhost:3000`. The worker must run separately for upload extraction, embeddings, AI extraction, and renewal alert jobs.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run from the repository root:
 
-## Learn More
+```bash
+pnpm --filter web typecheck
+pnpm --filter web test
+pnpm --filter web test:isolation
+```
 
-To learn more about Next.js, take a look at the following resources:
+The isolation test is mandatory for M0/M1 changes. Cross-organization resource reads must return `404`, not `403`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Docker
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker-compose up
+```
 
-## Deploy on Vercel
+This starts the self-hosted stack: web app, worker, PostgreSQL with pgvector, Redis, and MinIO.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Environment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See the root `.env.example`. Minimum local development services require:
+
+```bash
+DATABASE_URL
+BETTER_AUTH_SECRET
+BETTER_AUTH_URL
+STORAGE_ENDPOINT
+STORAGE_BUCKET
+STORAGE_ACCESS_KEY
+STORAGE_SECRET_KEY
+REDIS_URL
+```
+
+AI and email are optional. Without provider keys, AI extraction and embeddings degrade gracefully and record skipped activity where applicable.

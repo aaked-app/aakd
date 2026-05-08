@@ -383,14 +383,16 @@ async function toolCreateContract(
 
   const { startDate, endDate, ...rest } = parsed.data
 
+  const data: Prisma.ContractCreateInput = {
+    ...rest,
+    owner: { connect: { id: userId } },
+    organization: { connect: { id: orgId } },
+    startDate: startDate ? new Date(startDate) : undefined,
+    endDate: endDate ? new Date(endDate) : undefined,
+  }
+
   const contract = await prisma.contract.create({
-    data: {
-      ...rest,
-      owner: { connect: { id: userId } },
-      organization: { connect: { id: orgId } },
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-    } as any,
+    data,
     select: { id: true, title: true, status: true },
   })
 
