@@ -585,6 +585,19 @@ async function toolAskContract(
 // Main POST handler
 // ---------------------------------------------------------------------------
 
+export async function GET(req: Request) {
+  const ctx = await resolveAuth(req)
+  if (!ctx) return new Response("Unauthorized", { status: 401 })
+
+  return Response.json({
+    name: "ClauseFlow MCP",
+    protocol: "json-rpc-2.0",
+    endpoint: "/api/mcp",
+    organizationId: ctx.organizationId,
+    tools: TOOLS,
+  })
+}
+
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })

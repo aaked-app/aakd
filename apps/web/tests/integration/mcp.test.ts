@@ -32,6 +32,30 @@ beforeEach(() => {
   vi.mocked(resolveAuth).mockResolvedValue(mockCtx)
 })
 
+describe("GET /api/mcp — discovery", () => {
+  it("returns 401 when no auth is provided", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(null)
+
+    const { GET } = await import("@/app/api/mcp/route")
+    const res = await GET(new Request("http://localhost/api/mcp"))
+
+    expect(res.status).toBe(401)
+  })
+
+  it("returns MCP discovery metadata and tool list", async () => {
+    const { GET } = await import("@/app/api/mcp/route")
+    const res = await GET(new Request("http://localhost/api/mcp"))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.name).toBe("ClauseFlow MCP")
+    expect(body.protocol).toBe("json-rpc-2.0")
+    expect(body.endpoint).toBe("/api/mcp")
+    expect(body.organizationId).toBe("org-1")
+    expect(body.tools).toHaveLength(6)
+  })
+})
+
 describe("POST /api/mcp — authentication", () => {
   it("returns 401 when no auth is provided", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
