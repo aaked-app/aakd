@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
 import { contractExtractQueue } from "@/lib/jobs/queues"
+import { enqueueNotification } from "@/lib/notifications/fanout"
 
 // GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -146,6 +147,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     })
 
     await writeActivity(params.id, ctx.userId, "UPLOADED", filename)
+
+    await enqueueNotification("contract.uploaded", params.id, ctx.userId, {})
 
     // Enqueue text extraction job — heavy work must not block the API route
     try {

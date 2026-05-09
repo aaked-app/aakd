@@ -3,6 +3,9 @@ import { writeActivity } from "@/lib/db/activity"
 import { ContractAlertWithContract } from "@/lib/email"
 import { emailQueue } from "@/lib/jobs/queues"
 import { sendSlackAlert, sendTeamsAlert } from "@/lib/notifications/webhooks"
+import { enqueueNotification } from "@/lib/notifications/fanout"
+
+const FANOUT_EXPIRY_TYPES = new Set(["EXPIRY_7", "EXPIRY_30", "EXPIRY_90"])
 
 const ALERT_DETAIL: Record<string, string> = {
   EXPIRY_90:     "Expiry warning: contract expires in 90 days",
@@ -88,6 +91,32 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
       where: { id: { in: firedIds } },
       data: { firedAt: new Date() },
     })
+
+    // Fan out lifecycle notifications only after firedAt is committed —
+    // guard against double-fire on retried jobs.
+    for (const alert of due as ContractAlertWithContract[]) {
+      if (!firedIds.includes(alert.id)) continue
+
+      if (FANOUT_EXPIRY_TYPES.has(alert.alertType)) {
+        const daysUntilExpiry = alert.contract.endDate
+          ? Math.max(
+              0,
+              Math.ceil(
+                (new Date(alert.contract.endDate).getTime() - Date.now()) /
+                  (1000 * 60 * 60 * 24),
+              ),
+            )
+          : 0
+        await enqueueNotification("contract.expiring_soon", alert.contractId, null, {
+          alertType: alert.alertType,
+          daysUntilExpiry,
+        })
+      } else if (alert.alertType === "EXPIRY_PAST") {
+        await enqueueNotification("contract.expired", alert.contractId, null, {
+          alertType: "EXPIRY_PAST",
+        })
+      }
+    }
   }
 
   return { fired: firedIds.length, errors }

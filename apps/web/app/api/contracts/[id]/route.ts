@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
+import { enqueueNotification } from "@/lib/notifications/fanout"
 import { z } from "zod"
 
 // Allowed status transitions — prevents lifecycle corruption
@@ -204,6 +205,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`).catch((err) =>
         console.error("[PATCH /contracts/:id] writeActivity STATUS_CHANGED error:", err)
       )
+      if (status === "AWAITING_SIGNATURE") {
+        await enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {})
+      } else if (status === "ARCHIVED") {
+        await enqueueNotification("contract.archived", params.id, ctx.userId, {})
+      }
     }
 
     // Regenerate renewal alerts if any date-related field changed
@@ -259,6 +265,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     })
 
     await writeActivity(params.id, ctx.userId, "ARCHIVED")
+
+    await enqueueNotification("contract.archived", params.id, ctx.userId, {})
 
     return new Response(null, { status: 204 })
   })

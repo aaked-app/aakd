@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { emailQueue } from "@/lib/jobs/queues"
+import { enqueueNotification } from "@/lib/notifications/fanout"
 import { z } from "zod"
 
 const USER_SELECT = {
@@ -147,6 +148,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         message: body.message,
       })
       .catch(() => {})
+
+    await enqueueNotification("approval.requested", params.id, ctx.userId, {
+      approvalId: approval.id,
+      assigneeId: assigneeMember.user.id,
+      assigneeName: assigneeMember.user.name,
+      requesterId: ctx.userId,
+      requesterName: requesterUser?.name ?? "A team member",
+      ...(body.message ? { message: body.message } : {}),
+    })
 
     return Response.json({ approval }, { status: 201 })
   })

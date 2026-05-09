@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { enqueueNotification } from "@/lib/notifications/fanout"
 import { z } from "zod"
 
 const USER_SELECT = {
@@ -139,6 +140,22 @@ export async function PATCH(
         "PENDING_APPROVAL → INTERNAL_REVIEW",
         { from: "PENDING_APPROVAL", to: "INTERNAL_REVIEW" },
       )
+    }
+
+    const decisionMetadata: Record<string, string | number | boolean | null> = {
+      approvalId: approval.id,
+      decidedById: ctx.userId,
+      decidedByName: updated.assignedTo?.name ?? "Reviewer",
+      ...(body.comment ? { comment: body.comment } : {}),
+    }
+    if (body.decision === "approved") {
+      await enqueueNotification("approval.approved", params.id, ctx.userId, decisionMetadata)
+    } else {
+      await enqueueNotification("approval.rejected", params.id, ctx.userId, decisionMetadata)
+    }
+
+    if (advancedTo === "AWAITING_SIGNATURE") {
+      await enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {})
     }
 
     return Response.json({ approval: updated })
