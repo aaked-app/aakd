@@ -78,6 +78,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "Invalid request body", detail: err }, { status: 400 })
     }
 
+    // Block self-approval — separation of duties
+    if (body.assignedToId === ctx.userId) {
+      return Response.json({ error: "Cannot assign yourself as approver" }, { status: 400 })
+    }
+
     // Resolve the assignee — must be a member of the same org
     const assigneeMember = await prisma.member.findFirst({
       where: { userId: body.assignedToId, organizationId: ctx.organizationId },

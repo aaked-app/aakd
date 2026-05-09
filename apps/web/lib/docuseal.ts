@@ -7,6 +7,32 @@
 const BASE = process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com"
 const KEY = process.env.DOCUSEAL_API_KEY
 
+/**
+ * SSRF guard. DocuSeal returns signed-PDF URLs in its webhooks and submission
+ * responses; we never fetch a URL we received from an external party without
+ * confirming its origin matches our configured DocuSeal endpoint. This blocks
+ * an attacker who can forge or replay a webhook from pointing us at an
+ * internal address (e.g. cloud metadata service).
+ */
+export function isAllowedDocuSealUrl(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false
+
+  let baseHost: string
+  try {
+    baseHost = new URL(BASE).hostname
+  } catch {
+    return false
+  }
+
+  return parsed.hostname === baseHost
+}
+
 function authHeaders(): Record<string, string> {
   return {
     Authorization: `Token ${KEY}`,

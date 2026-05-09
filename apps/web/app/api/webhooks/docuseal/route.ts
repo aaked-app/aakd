@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
+import { isAllowedDocuSealUrl } from "@/lib/docuseal"
 
 // ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
 // Receives DocuSeal webhook events.
@@ -68,6 +69,12 @@ function normalizeSigningStatus(payload: DocuSealWebhookPayload): SigningStatus 
 }
 
 export async function POST(req: Request) {
+  if (!process.env.DOCUSEAL_WEBHOOK_SECRET) {
+    console.warn(
+      "[docuseal webhook] DOCUSEAL_WEBHOOK_SECRET is not set — all webhook requests will be accepted",
+    )
+  }
+
   // Read raw body first — needed for HMAC verification
   const rawBody = await req.text()
 
@@ -109,7 +116,7 @@ export async function POST(req: Request) {
 
   if (signingStatus !== "completed") {
     await prisma.contract.update({
-      where: { id: contract.id },
+      where: { id: contract.id, organizationId: contract.organizationId },
       data: { signingStatus },
     })
 
@@ -130,6 +137,14 @@ export async function POST(req: Request) {
     return Response.json({ ok: true })
   }
 
+  // SSRF guard: only fetch from the configured DocuSeal host
+  if (!isAllowedDocuSealUrl(signedDocUrl)) {
+    console.error(
+      `[docuseal-webhook] Rejected document URL from disallowed host: ${signedDocUrl}`,
+    )
+    return Response.json({ ok: true })
+  }
+
   const signedRes = await fetch(signedDocUrl)
   if (!signedRes.ok) {
     console.error(`[docuseal-webhook] Failed to download signed PDF: ${signedRes.status}`)
@@ -140,7 +155,11 @@ export async function POST(req: Request) {
   const buffer = Buffer.from(arrayBuffer)
 
   // ── upload signed PDF to S3 ───────────────────────────────────────────────
-  const newKey = `contracts/${contract.id}/signed_${Date.now()}.pdf`
+  const newKey = storage.storageKey(
+    contract.organizationId,
+    contract.id,
+    `signed_${Date.now()}.pdf`,
+  )
   await storage.upload(newKey, buffer, "application/pdf")
 
   // ── version bookkeeping ───────────────────────────────────────────────────
@@ -176,7 +195,7 @@ export async function POST(req: Request) {
       },
     }),
     prisma.contract.update({
-      where: { id: contract.id },
+      where: { id: contract.id, organizationId: contract.organizationId },
       data: {
         status: "ACTIVE",
         signingStatus: "completed",

@@ -23,7 +23,7 @@ import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding } from "@/lib/embedding"
-import { getSubmission } from "@/lib/docuseal"
+import { getSubmission, isAllowedDocuSealUrl } from "@/lib/docuseal"
 import { chunkText } from "@/lib/ai/chunking"
 import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData } from "@/lib/jobs/queues"
 import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue } from "@/lib/jobs/queues"
@@ -498,6 +498,7 @@ alertsWorker.on("failed", (job, err) =>
 
 type SyncableContract = {
   id: string
+  organizationId: string
   ownerId: string
   docusealSubmissionId: string | null
   signingStatus: string | null
@@ -513,13 +514,22 @@ function normalizeDocuSealStatus(status: string): "completed" | "declined" | "ex
 }
 
 async function persistSignedDocument(contract: SyncableContract, documentUrl: string) {
+  // SSRF guard: only fetch from the configured DocuSeal host
+  if (!isAllowedDocuSealUrl(documentUrl)) {
+    throw new Error(`Rejected signed document URL from disallowed host: ${documentUrl}`)
+  }
+
   const signedRes = await fetch(documentUrl)
   if (!signedRes.ok) {
     throw new Error(`Failed to download signed PDF: ${signedRes.status}`)
   }
 
   const buffer = Buffer.from(await signedRes.arrayBuffer())
-  const newKey = `contracts/${contract.id}/signed_${Date.now()}.pdf`
+  const newKey = storage.storageKey(
+    contract.organizationId,
+    contract.id,
+    `signed_${Date.now()}.pdf`,
+  )
   await storage.upload(newKey, buffer, "application/pdf")
 
   const db = getWorkerPrisma()
@@ -618,6 +628,7 @@ const signingWorker = new Worker<SigningSyncJobData>(
       where,
       select: {
         id: true,
+        organizationId: true,
         ownerId: true,
         docusealSubmissionId: true,
         signingStatus: true,

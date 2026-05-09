@@ -17,7 +17,14 @@ async function callQaLLM(
   contextText: string,
   question: string,
 ): Promise<string | null> {
-  const userContent = `Contract: ${contractTitle}\n\nRelevant contract excerpts:\n${contextText}\n\nQuestion: ${question}`
+  // Wrap user-controlled values in structural delimiters so the model can
+  // distinguish trusted instructions from untrusted user input. The system
+  // prompt instructs the model to ignore any instructions embedded inside
+  // the <user_question> tag.
+  const userContent =
+    `<contract_title>${contractTitle}</contract_title>\n\n` +
+    `Relevant contract excerpts:\n${contextText}\n\n` +
+    `<user_question>${question}</user_question>`
 
   if (process.env.ANTHROPIC_API_KEY) {
     const Anthropic = (await import("@anthropic-ai/sdk")).default
@@ -71,6 +78,7 @@ type AskCitation = {
 
 async function retrieveRelevantChunks(
   contractId: string,
+  organizationId: string,
   extractedText: string,
   question: string,
 ): Promise<AskCitation[]> {
@@ -88,15 +96,23 @@ async function retrieveRelevantChunks(
     similarity: number
   }
 
+  // Match the recall/precision tradeoff used elsewhere in semantic search.
+  await prisma.$executeRaw`SET ivfflat.probes = 10`
+
+  // Defense in depth: even though contractId is org-scoped above, JOIN to
+  // Contract and filter by organizationId so a chunk row can never be returned
+  // for a different tenant.
   const rows = await prisma.$queryRaw<ChunkRow[]>(
     Prisma.sql`
       SELECT
-        "chunkIndex",
-        "text",
-        1 - ("embedding" <=> ${embeddingStr}::vector) AS similarity
-      FROM "ContractChunkEmbedding"
-      WHERE "contractId" = ${contractId}
-      ORDER BY "embedding" <=> ${embeddingStr}::vector
+        cce."chunkIndex",
+        cce."text",
+        1 - (cce."embedding" <=> ${embeddingStr}::vector) AS similarity
+      FROM "ContractChunkEmbedding" cce
+      JOIN "Contract" c ON c."id" = cce."contractId"
+      WHERE cce."contractId" = ${contractId}
+        AND c."organizationId" = ${organizationId}
+      ORDER BY cce."embedding" <=> ${embeddingStr}::vector
       LIMIT 5
     `,
   )
@@ -184,7 +200,12 @@ export async function POST(
 
     let citations: AskCitation[]
     try {
-      citations = await retrieveRelevantChunks(contract.id, contract.extractedText, question)
+      citations = await retrieveRelevantChunks(
+        contract.id,
+        contract.organizationId,
+        contract.extractedText,
+        question,
+      )
     } catch (err) {
       console.error(`[ask] Retrieval failed for contract ${id}:`, err)
       return Response.json({ error: "Retrieval failed" }, { status: 503 })
