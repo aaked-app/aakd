@@ -45,6 +45,46 @@ export type EmailJobData =
       contractTitle: string
       message?: string
     }
+  | {
+      kind: "event_notification"
+      eventName: string
+      to: string
+      contractId: string
+      contractTitle: string
+      actorName: string | null
+      metadata: Record<string, string | number | boolean | null>
+      unsubscribeToken: string
+    }
+
+// ─── M5: Notification fan-out + delivery ──────────────────────────────────────
+
+export interface NotificationFanoutJobData {
+  eventName: string
+  contractId: string
+  actorId: string | null
+  metadata: Record<string, string | number | boolean | null>
+}
+
+export type NotificationDeliverJobData =
+  | {
+      kind: "slack" | "teams"
+      channelId: string
+      eventName: string
+      contractId: string
+      contractTitle: string
+      counterpartyName: string | null
+      actorName: string | null
+      appUrl: string
+      metadata: Record<string, string | number | boolean | null>
+    }
+  | {
+      kind: "webhook"
+      webhookId: string
+      deliveryLogId: string
+      attempt: number
+      payload: string
+      signature: string
+    }
 
 // ─── Lazy queue singletons ────────────────────────────────────────────────────
 // Queue instances are created on first use (not at module load time) so that
@@ -57,6 +97,8 @@ let _contractEmbedQueue: Queue<ContractEmbedJobData> | null = null
 let _alertsCheckQueue: Queue<AlertsCheckJobData> | null = null
 let _signingSyncQueue: Queue<SigningSyncJobData> | null = null
 let _emailQueue: Queue<EmailJobData> | null = null
+let _notificationFanoutQueue: Queue<NotificationFanoutJobData> | null = null
+let _notificationDeliverQueue: Queue<NotificationDeliverJobData> | null = null
 
 export function getContractExtractQueue(): Queue<ContractExtractJobData> {
   return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", { connection }))
@@ -80,6 +122,26 @@ export function getSigningSyncQueue(): Queue<SigningSyncJobData> {
 
 export function getEmailQueue(): Queue<EmailJobData> {
   return (_emailQueue ??= new Queue<EmailJobData>("email.send", { connection }))
+}
+
+export function getNotificationFanoutQueue(): Queue<NotificationFanoutJobData> {
+  return (_notificationFanoutQueue ??= new Queue<NotificationFanoutJobData>(
+    "notification.fanout",
+    {
+      connection,
+      defaultJobOptions: { removeOnComplete: 200, removeOnFail: 500 },
+    }
+  ))
+}
+
+export function getNotificationDeliverQueue(): Queue<NotificationDeliverJobData> {
+  return (_notificationDeliverQueue ??= new Queue<NotificationDeliverJobData>(
+    "notification.deliver",
+    {
+      connection,
+      defaultJobOptions: { removeOnComplete: 500, removeOnFail: 500 },
+    }
+  ))
 }
 
 // ─── Legacy named exports (kept for backward compat) ─────────────────────────
@@ -108,4 +170,14 @@ export const signingSyncQueue = {
 export const emailQueue = {
   add: (...a: Parameters<Queue<EmailJobData>["add"]>) => getEmailQueue().add(...a),
   close: () => _emailQueue?.close() ?? Promise.resolve(),
+}
+export const notificationFanoutQueue = {
+  add: (...a: Parameters<Queue<NotificationFanoutJobData>["add"]>) =>
+    getNotificationFanoutQueue().add(...a),
+  close: () => _notificationFanoutQueue?.close() ?? Promise.resolve(),
+}
+export const notificationDeliverQueue = {
+  add: (...a: Parameters<Queue<NotificationDeliverJobData>["add"]>) =>
+    getNotificationDeliverQueue().add(...a),
+  close: () => _notificationDeliverQueue?.close() ?? Promise.resolve(),
 }
