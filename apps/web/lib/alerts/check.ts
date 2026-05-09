@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
-import { sendAlertEmail, ContractAlertWithContract } from "@/lib/email"
+import { ContractAlertWithContract } from "@/lib/email"
+import { emailQueue } from "@/lib/jobs/queues"
 import { sendSlackAlert, sendTeamsAlert } from "@/lib/notifications/webhooks"
 
 const ALERT_DETAIL: Record<string, string> = {
@@ -39,9 +40,9 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
 
   for (const alert of due as ContractAlertWithContract[]) {
     try {
-      // Send email first — wrapped so a failure doesn't skip the activity write
-      await sendAlertEmail(alert).catch((err) => {
-        console.error(`[alerts] email failed for alert ${alert.id}:`, err)
+      // Hand off to the email worker — never block the alerts pipeline on SMTP.
+      await emailQueue.add("send", { kind: "alert", alertId: alert.id }).catch((err) => {
+        console.error(`[alerts] enqueue email failed for alert ${alert.id}:`, err)
         errors++
       })
 

@@ -25,8 +25,10 @@ import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 import { getSubmission, isAllowedDocuSealUrl } from "@/lib/docuseal"
 import { chunkText } from "@/lib/ai/chunking"
-import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData } from "@/lib/jobs/queues"
-import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue } from "@/lib/jobs/queues"
+import { sendAlertEmailById } from "@/lib/email"
+import { sendApprovalRequestEmail } from "@/lib/email/approval"
+import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData, EmailJobData } from "@/lib/jobs/queues"
+import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue, emailQueue } from "@/lib/jobs/queues"
 
 // ─── Redis connection ─────────────────────────────────────────────────────────
 
@@ -435,7 +437,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
     console.log(`[ai_extract] Enqueued embed job for contract ${contractId}`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 aiExtractWorker.on("completed", (job) =>
@@ -553,7 +555,7 @@ const alertsWorker = new Worker<AlertsCheckJobData>(
     const { fired, errors } = await checkAndFireAlerts()
     console.log(`[alerts] Fired ${fired} alerts, ${errors} errors`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 alertsWorker.on("completed", (job) =>
@@ -715,7 +717,7 @@ const signingWorker = new Worker<SigningSyncJobData>(
 
     console.log(`[signing] Synced ${contracts.length} DocuSeal submission(s)`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 signingWorker.on("completed", (job) =>
@@ -723,6 +725,37 @@ signingWorker.on("completed", (job) =>
 )
 signingWorker.on("failed", (job, err) =>
   console.error(`[signing] Job ${job?.id} failed:`, err),
+)
+
+// ─── Worker: email.send ───────────────────────────────────────────────────────
+
+const emailWorker = new Worker<EmailJobData>(
+  "email.send",
+  async (job: Job<EmailJobData>) => {
+    const data = job.data
+    if (data.kind === "alert") {
+      await sendAlertEmailById(data.alertId)
+      return
+    }
+    if (data.kind === "approval_request") {
+      await sendApprovalRequestEmail({
+        to: data.to,
+        assigneeName: data.assigneeName,
+        requesterName: data.requesterName,
+        contractTitle: data.contractTitle,
+        message: data.message,
+      })
+      return
+    }
+  },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+)
+
+emailWorker.on("completed", (job) =>
+  console.log(`[email] Job ${job.id} completed`),
+)
+emailWorker.on("failed", (job, err) =>
+  console.error(`[email] Job ${job?.id} failed:`, err),
 )
 
 // Register the daily cron (9 AM UTC). BullMQ deduplicates by name + pattern,
@@ -752,10 +785,12 @@ async function shutdown() {
   await embedWorker.close()
   await alertsWorker.close()
   await signingWorker.close()
+  await emailWorker.close()
   await contractAiExtractQueue.close()
   await contractEmbedQueue.close()
   await alertsCheckQueue.close()
   await signingSyncQueue.close()
+  await emailQueue.close()
   await getWorkerPrisma().$disconnect()
   process.exit(0)
 }
