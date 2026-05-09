@@ -4,6 +4,8 @@ const settingsLinks = [
   { label: "Organization", href: "/settings/org" },
   { label: "Members", href: "/settings/members" },
   { label: "API Keys", href: "/settings/api-keys" },
+  { label: "Notifications", href: "/settings/notifications" },
+  { label: "My Notifications", href: "/settings/profile/notifications" },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
