@@ -1,5 +1,7 @@
 # ClauseFlow Web
 
+> **v1.0.0** — See [docs/self-hosting.md](../../docs/self-hosting.md) for the full self-hosting guide and [docs/api-reference.md](../../docs/api-reference.md) for the API reference.
+
 Next.js 14 App Router application for ClauseFlow, an open source, self-hostable Contract Lifecycle Management platform.
 
 ## Current Scope
