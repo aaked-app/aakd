@@ -226,6 +226,69 @@ describe("POST /api/contracts/[id]/ask", () => {
     expect(res.status).toBe(404)
   })
 
+  it("filters chunk retrieval by the caller's organizationId (cross-tenant isolation)", async () => {
+    process.env.OPENAI_API_KEY = "test-key"
+
+    const { generateEmbedding } = await import("@/lib/embedding")
+    vi.mocked(generateEmbedding).mockResolvedValueOnce(
+      Array.from({ length: 1536 }, () => 0.2),
+    )
+
+    // Caller is in org-1; the contract row also lives in org-1.
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      id: "c1",
+      title: "Org-1 contract",
+      extractedText: "Confidentiality applies for 5 years.",
+      organizationId: "org-1",
+    } as any)
+
+    // Capture the SQL fragment passed into $queryRaw so we can assert that
+    // the chunk query carries an organizationId filter — without it, an
+    // attacker who guessed a contract id could pull chunks from another org.
+    const queryRawSpy = vi
+      .mocked(prisma.$queryRaw)
+      .mockImplementationOnce(async (sql: any) => {
+        // Prisma.sql produces an object with `strings` and `values`
+        const stringsJoined: string = (sql?.strings ?? []).join(" ")
+        const values: unknown[] = sql?.values ?? []
+
+        expect(stringsJoined).toMatch(/JOIN\s+"Contract"/i)
+        expect(stringsJoined).toMatch(/c\."organizationId"/)
+        // org-1 must appear among the bound parameters; org-2 must not.
+        expect(values).toContain("org-1")
+        expect(values).not.toContain("org-2")
+
+        return [
+          {
+            chunkIndex: 0,
+            text: "Confidentiality applies for 5 years.",
+            similarity: 0.92,
+          },
+        ] as any
+      })
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Five years per Excerpt 1." } }],
+      }),
+    } as any)
+
+    const { POST } = await import("@/app/api/contracts/[id]/ask/route")
+    const req = new Request("http://localhost/api/contracts/c1/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "How long does confidentiality last?" }),
+    })
+
+    const res = await requestContext.run(mockCtx, () =>
+      POST(req, { params: Promise.resolve({ id: "c1" }) }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(queryRawSpy).toHaveBeenCalled()
+  })
+
   it("answers using retrieved chunks and returns citations", async () => {
     process.env.OPENAI_API_KEY = "test-key"
 

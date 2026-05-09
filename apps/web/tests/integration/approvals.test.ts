@@ -20,9 +20,12 @@ vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
 
-// Silence email sending in tests
+// Silence email sending + queue enqueues in tests
 vi.mock("@/lib/email/approval", () => ({
   sendApprovalRequestEmail: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock("@/lib/jobs/queues", () => ({
+  emailQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -405,7 +408,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
 
     expect(res.status).toBe(200)
     expect(prisma.contract.update).toHaveBeenCalledWith({
-      where: { id: "contract-1" },
+      where: { id: "contract-1", status: "PENDING_APPROVAL" },
       data: { status: "AWAITING_SIGNATURE" },
     })
   })
@@ -516,7 +519,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
 
     expect(res.status).toBe(200)
     expect(prisma.contract.update).toHaveBeenCalledWith({
-      where: { id: "contract-1" },
+      where: { id: "contract-1", status: "PENDING_APPROVAL" },
       data: { status: "INTERNAL_REVIEW" },
     })
   })

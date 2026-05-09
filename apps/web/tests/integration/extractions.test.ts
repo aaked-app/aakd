@@ -328,9 +328,11 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     )
 
     expect(res.status).toBe(200)
-    // First update call: set rawValue
+    // First update call: set rawValue and flip extractedBy to "user"
     expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(1,
-      expect.objectContaining({ data: { rawValue: "2025-06-01" } }),
+      expect.objectContaining({
+        data: { rawValue: "2025-06-01", extractedBy: "user" },
+      }),
     )
     // Second update call: set status accepted
     expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(2,
