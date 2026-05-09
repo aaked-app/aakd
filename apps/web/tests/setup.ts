@@ -25,6 +25,7 @@ vi.mock("@/lib/db/client", () => {
     approval: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     $use: vi.fn(),
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
   }
   // $transaction supports both array form (Promise.all) and callback form
   // (interactive). Keep a default that mirrors real semantics so tests don't

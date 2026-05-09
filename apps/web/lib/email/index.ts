@@ -134,3 +134,16 @@ export async function sendAlertEmail(alert: ContractAlertWithContract): Promise<
     data: { emailSentAt: new Date() },
   })
 }
+
+/**
+ * Loads an alert by id and sends its email. Used by the email.send worker
+ * so the alerts check pipeline isn't blocked by SMTP latency.
+ */
+export async function sendAlertEmailById(alertId: string): Promise<void> {
+  const alert = await prisma.contractAlert.findUnique({
+    where: { id: alertId },
+    include: { contract: { include: { organization: true } } },
+  })
+  if (!alert) return
+  await sendAlertEmail(alert as ContractAlertWithContract)
+}

@@ -2,7 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
-import { sendApprovalRequestEmail } from "@/lib/email/approval"
+import { emailQueue } from "@/lib/jobs/queues"
 import { z } from "zod"
 
 const USER_SELECT = {
@@ -78,6 +78,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "Invalid request body", detail: err }, { status: 400 })
     }
 
+    // Block self-approval — separation of duties
+    if (body.assignedToId === ctx.userId) {
+      return Response.json({ error: "Cannot assign yourself as approver" }, { status: 400 })
+    }
+
     // Resolve the assignee — must be a member of the same org
     const assigneeMember = await prisma.member.findFirst({
       where: { userId: body.assignedToId, organizationId: ctx.organizationId },
@@ -130,14 +135,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       )
     }
 
-    // Send email notification (fire-and-forget; fail silently)
-    sendApprovalRequestEmail({
-      to: assigneeMember.user.email,
-      assigneeName: assigneeMember.user.name,
-      requesterName: requesterUser?.name ?? "A team member",
-      contractTitle: contract.title,
-      message: body.message,
-    }).catch(() => {})
+    // Hand the email off to the email.send queue — fire-and-forget; the
+    // worker handles SMTP latency and retries.
+    emailQueue
+      .add("send", {
+        kind: "approval_request",
+        to: assigneeMember.user.email,
+        assigneeName: assigneeMember.user.name,
+        requesterName: requesterUser?.name ?? "A team member",
+        contractTitle: contract.title,
+        message: body.message,
+      })
+      .catch(() => {})
 
     return Response.json({ approval }, { status: 201 })
   })

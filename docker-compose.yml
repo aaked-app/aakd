@@ -1,10 +1,14 @@
+# NOTE: BETTER_AUTH_SECRET, POSTGRES_PASSWORD, and REDIS_PASSWORD must be set
+# in your .env file (or shell) before running `docker compose up`. There are
+# no defaults — leaving any of them empty is intentionally a hard failure on
+# Postgres/Redis startup so a production deploy cannot ship with stub creds.
 services:
   db:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: clauseflow
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +20,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Optional auth: set REDIS_PASSWORD in .env to enable. If unset Redis runs
+    # without auth (unchanged behavior for local dev).
+    command: ["sh", "-c", "if [ -n \"$REDIS_PASSWORD\" ]; then redis-server --requirepass \"$REDIS_PASSWORD\"; else redis-server; fi"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     restart: unless-stopped
 
   minio:
@@ -53,9 +62,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/clauseflow
-      REDIS_URL: redis://redis:6379
-      BETTER_AUTH_SECRET: changeme-use-openssl-rand-base64-32
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/clauseflow
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env (generate with: openssl rand -base64 32)}
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       STORAGE_ENDPOINT: http://minio:9000
@@ -92,8 +101,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile.worker
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/clauseflow
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/clauseflow
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: clauseflow
       STORAGE_ACCESS_KEY: minioadmin

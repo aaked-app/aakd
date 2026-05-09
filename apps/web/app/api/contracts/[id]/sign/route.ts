@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -12,6 +12,17 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
+
+  // Signing is irreversible — restrict to admin/legal roles.
+  if (ctx.role !== "admin" && ctx.role !== "legal") {
+    return Response.json(
+      { error: "Only admin or legal roles may initiate signing" },
+      { status: 403 },
+    )
+  }
 
   // Rate limit: 5 requests/min per org (signing is expensive + irreversible)
   const rl = rateLimit(`${ctx.organizationId}:sign`, 5, 60_000)

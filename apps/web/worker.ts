@@ -22,10 +22,13 @@ import OpenAI from "openai"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
-import { generateEmbedding } from "@/lib/embedding"
-import { getSubmission } from "@/lib/docuseal"
-import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData } from "@/lib/jobs/queues"
-import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue } from "@/lib/jobs/queues"
+import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
+import { getSubmission, isAllowedDocuSealUrl } from "@/lib/docuseal"
+import { chunkText } from "@/lib/ai/chunking"
+import { sendAlertEmailById } from "@/lib/email"
+import { sendApprovalRequestEmail } from "@/lib/email/approval"
+import type { ContractExtractJobData, ContractAiExtractJobData, AlertsCheckJobData, ContractEmbedJobData, SigningSyncJobData, EmailJobData } from "@/lib/jobs/queues"
+import { contractAiExtractQueue, contractEmbedQueue, alertsCheckQueue, signingSyncQueue, emailQueue } from "@/lib/jobs/queues"
 
 // ─── Redis connection ─────────────────────────────────────────────────────────
 
@@ -165,9 +168,26 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // 5. Enqueue AI extraction job
       await contractAiExtractQueue.add("ai_extract", { contractId, extractedText })
       console.log(`[extract] Enqueued ai_extract job for contract ${contractId}`)
+    } else {
+      // Silent failures (typically scanned/image PDFs) used to disappear into
+      // the void — log + write an Activity row so users see why downstream
+      // AI features are missing.
+      console.warn(
+        `[extract] No text extracted for file ${fileId} (contract ${contractId}) — likely a scanned image`,
+      )
+      await getWorkerPrisma().activity.create({
+        data: {
+          contractId,
+          userId: null,
+          actorLabel: "System",
+          action: "METADATA_EXTRACTED",
+          detail: "Text extraction failed — document may be a scanned image",
+          metadata: { skipped: true, reason: "empty_text" },
+        },
+      })
     }
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 extractWorker.on("completed", (job) =>
@@ -295,6 +315,10 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           metadata: { skipped: true, reason: "llm_error" },
         },
       })
+      // Embedding generation is independent of metadata extraction — never
+      // skip it because the LLM failed, otherwise this contract is silently
+      // excluded from semantic search.
+      await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
       return
     }
 
@@ -322,6 +346,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           metadata: { skipped: true, reason: "parse_error" },
         },
       })
+      await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
       return
     }
 
@@ -412,7 +437,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
     console.log(`[ai_extract] Enqueued embed job for contract ${contractId}`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 aiExtractWorker.on("completed", (job) =>
@@ -438,21 +463,80 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     }
 
     const db = getWorkerPrisma()
+    const model = currentEmbeddingModel() ?? "unknown"
     const id = crypto.randomUUID()
 
     // Upsert using raw SQL (pgvector — Prisma does not support vector type natively)
     await db.$executeRaw`
       INSERT INTO "ContractEmbedding" ("id", "contractId", "embedding", "model", "createdAt", "updatedAt")
-      VALUES (${id}, ${contractId}, ${JSON.stringify(embedding)}::vector, 'text-embedding-3-small', NOW(), NOW())
+      VALUES (${id}, ${contractId}, ${JSON.stringify(embedding)}::vector, ${model}, NOW(), NOW())
       ON CONFLICT ("contractId") DO UPDATE
         SET "embedding" = EXCLUDED."embedding",
             "model" = EXCLUDED."model",
             "updatedAt" = NOW()
     `
 
-    console.log(`[embed] Embedded contract ${contractId} (${embedding.length} dims)`)
+    const chunks = chunkText(extractedText)
+
+    // Collect first, then write. Previously we deleted existing rows and
+    // inserted in-loop — a mid-loop failure left the contract with a partial
+    // (or zero) chunk index, silently breaking semantic search.
+    const collected: Array<{ index: number; text: string; embedding: number[] }> = []
+    let failures = 0
+    for (const chunk of chunks) {
+      try {
+        const chunkEmbedding = await generateEmbedding(chunk.text)
+        if (!chunkEmbedding) {
+          failures += 1
+          continue
+        }
+        collected.push({ index: chunk.index, text: chunk.text, embedding: chunkEmbedding })
+      } catch (err) {
+        console.error(`[embed] Chunk ${chunk.index} failed for contract ${contractId}:`, err)
+        failures += 1
+      }
+    }
+
+    if (collected.length === 0) {
+      console.warn(
+        `[embed] All ${chunks.length} chunk embeddings failed for contract ${contractId} — leaving existing rows intact`,
+      )
+      await db.activity.create({
+        data: {
+          contractId,
+          userId: null,
+          actorLabel: "System",
+          action: "METADATA_EXTRACTED",
+          detail: "Chunk embedding regeneration failed — existing search index preserved",
+          metadata: { skipped: true, reason: "embedding_failed", chunks: chunks.length },
+        },
+      })
+      console.log(`[embed] Embedded contract ${contractId} (${embedding.length} dims, 0 new chunks)`)
+      return
+    }
+
+    // Only swap rows once we know at least one chunk succeeded.
+    await db.$transaction([
+      db.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${contractId}`,
+      ...collected.map(
+        (c) => db.$executeRaw`
+          INSERT INTO "ContractChunkEmbedding" ("id", "contractId", "chunkIndex", "text", "embedding", "model", "createdAt", "updatedAt")
+          VALUES (${crypto.randomUUID()}, ${contractId}, ${c.index}, ${c.text}, ${JSON.stringify(c.embedding)}::vector, ${model}, NOW(), NOW())
+        `,
+      ),
+    ])
+
+    if (failures > 0) {
+      console.warn(
+        `[embed] ${failures}/${chunks.length} chunks failed for contract ${contractId}`,
+      )
+    }
+
+    console.log(
+      `[embed] Embedded contract ${contractId} (${embedding.length} dims, ${collected.length}/${chunks.length} chunks)`,
+    )
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 embedWorker.on("completed", (job) =>
@@ -471,7 +555,7 @@ const alertsWorker = new Worker<AlertsCheckJobData>(
     const { fired, errors } = await checkAndFireAlerts()
     console.log(`[alerts] Fired ${fired} alerts, ${errors} errors`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 alertsWorker.on("completed", (job) =>
@@ -485,6 +569,7 @@ alertsWorker.on("failed", (job, err) =>
 
 type SyncableContract = {
   id: string
+  organizationId: string
   ownerId: string
   docusealSubmissionId: string | null
   signingStatus: string | null
@@ -500,13 +585,22 @@ function normalizeDocuSealStatus(status: string): "completed" | "declined" | "ex
 }
 
 async function persistSignedDocument(contract: SyncableContract, documentUrl: string) {
+  // SSRF guard: only fetch from the configured DocuSeal host
+  if (!isAllowedDocuSealUrl(documentUrl)) {
+    throw new Error(`Rejected signed document URL from disallowed host: ${documentUrl}`)
+  }
+
   const signedRes = await fetch(documentUrl)
   if (!signedRes.ok) {
     throw new Error(`Failed to download signed PDF: ${signedRes.status}`)
   }
 
   const buffer = Buffer.from(await signedRes.arrayBuffer())
-  const newKey = `contracts/${contract.id}/signed_${Date.now()}.pdf`
+  const newKey = storage.storageKey(
+    contract.organizationId,
+    contract.id,
+    `signed_${Date.now()}.pdf`,
+  )
   await storage.upload(newKey, buffer, "application/pdf")
 
   const db = getWorkerPrisma()
@@ -605,6 +699,7 @@ const signingWorker = new Worker<SigningSyncJobData>(
       where,
       select: {
         id: true,
+        organizationId: true,
         ownerId: true,
         docusealSubmissionId: true,
         signingStatus: true,
@@ -622,7 +717,7 @@ const signingWorker = new Worker<SigningSyncJobData>(
 
     console.log(`[signing] Synced ${contracts.length} DocuSeal submission(s)`)
   },
-  { connection },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
 
 signingWorker.on("completed", (job) =>
@@ -630,6 +725,37 @@ signingWorker.on("completed", (job) =>
 )
 signingWorker.on("failed", (job, err) =>
   console.error(`[signing] Job ${job?.id} failed:`, err),
+)
+
+// ─── Worker: email.send ───────────────────────────────────────────────────────
+
+const emailWorker = new Worker<EmailJobData>(
+  "email.send",
+  async (job: Job<EmailJobData>) => {
+    const data = job.data
+    if (data.kind === "alert") {
+      await sendAlertEmailById(data.alertId)
+      return
+    }
+    if (data.kind === "approval_request") {
+      await sendApprovalRequestEmail({
+        to: data.to,
+        assigneeName: data.assigneeName,
+        requesterName: data.requesterName,
+        contractTitle: data.contractTitle,
+        message: data.message,
+      })
+      return
+    }
+  },
+  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+)
+
+emailWorker.on("completed", (job) =>
+  console.log(`[email] Job ${job.id} completed`),
+)
+emailWorker.on("failed", (job, err) =>
+  console.error(`[email] Job ${job?.id} failed:`, err),
 )
 
 // Register the daily cron (9 AM UTC). BullMQ deduplicates by name + pattern,
@@ -659,10 +785,12 @@ async function shutdown() {
   await embedWorker.close()
   await alertsWorker.close()
   await signingWorker.close()
+  await emailWorker.close()
   await contractAiExtractQueue.close()
   await contractEmbedQueue.close()
   await alertsCheckQueue.close()
   await signingSyncQueue.close()
+  await emailQueue.close()
   await getWorkerPrisma().$disconnect()
   process.exit(0)
 }

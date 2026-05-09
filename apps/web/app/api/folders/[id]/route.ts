@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { z } from "zod"
@@ -10,6 +10,9 @@ const RenameFolderSchema = z.object({
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     let body: unknown
@@ -43,6 +46,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     const existing = await prisma.folder.findUnique({

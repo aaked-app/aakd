@@ -32,6 +32,20 @@ export interface SigningSyncJobData {
   submissionId?: string
 }
 
+// Email send queue — covers any transactional email triggered from a route
+// or other worker so the API/job that produces the event isn't blocked on
+// SMTP latency.
+export type EmailJobData =
+  | { kind: "alert"; alertId: string }
+  | {
+      kind: "approval_request"
+      to: string
+      assigneeName: string
+      requesterName: string
+      contractTitle: string
+      message?: string
+    }
+
 // ─── Lazy queue singletons ────────────────────────────────────────────────────
 // Queue instances are created on first use (not at module load time) so that
 // Next.js's static-generation phase during `next build` does not attempt a
@@ -42,6 +56,7 @@ let _contractAiExtractQueue: Queue<ContractAiExtractJobData> | null = null
 let _contractEmbedQueue: Queue<ContractEmbedJobData> | null = null
 let _alertsCheckQueue: Queue<AlertsCheckJobData> | null = null
 let _signingSyncQueue: Queue<SigningSyncJobData> | null = null
+let _emailQueue: Queue<EmailJobData> | null = null
 
 export function getContractExtractQueue(): Queue<ContractExtractJobData> {
   return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", { connection }))
@@ -61,6 +76,10 @@ export function getAlertsCheckQueue(): Queue<AlertsCheckJobData> {
 
 export function getSigningSyncQueue(): Queue<SigningSyncJobData> {
   return (_signingSyncQueue ??= new Queue<SigningSyncJobData>("signing.sync", { connection }))
+}
+
+export function getEmailQueue(): Queue<EmailJobData> {
+  return (_emailQueue ??= new Queue<EmailJobData>("email.send", { connection }))
 }
 
 // ─── Legacy named exports (kept for backward compat) ─────────────────────────
@@ -85,4 +104,8 @@ export const alertsCheckQueue = {
 export const signingSyncQueue = {
   add: (...a: Parameters<Queue<SigningSyncJobData>["add"]>) => getSigningSyncQueue().add(...a),
   close: () => _signingSyncQueue?.close() ?? Promise.resolve(),
+}
+export const emailQueue = {
+  add: (...a: Parameters<Queue<EmailJobData>["add"]>) => getEmailQueue().add(...a),
+  close: () => _emailQueue?.close() ?? Promise.resolve(),
 }

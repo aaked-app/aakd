@@ -23,7 +23,11 @@ vi.mock("@/lib/db/activity", () => ({
 vi.mock("@/lib/storage", () => ({
   storage: {
     getSignedDownloadUrl: vi.fn().mockResolvedValue("https://s3.example.com/file.pdf"),
-    upload: vi.fn().mockResolvedValue("contracts/contract-1/signed_123.pdf"),
+    upload: vi.fn().mockResolvedValue("orgs/org-1/contracts/contract-1/123_signed.pdf"),
+    storageKey: vi.fn(
+      (orgId: string, contractId: string, filename: string) =>
+        `orgs/${orgId}/contracts/${contractId}/${Date.now()}_${filename}`,
+    ),
   },
 }))
 
@@ -33,6 +37,9 @@ vi.mock("@/lib/docuseal", () => ({
     id: 99,
     submitters: [{ slug: "abc123", embed_src: "https://docuseal.com/s/abc123" }],
   }),
+  // Stubbed to allow webhook-supplied URLs through; real impl checks the host
+  // against DOCUSEAL_API_URL (covered separately by lib/docuseal tests).
+  isAllowedDocuSealUrl: vi.fn().mockReturnValue(true),
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -317,9 +324,9 @@ describe("POST /api/webhooks/docuseal", () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
 
-    // Should have uploaded the signed PDF to S3
+    // Should have uploaded the signed PDF to S3 under the org-scoped key
     expect(storage.upload).toHaveBeenCalledWith(
-      expect.stringContaining("contracts/contract-1/signed_"),
+      expect.stringMatching(/orgs\/org-1\/contracts\/contract-1\/.*signed_.*\.pdf/),
       expect.any(Buffer),
       "application/pdf",
     )
@@ -328,7 +335,7 @@ describe("POST /api/webhooks/docuseal", () => {
     expect(prisma.$transaction).toHaveBeenCalled()
     expect(prisma.contract.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "contract-1" },
+        where: { id: "contract-1", organizationId: "org-1" },
         data: expect.objectContaining({
           status: "ACTIVE",
           signingStatus: "completed",
@@ -376,7 +383,7 @@ describe("POST /api/webhooks/docuseal", () => {
     expect(res.status).toBe(200)
     expect(global.fetch).not.toHaveBeenCalled()
     expect(prisma.contract.update).toHaveBeenCalledWith({
-      where: { id: "contract-1" },
+      where: { id: "contract-1", organizationId: "org-1" },
       data: { signingStatus: "declined" },
     })
     expect(writeActivity).toHaveBeenCalledWith(
