@@ -1,5 +1,6 @@
 import type { CrmIntegration } from "@prisma/client"
 import { prisma } from "@/lib/db/client"
+import { requestContext } from "@/lib/context"
 import { getCrmProvider } from "@/lib/crm"
 import { writeActivity } from "@/lib/db/activity"
 import { normalizeProvider } from "@/lib/crm/route-helpers"
@@ -56,44 +57,71 @@ export async function POST(req: Request, { params }: { params: { provider: strin
     return new Response(null, { status: 200 })
   }
 
-  const links = await prisma.crmLink.findMany({
-    where: {
-      integrationId: matched.id,
-      provider,
-      externalDealId: event.dealId,
+  const matchedIntegration = matched
+  // Establish a request context so the org-scope Prisma middleware injects
+  // organizationId on the contract / crmLink writes below. Without this the
+  // webhook handler would write outside the multi-tenancy guard.
+  return requestContext.run(
+    {
+      organizationId: matchedIntegration.organizationId,
+      userId: matchedIntegration.connectedById,
+      role: "admin",
+      scopes: ["read", "write"],
+      source: "api_key",
     },
-    select: { id: true, contractId: true, contract: { select: { id: true, status: true } } },
-  })
-
-  for (const link of links) {
-    const updates: { lastSyncedAt: Date; lastSyncStatus: string } = {
-      lastSyncedAt: new Date(),
-      lastSyncStatus: "success",
-    }
-    await prisma.crmLink.update({ where: { id: link.id }, data: updates })
-
-    const targetStage = matched.syncOnActiveStage
-    if (
-      targetStage &&
-      event.stage &&
-      event.stage.toLowerCase() === targetStage.toLowerCase() &&
-      link.contract.status !== "ACTIVE" &&
-      link.contract.status !== "ARCHIVED"
-    ) {
-      await prisma.contract.update({
-        where: { id: link.contractId },
-        data: { status: "ACTIVE" },
+    async () => {
+      const links = await prisma.crmLink.findMany({
+        where: {
+          integrationId: matchedIntegration.id,
+          provider,
+          externalDealId: event!.dealId,
+        },
+        select: {
+          id: true,
+          contractId: true,
+          contract: { select: { id: true, status: true } },
+        },
       })
 
-      await writeActivity(
-        link.contractId,
-        null,
-        "CRM_SYNCED",
-        `Status set to ACTIVE from ${provider} deal stage "${event.stage}"`,
-        { provider, dealId: event.dealId, newStage: event.stage },
-      ).catch((err) => console.error("[crm.webhook] writeActivity error:", err))
-    }
-  }
+      for (const link of links) {
+        const updates: { lastSyncedAt: Date; lastSyncStatus: string } = {
+          lastSyncedAt: new Date(),
+          lastSyncStatus: "success",
+        }
+        await prisma.crmLink.update({ where: { id: link.id }, data: updates })
 
-  return new Response(null, { status: 200 })
+        const targetStage = matchedIntegration.syncOnActiveStage
+        if (
+          targetStage &&
+          event!.stage &&
+          event!.stage.toLowerCase() === targetStage.toLowerCase()
+        ) {
+          // State-machine guard: ACTIVE may only be entered from
+          // AWAITING_SIGNATURE. Use update-with-where so concurrent updates
+          // can't push DRAFT/PENDING_APPROVAL contracts straight to ACTIVE.
+          try {
+            await prisma.contract.update({
+              where: { id: link.contractId, status: "AWAITING_SIGNATURE" },
+              data: { status: "ACTIVE" },
+            })
+
+            await writeActivity(
+              link.contractId,
+              null,
+              "CRM_SYNCED",
+              `Status set to ACTIVE from ${provider} deal stage "${event!.stage}"`,
+              { provider, dealId: event!.dealId, newStage: event!.stage },
+            ).catch((err) => console.error("[crm.webhook] writeActivity error:", err))
+          } catch (err) {
+            // P2025: contract was not in AWAITING_SIGNATURE — silently skip.
+            if ((err as { code?: string }).code !== "P2025") {
+              throw err
+            }
+          }
+        }
+      }
+
+      return new Response(null, { status: 200 })
+    },
+  )
 }

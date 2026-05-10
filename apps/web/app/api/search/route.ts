@@ -33,6 +33,7 @@ export async function GET(req: Request) {
       const contracts = await prisma.contract.findMany({
         where: {
           organizationId: orgId,
+          status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
         },
         select: {
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
       const total = await prisma.contract.count({
         where: {
           organizationId: orgId,
+          status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
         },
       })
@@ -90,6 +92,7 @@ export async function GET(req: Request) {
             "organizationId"
           FROM "Contract"
           WHERE "organizationId" = ${orgId}
+            AND "status" != 'ARCHIVED'
             AND to_tsvector('english',
               coalesce(title, '') || ' ' ||
               coalesce("counterpartyName", '') || ' ' ||
@@ -113,6 +116,7 @@ export async function GET(req: Request) {
       const contracts = await prisma.contract.findMany({
         where: {
           organizationId: orgId,
+          status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
         },
         select: {
@@ -134,6 +138,7 @@ export async function GET(req: Request) {
       const total = await prisma.contract.count({
         where: {
           organizationId: orgId,
+          status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
         },
       })
@@ -150,6 +155,7 @@ export async function GET(req: Request) {
           SELECT COUNT(*)::bigint AS count
           FROM "Contract"
           WHERE "organizationId" = ${orgId}
+            AND "status" != 'ARCHIVED'
             AND to_tsvector('english',
               coalesce(title, '') || ' ' ||
               coalesce("counterpartyName", '') || ' ' ||
@@ -169,6 +175,7 @@ export async function GET(req: Request) {
       const fallbackContracts = await prisma.contract.findMany({
         where: {
           organizationId: orgId,
+          status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
         },
         select: {
@@ -191,6 +198,7 @@ export async function GET(req: Request) {
         const fallbackTotal = await prisma.contract.count({
           where: {
             organizationId: orgId,
+            status: { not: "ARCHIVED" },
             title: { contains: q, mode: "insensitive" },
           },
         })

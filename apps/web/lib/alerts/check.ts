@@ -28,6 +28,9 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
     where: {
       firedAt: null,
       triggerDate: { lte: new Date() },
+      contract: {
+        status: { notIn: ["ARCHIVED", "TERMINATED", "EXPIRED"] },
+      },
     },
     include: {
       contract: {
@@ -42,6 +45,16 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
   let errors = 0
 
   for (const alert of due as ContractAlertWithContract[]) {
+    // Atomic claim — concurrent workers race on this updateMany. Whoever
+    // wins flips firedAt; the loser sees count=0 and skips. Without this
+    // guard two workers could both read firedAt=null and double-send the
+    // email before either committed the firedAt write.
+    const claim = await prisma.contractAlert.updateMany({
+      where: { id: alert.id, firedAt: null },
+      data: { firedAt: new Date() },
+    })
+    if (claim.count === 0) continue
+
     try {
       // Hand off to the email worker — never block the alerts pipeline on SMTP.
       await emailQueue.add("send", { kind: "alert", alertId: alert.id }).catch((err) => {
@@ -85,37 +98,29 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
     }
   }
 
-  // Batch-mark all successfully processed alerts as fired
-  if (firedIds.length > 0) {
-    await prisma.contractAlert.updateMany({
-      where: { id: { in: firedIds } },
-      data: { firedAt: new Date() },
-    })
+  // firedAt is already set atomically per-alert above, so we only fan out
+  // lifecycle notifications here. The atomic guard ensures double-fire safety.
+  for (const alert of due as ContractAlertWithContract[]) {
+    if (!firedIds.includes(alert.id)) continue
 
-    // Fan out lifecycle notifications only after firedAt is committed —
-    // guard against double-fire on retried jobs.
-    for (const alert of due as ContractAlertWithContract[]) {
-      if (!firedIds.includes(alert.id)) continue
-
-      if (FANOUT_EXPIRY_TYPES.has(alert.alertType)) {
-        const daysUntilExpiry = alert.contract.endDate
-          ? Math.max(
-              0,
-              Math.ceil(
-                (new Date(alert.contract.endDate).getTime() - Date.now()) /
-                  (1000 * 60 * 60 * 24),
-              ),
-            )
-          : 0
-        await enqueueNotification("contract.expiring_soon", alert.contractId, null, {
-          alertType: alert.alertType,
-          daysUntilExpiry,
-        })
-      } else if (alert.alertType === "EXPIRY_PAST") {
-        await enqueueNotification("contract.expired", alert.contractId, null, {
-          alertType: "EXPIRY_PAST",
-        })
-      }
+    if (FANOUT_EXPIRY_TYPES.has(alert.alertType)) {
+      const daysUntilExpiry = alert.contract.endDate
+        ? Math.max(
+            0,
+            Math.ceil(
+              (new Date(alert.contract.endDate).getTime() - Date.now()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          )
+        : 0
+      await enqueueNotification("contract.expiring_soon", alert.contractId, null, {
+        alertType: alert.alertType,
+        daysUntilExpiry,
+      })
+    } else if (alert.alertType === "EXPIRY_PAST") {
+      await enqueueNotification("contract.expired", alert.contractId, null, {
+        alertType: "EXPIRY_PAST",
+      })
     }
   }
 

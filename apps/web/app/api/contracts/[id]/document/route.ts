@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 // 5 MB cap on serialised content JSON.
@@ -100,19 +101,30 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           { status: 409 },
         )
       }
-      const created = await prisma.contractDocument.create({
-        data: {
-          contractId: params.id,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: parsed.data.content as any,
-          wordCount: parsed.data.wordCount,
-          version: 1,
-          savedById: ctx.userId,
-        },
-        select: { id: true, wordCount: true, version: true, updatedAt: true },
-      })
-      await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED")
-      return Response.json({ document: created })
+      try {
+        const created = await prisma.contractDocument.create({
+          data: {
+            contractId: params.id,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            content: parsed.data.content as any,
+            wordCount: parsed.data.wordCount,
+            version: 1,
+            savedById: ctx.userId,
+          },
+          select: { id: true, wordCount: true, version: true, updatedAt: true },
+        })
+        await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED")
+        return Response.json({ document: created })
+      } catch (err) {
+        // P2002 = a concurrent first-save just won the race.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          return Response.json(
+            { error: "conflict", serverVersion: 1 },
+            { status: 409 },
+          )
+        }
+        throw err
+      }
     }
 
     if (parsed.data.clientVersion !== existing.version) {

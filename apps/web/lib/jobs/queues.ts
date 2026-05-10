@@ -149,7 +149,13 @@ export function getSigningSyncQueue(): Queue<SigningSyncJobData> {
 }
 
 export function getEmailQueue(): Queue<EmailJobData> {
-  return (_emailQueue ??= new Queue<EmailJobData>("email.send", { connection }))
+  // attempts: 1 — sendMail is not idempotent. If the SMTP send succeeds but
+  // the worker crashes before BullMQ commits the job result, a retry would
+  // duplicate the email. Failed jobs land in the BullMQ failed queue.
+  return (_emailQueue ??= new Queue<EmailJobData>("email.send", {
+    connection,
+    defaultJobOptions: { attempts: 1 },
+  }))
 }
 
 export function getNotificationFanoutQueue(): Queue<NotificationFanoutJobData> {

@@ -248,7 +248,7 @@ export class PipedriveProvider implements CrmProvider {
 
   async parseWebhookEvent(
     req: Request,
-    _integration: CrmIntegration
+    integration: CrmIntegration
   ): Promise<DealEvent | null> {
     const { clientSecret } = clientCredentials()
     const signature = req.headers.get("x-pipedrive-signature")
@@ -291,12 +291,19 @@ export class PipedriveProvider implements CrmProvider {
     if (!current || current.id === undefined) return null
     if (!previous || current.stage_id === previous.stage_id) return null
 
+    // Pipedrive's webhook payload only carries the integer stage_id. The CRM
+    // webhook route compares this against integration.syncOnActiveStage, which
+    // the user configures as a stage name (e.g. "Won"). Resolve the stage to
+    // its name here so the comparison works.
+    const stageName =
+      current.stage_id !== null && current.stage_id !== undefined
+        ? await lookupStageName(integration, current.stage_id)
+        : ""
+
     return {
       dealId: String(current.id),
       dealName: current.title ?? "",
-      stage: current.stage_id !== null && current.stage_id !== undefined
-        ? String(current.stage_id)
-        : "",
+      stage: stageName,
       value: current.value ?? null,
       currency: current.currency ?? null,
       counterpartyName: current.org_name ?? null,

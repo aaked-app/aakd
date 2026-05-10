@@ -20,6 +20,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
+import { prisma as appPrisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
@@ -51,6 +52,7 @@ import type {
   ObligationsCheckJobData,
 } from "@/lib/jobs/queues"
 import {
+  contractExtractQueue,
   contractAiExtractQueue,
   contractEmbedQueue,
   alertsCheckQueue,
@@ -153,6 +155,20 @@ const extractWorker = new Worker<ContractExtractJobData>(
 
     console.log(`[extract] Processing job ${job.id} for contract ${contractId}, file ${fileId}`)
 
+    // Idempotency guard: if a previous run already extracted text and kicked
+    // off the embed step, a retry would duplicate Activity rows and re-enqueue
+    // contract.embed. Re-enqueue embed only if no embedding exists yet.
+    const existingContract = await getWorkerPrisma().contract.findUnique({
+      where: { id: contractId },
+      select: { extractedText: true },
+    })
+    if (existingContract?.extractedText) {
+      console.log(
+        `[extract] Contract ${contractId} already has extracted text — skipping (no double Activity / re-enqueue)`,
+      )
+      return
+    }
+
     // 1. Look up the ContractFile to get the mimeType and filename
     const contractFile = await getWorkerPrisma().contractFile.findUnique({
       where: { id: fileId },
@@ -213,9 +229,11 @@ const extractWorker = new Worker<ContractExtractJobData>(
         data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `Text extracted from ${contractFile.filename}` },
       })
 
-      // 5. Enqueue AI extraction job
-      await contractAiExtractQueue.add("ai_extract", { contractId, extractedText })
-      console.log(`[extract] Enqueued ai_extract job for contract ${contractId}`)
+      // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
+      // embed worker chains ai_extract once embeddings land so semantic search
+      // is always populated even when the LLM extractor fails or is missing.
+      await contractEmbedQueue.add("embed", { contractId, extractedText })
+      console.log(`[extract] Enqueued embed job for contract ${contractId}`)
     } else {
       // Silent failures (typically scanned/image PDFs) used to disappear into
       // the void — log + write an Activity row so users see why downstream
@@ -346,8 +364,6 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
             metadata: { skipped: true, reason: "no_provider" },
           },
         })
-        // Still enqueue embedding so semantic search works without an extractor.
-        await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
         return
       }
       rawJson = result
@@ -363,10 +379,6 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           metadata: { skipped: true, reason: "llm_error" },
         },
       })
-      // Embedding generation is independent of metadata extraction — never
-      // skip it because the LLM failed, otherwise this contract is silently
-      // excluded from semantic search.
-      await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
       return
     }
 
@@ -394,7 +406,6 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           metadata: { skipped: true, reason: "parse_error" },
         },
       })
-      await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
       return
     }
 
@@ -443,35 +454,41 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
 
     if (fieldData.length === 0) {
       console.log(`[ai_extract] No fields extracted for contract ${contractId}`)
-      await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
       return
     }
 
     const db = getWorkerPrisma()
-    await db.$transaction(
-      fieldData.map(({ field, data }) =>
-        db.aIExtraction.upsert({
-          where: { contractId_field: { contractId, field } },
-          create: {
-            contractId,
-            field,
-            rawValue: String(data.value),
-            confidence: data.confidence,
-            sourceText: data.sourceText,
-            sourcePage: data.sourcePage,
-            extractedBy: "ai",
-            status: "pending",
-          },
-          update: {
-            rawValue: String(data.value),
-            confidence: data.confidence,
-            sourceText: data.sourceText,
-            sourcePage: data.sourcePage,
-            status: "pending",
-          },
-        }),
-      ),
-    )
+    // Two-step write: createMany skipDuplicates inserts only fields with no
+    // prior row, then updateMany refreshes the rest — but only when the row
+    // is NOT accepted. Without the status guard a re-run would clobber a
+    // human-reviewed value back to "pending" and overwrite their edits.
+    await db.aIExtraction.createMany({
+      data: fieldData.map(({ field, data }) => ({
+        contractId,
+        field,
+        rawValue: String(data.value),
+        confidence: data.confidence,
+        sourceText: data.sourceText,
+        sourcePage: data.sourcePage,
+        extractedBy: "ai",
+        status: "pending",
+      })),
+      skipDuplicates: true,
+    })
+
+    for (const { field, data } of fieldData) {
+      await db.aIExtraction.updateMany({
+        where: { contractId, field, status: { not: "accepted" } },
+        data: {
+          rawValue: String(data.value),
+          confidence: data.confidence,
+          sourceText: data.sourceText,
+          sourcePage: data.sourcePage,
+          extractedBy: "ai",
+          status: "pending",
+        },
+      })
+    }
 
     await getWorkerPrisma().activity.create({
       data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `AI extracted ${fieldData.length} fields` },
@@ -480,10 +497,6 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     console.log(
       `[ai_extract] Upserted ${fieldData.length} extraction records for contract ${contractId}: ${fieldData.map((f) => f.field).join(", ")}`,
     )
-
-    // Enqueue embedding generation after AI extraction
-    await contractEmbedQueue.add("embed", { contractId, extractedText: textToAnalyze })
-    console.log(`[ai_extract] Enqueued embed job for contract ${contractId}`)
 
     // Fan out the contract.extracted event — system-actor (no user)
     await enqueueNotification("contract.extracted", contractId, null, {})
@@ -507,9 +520,21 @@ const embedWorker = new Worker<ContractEmbedJobData>(
 
     console.log(`[embed] Processing job ${job.id} for contract ${contractId}`)
 
+    // ai_extract runs after embed in the spec'd pipeline (extract → embed →
+    // ai_extract). It's independent of embeddings: chain it whether or not
+    // embedding generation succeeds, so metadata still flows even when the
+    // embedding provider is down or unconfigured.
+    const chainAiExtract = () =>
+      contractAiExtractQueue
+        .add("ai_extract", { contractId, extractedText })
+        .catch((err) =>
+          console.error(`[embed] failed to enqueue ai_extract for ${contractId}:`, err),
+        )
+
     const embedding = await generateEmbedding(extractedText)
     if (!embedding) {
       console.warn(`[embed] No embedding provider configured — skipping ${contractId}`)
+      await chainAiExtract()
       return
     }
 
@@ -563,6 +588,7 @@ const embedWorker = new Worker<ContractEmbedJobData>(
         },
       })
       console.log(`[embed] Embedded contract ${contractId} (${embedding.length} dims, 0 new chunks)`)
+      await chainAiExtract()
       return
     }
 
@@ -586,6 +612,8 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     console.log(
       `[embed] Embedded contract ${contractId} (${embedding.length} dims, ${collected.length}/${chunks.length} chunks)`,
     )
+
+    await chainAiExtract()
   },
   { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
 )
@@ -629,29 +657,35 @@ const obligationsWorker = new Worker<ObligationsCheckJobData>(
     const now = new Date()
 
     // Step 1 — promote past-due active obligations to OVERDUE.
-    // Capture the ids first so we can fan out a notification per row; updateMany
-    // doesn't return rows, and a separate query after the update can't tell
-    // which were freshly transitioned vs already overdue.
-    const toOverdue = await db.contractObligation.findMany({
+    // Atomic claim: a row-level updateMany flips PENDING/IN_PROGRESS → OVERDUE.
+    // We then fetch only the rows whose updatedAt landed in this run's window,
+    // so concurrent workers never enqueue duplicate notifications. Whichever
+    // worker wins the row sees it in its window; losers see updatedAt outside.
+    const runStart = new Date(now.getTime() - 60_000)
+    const updateRes = await db.contractObligation.updateMany({
       where: {
         status: { in: ["PENDING", "IN_PROGRESS"] },
         dueDate: { lt: now },
       },
-      select: {
-        id: true,
-        contractId: true,
-        title: true,
-        dueDate: true,
-        assignee: { select: { id: true, name: true } },
-      },
+      data: { status: "OVERDUE" },
     })
 
-    if (toOverdue.length > 0) {
-      await db.contractObligation.updateMany({
-        where: { id: { in: toOverdue.map((o) => o.id) } },
-        data: { status: "OVERDUE" },
+    let overdueNotified = 0
+    if (updateRes.count > 0) {
+      const nowOverdue = await db.contractObligation.findMany({
+        where: {
+          status: "OVERDUE",
+          updatedAt: { gte: runStart },
+        },
+        select: {
+          id: true,
+          contractId: true,
+          title: true,
+          dueDate: true,
+          assignee: { select: { id: true, name: true } },
+        },
       })
-      for (const ob of toOverdue) {
+      for (const ob of nowOverdue) {
         await enqueueNotification("obligation.overdue", ob.contractId, null, {
           obligationId: ob.id,
           obligationTitle: ob.title,
@@ -659,6 +693,7 @@ const obligationsWorker = new Worker<ObligationsCheckJobData>(
           assigneeName: ob.assignee?.name ?? null,
           daysUntilDue: 0,
         })
+        overdueNotified += 1
       }
     }
 
@@ -706,7 +741,7 @@ const obligationsWorker = new Worker<ObligationsCheckJobData>(
     }
 
     console.log(
-      `[obligations] Marked ${toOverdue.length} overdue, sent ${remindersSent} reminders`,
+      `[obligations] Marked ${updateRes.count} overdue (${overdueNotified} notified), sent ${remindersSent} reminders`,
     )
   },
   { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
@@ -890,41 +925,50 @@ const emailWorker = new Worker<EmailJobData>(
   "email.send",
   async (job: Job<EmailJobData>) => {
     const data = job.data
-    if (data.kind === "alert") {
-      await sendAlertEmailById(data.alertId)
-      return
-    }
-    if (data.kind === "approval_request") {
-      await sendApprovalRequestEmail({
-        to: data.to,
-        assigneeName: data.assigneeName,
-        requesterName: data.requesterName,
-        contractTitle: data.contractTitle,
-        message: data.message,
-      })
-      return
-    }
-    if (data.kind === "event_notification") {
-      // orgName is looked up here so the event_notification job stays small
-      // (the fanout job already loaded the full contract context).
-      const contract = await getWorkerPrisma().contract.findUnique({
-        where: { id: data.contractId },
-        select: { organization: { select: { name: true } } },
-      })
-      await sendEventNotificationEmail({
-        to: data.to,
-        eventName: data.eventName,
-        contractId: data.contractId,
-        contractTitle: data.contractTitle,
-        actorName: data.actorName,
-        orgName: contract?.organization.name ?? "your organization",
-        metadata: data.metadata,
-        unsubscribeToken: data.unsubscribeToken,
-      })
-      return
+    try {
+      if (data.kind === "alert") {
+        await sendAlertEmailById(data.alertId)
+        return
+      }
+      if (data.kind === "approval_request") {
+        await sendApprovalRequestEmail({
+          to: data.to,
+          assigneeName: data.assigneeName,
+          requesterName: data.requesterName,
+          contractTitle: data.contractTitle,
+          message: data.message,
+        })
+        return
+      }
+      if (data.kind === "event_notification") {
+        // orgName is looked up here so the event_notification job stays small
+        // (the fanout job already loaded the full contract context).
+        const contract = await getWorkerPrisma().contract.findUnique({
+          where: { id: data.contractId },
+          select: { organization: { select: { name: true } } },
+        })
+        await sendEventNotificationEmail({
+          to: data.to,
+          eventName: data.eventName,
+          contractId: data.contractId,
+          contractTitle: data.contractTitle,
+          actorName: data.actorName,
+          orgName: contract?.organization.name ?? "your organization",
+          metadata: data.metadata,
+          unsubscribeToken: data.unsubscribeToken,
+        })
+        return
+      }
+    } catch (err: unknown) {
+      // attempts: 1 — failed jobs land in BullMQ's failed queue rather than
+      // retrying. SMTP sends are not idempotent, so a retry of a partially-
+      // succeeded send would duplicate the email.
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[email.send] Failed for job ${job.id} (${data.kind}):`, message)
+      throw err
     }
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection, defaultJobOptions: { attempts: 1 } },
 )
 
 emailWorker.on("completed", (job) =>
@@ -1100,7 +1144,10 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
       }
     }
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  // attempts: 1 — fanout enqueues per-channel deliver jobs that have their own
+  // retry logic. Retrying the fanout itself would re-deliver to channels that
+  // already succeeded on the previous attempt.
+  { connection, defaultJobOptions: { attempts: 1 } },
 )
 
 fanoutWorker.on("completed", (job) =>
@@ -1548,25 +1595,33 @@ const salesforcePollWorker = new Worker<SalesforcePollJobData>(
         if (
           targetStage &&
           deal.stage &&
-          deal.stage.toLowerCase() === targetStage.toLowerCase() &&
-          link.contract.status !== "ACTIVE" &&
-          link.contract.status !== "ARCHIVED"
+          deal.stage.toLowerCase() === targetStage.toLowerCase()
         ) {
-          await db.contract.update({
-            where: { id: link.contractId },
-            data: { status: "ACTIVE" },
-          })
+          // State-machine guard — only AWAITING_SIGNATURE may transition to
+          // ACTIVE. Use update-with-where so a concurrent worker can't push
+          // DRAFT/PENDING_APPROVAL contracts straight to ACTIVE.
+          try {
+            await db.contract.update({
+              where: { id: link.contractId, status: "AWAITING_SIGNATURE" },
+              data: { status: "ACTIVE" },
+            })
 
-          await db.activity.create({
-            data: {
-              contractId: link.contractId,
-              userId: null,
-              actorLabel: "System",
-              action: "CRM_SYNCED",
-              detail: `Status set to ACTIVE from Salesforce stage "${deal.stage}"`,
-              metadata: { provider: "SALESFORCE", dealId: deal.id, newStage: deal.stage },
-            },
-          })
+            await db.activity.create({
+              data: {
+                contractId: link.contractId,
+                userId: null,
+                actorLabel: "System",
+                action: "CRM_SYNCED",
+                detail: `Status set to ACTIVE from Salesforce stage "${deal.stage}"`,
+                metadata: { provider: "SALESFORCE", dealId: deal.id, newStage: deal.stage },
+              },
+            })
+          } catch (err) {
+            // P2025: contract was not in AWAITING_SIGNATURE — silently skip.
+            if ((err as { code?: string }).code !== "P2025") {
+              throw err
+            }
+          }
         }
       }
     }
@@ -1690,6 +1745,7 @@ async function shutdown() {
   await documentConvertWorker.close()
   await documentExportWorker.close()
   await salesforcePollWorker.close()
+  await contractExtractQueue.close()
   await contractAiExtractQueue.close()
   await contractEmbedQueue.close()
   await alertsCheckQueue.close()
@@ -1702,6 +1758,10 @@ async function shutdown() {
   await documentExportQueue.close()
   await salesforcePollQueue.close()
   await getWorkerPrisma().$disconnect()
+  // The app Prisma client (lib/db/client) is also imported by some worker
+  // helpers (alerts/check, email senders). Disconnecting it here prevents a
+  // dangling pg pool on graceful shutdown.
+  await appPrisma.$disconnect().catch(() => {})
   process.exit(0)
 }
 

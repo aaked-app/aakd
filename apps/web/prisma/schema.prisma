@@ -185,6 +185,9 @@ model Contract {
   signingStatus         String?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
+
+  @@index([organizationId, updatedAt])
+  @@index([docusealSubmissionId])
 }
 
 enum ContractType {
@@ -222,6 +225,8 @@ model ContractFile {
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
+
+  @@index([contractId])
 }
 
 model ContractVersion {
@@ -234,6 +239,8 @@ model ContractVersion {
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+
+  @@index([contractId])
 }
 
 model Activity {
@@ -247,6 +254,8 @@ model Activity {
   detail      String?
   metadata    Json?
   createdAt   DateTime       @default(now())
+
+  @@index([contractId])
 }
 
 enum ActivityAction {
@@ -334,6 +343,8 @@ model ContractAlert {
   emailSentAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([contractId])
 }
 
 // ─── M3: Semantic Embeddings ──────────────────────────────────────────────────
@@ -368,6 +379,8 @@ model Approval {
   decidedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
+  @@index([contractId])
 }
 
 // ─── M5: Ecosystem Notifications ─────────────────────────────────────────────
@@ -402,6 +415,10 @@ model OutboundWebhook {
   deliveryLogs   WebhookDeliveryLog[]
 }
 
+// Cascade behavior: deleting an OutboundWebhook removes all of its
+// WebhookDeliveryLog rows. The audit history is intentionally tied to the
+// webhook lifecycle — once the webhook is removed, its delivery history is
+// no longer relevant and is purged with it.
 model WebhookDeliveryLog {
   id           String          @id @default(cuid())
   webhookId    String

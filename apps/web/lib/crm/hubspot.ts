@@ -30,6 +30,7 @@ interface HubSpotDealObject {
 interface HubSpotSearchResponse {
   total: number
   results: HubSpotDealObject[]
+  paging?: { next?: { after?: string } }
 }
 
 interface HubSpotAssociation {
@@ -176,30 +177,51 @@ export class HubSpotProvider implements CrmProvider {
   }
 
   async searchDeals(integration: CrmIntegration, query: string): Promise<DealSummary[]> {
-    const data = await fetchJson<HubSpotSearchResponse>(
-      `${API_BASE}/crm/v3/objects/deals/search`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${getAccessToken(integration)}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          filterGroups: query
-            ? [
-                {
-                  filters: [
-                    { propertyName: "dealname", operator: "CONTAINS_TOKEN", value: query },
-                  ],
-                },
-              ]
-            : [],
-          properties: ["dealname", "dealstage", "amount", "currency"],
-          limit: 20,
-        }),
+    // Follow paging.next.after up to 3 pages so we never silently truncate at
+    // 20 results. Cap at 60 so we don't blow out memory if the user has tens
+    // of thousands of matches.
+    const MAX_RESULTS = 60
+    const PAGE_SIZE = 20
+    const results: DealSummary[] = []
+    let after: string | undefined
+
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: query
+          ? [
+              {
+                filters: [
+                  { propertyName: "dealname", operator: "CONTAINS_TOKEN", value: query },
+                ],
+              },
+            ]
+          : [],
+        properties: ["dealname", "dealstage", "amount", "currency"],
+        limit: PAGE_SIZE,
       }
-    )
-    return data.results.map((deal) => dealToSummary(deal, integration.portalId, null))
+      if (after) body.after = after
+
+      const data = await fetchJson<HubSpotSearchResponse>(
+        `${API_BASE}/crm/v3/objects/deals/search`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getAccessToken(integration)}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      )
+
+      for (const deal of data.results) {
+        results.push(dealToSummary(deal, integration.portalId, null))
+        if (results.length >= MAX_RESULTS) break
+      }
+
+      after = data.paging?.next?.after
+    } while (after && results.length < MAX_RESULTS)
+
+    return results.slice(0, MAX_RESULTS)
   }
 
   async getDeal(integration: CrmIntegration, dealId: string): Promise<DealSummary | null> {
@@ -260,6 +282,14 @@ export class HubSpotProvider implements CrmProvider {
     const signature = req.headers.get("x-hubspot-signature-v3")
     const timestamp = req.headers.get("x-hubspot-request-timestamp")
     if (!signature || !timestamp) return null
+
+    // Replay protection: HubSpot includes the timestamp in the HMAC message,
+    // but the message itself is still valid forever if not freshness-checked.
+    // Reject anything older than 5 minutes (HubSpot's recommended window).
+    const ts = Number(timestamp)
+    if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > 300_000) {
+      return null
+    }
 
     const rawBody = await req.text()
     const requestUri = req.url

@@ -58,6 +58,17 @@ function escapeSoql(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")
 }
 
+// Salesforce's token endpoint returns issued_at (epoch ms as a string) but no
+// expires_in. Tokens are good for ~2h of session. Synthesize an expiry so
+// route-helpers/ensureFreshToken and the Salesforce poll worker can refresh
+// proactively rather than on the first 401.
+function synthesizeExpiresAt(issuedAt: string | undefined): Date | undefined {
+  if (!issuedAt) return undefined
+  const ms = Number(issuedAt)
+  if (!Number.isFinite(ms)) return undefined
+  return new Date(ms + 7200 * 1000)
+}
+
 function opportunityToSummary(
   opp: SalesforceOpportunity,
   instanceUrl: string
@@ -104,6 +115,7 @@ export class SalesforceProvider implements CrmProvider {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       instanceUrl: data.instance_url,
+      expiresAt: synthesizeExpiresAt(data.issued_at),
     }
   }
 
@@ -131,6 +143,7 @@ export class SalesforceProvider implements CrmProvider {
       accessToken: data.access_token,
       refreshToken: data.refresh_token ?? decryptToken(integration.refreshToken),
       instanceUrl: data.instance_url ?? instanceUrl,
+      expiresAt: synthesizeExpiresAt(data.issued_at),
     }
   }
 
