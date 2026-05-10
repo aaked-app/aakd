@@ -8,14 +8,30 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useActiveOrganization } from "@/lib/auth/client"
 
+type AIStatus = { provider: string | null; model: string | null }
+
+const PROVIDER_LABELS: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  ollama: "Ollama (self-hosted)",
+}
+
 export default function OrgSettingsPage() {
   const { data: activeOrg } = useActiveOrganization()
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
+  const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
 
   useEffect(() => {
     if (activeOrg?.name) setName(activeOrg.name)
   }, [activeOrg])
+
+  useEffect(() => {
+    fetch("/api/ai-status")
+      .then((r) => r.json())
+      .then((data: AIStatus) => setAiStatus(data))
+      .catch(() => setAiStatus({ provider: null, model: null }))
+  }, [])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -63,6 +79,42 @@ export default function OrgSettingsPage() {
             <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
           </div>
         </form>
+      </div>
+
+      {/* AI Configuration */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-6 mt-6">
+        <h2 className="text-sm font-semibold text-zinc-900 mb-4">AI Configuration</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-600">Provider</span>
+            {aiStatus === null ? (
+              <span className="text-sm text-zinc-400">Loading…</span>
+            ) : aiStatus.provider ? (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-900">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                {PROVIDER_LABELS[aiStatus.provider] ?? aiStatus.provider}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm text-zinc-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-zinc-300" />
+                Not configured
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-600">Model</span>
+            {aiStatus?.model ? (
+              <span className="text-sm font-mono text-zinc-700">{aiStatus.model}</span>
+            ) : (
+              <span className="text-sm text-zinc-400">—</span>
+            )}
+          </div>
+        </div>
+        {!aiStatus?.provider && aiStatus !== null && (
+          <p className="mt-3 text-xs text-zinc-500">
+            Set <code className="bg-zinc-100 px-1 rounded">AI_PROVIDER</code> and the corresponding API key in your environment to enable AI extraction and Q&amp;A.
+          </p>
+        )}
       </div>
     </div>
   )
