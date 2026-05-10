@@ -153,6 +153,104 @@ const TOOLS = [
       required: ["contractId", "question"],
     },
   },
+  // ── M7 Obligations ────────────────────────────────────────────────────────
+  {
+    name: "list_obligations",
+    description: "List all obligations for a contract, ordered by due date.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contractId: { type: "string", description: "Contract ID" },
+        status: {
+          type: "string",
+          enum: ["PENDING", "IN_PROGRESS", "COMPLETED", "OVERDUE"],
+          description: "Filter by status (optional)",
+        },
+      },
+      required: ["contractId"],
+    },
+  },
+  {
+    name: "create_obligation",
+    description: "Create a new obligation on a contract (requires write scope).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contractId: { type: "string" },
+        title: { type: "string", description: "Obligation title, max 300 chars" },
+        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"], description: "Default MEDIUM" },
+        dueDate: { type: "string", description: "ISO datetime, e.g. 2025-12-31T00:00:00Z" },
+        description: { type: "string", description: "Optional details, max 2000 chars" },
+        clauseReference: { type: "string", description: "e.g. Section 5.2" },
+        assigneeId: { type: "string", description: "User ID to assign" },
+        reminderDays: { type: "number", description: "Days before due date to send reminder, default 7" },
+      },
+      required: ["contractId", "title", "dueDate"],
+    },
+  },
+  {
+    name: "update_obligation",
+    description: "Update an obligation's status, title, priority, or assignee (requires write scope).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contractId: { type: "string" },
+        obligationId: { type: "string" },
+        status: { type: "string", enum: ["PENDING", "IN_PROGRESS", "COMPLETED"] },
+        title: { type: "string" },
+        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
+        dueDate: { type: "string", description: "ISO datetime" },
+        assigneeId: { type: "string", nullable: true },
+        description: { type: "string", nullable: true },
+      },
+      required: ["contractId", "obligationId"],
+    },
+  },
+  // ── M8 Analytics ─────────────────────────────────────────────────────────
+  {
+    name: "get_analytics_summary",
+    description:
+      "Get analytics summary for the organization: expiring contracts, contract counts by status, monthly volume, value by type, approval funnel, and obligation health.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  // ── M9 CRM ────────────────────────────────────────────────────────────────
+  {
+    name: "list_crm_links",
+    description: "List CRM deal links (HubSpot, Salesforce, Pipedrive) for a contract.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contractId: { type: "string", description: "Contract ID" },
+      },
+      required: ["contractId"],
+    },
+  },
+  // ── M10 Import ────────────────────────────────────────────────────────────
+  {
+    name: "list_import_jobs",
+    description: "List contract import jobs for the organization, most recent first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Max results, default 20, max 100" },
+        page: { type: "number", description: "Page number, default 1" },
+      },
+    },
+  },
+  {
+    name: "get_import_job",
+    description: "Get details and row-level status of a specific import job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "Import job ID" },
+      },
+      required: ["jobId"],
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -209,6 +307,49 @@ const SemanticSearchMcpSchema = z.object({
 const AskContractMcpSchema = z.object({
   contractId: z.string().min(1),
   question: z.string().min(1).max(2000),
+})
+
+// M7
+const ListObligationsSchema = z.object({
+  contractId: z.string().min(1),
+  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "OVERDUE"]).optional(),
+})
+
+const CreateObligationMcpSchema = z.object({
+  contractId: z.string().min(1),
+  title: z.string().min(1).max(300),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
+  dueDate: z.string().min(1),
+  description: z.string().max(2000).optional(),
+  clauseReference: z.string().max(200).optional(),
+  assigneeId: z.string().optional(),
+  reminderDays: z.number().int().min(1).max(30).default(7),
+})
+
+const UpdateObligationMcpSchema = z.object({
+  contractId: z.string().min(1),
+  obligationId: z.string().min(1),
+  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED"]).optional(),
+  title: z.string().min(1).max(300).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  dueDate: z.string().optional(),
+  assigneeId: z.string().nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+})
+
+// M9
+const ListCrmLinksSchema = z.object({
+  contractId: z.string().min(1),
+})
+
+// M10
+const ListImportJobsSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  page: z.number().int().min(1).default(1),
+})
+
+const GetImportJobSchema = z.object({
+  jobId: z.string().min(1),
 })
 
 // ---------------------------------------------------------------------------
@@ -597,6 +738,414 @@ async function toolAskContract(
   return toolSuccess(id, { answer, contractId: contract.id, contractTitle: contract.title })
 }
 
+// ── M7 Obligations ────────────────────────────────────────────────────────
+
+async function toolListObligations(
+  args: unknown,
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = ListObligationsSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const { contractId, status } = parsed.data
+
+  const contract = await prisma.contract.findUnique({
+    where: { id: contractId },
+    select: { id: true, organizationId: true },
+  })
+  if (!contract || contract.organizationId !== orgId) {
+    return toolError(id, "Error: Contract not found")
+  }
+
+  const obligations = await prisma.contractObligation.findMany({
+    where: {
+      contractId,
+      ...(status ? { status } : {}),
+    },
+    include: {
+      assignee: { select: { id: true, name: true, email: true } },
+      createdBy: { select: { id: true, name: true } },
+      subTasks: { orderBy: { createdAt: "asc" } },
+    },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+  })
+
+  return toolSuccess(id, { obligations, count: obligations.length })
+}
+
+async function toolCreateObligation(
+  args: unknown,
+  orgId: string,
+  userId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = CreateObligationMcpSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const { contractId, title, priority, dueDate, description, clauseReference, assigneeId, reminderDays } = parsed.data
+
+  const contract = await prisma.contract.findUnique({
+    where: { id: contractId },
+    select: { id: true, organizationId: true, status: true },
+  })
+  if (!contract || contract.organizationId !== orgId) {
+    return toolError(id, "Error: Contract not found")
+  }
+  if (contract.status === "ARCHIVED") {
+    return toolError(id, "Error: Cannot add obligations to an archived contract")
+  }
+
+  if (assigneeId) {
+    const member = await prisma.member.findFirst({
+      where: { userId: assigneeId, organizationId: orgId },
+      select: { userId: true },
+    })
+    if (!member) {
+      return toolError(id, "Error: Assignee is not a member of this organization")
+    }
+  }
+
+  const activeCount = await prisma.contractObligation.count({
+    where: { contractId, status: { in: ["PENDING", "IN_PROGRESS"] } },
+  })
+  if (activeCount >= 100) {
+    return toolError(id, "Error: Obligation limit reached (100 active obligations per contract)")
+  }
+
+  let dueDateParsed: Date
+  try {
+    dueDateParsed = new Date(dueDate)
+    if (isNaN(dueDateParsed.getTime())) throw new Error("invalid date")
+  } catch {
+    return toolError(id, "Error: Invalid dueDate format — use ISO datetime e.g. 2025-12-31T00:00:00Z")
+  }
+
+  const obligation = await prisma.contractObligation.create({
+    data: {
+      contractId,
+      organizationId: orgId,
+      title,
+      description,
+      clauseReference,
+      priority,
+      dueDate: dueDateParsed,
+      assigneeId,
+      reminderDays,
+      createdById: userId,
+    },
+    include: {
+      assignee: { select: { id: true, name: true, email: true } },
+      subTasks: true,
+    },
+  })
+
+  await writeActivity(contractId, userId, "OBLIGATION_CREATED", `Obligation created: ${obligation.title}`, {
+    obligationId: obligation.id,
+  }).catch((err) => console.error("[mcp] writeActivity OBLIGATION_CREATED error:", err))
+
+  return toolSuccess(id, obligation)
+}
+
+async function toolUpdateObligation(
+  args: unknown,
+  orgId: string,
+  userId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = UpdateObligationMcpSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const { contractId, obligationId, dueDate, ...rest } = parsed.data
+
+  const existing = await prisma.contractObligation.findUnique({
+    where: { id: obligationId },
+    select: { id: true, contractId: true, organizationId: true },
+  })
+  if (!existing || existing.contractId !== contractId || existing.organizationId !== orgId) {
+    return toolError(id, "Error: Obligation not found")
+  }
+
+  let dueDateParsed: Date | undefined
+  if (dueDate !== undefined) {
+    dueDateParsed = new Date(dueDate)
+    if (isNaN(dueDateParsed.getTime())) {
+      return toolError(id, "Error: Invalid dueDate format")
+    }
+  }
+
+  const obligation = await prisma.contractObligation.update({
+    where: { id: obligationId },
+    data: {
+      ...rest,
+      ...(dueDateParsed !== undefined ? { dueDate: dueDateParsed } : {}),
+    },
+    include: {
+      assignee: { select: { id: true, name: true, email: true } },
+      subTasks: true,
+    },
+  })
+
+  await writeActivity(contractId, userId, "UPDATED", `Obligation updated: ${obligation.title}`, {
+    obligationId: obligation.id,
+  }).catch((err) => console.error("[mcp] writeActivity obligation UPDATED error:", err))
+
+  return toolSuccess(id, obligation)
+}
+
+// ── M8 Analytics ─────────────────────────────────────────────────────────
+
+async function toolGetAnalyticsSummary(
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const now = new Date()
+  const DAY_MS = 86_400_000
+  const d30 = new Date(now.getTime() + 30 * DAY_MS)
+  const d60 = new Date(now.getTime() + 60 * DAY_MS)
+  const d90 = new Date(now.getTime() + 90 * DAY_MS)
+
+  const twelveMonthsAgo = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1),
+  )
+
+  const [next30, next60, next90, expiringContracts] = await Promise.all([
+    prisma.contract.count({ where: { status: "ACTIVE", endDate: { gte: now, lte: d30 } } }),
+    prisma.contract.count({ where: { status: "ACTIVE", endDate: { gte: now, lte: d60 } } }),
+    prisma.contract.count({ where: { status: "ACTIVE", endDate: { gte: now, lte: d90 } } }),
+    prisma.contract.findMany({
+      where: { status: "ACTIVE", endDate: { gte: now, lte: d90 } },
+      orderBy: { endDate: "asc" },
+      take: 10,
+      select: { id: true, title: true, endDate: true, counterpartyName: true, contractType: true },
+    }),
+  ])
+
+  const expiringSoon = {
+    next30,
+    next60,
+    next90,
+    contracts: expiringContracts.map((c) => ({
+      id: c.id,
+      title: c.title,
+      endDate: c.endDate ? c.endDate.toISOString() : "",
+      counterpartyName: c.counterpartyName ?? null,
+      contractType: c.contractType ?? null,
+      daysUntilExpiry: c.endDate
+        ? Math.ceil((c.endDate.getTime() - now.getTime()) / DAY_MS)
+        : 0,
+    })),
+  }
+
+  const grouped = await prisma.contract.groupBy({
+    by: ["status"],
+    where: { organizationId: orgId },
+    _count: { _all: true },
+  })
+  const byStatus = grouped.map((g) => ({ status: g.status, count: g._count._all }))
+
+  const rows = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+    SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS month,
+           COUNT(*)::bigint AS count
+    FROM "Contract"
+    WHERE "organizationId" = ${orgId}
+      AND "createdAt" >= ${twelveMonthsAgo}
+    GROUP BY 1
+    ORDER BY 1 ASC
+  `
+  const rowsByMonth = new Map(rows.map((r) => [r.month, Number(r.count)]))
+  const monthlyVolume: Array<{ month: string; count: number }> = []
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(
+      Date.UTC(twelveMonthsAgo.getUTCFullYear(), twelveMonthsAgo.getUTCMonth() + i, 1),
+    )
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0")
+    const key = `${y}-${m}`
+    monthlyVolume.push({ month: key, count: rowsByMonth.get(key) ?? 0 })
+  }
+
+  const valueGrouped = await prisma.contract.groupBy({
+    by: ["contractType"],
+    where: { organizationId: orgId, value: { not: null } },
+    _sum: { value: true },
+    _count: { _all: true },
+  })
+  const valueByType = valueGrouped
+    .filter((g) => g.contractType !== null)
+    .map((g) => ({
+      contractType: g.contractType as string,
+      totalValue: g._sum.value ?? 0,
+      count: g._count._all,
+    }))
+
+  const approvalScope = { contract: { organizationId: orgId } }
+  const [totalRequested, approvedCount, rejectedCount] = await Promise.all([
+    prisma.approval.count({ where: approvalScope }),
+    prisma.approval.count({ where: { ...approvalScope, status: "approved" } }),
+    prisma.approval.count({ where: { ...approvalScope, status: "rejected" } }),
+  ])
+  const approvalFunnel = {
+    totalRequested,
+    approved: approvedCount,
+    rejected: rejectedCount,
+    pending: Math.max(0, totalRequested - approvedCount - rejectedCount),
+  }
+
+  let obligations: { overdue: number; dueSoon: number } | null = null
+  try {
+    const dueSoonCutoff = new Date(now.getTime() + 7 * DAY_MS)
+    const oblScope = { contract: { organizationId: orgId } }
+    const [overdue, dueSoon] = await Promise.all([
+      prisma.contractObligation.count({ where: { ...oblScope, status: "OVERDUE" } }),
+      prisma.contractObligation.count({
+        where: {
+          ...oblScope,
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+          dueDate: { lte: dueSoonCutoff },
+        },
+      }),
+    ])
+    obligations = { overdue, dueSoon }
+  } catch {
+    obligations = null
+  }
+
+  return toolSuccess(id, {
+    expiringSoon,
+    byStatus,
+    monthlyVolume,
+    valueByType,
+    approvalFunnel,
+    obligations,
+  })
+}
+
+// ── M9 CRM ────────────────────────────────────────────────────────────────
+
+async function toolListCrmLinks(
+  args: unknown,
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = ListCrmLinksSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const { contractId } = parsed.data
+
+  const contract = await prisma.contract.findUnique({
+    where: { id: contractId },
+    select: { id: true, organizationId: true },
+  })
+  if (!contract || contract.organizationId !== orgId) {
+    return toolError(id, "Error: Contract not found")
+  }
+
+  const links = await prisma.crmLink.findMany({
+    where: { contractId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      provider: true,
+      externalDealId: true,
+      externalDealName: true,
+      externalDealUrl: true,
+      lastSyncedAt: true,
+      lastSyncStatus: true,
+      createdAt: true,
+    },
+  })
+
+  return toolSuccess(id, { links, count: links.length })
+}
+
+// ── M10 Import ────────────────────────────────────────────────────────────
+
+async function toolListImportJobs(
+  args: unknown,
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = ListImportJobsSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const { limit, page } = parsed.data
+  const where = { organizationId: orgId }
+  const [jobs, total] = await Promise.all([
+    prisma.importJob.findMany({
+      where,
+      select: {
+        id: true,
+        source: true,
+        status: true,
+        totalRows: true,
+        succeededRows: true,
+        failedRows: true,
+        createdAt: true,
+        completedAt: true,
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.importJob.count({ where }),
+  ])
+
+  return toolSuccess(id, { jobs, total, page, limit })
+}
+
+async function toolGetImportJob(
+  args: unknown,
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = GetImportJobSchema.safeParse(args)
+  if (!parsed.success) {
+    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+
+  const job = await prisma.importJob.findUnique({
+    where: { id: parsed.data.jobId },
+    include: { createdBy: { select: { id: true, name: true } } },
+  })
+  if (!job || job.organizationId !== orgId) {
+    return toolError(id, "Error: Import job not found")
+  }
+
+  // For large jobs, only return failed rows to keep response size reasonable
+  const FULL_ROW_THRESHOLD = 200
+  const rowWhere =
+    job.totalRows > FULL_ROW_THRESHOLD
+      ? { jobId: job.id, status: "failed" }
+      : { jobId: job.id }
+
+  const rows = await prisma.importRow.findMany({
+    where: rowWhere,
+    orderBy: { rowIndex: "asc" },
+    select: {
+      id: true,
+      rowIndex: true,
+      sourceRef: true,
+      status: true,
+      errorMessage: true,
+      contractId: true,
+    },
+  })
+
+  return toolSuccess(id, { job, rows, rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null })
+}
+
 // ---------------------------------------------------------------------------
 // Main POST handler
 // ---------------------------------------------------------------------------
@@ -671,6 +1220,30 @@ export async function POST(req: Request) {
           return toolSemanticSearch(toolArgs, ctx.organizationId, id)
         case "ask_contract":
           return toolAskContract(toolArgs, ctx.organizationId, id)
+        // M7 Obligations
+        case "list_obligations":
+          return toolListObligations(toolArgs, ctx.organizationId, id)
+        case "create_obligation":
+          if (ctx.scopes && !ctx.scopes.includes("write")) {
+            return toolError(id, "Error: API key is read-only — write scope required")
+          }
+          return toolCreateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
+        case "update_obligation":
+          if (ctx.scopes && !ctx.scopes.includes("write")) {
+            return toolError(id, "Error: API key is read-only — write scope required")
+          }
+          return toolUpdateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
+        // M8 Analytics
+        case "get_analytics_summary":
+          return toolGetAnalyticsSummary(ctx.organizationId, id)
+        // M9 CRM
+        case "list_crm_links":
+          return toolListCrmLinks(toolArgs, ctx.organizationId, id)
+        // M10 Import
+        case "list_import_jobs":
+          return toolListImportJobs(toolArgs, ctx.organizationId, id)
+        case "get_import_job":
+          return toolGetImportJob(toolArgs, ctx.organizationId, id)
         default:
           return toolError(id, `Error: Unknown tool "${toolName}"`)
       }
