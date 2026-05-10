@@ -58,6 +58,7 @@ import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
+import { EditorTab } from "@/components/editor/editor-tab"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -590,7 +591,7 @@ export default function ContractDetailPage() {
       <div className="mt-6 grid grid-cols-12 gap-6">
         {/* Left Column — Tabs */}
         <div className="col-span-12 lg:col-span-8">
-          <Tabs defaultValue="overview">
+          <Tabs defaultValue={searchParams.get("tab") === "editor" ? "editor" : "overview"}>
             <TabsList className="h-auto rounded-none border-b border-zinc-200 bg-transparent p-0">
               <TabsTrigger
                 value="overview"
@@ -603,6 +604,12 @@ export default function ContractDetailPage() {
                 className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
               >
                 Documents{files.length > 0 && ` (${files.length})`}
+              </TabsTrigger>
+              <TabsTrigger
+                value="editor"
+                className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-zinc-500 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:shadow-none hover:text-zinc-700"
+              >
+                Editor
               </TabsTrigger>
               <TabsTrigger
                 value="ai-extractions"
@@ -824,6 +831,15 @@ export default function ContractDetailPage() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Editor */}
+            <TabsContent value="editor" className="mt-4">
+              <EditorTab
+                contractId={contract.id}
+                contractStatus={contract.status}
+                role={currentMember?.role ?? "member"}
+              />
             </TabsContent>
 
             {/* AI Extractions */}

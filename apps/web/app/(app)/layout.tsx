@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import {
-  LayoutDashboard, FileText, Folder, Settings, Bell, BarChart2,
+  LayoutDashboard, FileText, Folder, Settings, Bell, BarChart2, FileEdit,
   ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut, FileText as LogoIcon
 } from "lucide-react"
 import { useSession, useActiveOrganization, signOut } from "@/lib/auth/client"
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 const navItems = [
   { label: "Dashboard", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Contracts", href: "/contracts", Icon: FileText },
+  { label: "Templates", href: "/templates", Icon: FileEdit },
   { label: "Analytics", href: "/analytics", Icon: BarChart2 },
   { label: "Folders", href: "/contracts?view=folders", Icon: Folder },
   { label: "Settings", href: "/settings/org", Icon: Settings },
