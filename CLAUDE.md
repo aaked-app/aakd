@@ -242,7 +242,7 @@ AI and email are optional — the app runs without them (AI features degrade gra
 | M7 — Obligation Tracking | ✅ Complete | ContractObligation + sub-tasks, full CRUD API, obligations tab on contract detail, daily cron auto-overdue, reminder notifications |
 | M8 — Analytics | ✅ Complete | /analytics page, 5 Recharts widgets, single GET /api/analytics/summary, org-scoped, obligation widget w/ graceful degradation |
 | M9 — Ecosystem: CRM | ✅ Complete | HubSpot, Salesforce, Pipedrive — OAuth, deal linking, sync, webhooks |
-| M10 — Migration Tools | Pending | Import from CSV/spreadsheets, PandaDoc, ContractBook, DocuSign CLM, Google Drive, bulk PDF/DOCX — spec at specs/m10-migrations.md |
+| M10 — Migration Tools | ✅ Complete | Import from CSV/spreadsheets, PandaDoc, ContractBook, DocuSign CLM, Google Drive, bulk PDF/DOCX — 5-tab UI, 14 API routes, row-level progress tracking |
 | M11 — Internationalization | Pending | UI translated to French, German, Arabic (RTL); locale switcher per user; next-intl; email templates translated |
 | M12 — Redlining | Pending | Tracked changes, version comparison (deferred post-launch) |
 | 🚀 | — | **Open Source Launch** — publish repo publicly, LinkedIn, developer communities |
