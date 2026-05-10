@@ -29,6 +29,7 @@ import { CmdK } from "@/components/cmd-k"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { GlobalProviders } from "@/components/global-providers"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       <CmdK />
+      <GlobalProviders />
     </div>
   )
 }

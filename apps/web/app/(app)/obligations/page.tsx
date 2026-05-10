@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Plus, Search, Target } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -322,18 +323,16 @@ export default function ObligationsPage() {
             <p className="text-sm text-muted-foreground">Loading obligations...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-[var(--radius)] border border-dashed border-border bg-muted/20 py-16 gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius)] bg-primary/10">
-              <Target className="h-5 w-5 text-primary" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">No obligations found</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {search || activeFilter !== "All"
+          <div className="rounded-[var(--radius)] border border-dashed border-border bg-muted/20">
+            <EmptyState
+              icon={Target}
+              title="No obligations"
+              description={
+                search || activeFilter !== "All"
                   ? "Try adjusting your search or filter."
-                  : "Obligations are added from within individual contracts."}
-              </p>
-            </div>
+                  : "Obligations linked to your contracts will appear here."
+              }
+            />
           </div>
         ) : (
           <div className="rounded-[var(--radius)] border border-border overflow-hidden bg-card">

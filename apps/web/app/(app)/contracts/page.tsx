@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TypeBadge, StatusBadge } from "@/components/contract-badges"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Contract, ContractStatus, Folder } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
@@ -305,19 +306,18 @@ export default function ContractsPage() {
             </Table>
           </div>
         ) : contracts.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center justify-center">
-            <div className="flex size-12 items-center justify-center rounded-[var(--radius)] bg-primary/10">
-              <FileText className="size-6 text-primary" />
-            </div>
-            <h3 className="mt-3 text-sm font-medium">No contracts</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {search || statusFilter !== "ALL"
-                ? "No contracts match your filters"
-                : "Upload your first contract to get started"}
-            </p>
-            {!search && statusFilter === "ALL" && (
-              <Link href="/contracts/new" className={buttonVariants({ size: "sm" }) + " mt-4"}>Upload Contract</Link>
-            )}
+          <div className="mt-4">
+            <EmptyState
+              icon={FileText}
+              title="No contracts yet"
+              description={
+                search || statusFilter !== "ALL"
+                  ? "No contracts match your filters"
+                  : "Create your first contract to get started."
+              }
+              action={!search && statusFilter === "ALL" ? "New Contract" : undefined}
+              onAction={!search && statusFilter === "ALL" ? () => router.push("/contracts/new") : undefined}
+            />
           </div>
         ) : (
           <div className="mt-4 rounded-[var(--radius)] border border-border bg-card">
