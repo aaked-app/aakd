@@ -29,6 +29,14 @@ export interface SalesforcePollJobData {
   triggeredAt: string
 }
 
+// ─── M10: Import processing ──────────────────────────────────────────────────
+
+export interface ImportProcessJobData {
+  importJobId: string
+  organizationId: string
+  createdById: string
+}
+
 export interface ContractEmbedJobData {
   contractId: string
   extractedText: string
@@ -127,6 +135,7 @@ let _documentConvertQueue: Queue<DocumentConvertJobData> | null = null
 let _documentExportQueue: Queue<DocumentExportJobData> | null = null
 let _obligationsCheckQueue: Queue<ObligationsCheckJobData> | null = null
 let _salesforcePollQueue: Queue<SalesforcePollJobData> | null = null
+let _importProcessQueue: Queue<ImportProcessJobData> | null = null
 
 export function getContractExtractQueue(): Queue<ContractExtractJobData> {
   return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", { connection }))
@@ -212,6 +221,17 @@ export function getSalesforcePollQueue(): Queue<SalesforcePollJobData> {
   ))
 }
 
+export function getImportProcessQueue(): Queue<ImportProcessJobData> {
+  // attempts: 1 — partial progress is persisted per ImportRow as the worker
+  // streams through the file. A retry would re-process completed rows; instead
+  // we expose a manual /api/import/[jobId]/retry endpoint that resets only the
+  // failed rows.
+  return (_importProcessQueue ??= new Queue<ImportProcessJobData>("import.process", {
+    connection,
+    defaultJobOptions: { attempts: 1, removeOnComplete: 200, removeOnFail: 500 },
+  }))
+}
+
 // ─── Legacy named exports (kept for backward compat) ─────────────────────────
 // These are getters so the Queue is still created lazily. We proxy both `add`
 // (used by API routes / worker handlers) and `close` (used by graceful shutdown).
@@ -268,4 +288,9 @@ export const salesforcePollQueue = {
   add: (...a: Parameters<Queue<SalesforcePollJobData>["add"]>) =>
     getSalesforcePollQueue().add(...a),
   close: () => _salesforcePollQueue?.close() ?? Promise.resolve(),
+}
+export const importProcessQueue = {
+  add: (...a: Parameters<Queue<ImportProcessJobData>["add"]>) =>
+    getImportProcessQueue().add(...a),
+  close: () => _importProcessQueue?.close() ?? Promise.resolve(),
 }

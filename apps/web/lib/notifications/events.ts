@@ -11,6 +11,7 @@ export const NOTIFICATION_EVENTS = [
   "contract.archived",
   "obligation.due_soon",
   "obligation.overdue",
+  "import.completed",
 ] as const
 
 export type NotificationEventName = (typeof NOTIFICATION_EVENTS)[number]
@@ -30,6 +31,7 @@ export const DEFAULT_EMAIL_ENABLED: Record<NotificationEventName, boolean> = {
   "contract.archived": false,
   "obligation.due_soon": true,
   "obligation.overdue": true,
+  "import.completed": true,
 }
 
 export const EVENT_LABELS: Record<NotificationEventName, string> = {
@@ -45,6 +47,7 @@ export const EVENT_LABELS: Record<NotificationEventName, string> = {
   "contract.archived": "Contract archived",
   "obligation.due_soon": "Obligation due soon",
   "obligation.overdue": "Obligation overdue",
+  "import.completed": "Contract import completed",
 }
 
 export function isNotificationEventName(s: string): s is NotificationEventName {

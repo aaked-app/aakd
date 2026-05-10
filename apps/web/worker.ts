@@ -50,6 +50,7 @@ import type {
   DocumentConvertJobData,
   DocumentExportJobData,
   ObligationsCheckJobData,
+  ImportProcessJobData,
 } from "@/lib/jobs/queues"
 import {
   contractExtractQueue,
@@ -64,8 +65,10 @@ import {
   documentExportQueue,
   obligationsCheckQueue,
   salesforcePollQueue,
+  importProcessQueue,
 } from "@/lib/jobs/queues"
 import type { SalesforcePollJobData } from "@/lib/jobs/queues"
+import { processImportJob } from "@/lib/import/processor"
 import { getCrmProvider } from "@/lib/crm"
 import { encryptToken } from "@/lib/crm/crypto"
 import { htmlToPlateNodes } from "@/lib/editor/html-to-plate"
@@ -1221,6 +1224,17 @@ async function resolveEmailRecipientIds(
       }
       break
     }
+
+    case "import.completed": {
+      // Import is org-scoped (no single contract owner is meaningful). Notify
+      // org admins so the team that triggered the migration sees the result.
+      const admins = await db.member.findMany({
+        where: { organizationId: orgId, role: "admin" },
+        select: { userId: true },
+      })
+      for (const a of admins) ids.add(a.userId)
+      break
+    }
   }
 
   // Don't email the actor about their own action.
@@ -1640,6 +1654,24 @@ salesforcePollWorker.on("failed", (job, err) =>
   console.error(`[salesforce.poll] Job ${job?.id} failed:`, err),
 )
 
+// ─── Worker: import.process (M10 — bulk contract import) ─────────────────────
+
+const importWorker = new Worker<ImportProcessJobData>(
+  "import.process",
+  async (job: Job<ImportProcessJobData>) => {
+    console.log(`[import] Job ${job.id} importJob=${job.data.importJobId}`)
+    await processImportJob(job.data)
+  },
+  { connection, concurrency: 2, defaultJobOptions: { attempts: 1, removeOnComplete: 200, removeOnFail: 500 } },
+)
+
+importWorker.on("completed", (job) =>
+  console.log(`[import] Job ${job.id} completed`),
+)
+importWorker.on("failed", (job, err) =>
+  console.error(`[import] Job ${job?.id} failed:`, err),
+)
+
 // ─── Worker: document.export (M6 — Plate JSON → DOCX or PDF) ──────────────────
 
 const documentExportWorker = new Worker<DocumentExportJobData>(
@@ -1745,6 +1777,7 @@ async function shutdown() {
   await documentConvertWorker.close()
   await documentExportWorker.close()
   await salesforcePollWorker.close()
+  await importWorker.close()
   await contractExtractQueue.close()
   await contractAiExtractQueue.close()
   await contractEmbedQueue.close()
@@ -1757,6 +1790,7 @@ async function shutdown() {
   await documentConvertQueue.close()
   await documentExportQueue.close()
   await salesforcePollQueue.close()
+  await importProcessQueue.close()
   await getWorkerPrisma().$disconnect()
   // The app Prisma client (lib/db/client) is also imported by some worker
   // helpers (alerts/check, email senders). Disconnecting it here prevents a

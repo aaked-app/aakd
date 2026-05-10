@@ -17,6 +17,8 @@ const ORG_SCOPED_MODELS = new Set([
   "ContractObligation",
   // M9: CRM integrations
   "CrmIntegration",
+  // M10: Import / migration tools
+  "ImportJob",
 ])
 
 type ScopedQueryArgs = {

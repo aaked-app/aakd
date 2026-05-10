@@ -39,6 +39,8 @@ model User {
   subTasksCompleted           ObligationSubTask[]      @relation("SubTaskCompleter")
   crmIntegrationsConnected    CrmIntegration[]         @relation("CrmIntegrationConnectedBy")
   crmLinksCreated             CrmLink[]                @relation("CrmLinkCreator")
+  importJobsCreated           ImportJob[]              @relation("ImportJobCreator")
+  googleDriveConnected        GoogleDriveIntegration[] @relation("GoogleDriveConnectedBy")
 }
 
 model Session {
@@ -100,6 +102,8 @@ model Organization {
   templates               ContractTemplate[]
   obligations             ContractObligation[]
   crmIntegrations         CrmIntegration[]
+  importJobs              ImportJob[]
+  googleDriveIntegration  GoogleDriveIntegration?
 }
 
 model Member {
@@ -286,6 +290,7 @@ enum ActivityAction {
   CRM_LINKED
   CRM_UNLINKED
   CRM_SYNCED
+  IMPORT_COMPLETED
 }
 
 model Folder {
@@ -613,4 +618,75 @@ enum CrmProvider {
   HUBSPOT
   SALESFORCE
   PIPEDRIVE
+}
+
+// ─── M10: Migration / Import Tools ────────────────────────────────────────────
+
+model ImportJob {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  source         ImportSource
+  status         ImportStatus @default(PENDING)
+  storageKey     String?
+  driveFileIds   String?
+  mappingJson    String?
+  totalRows      Int          @default(0)
+  succeededRows  Int          @default(0)
+  failedRows     Int          @default(0)
+  errorReportKey String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdById    String
+  createdBy      User         @relation("ImportJobCreator", fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  rows           ImportRow[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model ImportRow {
+  id           String    @id @default(cuid())
+  jobId        String
+  job          ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowIndex     Int
+  sourceRef    String
+  status       String    @default("pending")
+  errorMessage String?
+  contractId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([jobId, status])
+  @@index([jobId, rowIndex])
+}
+
+model GoogleDriveIntegration {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accessToken    String
+  refreshToken   String
+  tokenExpiresAt DateTime?
+  connectedById  String
+  connectedBy    User         @relation("GoogleDriveConnectedBy", fields: [connectedById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+enum ImportSource {
+  CSV
+  BATCH_FILES
+  GOOGLE_DRIVE
+  PANDADOC
+  CLM_EXPORT
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
