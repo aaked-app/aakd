@@ -42,14 +42,14 @@ export default function TemplatesPage() {
   const limit = 20
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (filter !== "ALL") params.set("contractType", filter)
       params.set("page", String(page))
       params.set("limit", String(limit))
-      const res = await fetch(`/api/templates?${params}`)
+      const res = await fetch(`/api/templates?${params}`, { signal })
       if (!res.ok) {
         toast.error("Failed to load templates")
         return
@@ -57,7 +57,8 @@ export default function TemplatesPage() {
       const data = await res.json()
       setTemplates(data.templates ?? [])
       setTotal(data.total ?? 0)
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return
       toast.error("Failed to load templates")
     } finally {
       setLoading(false)
@@ -65,12 +66,15 @@ export default function TemplatesPage() {
   }, [filter, page])
 
   useEffect(() => {
-    load()
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
   }, [load])
 
   useEffect(() => {
     if (!session?.user) return
-    fetch("/api/org/members")
+    const controller = new AbortController()
+    fetch("/api/org/members", { signal: controller.signal })
       .then((r) => r.json())
       .then((members) => {
         if (Array.isArray(members)) {
@@ -79,6 +83,7 @@ export default function TemplatesPage() {
         }
       })
       .catch(() => {})
+    return () => controller.abort()
   }, [session?.user])
 
   const canManage = role === "admin" || role === "legal"
@@ -114,7 +119,12 @@ export default function TemplatesPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Select value={filter} onValueChange={(v) => v && setFilter(v)}>
+        <Select value={filter} onValueChange={(v) => {
+          if (v) {
+            setFilter(v)
+            setPage(1)
+          }
+        }}>
           <SelectTrigger className="h-9 w-44 text-sm">
             <SelectValue placeholder="All types" />
           </SelectTrigger>

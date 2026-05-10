@@ -23,17 +23,21 @@ import {
   type CrmProvider,
   type CrmStatusResponse,
 } from "@/lib/types/crm"
+import { useSession } from "@/lib/auth/client"
 
 type ProviderSettings = { autoCreateStage: string; syncOnActiveStage: string }
 
 export default function IntegrationsPage() {
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const [loading, setLoading] = useState(true)
   const [integrations, setIntegrations] = useState<CrmIntegrationStatus[]>([])
   const [confirmDisconnect, setConfirmDisconnect] = useState<CrmProvider | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
   const [savingProvider, setSavingProvider] = useState<CrmProvider | null>(null)
   const [settings, setSettings] = useState<Record<string, ProviderSettings>>({})
+  const [role, setRole] = useState<string | null>(null)
+  const [roleLoaded, setRoleLoaded] = useState(false)
 
   async function fetchStatus() {
     try {
@@ -60,6 +64,33 @@ export default function IntegrationsPage() {
   useEffect(() => {
     fetchStatus()
   }, [])
+
+  useEffect(() => {
+    if (!session?.user) return
+    const controller = new AbortController()
+    fetch("/api/org/members", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((members) => {
+        if (Array.isArray(members)) {
+          const me = members.find((m) => m.userId === session.user.id)
+          setRole(me?.role ?? null)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRoleLoaded(true))
+    return () => controller.abort()
+  }, [session?.user])
+
+  if (roleLoaded && role !== "admin" && role !== "legal") {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-semibold text-zinc-900">Integrations</h1>
+        <p className="mt-4 text-sm text-zinc-500">
+          You don&apos;t have permission to view this page.
+        </p>
+      </div>
+    )
+  }
 
   useEffect(() => {
     const connected = searchParams.get("connected")

@@ -171,14 +171,14 @@ export default function ContractDetailPage() {
   const [aiCitations, setAiCitations] = useState<AskCitation[]>([])
   const [askingAI, setAskingAI] = useState(false)
 
-  const fetchContract = useCallback(async () => {
+  const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
       const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes] = await Promise.all([
-        fetch(`/api/contracts/${id}`),
-        fetch(`/api/alerts?contractId=${id}`),
-        fetch(`/api/contracts/${id}/extractions`),
-        fetch(`/api/contracts/${id}/approvals`),
-        fetch(`/api/contracts/${id}/obligations`),
+        fetch(`/api/contracts/${id}`, { signal }),
+        fetch(`/api/alerts?contractId=${id}`, { signal }),
+        fetch(`/api/contracts/${id}/extractions`, { signal }),
+        fetch(`/api/contracts/${id}/approvals`, { signal }),
+        fetch(`/api/contracts/${id}/obligations`, { signal }),
       ])
       if (!contractRes.ok) {
         toast.error("Contract not found")
@@ -206,7 +206,8 @@ export default function ContractDetailPage() {
         const obligationData = await obligationsRes.json()
         setObligations(obligationData.obligations ?? [])
       }
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return
       toast.error("Failed to load contract")
     } finally {
       setLoading(false)
@@ -214,9 +215,17 @@ export default function ContractDetailPage() {
   }, [id, router])
 
   useEffect(() => {
-    fetchContract()
-    fetch("/api/tags").then(r => r.json()).then(d => setAllTags(Array.isArray(d) ? d : [])).catch(() => {})
-    fetch("/api/org/members").then(r => r.json()).then(d => setMembers(Array.isArray(d) ? d : [])).catch(() => {})
+    const controller = new AbortController()
+    fetchContract(controller.signal)
+    fetch("/api/tags", { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => setAllTags(Array.isArray(d) ? d : []))
+      .catch(() => {})
+    fetch("/api/org/members", { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => setMembers(Array.isArray(d) ? d : []))
+      .catch(() => {})
+    return () => controller.abort()
   }, [fetchContract])
 
   async function changeStatus(newStatus: ContractStatus) {
@@ -245,6 +254,14 @@ export default function ContractDetailPage() {
   }
 
   async function saveEdit() {
+    if (!editForm.title?.trim()) {
+      toast.error("Contract title is required")
+      return
+    }
+    if (editForm.startDate && editForm.endDate && editForm.endDate < editForm.startDate) {
+      toast.error("End date must be after start date")
+      return
+    }
     setSaving(true)
     try {
       const res = await fetch(`/api/contracts/${id}`, {
@@ -321,11 +338,15 @@ export default function ContractDetailPage() {
 
   async function handleExtraction(extractionId: string, action: "accept" | "reject") {
     try {
-      await fetch(`/api/contracts/${id}/extractions`, {
+      const res = await fetch(`/api/contracts/${id}/extractions`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, extractionId }),
       })
+      if (!res.ok) {
+        toast.error("Failed to update extraction")
+        return
+      }
       setExtractions((prev) =>
         prev.map((e) =>
           e.id === extractionId
@@ -529,6 +550,7 @@ export default function ContractDetailPage() {
   // Determine if current user can request approvals (admin or legal in this org)
   const currentMember = members.find((m) => m.userId === session?.user?.id)
   const canRequestApproval = currentMember?.role === "admin" || currentMember?.role === "legal"
+  const canManage = currentMember?.role === "admin" || currentMember?.role === "legal"
 
   return (
     <div className="p-6">
@@ -1262,7 +1284,7 @@ export default function ContractDetailPage() {
             </div>
 
             {/* Danger Zone */}
-            {contract.status !== "ARCHIVED" && (
+            {canManage && contract.status !== "ARCHIVED" && (
               <div className="rounded-lg border border-red-100 bg-white p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-red-500">Danger Zone</p>
                 <p className="mt-1 text-xs text-zinc-500">

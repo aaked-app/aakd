@@ -72,9 +72,11 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     loadDocument()
   }, [loadDocument])
 
-  const pollHandle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const importPollHandle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const exportPollHandle = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => {
-    if (pollHandle.current) clearTimeout(pollHandle.current)
+    if (importPollHandle.current) clearTimeout(importPollHandle.current)
+    if (exportPollHandle.current) clearTimeout(exportPollHandle.current)
   }, [])
 
   async function handleImport() {
@@ -122,7 +124,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           toast.error(`Import failed: ${status.error ?? "unknown error"}`)
           setImportBusy("idle")
         } else {
-          pollHandle.current = setTimeout(poll, 1000)
+          importPollHandle.current = setTimeout(poll, 1000)
         }
       }
       poll()
@@ -156,6 +158,13 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
       const { jobId } = await res.json()
       const poll = async (): Promise<void> => {
         const r = await fetch(`/api/contracts/${contractId}/document/export/${jobId}`)
+        if (!r.ok) {
+          if (exportPollHandle.current) clearTimeout(exportPollHandle.current)
+          toast.error("Export failed — please try again")
+          setExportBusy(false)
+          setExportFormat(null)
+          return
+        }
         const status = await r.json()
         if (status.status === "complete" && status.downloadUrl) {
           const a = document.createElement("a")
@@ -174,7 +183,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           setExportFormat(null)
           return
         }
-        pollHandle.current = setTimeout(poll, 1000)
+        exportPollHandle.current = setTimeout(poll, 1000)
       }
       poll()
     } catch (err) {

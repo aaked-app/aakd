@@ -60,6 +60,10 @@ export default function NewContractPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) { toast.error("Title is required"); return }
+    if (details.startDate && details.endDate && details.endDate < details.startDate) {
+      toast.error("End date must be after start date")
+      return
+    }
 
     setLoading(true)
     try {

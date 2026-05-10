@@ -1,6 +1,5 @@
 import { cookies } from "next/headers"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { ExpiringSoonWidget } from "@/components/analytics/expiring-soon-widget"
 import { PortfolioHealthWidget } from "@/components/analytics/portfolio-health-widget"
 import { MonthlyVolumeWidget } from "@/components/analytics/monthly-volume-widget"
@@ -23,19 +22,6 @@ async function fetchSummary(): Promise<AnalyticsSummary | null> {
   }
 }
 
-function WidgetSkeleton({ height = "h-64" }: { height?: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-      </CardHeader>
-      <CardContent>
-        <Skeleton className={`w-full ${height}`} />
-      </CardContent>
-    </Card>
-  )
-}
-
 export default async function AnalyticsPage() {
   const data = await fetchSummary()
   const lastUpdated = new Date().toLocaleString(undefined, {
@@ -45,21 +31,16 @@ export default async function AnalyticsPage() {
 
   if (!data) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         <div>
           <h1 className="text-xl font-semibold">Analytics</h1>
           <p className="text-sm text-muted-foreground">Contract portfolio overview</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <WidgetSkeleton />
-          <WidgetSkeleton />
-          <WidgetSkeleton />
+        <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center">
+          <p className="text-sm text-zinc-500">
+            Failed to load analytics data. Please refresh the page.
+          </p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <WidgetSkeleton height="h-72" />
-          <WidgetSkeleton height="h-72" />
-        </div>
-        <WidgetSkeleton height="h-32" />
       </div>
     )
   }

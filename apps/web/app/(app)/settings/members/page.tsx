@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { Trash2 } from "lucide-react"
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { OrgMember } from "@/lib/types"
+import { useSession } from "@/lib/auth/client"
 
 const ROLES = ["admin", "legal", "member", "viewer"]
 
@@ -26,26 +27,36 @@ function getInitials(name: string) {
 }
 
 export default function MembersPage() {
+  const { data: session } = useSession()
   const [members, setMembers] = useState<OrgMember[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("member")
   const [inviting, setInviting] = useState(false)
 
-  async function fetchMembers() {
+  const fetchMembers = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/org/members")
+      const res = await fetch("/api/org/members", { signal })
       if (!res.ok) throw new Error()
       const data = await res.json()
       setMembers(data.members ?? data ?? [])
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return
       toast.error("Failed to load members")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { fetchMembers() }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchMembers(controller.signal)
+    return () => controller.abort()
+  }, [fetchMembers])
+
+  const currentMember = members.find((m) => m.userId === session?.user?.id)
+  const currentUserRole = currentMember?.role
+  const canManageMembers = currentUserRole === "admin"
 
   async function invite(e: React.FormEvent) {
     e.preventDefault()
@@ -100,31 +111,33 @@ export default function MembersPage() {
         <p className="text-sm text-zinc-500">Manage who has access to your organization</p>
       </div>
 
-      {/* Invite form */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-zinc-900">Invite Member</h2>
-        <form onSubmit={invite} className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="colleague@example.com"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            required
-            className="flex-1"
-          />
-          <Select value={inviteRole} onValueChange={(v) => v != null && setInviteRole(v)}>
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button type="submit" size="sm" disabled={inviting}>
-            {inviting ? "Sending..." : "Invite"}
-          </Button>
-        </form>
-      </div>
+      {/* Invite form — admins only */}
+      {canManageMembers && (
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-zinc-900">Invite Member</h2>
+          <form onSubmit={invite} className="flex gap-2">
+            <Input
+              type="email"
+              placeholder="colleague@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+              className="flex-1"
+            />
+            <Select value={inviteRole} onValueChange={(v) => v != null && setInviteRole(v)}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button type="submit" size="sm" disabled={inviting}>
+              {inviting ? "Sending..." : "Invite"}
+            </Button>
+          </form>
+        </div>
+      )}
 
       {/* Members table */}
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -161,27 +174,37 @@ export default function MembersPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Select value={m.role} onValueChange={(v) => v != null && changeRole(m.id, v)}>
-                    <SelectTrigger className="h-7 w-28 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {canManageMembers ? (
+                    <Select
+                      value={m.role}
+                      onValueChange={(v) => v != null && changeRole(m.id, v)}
+                      disabled={m.userId === session?.user?.id}
+                    >
+                      <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-xs text-zinc-700">{m.role}</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-zinc-500">
                   {format(new Date(m.createdAt), "MMM d, yyyy")}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-zinc-400 hover:text-destructive"
-                    onClick={() => removeMember(m.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {canManageMembers && m.userId !== session?.user?.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-zinc-400 hover:text-destructive"
+                      onClick={() => removeMember(m.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

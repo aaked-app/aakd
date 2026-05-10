@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table"
 import { TypeBadge, StatusBadge } from "@/components/contract-badges"
 import { Contract, ContractStatus, Folder } from "@/lib/types"
+import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
 
 const STATUS_FILTERS: (ContractStatus | "ALL")[] = [
@@ -68,6 +69,7 @@ interface FolderWithCount extends Folder {
 export default function ContractsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
 
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,16 +84,36 @@ export default function ContractsPage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [folders, setFolders] = useState<FolderWithCount[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [role, setRole] = useState<string>("member")
   const debouncedSearch = useDebounce(search, 300)
 
+  const canManage = role === "admin" || role === "legal"
+
   useEffect(() => {
-    fetch("/api/folders")
+    const controller = new AbortController()
+    fetch("/api/folders", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => setFolders(Array.isArray(data) ? data : []))
       .catch(() => {})
+    return () => controller.abort()
   }, [])
 
-  const fetchContracts = useCallback(async () => {
+  useEffect(() => {
+    if (!session?.user) return
+    const controller = new AbortController()
+    fetch("/api/org/members", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((members) => {
+        if (Array.isArray(members)) {
+          const me = members.find((m) => m.userId === session.user.id)
+          if (me?.role) setRole(me.role)
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [session?.user])
+
+  const fetchContracts = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -101,12 +123,13 @@ export default function ContractsPage() {
       params.set("limit", String(pageSize))
       params.set("page", String(page))
 
-      const res = await fetch(`/api/contracts?${params}`)
+      const res = await fetch(`/api/contracts?${params}`, { signal })
       if (!res.ok) throw new Error("Failed")
       const data = await res.json()
       setContracts(data.contracts ?? data ?? [])
       setTotal(data.total ?? (data.contracts ?? data ?? []).length)
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return
       toast.error("Failed to load contracts")
     } finally {
       setLoading(false)
@@ -114,17 +137,24 @@ export default function ContractsPage() {
   }, [debouncedSearch, statusFilter, selectedFolder, page])
 
   useEffect(() => {
-    fetchContracts()
+    const controller = new AbortController()
+    fetchContracts(controller.signal)
     setSelectedIds(new Set())
+    return () => controller.abort()
   }, [fetchContracts])
 
   async function archiveContract(id: string) {
     try {
-      await fetch(`/api/contracts/${id}`, {
+      const res = await fetch(`/api/contracts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "ARCHIVED" }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.message ?? err.error ?? "Failed to archive contract")
+        return
+      }
       toast.success("Contract archived")
       fetchContracts()
     } catch {
@@ -362,10 +392,12 @@ export default function ContractsPage() {
                             <Eye className="size-4" />
                             View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => archiveContract(c.id)} variant="destructive">
-                            <Archive className="size-4" />
-                            Archive
-                          </DropdownMenuItem>
+                          {canManage && (
+                            <DropdownMenuItem onClick={() => archiveContract(c.id)} variant="destructive">
+                              <Archive className="size-4" />
+                              Archive
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
