@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { Plug2 } from "lucide-react"
+import { Plug2, Upload } from "lucide-react"
 
 const settingsLinks = [
   { label: "Organization", href: "/settings/org" },
   { label: "Members", href: "/settings/members" },
   { label: "Integrations", href: "/settings/integrations", icon: Plug2 },
+  { label: "Import", href: "/settings/import", icon: Upload },
   { label: "API Keys", href: "/settings/api-keys" },
   { label: "Notifications", href: "/settings/notifications" },
   { label: "My Notifications", href: "/settings/profile/notifications" },
