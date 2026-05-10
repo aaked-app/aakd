@@ -59,6 +59,7 @@ import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
 import { EditorTab } from "@/components/editor/editor-tab"
+import { ContractCrmSection } from "@/components/crm/contract-crm-section"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -1174,6 +1175,9 @@ export default function ContractDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* CRM */}
+            <ContractCrmSection contractId={id} role={currentMember?.role} />
 
             {/* Tags */}
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
