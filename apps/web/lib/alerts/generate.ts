@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/db/client"
+import { writeActivity } from "@/lib/db/activity"
 
 /**
  * Idempotently (re)generates renewal alerts for a contract.
  * Deletes all unfired alerts first, then creates new ones based on
  * endDate, renewalDate, and noticePeriodDays.
+ *
+ * Also immediately sets status to EXPIRED when endDate is already in the past,
+ * so the contract doesn't linger in DRAFT/ACTIVE waiting for the next cron run.
  *
  * Called:
  *  - After contract creation (if endDate was provided)
@@ -42,6 +46,26 @@ export async function generateAlertsForContract(
       // Contract already expired — schedule EXPIRY_PAST alert to fire immediately
       // (triggerDate in the past causes alerts.check to fire it on next run)
       alerts.push({ contractId, alertType: "EXPIRY_PAST", triggerDate: endDate })
+
+      // Also flip status to EXPIRED right now so the UI reflects reality
+      // immediately rather than waiting for the next daily cron run.
+      const current = await prisma.contract.findUnique({
+        where: { id: contractId },
+        select: { status: true },
+      })
+      if (current && !["ARCHIVED", "TERMINATED", "EXPIRED"].includes(current.status)) {
+        await prisma.contract.update({
+          where: { id: contractId },
+          data: { status: "EXPIRED" },
+        })
+        await writeActivity(
+          contractId,
+          null,
+          "STATUS_CHANGED",
+          "Contract end date is in the past — status automatically set to EXPIRED",
+          { from: current.status, to: "EXPIRED" },
+        )
+      }
     }
   }
 

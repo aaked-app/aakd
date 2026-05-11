@@ -87,6 +87,24 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
         }),
       ])
 
+      // Auto-expire contract when EXPIRY_PAST fires
+      if (alert.alertType === "EXPIRY_PAST") {
+        await prisma.contract.updateMany({
+          where: {
+            id: alert.contractId,
+            status: { notIn: ["ARCHIVED", "TERMINATED", "EXPIRED"] },
+          },
+          data: { status: "EXPIRED" },
+        })
+        await writeActivity(
+          alert.contractId,
+          null,
+          "STATUS_CHANGED",
+          "Contract expired — status automatically set to EXPIRED",
+          { from: alert.contract.status, to: "EXPIRED" },
+        )
+      }
+
       // Write immutable audit entry
       const detail = ALERT_DETAIL[alert.alertType] ?? `Alert fired: ${alert.alertType}`
       await writeActivity(alert.contractId, null, "ALERT_FIRED", detail)
