@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Descendant } from "slate"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { FileUploadZone } from "@/components/file-upload-zone"
 import { ContractEditor, EMPTY_DOC } from "@/components/editor/contract-editor"
+import { cn } from "@/lib/utils"
 import type { ContractStatus } from "@/lib/types"
 
 const READ_ONLY_STATUSES = new Set<ContractStatus>([
@@ -36,6 +37,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
   const [exportBusy, setExportBusy] = useState(false)
   const [extractOpen, setExtractOpen] = useState(false)
   const [extracting, setExtracting] = useState(false)
+  const [rightTab, setRightTab] = useState<"details" | "comments">("details")
 
   const canEdit = role !== "viewer" && !READ_ONLY_STATUSES.has(contractStatus)
   const canExtract = role === "admin" || role === "legal"
@@ -227,21 +229,29 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     }
   }
 
+  // Derive TOC from document content
+  const tocItems = useMemo(() => {
+    if (!content) return []
+    const headings = (content as Array<{ type?: string; children?: Array<{ text?: string }> }>)
+      .filter((n) => n.type === "h1" || n.type === "h2" || n.type === "h3")
+    return headings.map((n, i) => ({
+      num: String(i + 1),
+      title: (n.children ?? []).map((c) => c.text ?? "").join("").trim() || `Section ${i + 1}`,
+    }))
+  }, [content])
+
   if (loading) {
     return (
-      <div className="flex flex-col gap-3 animate-pulse">
-        <div className="flex items-center gap-2 border-b border-zinc-200 pb-2">
-          <div className="h-8 w-32 rounded bg-zinc-200" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="w-px h-5 bg-zinc-200 mx-1" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="h-8 w-8 rounded bg-zinc-200" />
-          <div className="ml-auto h-8 w-24 rounded bg-zinc-200" />
+      <div className="flex flex-1 overflow-hidden animate-pulse">
+        {/* Left skeleton */}
+        <div className="w-[200px] shrink-0 border-r border-border bg-muted/30 p-3 space-y-2">
+          <div className="h-3 w-16 rounded bg-zinc-200" />
+          <div className="h-4 w-full rounded bg-zinc-100" />
+          <div className="h-4 w-4/5 rounded bg-zinc-100" />
+          <div className="h-4 w-3/5 rounded bg-zinc-100" />
         </div>
-        <div className="rounded-md border border-zinc-200 bg-white p-8 min-h-[500px] space-y-3">
+        {/* Center skeleton */}
+        <div className="flex-1 p-8 space-y-3">
           <div className="h-6 w-1/3 rounded bg-zinc-200" />
           <div className="h-4 w-full rounded bg-zinc-100" />
           <div className="h-4 w-full rounded bg-zinc-100" />
@@ -251,6 +261,12 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           <div className="h-4 w-full rounded bg-zinc-100" />
           <div className="h-4 w-2/3 rounded bg-zinc-100" />
         </div>
+        {/* Right skeleton */}
+        <div className="w-[300px] shrink-0 border-l border-border p-3 space-y-2">
+          <div className="h-3 w-20 rounded bg-zinc-200" />
+          <div className="h-7 w-full rounded bg-zinc-100" />
+          <div className="h-7 w-full rounded bg-zinc-100" />
+        </div>
       </div>
     )
   }
@@ -259,61 +275,132 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
   const showSendForExtraction = canExtract && documentExists
 
   return (
-    <div className="space-y-4">
-      <ContractEditor
-        contractId={contractId}
-        initialContent={content ?? EMPTY_DOC}
-        initialVersion={version}
-        readOnly={!canEdit}
-        readOnlyReason={
-          !canEdit
-            ? `This contract is in ${contractStatus} status. The editor is read-only.`
-            : undefined
-        }
-        rightActions={
-          <>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setImportOpen(true)}
-              >
-                Import from Word or PDF
-              </Button>
-            )}
-            {documentExists && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={exportBusy}
-                  onClick={() => handleExport("docx")}
-                >
-                  {exportBusy && exportFormat === "docx" ? "Exporting…" : "Export to Word"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={exportBusy}
-                  onClick={() => handleExport("pdf")}
-                >
-                  {exportBusy && exportFormat === "pdf" ? "Exporting…" : "Export to PDF"}
-                </Button>
-              </>
-            )}
-            {showSendForExtraction && (
-              <Button
-                size="sm"
-                onClick={() => setExtractOpen(true)}
-                disabled={extracting}
-              >
-                Send for Extraction
-              </Button>
-            )}
-          </>
-        }
-      />
+    <div className="flex flex-col h-full overflow-hidden">
 
+      {/* ── 3-column body ───────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* LEFT: Clause outline (200px) */}
+        <aside className="w-[200px] shrink-0 border-r border-border bg-muted/30 overflow-y-auto flex flex-col">
+          <div className="px-3.5 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            Clauses
+          </div>
+          {tocItems.length === 0 ? (
+            <div className="px-3.5 text-[11px] text-muted-foreground/60 italic">No headings yet</div>
+          ) : (
+            tocItems.map((item, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 w-full px-3.5 py-1.5 text-left text-[12px] hover:bg-muted/50 transition-colors text-foreground/80 cursor-default"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+                <span className="text-[10.5px] text-muted-foreground min-w-[18px]">{item.num}</span>
+                <span className="truncate">{item.title}</span>
+              </div>
+            ))
+          )}
+        </aside>
+
+        {/* CENTER: Editor (flex-1) */}
+        <div className="flex-1 overflow-auto bg-muted/10">
+          <div className="max-w-[720px] mx-auto px-8 py-6">
+            <ContractEditor
+              contractId={contractId}
+              initialContent={content ?? EMPTY_DOC}
+              initialVersion={version}
+              readOnly={!canEdit}
+              readOnlyReason={
+                !canEdit
+                  ? `This contract is in ${contractStatus} status. The editor is read-only.`
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+
+        {/* RIGHT: Details / Comments (300px) */}
+        <aside className="w-[300px] shrink-0 border-l border-border flex flex-col overflow-hidden">
+          {/* Tab bar */}
+          <div className="flex border-b border-border shrink-0">
+            {(["details", "comments"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setRightTab(t)}
+                className={cn(
+                  "flex-1 py-2.5 text-[12px] font-medium capitalize transition-colors",
+                  rightTab === t
+                    ? "border-b-2 border-primary text-primary"
+                    : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {rightTab === "details" ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold pt-1">Document</p>
+                {canEdit && (
+                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setImportOpen(true)}>
+                    Import from Word or PDF
+                  </Button>
+                )}
+                {documentExists && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      disabled={exportBusy}
+                      onClick={() => handleExport("docx")}
+                    >
+                      {exportBusy && exportFormat === "docx" ? "Exporting…" : "Export to Word"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      disabled={exportBusy}
+                      onClick={() => handleExport("pdf")}
+                    >
+                      {exportBusy && exportFormat === "pdf" ? "Exporting…" : "Export to PDF"}
+                    </Button>
+                  </>
+                )}
+                {showSendForExtraction && (
+                  <>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold pt-3">AI</p>
+                    <Button
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setExtractOpen(true)}
+                      disabled={extracting}
+                    >
+                      Re-run AI Extraction
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2 py-12">
+                <div className="text-muted-foreground/40">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <p className="text-[12px] text-muted-foreground">No comments yet</p>
+                <p className="text-[11px] text-muted-foreground/60">Comments coming in a future update</p>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Dialogs ─────────────────────────────────────────── */}
       <Dialog open={importOpen} onOpenChange={(open) => !importBusy && setImportOpen(open)}>
         <DialogContent>
           <DialogHeader>
