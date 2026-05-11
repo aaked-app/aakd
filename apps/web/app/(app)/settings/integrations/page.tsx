@@ -349,6 +349,7 @@ function CrmSection({
   integrations,
   settings,
   savingProvider,
+  canManage,
   onConnect,
   onDisconnectClick,
   onSaveSettings,
@@ -358,6 +359,7 @@ function CrmSection({
   integrations: CrmIntegrationStatus[]
   settings: Record<string, ProviderSettings>
   savingProvider: CrmProvider | null
+  canManage: boolean
   onConnect: (p: CrmProvider) => void
   onDisconnectClick: (p: CrmProvider) => void
   onSaveSettings: (p: CrmProvider) => void
@@ -435,11 +437,18 @@ function CrmSection({
                     size="sm"
                     className="border-red-200 text-red-600 hover:bg-red-50"
                     onClick={() => onDisconnectClick(meta.id)}
+                    disabled={!canManage}
+                    title={!canManage ? "Admin or legal role required" : undefined}
                   >
                     Disconnect
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => onConnect(meta.id)}>
+                  <Button
+                    size="sm"
+                    onClick={() => onConnect(meta.id)}
+                    disabled={!canManage}
+                    title={!canManage ? "Admin or legal role required" : undefined}
+                  >
                     Connect
                   </Button>
                 )}
@@ -532,7 +541,7 @@ export default function IntegrationsPage() {
   const [savingProvider, setSavingProvider] = useState<CrmProvider | null>(null)
   const [settings, setSettings] = useState<Record<string, ProviderSettings>>({})
   const [role, setRole] = useState<string | null>(null)
-  const [roleLoaded, setRoleLoaded] = useState(false)
+  const [roleLoaded, setRoleLoaded] = useState(false) // kept to gate canManage after fetch
   const [activeCategory, setActiveCategory] = useState<Category>("CRM")
 
   async function fetchStatus(signal?: AbortSignal) {
@@ -587,16 +596,7 @@ export default function IntegrationsPage() {
     if (error) toast.error(`Failed to connect: ${error}`)
   }, [searchParams])
 
-  if (roleLoaded && role !== "admin" && role !== "legal") {
-    return (
-      <div className="p-6">
-        <h1 className="text-xl font-semibold text-foreground">Integrations</h1>
-        <p className="mt-4 text-sm text-muted-foreground">
-          You don&apos;t have permission to view this page.
-        </p>
-      </div>
-    )
-  }
+  const canManage = roleLoaded && (role === "admin" || role === "legal")
 
   function startConnect(provider: CrmProvider) {
     window.location.href = `/api/crm/${provider.toLowerCase()}/connect`
@@ -676,6 +676,7 @@ export default function IntegrationsPage() {
             integrations={integrations}
             settings={settings}
             savingProvider={savingProvider}
+            canManage={canManage}
             onConnect={startConnect}
             onDisconnectClick={setConfirmDisconnect}
             onSaveSettings={saveSettings}
