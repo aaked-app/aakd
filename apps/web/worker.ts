@@ -72,7 +72,7 @@ import { processImportJob } from "@/lib/import/processor"
 import { getCrmProvider } from "@/lib/crm"
 import { encryptToken } from "@/lib/crm/crypto"
 import { htmlToPlateNodes } from "@/lib/editor/html-to-plate"
-import { plateToPlaintext, countWords } from "@/lib/editor/plate-to-plaintext"
+import { plateToPlaintext, countWords, plaintextToPlateNodes } from "@/lib/editor/plate-to-plaintext"
 import { plateToDocxBuffer } from "@/lib/editor/plate-to-docx"
 import { plateToPdfBuffer } from "@/lib/editor/plate-to-pdf"
 
@@ -1689,8 +1689,8 @@ deliverWorker.on("failed", (job, err) =>
 const documentConvertWorker = new Worker<DocumentConvertJobData>(
   "document.convert",
   async (job: Job<DocumentConvertJobData>) => {
-    const { contractId, storageKey, requestedById } = job.data
-    console.log(`[document.convert] Job ${job.id} contract=${contractId}`)
+    const { contractId, storageKey, requestedById, fileType = "docx" } = job.data
+    console.log(`[document.convert] Job ${job.id} contract=${contractId} fileType=${fileType}`)
 
     const db = getWorkerPrisma()
 
@@ -1698,7 +1698,7 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
     try {
       const signedUrl = await storage.getSignedDownloadUrl(storageKey)
       const res = await fetch(signedUrl)
-      if (!res.ok) throw new Error(`Failed to download .docx from storage: ${res.status}`)
+      if (!res.ok) throw new Error(`Failed to download file from storage: ${res.status}`)
       buffer = Buffer.from(await res.arrayBuffer())
     } catch (err) {
       console.error(`[document.convert] download failed for ${storageKey}:`, err)
@@ -1706,17 +1706,35 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       throw err
     }
 
-    let html: string
-    try {
-      const result = await mammoth.convertToHtml({ buffer })
-      html = result.value ?? ""
-    } catch (err) {
-      console.error(`[document.convert] mammoth failed for ${contractId}:`, err)
-      await storage.delete(storageKey).catch(() => {})
-      throw err
+    let nodes: ReturnType<typeof htmlToPlateNodes>
+
+    if (fileType === "pdf") {
+      // PDFs yield plain text only — no formatting can be recovered.
+      let rawText: string
+      try {
+        const result = await pdfParse(buffer)
+        rawText = result.text ?? ""
+        console.log(`[document.convert] PDF text extracted: ${rawText.length} chars`)
+      } catch (err) {
+        console.error(`[document.convert] pdf-parse failed for ${contractId}:`, err)
+        await storage.delete(storageKey).catch(() => {})
+        throw err
+      }
+      nodes = plaintextToPlateNodes(rawText)
+    } else {
+      // DOCX: mammoth → HTML → Plate AST (formatting preserved)
+      let html: string
+      try {
+        const result = await mammoth.convertToHtml({ buffer })
+        html = result.value ?? ""
+      } catch (err) {
+        console.error(`[document.convert] mammoth failed for ${contractId}:`, err)
+        await storage.delete(storageKey).catch(() => {})
+        throw err
+      }
+      nodes = htmlToPlateNodes(html)
     }
 
-    const nodes = htmlToPlateNodes(html)
     const plaintext = plateToPlaintext(nodes)
     const wordCount = countWords(plaintext)
 
@@ -1753,16 +1771,17 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       console.warn(`[document.convert] Failed to delete tmp object ${storageKey}:`, err),
     )
 
+    const sourceLabel = fileType === "pdf" ? "PDF (text only)" : "Word document"
     await db.activity.create({
       data: {
         contractId,
         userId: requestedById,
         action: "DOCUMENT_IMPORTED",
-        detail: `Imported Word document (${wordCount} words)`,
+        detail: `Imported ${sourceLabel} (${wordCount} words)`,
       },
     })
 
-    console.log(`[document.convert] Imported ${wordCount} words for contract ${contractId}`)
+    console.log(`[document.convert] Imported ${wordCount} words from ${fileType} for contract ${contractId}`)
   },
   { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 } },
 )

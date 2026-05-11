@@ -93,9 +93,9 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         if (body.error === "invalid_file_type") {
-          toast.error("Only .docx files are accepted.")
+          toast.error("Only .docx and .pdf files are accepted.")
         } else if (body.error === "file_too_large") {
-          toast.error("File too large (max 10 MB).")
+          toast.error("File too large (max 25 MB).")
         } else if (body.error === "read_only_status") {
           toast.error("This contract is read-only.")
         } else {
@@ -254,7 +254,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
                 size="sm"
                 onClick={() => setImportOpen(true)}
               >
-                Import from Word
+                Import from Word or PDF
               </Button>
             )}
             {documentExists && (
@@ -293,10 +293,10 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
       <Dialog open={importOpen} onOpenChange={(open) => !importBusy && setImportOpen(open)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Import from Word</DialogTitle>
+            <DialogTitle>Import from Word or PDF</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <FileUploadZone onFileSelect={setImportFile} accept=".docx" />
+            <FileUploadZone onFileSelect={setImportFile} accept=".docx,.pdf" />
             <p className="text-xs text-amber-700">
               Importing will replace the current editor content. This cannot be undone.
             </p>

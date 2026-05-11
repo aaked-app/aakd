@@ -5,8 +5,9 @@ import { prisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
 import { documentConvertQueue } from "@/lib/jobs/queues"
 
-const MAX_DOCX_BYTES = 10 * 1024 * 1024 // 10 MB
-const DOCX_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25 MB (PDFs can be larger than DOCX)
+const DOCX_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]) // PK zip header
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46])  // %PDF
 
 const READ_ONLY_STATUSES = new Set([
   "AWAITING_SIGNATURE",
@@ -49,32 +50,39 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const fileSize = (file as File).size
-    if (fileSize > MAX_DOCX_BYTES) {
+    if (fileSize > MAX_FILE_BYTES) {
       return Response.json({ error: "file_too_large" }, { status: 413 })
     }
 
     const arrayBuffer = await (file as File).arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Magic byte check (PK ZIP header) — DOCX is a ZIP container.
-    if (
-      buffer.length < 4 ||
-      !buffer.subarray(0, 4).equals(DOCX_MAGIC)
-    ) {
+    // Detect file type by magic bytes — never trust the browser MIME type.
+    const magic = buffer.subarray(0, 4)
+    let fileType: "docx" | "pdf"
+    let mimeType: string
+    let ext: string
+
+    if (buffer.length >= 4 && magic.equals(DOCX_MAGIC)) {
+      fileType = "docx"
+      mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ext = "docx"
+    } else if (buffer.length >= 4 && magic.equals(PDF_MAGIC)) {
+      fileType = "pdf"
+      mimeType = "application/pdf"
+      ext = "pdf"
+    } else {
       return Response.json({ error: "invalid_file_type" }, { status: 422 })
     }
 
-    const tmpKey = `tmp/docx-imports/${params.id}/${crypto.randomUUID()}.docx`
-    await storage.upload(
-      tmpKey,
-      buffer,
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
+    const tmpKey = `tmp/docx-imports/${params.id}/${crypto.randomUUID()}.${ext}`
+    await storage.upload(tmpKey, buffer, mimeType)
 
     const job = await documentConvertQueue.add("convert", {
       contractId: params.id,
       storageKey: tmpKey,
       requestedById: ctx.userId,
+      fileType,
       jobId: "", // overwritten below using the actual BullMQ job id
     })
     // BullMQ assigns the id; pass it back so the GET route can verify ownership

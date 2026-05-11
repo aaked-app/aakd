@@ -26,7 +26,6 @@ import {
   ExternalLink,
   Trash2,
   RefreshCw,
-  MessageSquare,
   ArrowUpRight,
   Pen,
   Pencil,
@@ -77,12 +76,6 @@ interface AIExtraction {
   sourceText: string
   sourcePage: number | null
   status: "pending" | "accepted" | "rejected"
-}
-
-interface AskCitation {
-  chunkIndex: number
-  text: string
-  similarity: number | null
 }
 
 const ALL_STATUSES: ContractStatus[] = [
@@ -181,10 +174,6 @@ export default function ContractDetailPage() {
   const [tagInput, setTagInput] = useState("")
   const [addingTag, setAddingTag] = useState(false)
   const [sendingForSignature] = useState(false)
-  const [aiQuestion, setAiQuestion] = useState("")
-  const [aiAnswer, setAiAnswer] = useState("")
-  const [aiCitations, setAiCitations] = useState<AskCitation[]>([])
-  const [askingAI, setAskingAI] = useState(false)
 
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -587,32 +576,6 @@ export default function ContractDetailPage() {
     router.push(`/contracts/${id}/signing`)
   }
 
-  async function askAI() {
-    if (!aiQuestion.trim()) return
-    setAskingAI(true)
-    setAiAnswer("")
-    setAiCitations([])
-    try {
-      const res = await fetch(`/api/contracts/${id}/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: aiQuestion }),
-      })
-      if (res.ok) {
-        const { answer, citations } = await res.json()
-        setAiAnswer(answer)
-        setAiCitations(Array.isArray(citations) ? citations : [])
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error ?? "Failed to get answer")
-      }
-    } catch {
-      toast.error("Failed to get answer")
-    } finally {
-      setAskingAI(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="p-6 space-y-4">
@@ -786,12 +749,6 @@ export default function ContractDetailPage() {
               Signing
             </TabsTrigger>
           )}
-          <TabsTrigger
-            value="qa"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
-          >
-            Q&amp;A
-          </TabsTrigger>
           <TabsTrigger
             value="editor"
             className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
@@ -1625,66 +1582,6 @@ export default function ContractDetailPage() {
           </div>
         </TabsContent>}
 
-        {/* Q&A */}
-        <TabsContent value="qa" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7">
-            <div className="rounded-[var(--radius)] border border-border bg-card p-5 flex flex-col gap-4">
-              <h3 className="text-sm font-medium text-foreground">Ask AI</h3>
-
-              {contract.hasExtractedText ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="e.g. What is the notice period?"
-                      value={aiQuestion}
-                      onChange={(e) => setAiQuestion(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") askAI() }}
-                      className="flex-1 text-sm"
-                      disabled={askingAI}
-                    />
-                    <Button size="sm" onClick={askAI} disabled={!aiQuestion.trim() || askingAI}>
-                      {askingAI ? "Thinking..." : "Ask"}
-                    </Button>
-                  </div>
-                  {aiAnswer && (
-                    <div className="rounded-md bg-muted/30 border border-border p-3">
-                      <p className="whitespace-pre-wrap text-sm text-foreground">{aiAnswer}</p>
-                      {aiCitations.length > 0 && (
-                        <div className="mt-3 border-t border-border pt-3">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sources</p>
-                          <div className="mt-2 space-y-2">
-                            {aiCitations.map((citation) => (
-                              <details key={citation.chunkIndex} className="rounded border border-border bg-muted/30 px-3 py-2">
-                                <summary className="cursor-pointer text-xs font-medium text-foreground">
-                                  Excerpt {citation.chunkIndex + 1}
-                                  {citation.similarity != null && (
-                                    <span className="ml-2 text-muted-foreground">
-                                      {(citation.similarity * 100).toFixed(0)}% match
-                                    </span>
-                                  )}
-                                </summary>
-                                <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-xs text-foreground/80">
-                                  {citation.text}
-                                </p>
-                              </details>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-8 gap-2">
-                  <MessageSquare className="size-8 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">
-                    No extracted text — upload a PDF or DOCX to enable AI Q&amp;A
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
 
         {/* Editor */}
         <TabsContent value="editor" className="flex-1 overflow-auto m-0 border-0">

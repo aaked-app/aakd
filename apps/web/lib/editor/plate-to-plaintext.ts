@@ -82,3 +82,19 @@ export function countWords(plaintext: string): number {
   const matches = plaintext.split(/\s+/).filter((t) => t.length > 0)
   return matches.length
 }
+
+// Plain text → minimal Plate AST.
+// Used when importing a PDF (plain-text extraction only — no formatting).
+// Double newlines are paragraph separators; single newlines within a block
+// are preserved as-is inside the same paragraph text node.
+export function plaintextToPlateNodes(
+  text: string,
+): Array<{ type: string; children: Array<{ text: string }> }> {
+  if (!text) return [{ type: "p", children: [{ text: "" }] }]
+  const paragraphs = text
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+  if (paragraphs.length === 0) return [{ type: "p", children: [{ text: "" }] }]
+  return paragraphs.map((p) => ({ type: "p", children: [{ text: p }] }))
+}

@@ -14,7 +14,8 @@ Return ONLY a valid JSON array. Each item must have this exact shape:
   "description": <1-2 sentence description of the obligation>,
   "clauseReference": <clause/section reference e.g. "Section 4.2" or null>,
   "priority": <"HIGH" | "MEDIUM" | "LOW" — HIGH for payment/penalty/termination obligations>,
-  "suggestedDueDays": <number of days from today to suggest as due date, integer 1-365, use 30 if unclear>
+  "suggestedDueDays": <number of days from today to suggest as due date, integer 1-365, use 30 if unclear>,
+  "confidence": <number between 0 and 1 — how confident you are this is a genuine contractual obligation: 1.0 = explicit obligation with clear deadline, 0.5 = inferred commitment, 0.2 = vague or general statement>
 }
 
 Return ONLY the JSON array. No explanation, no markdown fences. Max 20 obligations.`

@@ -87,6 +87,7 @@ export interface DocumentConvertJobData {
   storageKey: string
   requestedById: string
   jobId: string
+  fileType: "docx" | "pdf"
 }
 
 export interface DocumentExportJobData {

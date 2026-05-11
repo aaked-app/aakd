@@ -17,6 +17,7 @@ interface AISuggestion {
   clauseReference?: string
   priority: "HIGH" | "MEDIUM" | "LOW"
   suggestedDueDays: number
+  confidence: number
 }
 
 interface Props {
@@ -71,6 +72,7 @@ export function ObligationList({
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
   const [acceptingIdx, setAcceptingIdx] = useState<number | null>(null)
+  const [acceptingAll, setAcceptingAll] = useState(false)
 
   const canWrite = role === "admin" || role === "legal" || role === "member"
   const canDelete = role === "admin" || role === "legal"
@@ -146,6 +148,50 @@ export function ObligationList({
     }
   }
 
+  async function acceptAll() {
+    setAcceptingAll(true)
+    const pending = suggestions
+      .map((s, idx) => ({ s, idx }))
+      .filter(({ idx }) => !dismissedIds.has(idx))
+
+    const created: Obligation[] = []
+    const newDismissed = new Set(dismissedIds)
+
+    for (const { s, idx } of pending) {
+      try {
+        const dueDate = new Date()
+        dueDate.setDate(dueDate.getDate() + s.suggestedDueDays)
+        const res = await fetch(`/api/contracts/${contractId}/obligations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: s.title,
+            description: s.description,
+            clauseReference: s.clauseReference,
+            priority: s.priority,
+            dueDate: dueDate.toISOString(),
+            reminderDays: 7,
+          }),
+        })
+        if (res.ok) {
+          const ob = await res.json()
+          created.push(ob)
+          newDismissed.add(idx)
+        }
+      } catch {
+        // partial success is ok
+      }
+    }
+
+    if (created.length > 0) {
+      onChange([...obligations, ...created])
+    }
+    setDismissedIds(newDismissed)
+    setAcceptingAll(false)
+    setSuggestions([])
+    toast.success(`${created.length} obligation${created.length !== 1 ? "s" : ""} created.`)
+  }
+
   function openEdit(ob: Obligation) {
     setEditing(ob)
     setSheetOpen(true)
@@ -214,6 +260,24 @@ export function ObligationList({
           )}
         </div>
 
+        {extracting && (
+          <div className="w-full max-w-lg rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3 animate-pulse">
+            <div className="h-4 w-48 rounded bg-zinc-200" />
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="rounded-md border border-zinc-100 bg-white p-3 flex items-start gap-3">
+                  <div className="mt-1.5 size-2 rounded-full bg-zinc-200 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-3/4 rounded bg-zinc-200" />
+                    <div className="h-3 w-full rounded bg-zinc-100" />
+                  </div>
+                  <div className="h-7 w-16 rounded bg-zinc-200 shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <ObligationSheet
           open={sheetOpen}
           onOpenChange={setSheetOpen}
@@ -272,6 +336,26 @@ export function ObligationList({
         </div>
       </div>
 
+      {/* Loading skeleton */}
+      {extracting && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3 animate-pulse">
+          <div className="h-4 w-48 rounded bg-zinc-200" />
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-md border border-zinc-100 bg-white p-3 flex items-start gap-3">
+                <div className="mt-1.5 size-2 rounded-full bg-zinc-200 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-3/4 rounded bg-zinc-200" />
+                  <div className="h-3 w-full rounded bg-zinc-100" />
+                  <div className="h-3 w-1/2 rounded bg-zinc-100" />
+                </div>
+                <div className="h-7 w-16 rounded bg-zinc-200 shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* AI Suggestions Panel */}
       {suggestions.length > 0 && (
         <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3">
@@ -279,14 +363,25 @@ export function ObligationList({
             <p className="text-sm font-semibold text-indigo-900">
               AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review and accept
             </p>
-            <button
-              type="button"
-              onClick={() => setSuggestions([])}
-              className="rounded p-1 text-indigo-400 hover:text-indigo-700"
-              aria-label="Dismiss all suggestions"
-            >
-              <X className="size-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                disabled={acceptingAll}
+                onClick={acceptAll}
+              >
+                {acceptingAll ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
+                {acceptingAll ? "Accepting…" : `Accept All (${suggestions.filter((_, i) => !dismissedIds.has(i)).length})`}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setSuggestions([])}
+                className="rounded p-1 text-indigo-400 hover:text-indigo-700"
+                aria-label="Dismiss all suggestions"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             {suggestions.map((s, idx) => {
@@ -302,6 +397,18 @@ export function ObligationList({
                     {s.description && <p className="text-xs text-zinc-500 mt-0.5">{s.description}</p>}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-zinc-400">
                       {s.clauseReference && <span>{s.clauseReference}</span>}
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 font-medium text-[10px]",
+                          s.confidence >= 0.8
+                            ? "bg-emerald-50 text-emerald-700"
+                            : s.confidence >= 0.5
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-zinc-100 text-zinc-500",
+                        )}
+                      >
+                        {Math.round(s.confidence * 100)}% confidence
+                      </span>
                       <span>Due ~{format(dueDate, "MMM d, yyyy")}</span>
                       <span className="capitalize">{s.priority.toLowerCase()} priority</span>
                     </div>
@@ -311,14 +418,28 @@ export function ObligationList({
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      disabled={acceptingIdx === idx}
+                      disabled={acceptingIdx === idx || acceptingAll}
                       onClick={() => acceptSuggestion(idx, s)}
                     >
                       {acceptingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Accept"}
                     </Button>
                     <button
                       type="button"
-                      onClick={() => setDismissedIds((prev) => new Set(prev).add(idx))}
+                      onClick={() => {
+                        setDismissedIds((prev) => new Set(prev).add(idx))
+                        toast("Suggestion dismissed", {
+                          action: {
+                            label: "Undo",
+                            onClick: () =>
+                              setDismissedIds((prev) => {
+                                const next = new Set(prev)
+                                next.delete(idx)
+                                return next
+                              }),
+                          },
+                          duration: 5000,
+                        })
+                      }}
                       className="rounded p-1.5 text-zinc-400 hover:text-zinc-700"
                       aria-label="Dismiss suggestion"
                     >
