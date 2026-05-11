@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEditor, EditorContent, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Underline from "@tiptap/extension-underline"
@@ -397,44 +397,55 @@ export function ContractEditor({
 
   // ─── TipTap editor instance ────────────────────────────────────────────────
 
+  // IMPORTANT: extensions must be memoized with an empty deps array.
+  // TipTap v2's useEditor calls editor.setOptions(options) after every render
+  // (useEffect with no deps). If extensions array reference changes each render
+  // (because Extension.create / StarterKit.configure produce new objects), TipTap
+  // destroys and recreates the editor on every render → infinite loop → buttons
+  // are never stably clickable.  Refs are stable objects so the plugin closures
+  // always read the latest .current values even with a once-created array.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      // StarterKit includes: blockquote, bold, bulletList, code, codeBlock,
+      // document, dropcursor, gapcursor, hardBreak, heading, history,
+      // horizontalRule, italic, listItem, orderedList, paragraph, strike, text
+    }),
+    Underline,
+    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    Link.configure({ openOnClick: false }),
+    Image,
+    Table.configure({ resizable: false }),
+    TableRow,
+    TableCell,
+    TableHeader,
+    Color,
+    TextStyleExtended,
+    Highlight.configure({ multicolor: true }),
+    Placeholder.configure({ placeholder: "Start writing…" }),
+    CharacterCount,
+    TemplateVariableExtension,
+    CommentMark,
+    InsertionMark,
+    DeletionMark,
+    // Build the TrackChangesExtension inline so its ProseMirror plugin closure
+    // captures tcEnabledRef / tcUserIdRef directly.  Mutating .current is
+    // synchronous and visible to the plugin on the very next transaction —
+    // no TipTap storage indirection that might break across versions.
+    Extension.create({
+      name: "trackChangesExtension",
+      addProseMirrorPlugins: () => [
+        createTrackChangesPlugin(
+          () => tcEnabledRef.current,
+          () => tcUserIdRef.current,
+        ),
+      ],
+    }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []) // empty deps — create once on mount; refs are stable
+
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // StarterKit includes: blockquote, bold, bulletList, code, codeBlock,
-        // document, dropcursor, gapcursor, hardBreak, heading, history,
-        // horizontalRule, italic, listItem, orderedList, paragraph, strike, text
-      }),
-      Underline,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Link.configure({ openOnClick: false }),
-      Image,
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      Color,
-      TextStyleExtended,
-      Highlight.configure({ multicolor: true }),
-      Placeholder.configure({ placeholder: "Start writing…" }),
-      CharacterCount,
-      TemplateVariableExtension,
-      CommentMark,
-      InsertionMark,
-      DeletionMark,
-      // Build the TrackChangesExtension inline so its ProseMirror plugin closure
-      // captures tcEnabledRef / tcUserIdRef directly.  Mutating .current is
-      // synchronous and visible to the plugin on the very next transaction —
-      // no TipTap storage indirection that might break across versions.
-      Extension.create({
-        name: "trackChangesExtension",
-        addProseMirrorPlugins: () => [
-          createTrackChangesPlugin(
-            () => tcEnabledRef.current,
-            () => tcUserIdRef.current,
-          ),
-        ],
-      }),
-    ],
+    extensions,
     content: initialDoc,
     editable: !isReadOnly,
     onUpdate: ({ editor: ed }) => {
