@@ -185,6 +185,8 @@ export async function PATCH(
       approvalId: approval.id,
       decidedById: ctx.userId,
       decidedByName: updated.assignedTo?.name ?? "Reviewer",
+      requesterId: updated.requestedBy.id,
+      requesterName: updated.requestedBy.name ?? "Requester",
       ...(body.comment ? { comment: body.comment } : {}),
     }
     if (body.decision === "approved") {
