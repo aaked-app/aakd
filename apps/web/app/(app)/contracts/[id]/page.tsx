@@ -1346,12 +1346,16 @@ export default function ContractDetailPage() {
               {approvals.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-sm text-muted-foreground">No approvals requested yet</p>
-                  {!canRequestApproval && currentMember && (
-                    <p className="mt-1 text-xs text-muted-foreground/70">
-                      Your role ({currentMember.role}) is not eligible to request approvals.
-                      Only Legal, Admin, and Owner roles can submit approval requests.
-                    </p>
-                  )}
+                  {!canRequestApproval && currentMember && (() => {
+                    const roleAllowed = ["admin", "legal", "owner"].includes(currentMember.role)
+                    return (
+                      <p className="mt-1 text-xs text-muted-foreground/70">
+                        {roleAllowed
+                          ? `Approvals cannot be requested while the contract is ${contract.status.replace(/_/g, " ").toLowerCase()}.`
+                          : `Your role (${currentMember.role}) cannot request approvals. Legal, Admin, or Owner role required.`}
+                      </p>
+                    )
+                  })()}
                 </div>
               ) : (
                 <div className="relative">
