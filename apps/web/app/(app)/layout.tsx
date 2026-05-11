@@ -161,6 +161,7 @@ function Sidebar({
         <span className="font-bold text-sm tracking-tight flex-1 min-w-0 truncate">
           ClauseFlow
         </span>
+        <NotificationBell />
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
       </div>
 
@@ -224,8 +225,6 @@ function Sidebar({
               {orgName}
             </p>
           </div>
-          {/* Notifications */}
-          <NotificationBell />
           {/* Sign out */}
           <Button
             variant="ghost"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Bell, Plus, ArrowUpRight, FileText } from "lucide-react"
+import { Settings2, Plus, ArrowUpRight, FileText } from "lucide-react"
 import { useSession } from "@/lib/auth/client"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -152,9 +152,10 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/settings/notifications"
+            title="Notification settings"
             className="flex h-[34px] w-[34px] items-center justify-center rounded-[var(--radius)] border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Bell className="h-[15px] w-[15px]" />
+            <Settings2 className="h-[15px] w-[15px]" />
           </Link>
           <Link
             href="/contracts/new"
