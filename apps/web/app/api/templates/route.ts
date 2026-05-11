@@ -18,13 +18,20 @@ const VariableSchema = z.object({
   defaultValue: z.string().max(500).optional(),
 })
 
+// Accepts both TipTap doc object { type:"doc", content:[...] } and legacy Slate array
+const TipTapDocSchema = z.object({
+  type: z.literal("doc"),
+  content: z.array(z.unknown()).max(50_000),
+})
+const ContentSchema = z.union([TipTapDocSchema, z.array(z.unknown()).max(50_000)])
+
 const CreateTemplateSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   contractType: z
     .enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"])
     .optional(),
-  content: z.array(z.unknown()).max(50_000),
+  content: ContentSchema,
   variables: z.array(VariableSchema).max(MAX_VARIABLES),
   wordCount: z.number().int().min(0).max(1_000_000),
 })

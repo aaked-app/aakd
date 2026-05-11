@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { findUsedVariableNames, type TemplateVariable } from "@/lib/editor/template"
@@ -15,6 +16,13 @@ const VariableSchema = z.object({
   defaultValue: z.string().max(500).optional(),
 })
 
+// Accepts both TipTap doc object { type:"doc", content:[...] } and legacy Slate array
+const TipTapDocSchema = z.object({
+  type: z.literal("doc"),
+  content: z.array(z.unknown()).max(50_000),
+})
+const ContentSchema = z.union([TipTapDocSchema, z.array(z.unknown()).max(50_000)])
+
 const PatchTemplateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).nullable().optional(),
@@ -22,7 +30,7 @@ const PatchTemplateSchema = z.object({
     .enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"])
     .nullable()
     .optional(),
-  content: z.array(z.unknown()).max(50_000).optional(),
+  content: ContentSchema.optional(),
   variables: z.array(VariableSchema).max(MAX_VARIABLES).optional(),
   wordCount: z.number().int().min(0).max(1_000_000).optional(),
 })
@@ -49,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
-  if (ctx.role !== "admin" && ctx.role !== "legal") {
+  if (!hasRole(ctx.role, "legal")) {
     return Response.json({ error: "forbidden" }, { status: 403 })
   }
 
@@ -99,11 +107,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // Validate cross-consistency: all chips reference declared variables.
     // Use whichever side of the patch is being supplied for content/variables.
+    // Content may be a TipTap doc object or a legacy Slate array — normalise to array for findUsedVariableNames.
+    const resolveContentArray = (c: unknown): unknown[] | null => {
+      if (!c) return null
+      if (Array.isArray(c)) return c
+      if (typeof c === "object" && c !== null && (c as Record<string, unknown>).type === "doc") {
+        const inner = (c as Record<string, unknown>).content
+        return Array.isArray(inner) ? inner : null
+      }
+      return null
+    }
+
     const newContent: unknown[] | null = parsed.data.content
-      ? parsed.data.content
-      : Array.isArray(existing.content)
-      ? (existing.content as unknown[])
-      : null
+      ? resolveContentArray(parsed.data.content)
+      : resolveContentArray(existing.content)
     const newVariables: TemplateVariable[] = parsed.data.variables
       ? (parsed.data.variables as TemplateVariable[])
       : Array.isArray(existing.variables)
@@ -150,7 +167,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
-  if (ctx.role !== "admin" && ctx.role !== "legal") {
+  if (!hasRole(ctx.role, "legal")) {
     return Response.json({ error: "forbidden" }, { status: 403 })
   }
 
