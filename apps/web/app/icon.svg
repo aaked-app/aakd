@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Green rounded background -->
+  <rect width="48" height="48" rx="11" fill="#207a44"/>
+  <!-- Outer ring -->
+  <circle cx="24" cy="24" r="14" stroke="white" stroke-width="2" fill="none"/>
+  <!-- Inner ring (ghost) -->
+  <circle cx="24" cy="24" r="11.5" stroke="white" stroke-width="0.8" fill="none" opacity="0.35"/>
+  <!-- Document background fill -->
+  <rect x="18" y="16" width="12" height="15" rx="1.5" fill="white" opacity="0.15"/>
+  <!-- Horizontal lines (document text) -->
+  <path d="M20.5 21.5h7M20.5 24.5h7M20.5 27.5h5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- Checkmark (top-left of document) -->
+  <path d="M19.5 18.5l2 1.8 3.5-3.5" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
