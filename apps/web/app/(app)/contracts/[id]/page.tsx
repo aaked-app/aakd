@@ -173,8 +173,6 @@ export default function ContractDetailPage() {
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [tagInput, setTagInput] = useState("")
   const [addingTag, setAddingTag] = useState(false)
-  const [sendingForSignature] = useState(false)
-
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
       const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes] = await Promise.all([
@@ -680,11 +678,10 @@ export default function ContractDetailPage() {
             {canSendForSignature && (
               <Button
                 size="sm"
-                disabled={sendingForSignature}
                 onClick={sendForSignature}
               >
                 <Pen className="size-3.5" />
-                {sendingForSignature ? "Sending..." : "Send for Signing"}
+                Send for Signing
               </Button>
             )}
             {canManage && contract.status !== "ARCHIVED" && (
@@ -991,11 +988,10 @@ export default function ContractDetailPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={sendingForSignature}
                         onClick={sendForSignature}
                       >
                         <Pen className="size-3.5" />
-                        {sendingForSignature ? "Sending..." : "Send for Signing"}
+                        Send for Signing
                       </Button>
                     )}
                   </div>
@@ -1560,9 +1556,9 @@ export default function ContractDetailPage() {
                     This contract has not been sent for signature yet.
                   </p>
                   {canSendForSignature && (
-                    <Button size="sm" disabled={sendingForSignature} onClick={sendForSignature}>
+                    <Button size="sm" onClick={sendForSignature}>
                       <Send className="size-4" />
-                      {sendingForSignature ? "Sending..." : "Send for Signature"}
+                      Send for Signature
                     </Button>
                   )}
                 </div>
