@@ -69,6 +69,14 @@ function marksToRunOptions(
       // docx TextRun color takes hex without #
       opts.color = (mark.attrs.color as string).replace(/^#/, "")
     }
+    // Track changes — insertion (green) and deletion (red strikethrough)
+    if (mark.type === "insertion") {
+      opts.color = "16a34a"   // green-600 without #
+    }
+    if (mark.type === "deletion") {
+      opts.strike = true
+      opts.color = "dc2626"   // red-600 without #
+    }
   }
   return opts
 }

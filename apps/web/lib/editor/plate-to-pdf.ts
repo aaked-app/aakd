@@ -93,11 +93,15 @@ function renderInline(content: TipTapNode[] | undefined, keyPrefix: string): Rea
       const italic = marks.some((m) => m.type === "italic")
       const strikethrough = marks.some((m) => m.type === "strike")
       const underline = marks.some((m) => m.type === "underline")
+      const isInsertion = marks.some((m) => m.type === "insertion")
+      const isDeletion  = marks.some((m) => m.type === "deletion")
       const family = fontFamilyForMarks(bold, italic)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const style: any = { fontFamily: family }
-      if (strikethrough) style.textDecoration = "line-through"
-      else if (underline) style.textDecoration = "underline"
+      if (isDeletion)       { style.color = "#dc2626"; style.textDecoration = "line-through" }
+      else if (strikethrough) style.textDecoration = "line-through"
+      else if (underline)     style.textDecoration = "underline"
+      if (isInsertion && !isDeletion) style.color = "#16a34a"
       out.push(React.createElement(Text, { key: nextKey(keyPrefix), style }, node.text ?? ""))
       continue
     }
