@@ -62,6 +62,16 @@ services:
       - "1025:1025"   # SMTP — app/worker send here
     restart: unless-stopped
 
+  docuseal:
+    image: docuseal/docuseal:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - docusealdata:/data
+    environment:
+      SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:?DOCUSEAL_SECRET_KEY_BASE must be set in .env (generate with: openssl rand -hex 64)}
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -97,6 +107,10 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
+      # E-signature (DocuSeal)
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-http://docuseal:3000}
+      DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
@@ -138,6 +152,10 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
+      # E-signature (DocuSeal)
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-http://docuseal:3000}
+      DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
@@ -150,3 +168,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  docusealdata:

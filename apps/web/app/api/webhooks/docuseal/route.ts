@@ -16,7 +16,9 @@ interface DocuSealWebhookPayload {
   event_type: string
   data: {
     id: number
-    status: string
+    status?: string
+    submission_id?: number   // present on form.* events (individual signer)
+    slug?: string            // submitter slug
     documents?: { url: string }[]
   }
 }
@@ -60,7 +62,10 @@ function normalizeSigningStatus(payload: DocuSealWebhookPayload): SigningStatus 
   const eventType = payload.event_type.toLowerCase()
   const dataStatus = payload.data.status?.toLowerCase()
 
-  if (eventType === "form.completed" || dataStatus === "completed") return "completed"
+  // Individual signer completed — not a terminal submission event
+  if (eventType === "form.completed" && payload.data.submission_id != null) return null
+
+  if (eventType === "submission.completed" || dataStatus === "completed") return "completed"
   if (eventType === "form.declined" || dataStatus === "declined") return "declined"
   if (eventType === "form.expired" || dataStatus === "expired") return "expired"
   if (eventType === "form.failed" || dataStatus === "failed") return "failed"
@@ -90,14 +95,40 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
+  const { data } = payload
+
+  // ── individual signer completed (form.completed with submission_id) ────────
+  if (
+    payload.event_type.toLowerCase() === "form.completed" &&
+    data.submission_id != null
+  ) {
+    const submissionContract = await prisma.contract.findFirst({
+      where: { docusealSubmissionId: String(data.submission_id) },
+      select: { id: true },
+    })
+
+    if (submissionContract) {
+      // Match by externalId — DocuSeal sends the numeric submitter id as data.id
+      // and optionally the slug. Try both.
+      const signerWhere = data.slug
+        ? { contractId: submissionContract.id, externalId: data.slug }
+        : { contractId: submissionContract.id, externalId: String(data.id) }
+
+      await prisma.contractSigner.updateMany({
+        where: signerWhere,
+        data: { status: "signed", signedAt: new Date() },
+      })
+    }
+
+    return Response.json({ ok: true })
+  }
+
   const signingStatus = normalizeSigningStatus(payload)
 
   // Only process terminal signing states — acknowledge all others silently
   if (!signingStatus) {
     return Response.json({ ok: true })
   }
-
-  const { data } = payload
 
   // ── find the contract by submission ID ────────────────────────────────────
   const contract = await prisma.contract.findFirst({
@@ -161,6 +192,12 @@ export async function POST(req: Request) {
     `signed_${Date.now()}.pdf`,
   )
   await storage.upload(newKey, buffer, "application/pdf")
+
+  // ── mark all signers as signed ────────────────────────────────────────────
+  await prisma.contractSigner.updateMany({
+    where: { contractId: contract.id },
+    data: { status: "signed", signedAt: new Date() },
+  })
 
   // ── version bookkeeping ───────────────────────────────────────────────────
   const latestFile = await prisma.contractFile.findFirst({

@@ -180,7 +180,7 @@ export default function ContractDetailPage() {
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [tagInput, setTagInput] = useState("")
   const [addingTag, setAddingTag] = useState(false)
-  const [sendingForSignature, setSendingForSignature] = useState(false)
+  const [sendingForSignature] = useState(false)
   const [aiQuestion, setAiQuestion] = useState("")
   const [aiAnswer, setAiAnswer] = useState("")
   const [aiCitations, setAiCitations] = useState<AskCitation[]>([])
@@ -591,24 +591,8 @@ export default function ContractDetailPage() {
     }
   }
 
-  async function sendForSignature() {
-    setSendingForSignature(true)
-    try {
-      const res = await fetch(`/api/contracts/${id}/sign`, { method: "POST" })
-      if (res.ok) {
-        const { signingUrl } = await res.json()
-        toast.success("Sent for signature")
-        if (signingUrl) window.open(signingUrl, "_blank")
-        fetchContract()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error ?? "Failed to send for signature")
-      }
-    } catch {
-      toast.error("Failed to send for signature")
-    } finally {
-      setSendingForSignature(false)
-    }
+  function sendForSignature() {
+    router.push(`/contracts/${id}/signing`)
   }
 
   async function askAI() {

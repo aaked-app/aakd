@@ -191,11 +191,27 @@ model Contract {
   docusealSubmissionId  String?
   signingUrl            String?
   signingStatus         String?
+  signers               ContractSigner[]
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
   @@index([organizationId, updatedAt])
   @@index([docusealSubmissionId])
+}
+
+model ContractSigner {
+  id         String    @id @default(cuid())
+  contractId String
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  name       String
+  email      String
+  isInternal Boolean   @default(false)
+  status     String    @default("not_sent") // "not_sent" | "pending" | "signed" | "declined"
+  signedAt   DateTime?
+  externalId String?   // DocuSeal submitter slug — populated after submission created
+  createdAt  DateTime  @default(now())
+
+  @@index([contractId])
 }
 
 enum ContractType {

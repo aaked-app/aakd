@@ -130,6 +130,21 @@ export async function createSubmission(
   }
 }
 
+// ─── remindSubmitter ──────────────────────────────────────────────────────────
+
+/**
+ * Send a reminder email to a specific submitter.
+ * POST /submitters/{slug}/remind
+ */
+export async function remindSubmitter(slug: string): Promise<boolean> {
+  if (!KEY) return false
+  const res = await fetch(`${BASE}/submitters/${slug}/remind`, {
+    method: "POST",
+    headers: authHeaders(),
+  })
+  return res.ok
+}
+
 // ─── getSubmission ────────────────────────────────────────────────────────────
 
 export interface DocuSealSubmissionDetail {

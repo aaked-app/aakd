@@ -1,62 +1,70 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import {
   ArrowLeft,
-  Pen,
-  Plus,
-  Send,
   Bell,
   CheckCircle2,
   Clock,
   MailOpen,
+  Send,
+  Plus,
+  X,
+  XCircle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { Contract } from "@/lib/types"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SignerStatus = "signed" | "pending" | "not_sent"
+type SignerStatus = "signed" | "pending" | "not_sent" | "declined"
 
 interface Signer {
   id: string
   name: string
   email: string
+  isInternal: boolean
   status: SignerStatus
   signedAt?: string | null
+  externalId?: string | null
 }
 
 interface SigningData {
-  totalSigners: number
-  collectedSignatures: number
   signers: Signer[]
+  submissionId: string | null
+  signingStatus: string | null
+  collectedSignatures: number
+  totalSigners: number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function avatarInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
 
 function StatusBadge({ status }: { status: SignerStatus }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
-        status === "signed" &&
-          "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-        status === "pending" &&
-          "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-        status === "not_sent" &&
-          "bg-muted text-muted-foreground ring-1 ring-border",
+        status === "signed" && "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+        status === "pending" && "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+        status === "not_sent" && "bg-muted text-muted-foreground ring-1 ring-border",
+        status === "declined" && "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
       )}
     >
       {status === "signed" && (
@@ -77,112 +85,36 @@ function StatusBadge({ status }: { status: SignerStatus }) {
           Not Sent
         </>
       )}
+      {status === "declined" && (
+        <>
+          <XCircle className="h-3 w-3" />
+          Declined
+        </>
+      )}
     </span>
   )
 }
 
-// ─── DocuSeal pill ────────────────────────────────────────────────────────────
+function RoleBadge({ isInternal }: { isInternal: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        isInternal
+          ? "bg-violet-50 text-violet-700 ring-1 ring-violet-200"
+          : "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+      )}
+    >
+      {isInternal ? "Internal" : "External"}
+    </span>
+  )
+}
 
-function DocuSealPill() {
+function DocuSealBadge() {
   return (
     <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
       DocuSeal
     </span>
-  )
-}
-
-// ─── Signer Row ───────────────────────────────────────────────────────────────
-
-function SignerRow({
-  signer,
-  contractId: _contractId,
-  onAction,
-}: {
-  signer: Signer
-  contractId: string
-  onAction: (signerId: string, action: "remind" | "send") => void
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-      {/* Pen icon */}
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-        <Pen className="h-3.5 w-3.5 text-muted-foreground" />
-      </div>
-
-      {/* Name + email */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{signer.name}</p>
-        <p className="text-xs text-muted-foreground truncate">{signer.email}</p>
-        {signer.status === "signed" && signer.signedAt && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {format(new Date(signer.signedAt), "MMM d, yyyy 'at' h:mm a")}
-          </p>
-        )}
-      </div>
-
-      {/* Status badge */}
-      <StatusBadge status={signer.status} />
-
-      {/* Action button */}
-      {signer.status === "pending" && (
-        // TODO: DocuSeal API
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onAction(signer.id, "remind")}
-          className="shrink-0"
-        >
-          <Bell className="h-3.5 w-3.5 mr-1" />
-          Remind
-        </Button>
-      )}
-      {signer.status === "not_sent" && (
-        // TODO: DocuSeal API
-        <Button
-          size="sm"
-          onClick={() => onAction(signer.id, "send")}
-          className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Send className="h-3.5 w-3.5 mr-1" />
-          Send
-        </Button>
-      )}
-    </div>
-  )
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyState({ contractId }: { contractId: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-        <Pen className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h2 className="text-xl font-semibold text-foreground mb-2">
-        No Signing Workflow
-      </h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-        No signing workflow is configured for this contract.
-      </p>
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <Link href={`/contracts/${contractId}`}>
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Back to Contract
-          </Button>
-        </Link>
-        <div className="relative">
-          <Button disabled className="opacity-50 cursor-not-allowed">
-            <Send className="h-4 w-4 mr-1.5" />
-            Send for Signature
-          </Button>
-          <span className="absolute -top-2 -right-2 text-[9px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full border border-border">
-            Soon
-          </span>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -191,51 +123,11 @@ function EmptyState({ contractId }: { contractId: string }) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-24 rounded-xl" />
+      <Skeleton className="h-20 rounded-xl" />
       <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
+        {[1, 2].map((i) => (
           <Skeleton key={i} className="h-16 rounded-lg" />
         ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Add Signer Form ──────────────────────────────────────────────────────────
-
-function AddSignerForm() {
-  return (
-    <div className="relative">
-      {/* Soon overlay */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm border border-border">
-        <span className="text-sm font-semibold text-muted-foreground mb-1">
-          Coming Soon
-        </span>
-        <p className="text-xs text-muted-foreground">DocuSeal integration required</p>
-      </div>
-
-      {/* Behind overlay — disabled form */}
-      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3 opacity-50 pointer-events-none select-none">
-        <div className="space-y-1">
-          <Label htmlFor="new-signer-name" className="text-xs">
-            Name
-          </Label>
-          <Input id="new-signer-name" placeholder="Jane Smith" disabled />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="new-signer-email" className="text-xs">
-            Email
-          </Label>
-          <Input
-            id="new-signer-email"
-            type="email"
-            placeholder="jane@example.com"
-            disabled
-          />
-        </div>
-        <Button disabled size="sm">
-          Add Signer
-        </Button>
       </div>
     </div>
   )
@@ -249,12 +141,25 @@ export default function SigningPage() {
   const [contract, setContract] = useState<Contract | null>(null)
   const [signingData, setSigningData] = useState<SigningData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [hasWorkflow, setHasWorkflow] = useState(true)
-  const [showAddSigner, setShowAddSigner] = useState(false)
 
-  const fetchData = useCallback(
+  // Add signer form state
+  const [newName, setNewName] = useState("")
+  const [newEmail, setNewEmail] = useState("")
+  const [newIsInternal, setNewIsInternal] = useState(false)
+  const [addingSignerLoading, setAddingSignerLoading] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+
+  // Sending state
+  const [sending, setSending] = useState(false)
+
+  // Track which signers are being reminded
+  const [remindingIds, setRemindingIds] = useState<Set<string>>(new Set())
+
+  // Track counterparty auto-populate attempt
+  const autoPopulatedRef = useRef(false)
+
+  const fetchSigningData = useCallback(
     async (signal?: AbortSignal) => {
-      setLoading(true)
       try {
         const [contractRes, signingRes] = await Promise.all([
           fetch(`/api/contracts/${id}`, { signal }),
@@ -263,78 +168,151 @@ export default function SigningPage() {
 
         if (!contractRes.ok) return
 
-        const contractData = await contractRes.json()
-        setContract(contractData.contract ?? contractData)
+        const contractJson = await contractRes.json()
+        const contractData: Contract = contractJson.contract ?? contractJson
+        setContract(contractData)
 
-        if (!signingRes.ok || signingRes.status === 404) {
-          setHasWorkflow(false)
-          return
+        if (signingRes.ok) {
+          const signingJson = await signingRes.json()
+          setSigningData(signingJson as SigningData)
         }
-
-        const signingJson = await signingRes.json()
-        const signers: Signer[] = signingJson.signers ?? []
-
-        if (signers.length === 0) {
-          setHasWorkflow(false)
-          return
-        }
-
-        setSigningData({
-          signers,
-          totalSigners: signingJson.totalSigners ?? signers.length,
-          collectedSignatures:
-            signingJson.collectedSignatures ??
-            signers.filter((s) => s.status === "signed").length,
-        })
-        setHasWorkflow(true)
       } catch (e) {
         if ((e as Error).name === "AbortError") return
-        setHasWorkflow(false)
       } finally {
         setLoading(false)
       }
     },
-    [id]
+    [id],
   )
 
   useEffect(() => {
     const controller = new AbortController()
-    fetchData(controller.signal)
+    fetchSigningData(controller.signal)
     return () => controller.abort()
-  }, [fetchData])
+  }, [fetchSigningData])
 
-  async function handleSignerAction(signerId: string, action: "remind" | "send") {
-    // TODO: DocuSeal API
-    const endpoint =
-      action === "remind"
-        ? `/api/contracts/${id}/signing/remind`
-        : `/api/contracts/${id}/signing/send`
+  // Auto-populate counterparty on first load
+  useEffect(() => {
+    if (
+      !autoPopulatedRef.current &&
+      signingData !== null &&
+      signingData.submissionId === null &&
+      signingData.signers.length === 0 &&
+      contract?.counterpartyContact
+    ) {
+      autoPopulatedRef.current = true
+      void addSigner(
+        contract.counterpartyName ?? "Counterparty",
+        contract.counterpartyContact,
+        false,
+      )
+    }
+  }, [signingData, contract]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function addSigner(name: string, email: string, isInternal: boolean) {
+    const res = await fetch(`/api/contracts/${id}/signing/signers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, isInternal }),
+    })
+
+    if (res.status === 409) {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error ?? "A signer with this email already exists")
+      return
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error ?? "Failed to add signer")
+      return
+    }
+
+    await fetchSigningData()
+  }
+
+  async function handleAddSigner() {
+    if (!newName.trim() || !newEmail.trim()) {
+      toast.error("Name and email are required")
+      return
+    }
+    setAddingSignerLoading(true)
     try {
-      const res = await fetch(endpoint, {
+      await addSigner(newName.trim(), newEmail.trim(), newIsInternal)
+      setNewName("")
+      setNewEmail("")
+      setNewIsInternal(false)
+      setShowAddForm(false)
+    } finally {
+      setAddingSignerLoading(false)
+    }
+  }
+
+  async function handleRemoveSigner(signerId: string) {
+    const res = await fetch(`/api/contracts/${id}/signing/signers/${signerId}`, {
+      method: "DELETE",
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error ?? "Failed to remove signer")
+      return
+    }
+    await fetchSigningData()
+  }
+
+  async function handleSend() {
+    setSending(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/signing/send`, { method: "POST" })
+      if (res.ok) {
+        const signerCount = signingData?.signers.length ?? 0
+        toast.success(`Sent for signature to ${signerCount} signer${signerCount !== 1 ? "s" : ""}`)
+        await fetchSigningData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "Failed to send for signature")
+      }
+    } catch {
+      toast.error("Failed to send for signature")
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleRemind(signerId: string) {
+    setRemindingIds((prev) => new Set(prev).add(signerId))
+    try {
+      const res = await fetch(`/api/contracts/${id}/signing/remind`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signerId }),
       })
-
-      if (!res.ok) {
-        toast.info("Coming soon — DocuSeal integration pending")
-        return
+      if (res.ok) {
+        toast.success("Reminder sent")
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "Failed to send reminder")
       }
-
-      toast.success(action === "remind" ? "Reminder sent" : "Signature request sent")
-      fetchData()
     } catch {
-      toast.info("Coming soon — DocuSeal integration pending")
+      toast.error("Failed to send reminder")
+    } finally {
+      setRemindingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(signerId)
+        return next
+      })
     }
   }
 
-  const progress =
-    signingData && signingData.totalSigners > 0
-      ? Math.round(
-          (signingData.collectedSignatures / signingData.totalSigners) * 100
-        )
-      : 0
+  // Derived state
+  const isPreSend = signingData?.submissionId === null
+  const signers = signingData?.signers ?? []
+  const collectedSignatures = signingData?.collectedSignatures ?? 0
+  const totalSigners = signingData?.totalSigners ?? 0
+  const progress = totalSigners > 0 ? Math.round((collectedSignatures / totalSigners) * 100) : 0
+
+  const notAwaitingSignature =
+    contract !== null && contract.status !== "AWAITING_SIGNATURE"
 
   return (
     <div className="min-h-screen bg-background">
@@ -348,9 +326,12 @@ export default function SigningPage() {
             </Button>
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold text-foreground leading-tight">
-              Signing Workflow
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground leading-tight">
+                Signing Workflow
+              </h1>
+              <DocuSealBadge />
+            </div>
             {contract && (
               <p className="text-sm text-muted-foreground truncate mt-0.5">
                 {contract.title}
@@ -364,29 +345,183 @@ export default function SigningPage() {
       <div className="mx-auto max-w-3xl px-6 py-8">
         {loading ? (
           <LoadingSkeleton />
-        ) : !hasWorkflow || !signingData ? (
-          <EmptyState contractId={id} />
-        ) : (
+        ) : isPreSend ? (
+          // ── State A: Pre-send ──────────────────────────────────────────────
           <div className="space-y-6">
-            {/* Summary card */}
+            {notAwaitingSignature && (
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Contract must be in <strong>Awaiting Signature</strong> status before sending.
+                </span>
+              </div>
+            )}
+
+            {/* Signer list */}
+            {signers.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Signers
+                </h2>
+                {signers.map((signer) => (
+                  <div
+                    key={signer.id}
+                    className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                  >
+                    {/* Avatar */}
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                      {avatarInitials(signer.name)}
+                    </div>
+
+                    {/* Name + email */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {signer.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{signer.email}</p>
+                    </div>
+
+                    <RoleBadge isInternal={signer.isInternal} />
+
+                    {/* Remove button */}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleRemoveSigner(signer.id)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ${signer.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Signer section */}
+            <div className="space-y-3">
+              {!showAddForm ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddForm(true)}
+                  className="gap-1.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Signer
+                </Button>
+              ) : (
+                <Card>
+                  <CardContent className="pt-4 pb-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-foreground">Add Signer</h3>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          setShowAddForm(false)
+                          setNewName("")
+                          setNewEmail("")
+                          setNewIsInternal(false)
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="signer-name" className="text-xs">
+                        Name
+                      </Label>
+                      <Input
+                        id="signer-name"
+                        placeholder="Jane Smith"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="signer-email" className="text-xs">
+                        Email
+                      </Label>
+                      <Input
+                        id="signer-email"
+                        type="email"
+                        placeholder="jane@example.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleAddSigner()
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="signer-internal"
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-border"
+                        checked={newIsInternal}
+                        onChange={(e) => setNewIsInternal(e.target.checked)}
+                      />
+                      <Label htmlFor="signer-internal" className="text-xs cursor-pointer">
+                        Internal org member
+                      </Label>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      onClick={handleAddSigner}
+                      disabled={addingSignerLoading || !newName.trim() || !newEmail.trim()}
+                    >
+                      {addingSignerLoading && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                      Add Signer
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Send for Signature */}
+            <div className="pt-2">
+              <Button
+                size="sm"
+                disabled={signers.length === 0 || sending || notAwaitingSignature}
+                onClick={handleSend}
+                className="gap-1.5"
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {sending ? "Sending..." : "Send for Signature"}
+              </Button>
+              {signers.length === 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Add at least one signer before sending.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          // ── State B: Post-send ─────────────────────────────────────────────
+          <div className="space-y-6">
+            {/* Progress card */}
             <Card>
               <CardContent className="pt-4 pb-4 space-y-3">
-                {/* DocuSeal badge + progress text */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <DocuSealPill />
+                  <DocuSealBadge />
                   <span className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {signingData.collectedSignatures}
-                    </span>{" "}
-                    of{" "}
-                    <span className="font-semibold text-foreground">
-                      {signingData.totalSigners}
-                    </span>{" "}
-                    signatures collected
+                    <span className="font-semibold text-foreground">{collectedSignatures}</span>
+                    {" "}of{" "}
+                    <span className="font-semibold text-foreground">{totalSigners}</span>
+                    {" "}signatures collected
                   </span>
                 </div>
 
-                {/* Progress bar */}
                 <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
@@ -404,46 +539,59 @@ export default function SigningPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Signers
               </h2>
-              {signingData.signers.map((signer) => (
-                <SignerRow
+              {signers.map((signer) => (
+                <div
                   key={signer.id}
-                  signer={signer}
-                  contractId={id}
-                  onAction={handleSignerAction}
-                />
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                >
+                  {/* Avatar */}
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                    {avatarInitials(signer.name)}
+                  </div>
+
+                  {/* Name + email */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{signer.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{signer.email}</p>
+                    {signer.status === "signed" && signer.signedAt && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {format(new Date(signer.signedAt), "MMM d, yyyy 'at' h:mm a")}
+                      </p>
+                    )}
+                  </div>
+
+                  <RoleBadge isInternal={signer.isInternal} />
+                  <StatusBadge status={signer.status} />
+
+                  {/* Remind button — only for pending signers */}
+                  {signer.status === "pending" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemind(signer.id)}
+                      disabled={remindingIds.has(signer.id)}
+                      className="shrink-0"
+                    >
+                      {remindingIds.has(signer.id) ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Bell className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Remind
+                    </Button>
+                  )}
+                </div>
               ))}
             </div>
 
-            {/* Add signer */}
-            <div className="space-y-3">
-              {!showAddSigner ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddSigner(true)}
-                  className="gap-1.5"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Signer
+            {/* Back link */}
+            <div className="pt-2">
+              <Link href={`/contracts/${id}`}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Contract
                 </Button>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-foreground">
-                      Add New Signer
-                    </h3>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setShowAddSigner(false)}
-                      className="text-muted-foreground"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  <AddSignerForm />
-                </>
-              )}
+              </Link>
             </div>
           </div>
         )}
