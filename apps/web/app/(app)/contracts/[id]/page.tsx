@@ -1382,11 +1382,15 @@ export default function ContractDetailPage() {
                         <div className={cn("flex-1 pb-5", isLast && "pb-0")}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium text-foreground">
+                              <p className="text-sm font-medium text-foreground flex items-center flex-wrap gap-1">
                                 {approval.assignedTo.name}
-                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">Step {approval.step}</span>
-                                {!approval.required && (
-                                  <span className="ml-1.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                <span className="text-xs font-normal text-muted-foreground">Step {approval.step}</span>
+                                {approval.required ? (
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
+                                    Required
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">
                                     Optional
                                   </span>
                                 )}
