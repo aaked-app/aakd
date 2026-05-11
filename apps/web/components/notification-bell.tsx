@@ -69,6 +69,14 @@ export function NotificationBell() {
     }
   }
 
+  // Mark all as read as soon as the popover opens — the user has seen them.
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next && unreadCount > 0) {
+      handleMarkAllRead()
+    }
+  }
+
   function handleNotificationClick(notification: Notification) {
     setOpen(false)
     if (notification.contractId) {
@@ -79,7 +87,7 @@ export function NotificationBell() {
   const badgeCount = unreadCount > 9 ? "9+" : unreadCount > 0 ? String(unreadCount) : null
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         className="relative flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors outline-none"
         aria-label="Notifications"
