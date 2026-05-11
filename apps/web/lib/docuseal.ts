@@ -203,6 +203,27 @@ export async function remindSubmitter(slug: string): Promise<boolean> {
   return res.ok
 }
 
+// ─── archiveSubmission ────────────────────────────────────────────────────────
+
+/**
+ * Archive (void) a DocuSeal submission.
+ * PUT /submissions/:id/archive
+ * Returns true on success, false if unconfigured or on error.
+ */
+export async function archiveSubmission(submissionId: number): Promise<boolean> {
+  if (!KEY) return false
+  const res = await fetch(`${BASE}/submissions/${submissionId}/archive`, {
+    method: "PUT",
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    console.error(`[docuseal] archiveSubmission failed: ${res.status} ${text}`)
+    return false
+  }
+  return true
+}
+
 // ─── getSubmission ────────────────────────────────────────────────────────────
 
 export interface DocuSealSubmissionDetail {

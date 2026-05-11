@@ -1311,6 +1311,22 @@ async function createInAppNotifications(
       break
     }
 
+    case "contract.signing_declined": {
+      const status = typeof metadata.signingStatus === "string" ? metadata.signingStatus : "declined"
+      const members = await db.member.findMany({
+        where: { organizationId, role: { in: ["legal", "admin", "owner"] } },
+        select: { userId: true },
+      }).catch(() => [] as Array<{ userId: string }>)
+      for (const m of members) {
+        await writeNotification(
+          m.userId,
+          "Signing " + status,
+          `"${contractTitle}" signing was ${status} by the counterparty`,
+        )
+      }
+      break
+    }
+
     case "contract.expiring_soon": {
       const daysLeft = typeof metadata.daysUntilExpiry === "number" ? metadata.daysUntilExpiry : null
       const members = await db.member.findMany({
@@ -1407,6 +1423,10 @@ async function resolveEmailRecipientIds(
     case "contract.sent_for_signing":
     case "contract.signed":
     case "contract.archived":
+      ids.add(ownerId)
+      break
+
+    case "contract.signing_declined":
       ids.add(ownerId)
       break
 

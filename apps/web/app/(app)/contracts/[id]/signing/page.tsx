@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   MailOpen,
+  RotateCcw,
   Send,
   Plus,
   X,
@@ -154,6 +155,9 @@ export default function SigningPage() {
 
   // Track which signers are being reminded
   const [remindingIds, setRemindingIds] = useState<Set<string>>(new Set())
+
+  // Resetting state
+  const [resetting, setResetting] = useState(false)
 
   // Track counterparty auto-populate attempt
   const autoPopulatedRef = useRef(false)
@@ -304,12 +308,34 @@ export default function SigningPage() {
     }
   }
 
+  async function handleReset() {
+    setResetting(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/signing/reset`, { method: "POST" })
+      if (res.ok) {
+        toast.success("Signing reset — you can now reconfigure signers and re-send")
+        await fetchSigningData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "Failed to reset signing")
+      }
+    } catch {
+      toast.error("Failed to reset signing")
+    } finally {
+      setResetting(false)
+    }
+  }
+
   // Derived state
   const isPreSend = signingData?.submissionId === null
   const signers = signingData?.signers ?? []
   const collectedSignatures = signingData?.collectedSignatures ?? 0
   const totalSigners = signingData?.totalSigners ?? 0
   const progress = totalSigners > 0 ? Math.round((collectedSignatures / totalSigners) * 100) : 0
+
+  const signingStatus = signingData?.signingStatus ?? null
+  const isResettable =
+    signingStatus === "declined" || signingStatus === "expired" || signingStatus === "failed"
 
   const notAwaitingSignature =
     contract !== null && contract.status !== "AWAITING_SIGNATURE"
@@ -584,14 +610,30 @@ export default function SigningPage() {
               ))}
             </div>
 
-            {/* Back link */}
-            <div className="pt-2">
+            {/* Back link + Reset */}
+            <div className="pt-2 flex items-center gap-3 flex-wrap">
               <Link href={`/contracts/${id}`}>
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <ArrowLeft className="h-4 w-4" />
                   Back to Contract
                 </Button>
               </Link>
+              {isResettable && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="gap-1.5"
+                >
+                  {resetting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  {resetting ? "Resetting..." : "Reset & Resend"}
+                </Button>
+              )}
             </div>
           </div>
         )}

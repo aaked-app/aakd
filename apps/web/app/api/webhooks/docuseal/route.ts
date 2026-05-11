@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
 import { isAllowedDocuSealUrl } from "@/lib/docuseal"
+import { enqueueNotification } from "@/lib/notifications/fanout"
 
 // ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
 // Receives DocuSeal webhook events.
@@ -118,6 +119,17 @@ export async function POST(req: Request) {
         where: signerWhere,
         data: { status: "signed", signedAt: new Date() },
       })
+
+      // Write an activity row so the feed shows each individual signer completing
+      await prisma.activity.create({
+        data: {
+          contractId: submissionContract.id,
+          userId: null,
+          actorLabel: "System",
+          action: "SIGNED",
+          detail: `Signer ${data.slug ?? data.id} completed signing`,
+        },
+      }).catch(() => {})
     }
 
     return Response.json({ ok: true })
@@ -157,6 +169,12 @@ export async function POST(req: Request) {
       "UPDATED",
       `DocuSeal submission #${data.id} marked ${signingStatus}`,
     )
+
+    if (signingStatus === "declined" || signingStatus === "expired") {
+      await enqueueNotification("contract.signing_declined", contract.id, null, {
+        signingStatus,
+      })
+    }
 
     return Response.json({ ok: true })
   }
@@ -247,6 +265,8 @@ export async function POST(req: Request) {
     "SIGNED",
     `Contract signed via DocuSeal (submission #${data.id})`,
   )
+
+  await enqueueNotification("contract.signed", contract.id, null, {})
 
   return Response.json({ ok: true })
 }
