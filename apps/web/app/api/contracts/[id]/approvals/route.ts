@@ -50,6 +50,7 @@ const PostSchema = z.object({
   assignedToId: z.string().min(1),
   message: z.string().optional(),
   step: z.number().int().positive().optional(),
+  required: z.boolean().default(true).optional(),
 })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -120,7 +121,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // If this is not the first step (i.e. there's already a pending/active
     // approval in front of it) start in "waiting" so only the current active
     // reviewer gets notified. The PATCH handler activates the next step.
-    const approvalStatus = nextStep === 1 ? "pending" : "waiting"
+    // Required approvers follow the sequential chain (waiting if not first).
+    // Optional approvers are always notified immediately (pending).
+    const isRequired = body.required ?? true
+    const approvalStatus = (!isRequired || nextStep === 1) ? "pending" : "waiting"
 
     // Create the approval record
     const approval = await prisma.approval.create({
@@ -129,6 +133,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         requestedById: ctx.userId,
         assignedToId: body.assignedToId,
         status: approvalStatus,
+        required: isRequired,
         step: nextStep,
       },
       include: {

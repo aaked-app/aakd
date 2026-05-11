@@ -384,6 +384,7 @@ model Approval {
   assignedToId   String
   assignedTo     User      @relation("ApprovalAssignee", fields: [assignedToId], references: [id])
   status         String    @default("pending") // pending | approved | rejected | waiting
+  required       Boolean   @default(true)
   step           Int       @default(1)
   comment        String?
   decidedAt      DateTime?

@@ -51,7 +51,7 @@ export async function PATCH(
     // Fetch the approval and verify it belongs to this contract
     const approval = await prisma.approval.findUnique({
       where: { id: params.approvalId },
-      select: { id: true, contractId: true, assignedToId: true, status: true },
+      select: { id: true, contractId: true, assignedToId: true, status: true, required: true },
     })
     if (!approval || approval.contractId !== params.id) {
       return Response.json({ error: "Not Found" }, { status: 404 })
@@ -102,15 +102,16 @@ export async function PATCH(
           activatedNext = { id: nextWaiting.id, assignedToId: nextWaiting.assignedToId }
         }
 
-        // Only advance contract when ALL approvals are resolved (no pending/waiting/rejected)
-        const unresolvedApprovals = await tx.approval.findMany({
+        // Only advance contract when ALL *required* approvals are resolved
+        const unresolvedRequired = await tx.approval.findMany({
           where: {
             contractId: params.id,
-            status: { in: ["pending", "rejected", "waiting"] },
+            required: true,
+            status: { in: ["pending", "waiting", "rejected"] },
           },
           select: { id: true },
         })
-        if (unresolvedApprovals.length === 0) {
+        if (unresolvedRequired.length === 0) {
           await tx.contract.update({
             where: { id: params.id, status: "PENDING_APPROVAL" },
             data: { status: "AWAITING_SIGNATURE" },
@@ -120,11 +121,14 @@ export async function PATCH(
       }
 
       if (body.decision === "rejected" && contract.status === "PENDING_APPROVAL") {
-        await tx.contract.update({
-          where: { id: params.id, status: "PENDING_APPROVAL" },
-          data: { status: "INTERNAL_REVIEW" },
-        })
-        advancedTo = "INTERNAL_REVIEW"
+        // Only revert status if this was a required approver
+        if (approval.required) {
+          await tx.contract.update({
+            where: { id: params.id, status: "PENDING_APPROVAL" },
+            data: { status: "INTERNAL_REVIEW" },
+          })
+          advancedTo = "INTERNAL_REVIEW"
+        }
       }
 
       return { updated, advancedTo, activatedNext }

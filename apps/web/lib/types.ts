@@ -160,6 +160,7 @@ export interface Approval {
   assignedToId: string
   assignedTo: { id: string; name: string; email: string; image?: string | null }
   status: "pending" | "approved" | "rejected" | "waiting"
+  required: boolean
   step: number
   comment?: string | null
   decidedAt?: string | null

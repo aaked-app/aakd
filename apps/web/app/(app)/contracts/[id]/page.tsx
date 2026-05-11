@@ -166,6 +166,7 @@ export default function ContractDetailPage() {
   const [approvalOpen, setApprovalOpen] = useState(false)
   const [approvalAssigneeId, setApprovalAssigneeId] = useState("")
   const [approvalMessage, setApprovalMessage] = useState("")
+  const [approvalRequired, setApprovalRequired] = useState(true)
   const [requestingApproval, setRequestingApproval] = useState(false)
   const [deciding, setDeciding] = useState<{ id: string; intent: "approve" | "reject" } | null>(null)
   const [decideComment, setDecideComment] = useState("")
@@ -543,13 +544,14 @@ export default function ContractDetailPage() {
       const res = await fetch(`/api/contracts/${id}/approvals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedToId: approvalAssigneeId, message: approvalMessage || undefined }),
+        body: JSON.stringify({ assignedToId: approvalAssigneeId, message: approvalMessage || undefined, required: approvalRequired }),
       })
       if (!res.ok) throw new Error("Failed")
       toast.success("Approval requested")
       setApprovalOpen(false)
       setApprovalAssigneeId("")
       setApprovalMessage("")
+      setApprovalRequired(true)
       fetchContract()
     } catch {
       toast.error("Failed to request approval")
@@ -1383,6 +1385,11 @@ export default function ContractDetailPage() {
                               <p className="text-sm font-medium text-foreground">
                                 {approval.assignedTo.name}
                                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">Step {approval.step}</span>
+                                {!approval.required && (
+                                  <span className="ml-1.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    Optional
+                                  </span>
+                                )}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {isDone ? "Approved" : isPending ? "Waiting for review" : isWaiting ? "Queued" : "Rejected"} · Requested by{" "}
@@ -1888,7 +1895,7 @@ export default function ContractDetailPage() {
       </Dialog>
 
       {/* Request Approval Dialog */}
-      <Dialog open={approvalOpen} onOpenChange={setApprovalOpen}>
+      <Dialog open={approvalOpen} onOpenChange={(open) => { setApprovalOpen(open); if (!open) setApprovalRequired(true) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Request Approval</DialogTitle>
@@ -1927,11 +1934,38 @@ export default function ContractDetailPage() {
                 onChange={(e) => setApprovalMessage(e.target.value)}
               />
             </div>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-foreground">Required approver</p>
+                <p className="text-xs text-muted-foreground">
+                  {approvalRequired
+                    ? "Must approve before the contract can move forward"
+                    : "FYI only — their decision won't block the workflow"}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={approvalRequired}
+                onClick={() => setApprovalRequired((v) => !v)}
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  approvalRequired ? "bg-primary" : "bg-input"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                    approvalRequired ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
             <div className="flex gap-3">
               <Button onClick={requestApproval} disabled={!approvalAssigneeId || requestingApproval}>
                 {requestingApproval ? "Requesting..." : "Request Approval"}
               </Button>
-              <Button variant="outline" onClick={() => setApprovalOpen(false)}>
+              <Button variant="outline" onClick={() => { setApprovalOpen(false); setApprovalRequired(true) }}>
                 Cancel
               </Button>
             </div>
