@@ -31,6 +31,8 @@ type CustomText = {
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  fontSize?: string        // e.g. "12px", "14px", "18px", "24px"
+  color?: string           // e.g. "#ef4444", "#3b82f6"
 }
 type CustomDescendant = CustomElement | CustomText
 
@@ -50,6 +52,42 @@ function toggleMark(editor: Editor, format: FormatKey): void {
   const isActive = isMarkActive(editor, format)
   if (isActive) Editor.removeMark(editor, format)
   else Editor.addMark(editor, format, true)
+}
+
+const FONT_SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "32px"] as const
+
+function getCurrentFontSize(editor: Editor): string {
+  const marks = Editor.marks(editor) as Partial<CustomText> | null
+  return marks?.fontSize ?? "14px"
+}
+
+function setFontSize(editor: Editor, size: string): void {
+  Editor.addMark(editor, "fontSize", size)
+}
+
+const TEXT_COLORS = [
+  { label: "Default", value: "" },
+  { label: "Red", value: "#ef4444" },
+  { label: "Orange", value: "#f97316" },
+  { label: "Amber", value: "#f59e0b" },
+  { label: "Green", value: "#22c55e" },
+  { label: "Blue", value: "#3b82f6" },
+  { label: "Indigo", value: "#6366f1" },
+  { label: "Purple", value: "#a855f7" },
+  { label: "Gray", value: "#6b7280" },
+] as const
+
+function getCurrentColor(editor: Editor): string {
+  const marks = Editor.marks(editor) as Partial<CustomText> | null
+  return marks?.color ?? ""
+}
+
+function setColor(editor: Editor, color: string): void {
+  if (color === "") {
+    Editor.removeMark(editor, "color")
+  } else {
+    Editor.addMark(editor, "color", color)
+  }
 }
 
 function isBlockActive(editor: Editor, type: string): boolean {
@@ -227,7 +265,10 @@ function renderLeaf(props: RenderLeafProps): React.ReactElement {
   if (t.italic) el = <em>{el}</em>
   if (t.underline) el = <u>{el}</u>
   if (t.strikethrough) el = <s>{el}</s>
-  return <span {...attributes}>{el}</span>
+  const style: React.CSSProperties = {}
+  if (t.fontSize) style.fontSize = t.fontSize
+  if (t.color) style.color = t.color
+  return <span {...attributes} style={Object.keys(style).length ? style : undefined}>{el}</span>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -445,6 +486,49 @@ export function ContractEditor({
                 </SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Font size */}
+            <Select
+              value={getCurrentFontSize(editor)}
+              onValueChange={(v) => { if (v) setFontSize(editor, v) }}
+            >
+              <SelectTrigger className="h-8 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FONT_SIZES.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Text color */}
+            <Select
+              value={getCurrentColor(editor)}
+              onValueChange={(v) => setColor(editor, v ?? "")}
+            >
+              <SelectTrigger className="h-8 w-8 p-0 flex items-center justify-center border-zinc-200">
+                <div
+                  className="size-4 rounded-sm border border-zinc-300"
+                  style={{ backgroundColor: getCurrentColor(editor) || "#000000" }}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {TEXT_COLORS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="size-3 rounded-sm border border-zinc-200 inline-block"
+                        style={{ backgroundColor: c.value || "#000000" }}
+                      />
+                      {c.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className="w-px h-5 bg-zinc-200 mx-1" />
 
             <ToolbarButton
               active={isMarkActive(editor, "bold")}

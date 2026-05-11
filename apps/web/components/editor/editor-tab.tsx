@@ -228,7 +228,31 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
   }
 
   if (loading) {
-    return <div className="text-sm text-zinc-500">Loading editor…</div>
+    return (
+      <div className="flex flex-col gap-3 animate-pulse">
+        <div className="flex items-center gap-2 border-b border-zinc-200 pb-2">
+          <div className="h-8 w-32 rounded bg-zinc-200" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="w-px h-5 bg-zinc-200 mx-1" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="h-8 w-8 rounded bg-zinc-200" />
+          <div className="ml-auto h-8 w-24 rounded bg-zinc-200" />
+        </div>
+        <div className="rounded-md border border-zinc-200 bg-white p-8 min-h-[500px] space-y-3">
+          <div className="h-6 w-1/3 rounded bg-zinc-200" />
+          <div className="h-4 w-full rounded bg-zinc-100" />
+          <div className="h-4 w-full rounded bg-zinc-100" />
+          <div className="h-4 w-4/5 rounded bg-zinc-100" />
+          <div className="h-4 w-0 rounded bg-transparent" />
+          <div className="h-4 w-full rounded bg-zinc-100" />
+          <div className="h-4 w-full rounded bg-zinc-100" />
+          <div className="h-4 w-2/3 rounded bg-zinc-100" />
+        </div>
+      </div>
+    )
   }
 
   const documentExists = content !== null
