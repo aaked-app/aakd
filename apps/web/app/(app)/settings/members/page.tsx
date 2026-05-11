@@ -24,6 +24,29 @@ import { useSession } from "@/lib/auth/client"
 
 const ROLES = ["admin", "legal", "member", "viewer"] as const
 
+const ROLE_INFO: Record<string, { label: string; description: string; permissions: string[] }> = {
+  admin: {
+    label: "Admin",
+    description: "Full access except ownership transfer.",
+    permissions: ["Invite & remove members", "Change roles", "Create & edit contracts", "Request & decide approvals", "Manage org settings"],
+  },
+  legal: {
+    label: "Legal",
+    description: "Handles contract workflows end-to-end.",
+    permissions: ["Create & edit contracts", "Request & decide approvals", "Send for signing", "View all contracts"],
+  },
+  member: {
+    label: "Member",
+    description: "Day-to-day contributor with limited write access.",
+    permissions: ["Create contracts", "Upload files", "View all contracts", "Cannot approve or manage members"],
+  },
+  viewer: {
+    label: "Viewer",
+    description: "Read-only access — cannot make any changes.",
+    permissions: ["View all contracts", "View approvals & obligations", "No create, edit, or approve actions"],
+  },
+}
+
 const ROLE_RANK: Record<string, number> = {
   owner: 5, admin: 4, legal: 3, member: 2, viewer: 1,
 }
@@ -403,10 +426,31 @@ export default function MembersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES.map((r) => (
-                    <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                    <SelectItem key={r} value={r}>
+                      <div className="flex flex-col py-0.5">
+                        <span className="font-medium capitalize">{r}</span>
+                        <span className="text-xs text-muted-foreground">{ROLE_INFO[r]?.description}</span>
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Dynamic role description card */}
+              {ROLE_INFO[inviteRole] && (
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-foreground">{ROLE_INFO[inviteRole].label} — what they can do</p>
+                  <ul className="space-y-0.5">
+                    {ROLE_INFO[inviteRole].permissions.map((p) => (
+                      <li key={p} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                        <span className="mt-0.5 text-[10px]">•</span>
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <p className="text-xs text-muted-foreground">
                 The invitation link will be valid for 30 days.
               </p>
