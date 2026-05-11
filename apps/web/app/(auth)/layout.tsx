@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
             <Shield className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-semibold tracking-tight text-zinc-900">ClauseFlow</span>
+          <span className="text-xl font-semibold tracking-tight text-zinc-900" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>Aakd</span>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
           {children}

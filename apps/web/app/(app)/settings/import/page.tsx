@@ -41,7 +41,7 @@ function ImportPageBody() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Import contracts</h1>
         <p className="text-sm text-muted-foreground">
-          Migrate your existing contracts into ClauseFlow from spreadsheets, PandaDoc, ContractBook, DocuSign CLM, or any tool that can export files.
+          Migrate your existing contracts into Aakd from spreadsheets, PandaDoc, ContractBook, DocuSign CLM, or any tool that can export files.
         </p>
       </div>
 

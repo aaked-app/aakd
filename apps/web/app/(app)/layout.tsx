@@ -157,11 +157,17 @@ function Sidebar({
     <aside className="flex flex-col h-full w-[232px] shrink-0 bg-muted border-r border-border">
       {/* Logo row */}
       <div className="flex items-center gap-2.5 px-3 py-3 border-b border-border">
-        <div className="flex h-[26px] w-[26px] items-center justify-center rounded-md bg-primary text-primary-foreground font-extrabold text-xs shrink-0">
-          C
+        <div className="flex h-[26px] w-[26px] items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="2.5" fill="none"/>
+            <circle cx="24" cy="24" r="15" stroke="currentColor" strokeWidth="0.8" fill="none" opacity="0.4"/>
+            <rect x="18" y="16" width="12" height="16" rx="1.5" fill="currentColor" opacity="0.15"/>
+            <path d="M21 22h6M21 25h6M21 28h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M20 19l2.5 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </div>
-        <span className="font-bold text-sm tracking-tight flex-1 min-w-0 truncate">
-          ClauseFlow
+        <span className="font-extrabold text-sm flex-1 min-w-0 truncate" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
+          Aakd
         </span>
         <NotificationBell />
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

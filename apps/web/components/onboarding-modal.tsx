@@ -12,7 +12,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: Sparkles,
-    title: "Welcome to ClauseFlow",
+    title: "Welcome to Aakd",
     description:
       "Let's set up your workspace. This only takes a minute.",
   },

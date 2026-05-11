@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
-import { Manrope, JetBrains_Mono } from "next/font/google"
+import { Manrope, JetBrains_Mono, Sora } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages } from "next-intl/server"
@@ -21,9 +21,16 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 })
 
+const sora = Sora({
+  subsets: ["latin"],
+  variable: "--font-sora",
+  weight: ["700", "800"],
+  display: "swap",
+})
+
 export const metadata: Metadata = {
-  title: "ClauseFlow",
-  description: "Open source, self-hostable Contract Lifecycle Management",
+  title: "Aakd",
+  description: "Open source, self-hostable contract management",
 }
 
 export default async function RootLayout({
@@ -39,12 +46,12 @@ export default async function RootLayout({
     <html
       lang={locale}
       dir={dir}
-      className={`${GeistSans.variable} ${GeistMono.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${manrope.variable} ${jetbrainsMono.variable} ${sora.variable}`}
       suppressHydrationWarning
     >
       <body className="font-sans antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="clauseflow-theme">
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="aakd-theme">
             {children}
             <Toaster richColors />
           </ThemeProvider>
