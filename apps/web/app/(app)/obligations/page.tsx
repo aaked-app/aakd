@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { Search, Target, CalendarDays, User, Flag, BookOpen, Bell, Square, CheckSquare, FileText, X } from "lucide-react"
+import { Search, Target, CalendarDays, User, Flag, BookOpen, Bell, Square, CheckSquare, FileText, X, Pencil } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import type { Obligation, ObligationStatus, ObligationPriority } from "@/components/obligations/types"
+import type { OrgMember } from "@/lib/types"
+import { ObligationSheet } from "@/components/obligations/obligation-sheet"
 
 const REMINDER_OPTIONS = [1, 3, 7, 14, 30] as const
 
@@ -159,10 +161,12 @@ function ObligationDetailSheet({
   obligation,
   onClose,
   onUpdate,
+  onEdit,
 }: {
   obligation: FlatObligation | null
   onClose: () => void
   onUpdate: (updated: FlatObligation) => void
+  onEdit: () => void
 }) {
   const ob = obligation
   const [reminderDays, setReminderDays] = useState<number>(ob?.reminderDays ?? 7)
@@ -384,13 +388,23 @@ function ObligationDetailSheet({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border pt-4 mt-4 px-5 pb-5 space-y-3">
-          <Link
-            href={`/contracts/${ob.contract.id}?tab=obligations`}
-            className="flex items-center justify-center w-full h-9 rounded-[var(--radius)] border border-border bg-background text-sm font-medium hover:bg-muted transition-colors"
-          >
-            Open in Contract →
-          </Link>
+        <div className="border-t border-border px-5 py-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5"
+              onClick={onEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Obligation
+            </Button>
+            <Link
+              href={`/contracts/${ob.contract.id}?tab=obligations`}
+              className="flex items-center justify-center h-9 px-3 rounded-[var(--radius)] border border-border bg-background text-sm font-medium hover:bg-muted transition-colors whitespace-nowrap"
+            >
+              Open in Contract →
+            </Link>
+          </div>
           <p className="text-xs text-muted-foreground text-center">
             Created by {ob.createdBy.name} · {formatDate(ob.createdAt)}
           </p>
@@ -408,13 +422,18 @@ export default function ObligationsPage() {
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<FilterKey>("All")
   const [selected, setSelected] = useState<FlatObligation | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [members, setMembers] = useState<OrgMember[]>([])
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/obligations")
-        if (!res.ok) throw new Error("obligations")
-        const data = await res.json()
+        const [obRes, memRes] = await Promise.all([
+          fetch("/api/obligations"),
+          fetch("/api/org/members"),
+        ])
+        if (!obRes.ok) throw new Error("obligations")
+        const data = await obRes.json()
         const list: Array<Obligation & { contract: { id: string; title: string; counterpartyName: string | null } }> =
           data.obligations ?? []
         const flat: FlatObligation[] = list.map((o) => ({
@@ -423,6 +442,7 @@ export default function ObligationsPage() {
           contractCounterparty: o.contract.counterpartyName,
         }))
         setObligations(flat)
+        if (memRes.ok) setMembers(await memRes.json())
       } catch {
         toast.error("Failed to load obligations")
       } finally {
@@ -699,7 +719,37 @@ export default function ObligationsPage() {
           )
           setSelected((prev) => (prev?.id === updated.id ? { ...prev, reminderDays: updated.reminderDays } : prev))
         }}
+        onEdit={() => {
+          setSelected((prev) => prev) // keep selected
+          setEditOpen(true)
+        }}
       />
+
+      {selected && (
+        <ObligationSheet
+          open={editOpen}
+          onOpenChange={(open) => {
+            setEditOpen(open)
+          }}
+          contractId={selected.contractId}
+          obligation={selected}
+          members={members}
+          onSaved={(saved) => {
+            const updated: FlatObligation = {
+              ...selected,
+              ...saved,
+              contractTitle: selected.contractTitle,
+              contractCounterparty: selected.contractCounterparty,
+              contract: selected.contract,
+            }
+            setObligations((prev) =>
+              prev.map((o) => (o.id === updated.id ? updated : o)),
+            )
+            setSelected(updated)
+            setEditOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
