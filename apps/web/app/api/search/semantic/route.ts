@@ -87,27 +87,35 @@ export async function POST(req: Request) {
         // ignore — extension not loaded or index uses hnsw
       }
 
-      const rows = await prisma.$queryRaw<SemanticRow[]>(
-        Prisma.sql`
-          SELECT
-            c.id,
-            c.title,
-            c."contractType",
-            c.status,
-            c."counterpartyName",
-            c.value,
-            c.currency,
-            c."endDate",
-            c."createdAt",
-            1 - (ce.embedding <=> ${embeddingStr}::vector) AS similarity
-          FROM "ContractEmbedding" ce
-          JOIN "Contract" c ON c.id = ce."contractId"
-          WHERE c."organizationId" = ${ctx.organizationId}
-            AND 1 - (ce.embedding <=> ${embeddingStr}::vector) > ${threshold}
-          ORDER BY ce.embedding <=> ${embeddingStr}::vector
-          LIMIT ${limit}
-        `,
-      )
+      let rows: SemanticRow[]
+      try {
+        rows = await prisma.$queryRaw<SemanticRow[]>(
+          Prisma.sql`
+            SELECT
+              c.id,
+              c.title,
+              c."contractType",
+              c.status,
+              c."counterpartyName",
+              c.value,
+              c.currency,
+              c."endDate",
+              c."createdAt",
+              1 - (ce.embedding <=> ${embeddingStr}::vector) AS similarity
+            FROM "ContractEmbedding" ce
+            JOIN "Contract" c ON c.id = ce."contractId"
+            WHERE c."organizationId" = ${ctx.organizationId}
+              AND 1 - (ce.embedding <=> ${embeddingStr}::vector) > ${threshold}
+            ORDER BY ce.embedding <=> ${embeddingStr}::vector
+            LIMIT ${limit}
+          `,
+        )
+      } catch (err) {
+        console.error("[semantic] pgvector query failed:", err)
+        // pgvector extension not loaded, no embeddings indexed yet, or
+        // vector cast failed — return empty results rather than 500
+        return Response.json({ results: [], total: 0, indexed: false })
+      }
 
       return Response.json({ results: rows, total: rows.length })
     })
