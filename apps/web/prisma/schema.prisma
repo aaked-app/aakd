@@ -194,6 +194,10 @@ model Contract {
   crmLinks              CrmLink[]
   notifications         Notification[]
   extractedText         String?
+  isOcrExtracted        Boolean        @default(false)
+  riskScore             String?
+  riskScoredAt          DateTime?
+  riskDetails           Json?
   docusealSubmissionId  String?
   signingUrl            String?
   signingStatus         String?

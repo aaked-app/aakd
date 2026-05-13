@@ -14,6 +14,9 @@ dotenv.config({ path: path.resolve(__dirname, ".env.local") })
 
 import crypto from "node:crypto"
 import { promisify } from "node:util"
+import { exec } from "node:child_process"
+import fs from "node:fs/promises"
+import os from "node:os"
 import { Worker, Job } from "bullmq"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
@@ -118,6 +121,73 @@ function getOpenAI(): OpenAI {
 // can fall back to plain-text extraction without aborting the job.
 
 const libreConvert = promisify(libre.convert)
+const execAsync = promisify(exec)
+
+// ─── OCR helper ───────────────────────────────────────────────────────────────
+// Attempts OCR on a PDF buffer.
+// Strategy 1: pdftoppm CLI (in the Docker image) → per-page PNGs → tesseract.js
+// Strategy 2: tesseract.js directly on the raw buffer (limited support)
+// Returns OCR text prefixed with "[OCR] ", or null if all methods fail.
+
+async function attemptOcr(buffer: Buffer): Promise<string | null> {
+  // Check if pdftoppm is available
+  let pdftoppmAvailable = false
+  try {
+    await execAsync("which pdftoppm")
+    pdftoppmAvailable = true
+  } catch {
+    pdftoppmAvailable = false
+  }
+
+  let ocrText = ""
+
+  if (pdftoppmAvailable) {
+    // Strategy 1: pdftoppm → page images → tesseract
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clauseflow-ocr-"))
+    const pdfPath = path.join(tmpDir, "input.pdf")
+    try {
+      await fs.writeFile(pdfPath, buffer)
+      // Render each page to PNG at 150 DPI
+      await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tmpDir, "page")}"`)
+      const files = (await fs.readdir(tmpDir))
+        .filter((f) => f.endsWith(".png"))
+        .sort()
+
+      if (files.length === 0) {
+        console.warn("[ocr] pdftoppm produced no page images")
+      } else {
+        const { createWorker } = await import("tesseract.js")
+        const tWorker = await createWorker("eng")
+        for (const fname of files) {
+          const imgBuffer = await fs.readFile(path.join(tmpDir, fname))
+          const { data } = await tWorker.recognize(imgBuffer)
+          if (data.text) ocrText += data.text + "\n"
+        }
+        await tWorker.terminate()
+      }
+    } catch (err) {
+      console.warn("[ocr] pdftoppm+tesseract strategy failed:", err)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+    }
+  } else {
+    // Strategy 2: tesseract directly on PDF buffer (limited but dependency-free)
+    try {
+      const { createWorker } = await import("tesseract.js")
+      const tWorker = await createWorker("eng")
+      const { data } = await tWorker.recognize(buffer)
+      ocrText = data.text ?? ""
+      await tWorker.terminate()
+    } catch (err) {
+      console.warn("[ocr] tesseract direct-PDF strategy failed:", err)
+      return null
+    }
+  }
+
+  const cleaned = ocrText.trim()
+  if (!cleaned || cleaned.length < 50) return null
+  return `[OCR] ${cleaned}`
+}
 
 async function pdfToDocxBuffer(pdfBuffer: Buffer): Promise<Buffer | null> {
   try {
@@ -218,6 +288,8 @@ const extractWorker = new Worker<ContractExtractJobData>(
     // 3. Extract text based on mime type
     let extractedText: string | null = null
 
+    let isOcrExtracted = false
+
     if (contractFile.mimeType === "application/pdf") {
       try {
         const result = await pdfParse(buffer)
@@ -226,6 +298,18 @@ const extractWorker = new Worker<ContractExtractJobData>(
       } catch (err) {
         console.error(`[extract] pdf-parse failed for file ${fileId}:`, err)
         throw err
+      }
+      // If text is absent or suspiciously short (scanned/image PDF), attempt OCR
+      if (!extractedText || extractedText.length < 100) {
+        console.log(`[extract] PDF has ${extractedText?.length ?? 0} chars — attempting OCR for file ${fileId}`)
+        const ocrResult = await attemptOcr(buffer)
+        if (ocrResult) {
+          extractedText = ocrResult
+          isOcrExtracted = true
+          console.log(`[extract] OCR succeeded: ${ocrResult.length} chars for file ${fileId}`)
+        } else {
+          console.warn(`[extract] OCR also failed for file ${fileId}`)
+        }
       }
     } else if (
       contractFile.mimeType ===
@@ -247,11 +331,17 @@ const extractWorker = new Worker<ContractExtractJobData>(
     if (extractedText) {
       await getWorkerPrisma().contract.update({
         where: { id: contractId },
-        data: { extractedText },
+        data: { extractedText, isOcrExtracted },
       })
 
       await getWorkerPrisma().activity.create({
-        data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `Text extracted from ${contractFile.filename}` },
+        data: {
+          contractId,
+          userId: null,
+          actorLabel: "System",
+          action: "METADATA_EXTRACTED",
+          detail: `Text extracted from ${contractFile.filename}${isOcrExtracted ? " (via OCR)" : ""}`,
+        },
       })
 
       // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
