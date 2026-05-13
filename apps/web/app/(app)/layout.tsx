@@ -15,6 +15,7 @@ import {
   LogOut,
   Search,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react"
 import { useSession, useActiveOrganization, signOut } from "@/lib/auth/client"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -239,6 +240,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       items: [
         { label: t("dashboard"),   href: "/dashboard",   icon: LayoutDashboard, exact: true },
         { label: t("contracts"),   href: "/contracts",   icon: FileText },
+        { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
         { label: t("templates"),   href: "/templates",   icon: Layers },
         { label: t("obligations"), href: "/obligations", icon: Target },
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },

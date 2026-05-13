@@ -32,7 +32,8 @@
       "notifications": "Notifications",
       "account": "Account",
       "language": "Language"
-    }
+    },
+    "renewals": "Renewals"
   },
   "common": {
     "save": "Save",

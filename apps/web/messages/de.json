@@ -32,7 +32,8 @@
       "notifications": "Benachrichtigungen",
       "account": "Konto",
       "language": "Sprache"
-    }
+    },
+    "renewals": "Verlängerungen"
   },
   "common": {
     "save": "Speichern",
