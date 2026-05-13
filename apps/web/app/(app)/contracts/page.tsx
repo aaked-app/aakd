@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/contract-badges"
+import { RiskBadge } from "@/components/risk-badge"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Contract, ContractStatus } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
@@ -282,7 +283,7 @@ export default function ContractsPage() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-9 bg-muted" />
-                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
+                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), "Risk", t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
                     (h) => (
                       <TableHead
                         key={h}
@@ -339,7 +340,7 @@ export default function ContractsPage() {
                       className="size-3.5 cursor-pointer rounded border-border accent-primary"
                     />
                   </TableHead>
-                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
+                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), "Risk", t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
                     (h) => (
                       <TableHead
                         key={h}
@@ -395,6 +396,11 @@ export default function ContractsPage() {
                     {/* ── Status badge ───────────────────────────────────── */}
                     <TableCell className="py-2">
                       <StatusBadge status={c.status} />
+                    </TableCell>
+
+                    {/* ── Risk badge ─────────────────────────────────────── */}
+                    <TableCell className="py-2">
+                      <RiskBadge level={(c as { riskScore?: string | null }).riskScore} size="sm" />
                     </TableCell>
 
                     {/* ── Value ──────────────────────────────────────────── */}

@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/contract-badges"
+import { RiskBadge } from "@/components/risk-badge"
 import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
@@ -272,6 +273,12 @@ export default function ContractDetailPage() {
   const extractionPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [obligations, setObligations] = useState<Obligation[]>([])
+  const [riskData, setRiskData] = useState<{
+    riskScore: string | null
+    riskScoredAt: string | null
+    riskDetails: Record<string, unknown> | null
+  } | null>(null)
+  const [analyzingRisk, setAnalyzingRisk] = useState(false)
   const [members, setMembers] = useState<OrgMember[]>([])
   const [approvalOpen, setApprovalOpen] = useState(false)
   const [approvalAssigneeId, setApprovalAssigneeId] = useState("")
@@ -292,12 +299,13 @@ export default function ContractDetailPage() {
   const [addingTag, setAddingTag] = useState(false)
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes] = await Promise.all([
+      const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes, riskRes] = await Promise.all([
         fetch(`/api/contracts/${id}`, { signal }),
         fetch(`/api/alerts?contractId=${id}`, { signal }),
         fetch(`/api/contracts/${id}/extractions`, { signal }),
         fetch(`/api/contracts/${id}/approvals`, { signal }),
         fetch(`/api/contracts/${id}/obligations`, { signal }),
+        fetch(`/api/contracts/${id}/risk-score`, { signal }),
       ])
       if (!contractRes.ok) {
         toast.error("Contract not found")
@@ -324,6 +332,10 @@ export default function ContractDetailPage() {
       if (obligationsRes.ok) {
         const obligationData = await obligationsRes.json()
         setObligations(obligationData.obligations ?? [])
+      }
+      if (riskRes.ok) {
+        const rd = await riskRes.json()
+        setRiskData(rd)
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return
@@ -687,6 +699,25 @@ export default function ContractDetailPage() {
     }
   }
 
+  async function analyzeRisk() {
+    setAnalyzingRisk(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/risk-score`, { method: "POST" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body?.error ?? "Failed to analyze risk")
+        return
+      }
+      const rd = await res.json()
+      setRiskData(rd)
+      toast.success("Risk analysis complete")
+    } catch {
+      toast.error("Failed to analyze risk")
+    } finally {
+      setAnalyzingRisk(false)
+    }
+  }
+
   function sendForSignature() {
     router.push(`/contracts/${id}/signing`)
   }
@@ -749,6 +780,7 @@ export default function ContractDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-[18px] font-bold tracking-tight text-foreground">{contract.title}</h1>
             <StatusBadge status={contract.status} />
+            {riskData?.riskScore && <RiskBadge level={riskData.riskScore} />}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {transitions.length > 0 && (
@@ -876,6 +908,17 @@ export default function ContractDetailPage() {
             {activeObligations.length > 0 && (
               <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
                 {activeObligations.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="risk"
+            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+          >
+            Risk
+            {riskData?.riskScore === "HIGH" && (
+              <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white">
+                !
               </span>
             )}
           </TabsTrigger>
@@ -1713,6 +1756,148 @@ export default function ContractDetailPage() {
               role={currentMember?.role}
               onChange={setObligations}
             />
+          </div>
+        </TabsContent>
+
+        {/* Risk */}
+        <TabsContent value="risk" className="flex-1 overflow-auto m-0 border-0">
+          <div className="p-7 space-y-5">
+            {!riskData?.riskScore ? (
+              /* Empty state */
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                  <Shield className="size-7 text-muted-foreground" strokeWidth={1.5} />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-foreground">No risk analysis yet</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Analyze this contract to get a full risk breakdown across 6 categories.
+                  </p>
+                </div>
+                <Button
+                  onClick={analyzeRisk}
+                  disabled={analyzingRisk || !contract.extractedText}
+                >
+                  {analyzingRisk ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Analyzing…
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="size-4" />
+                      Analyze Risk
+                    </>
+                  )}
+                </Button>
+                {!contract.extractedText && (
+                  <p className="text-xs text-muted-foreground">Upload a document first to enable risk analysis.</p>
+                )}
+              </div>
+            ) : (() => {
+              const details = riskData.riskDetails as {
+                overall?: string
+                score?: number
+                summary?: string
+                categories?: Record<string, { level: string; finding: string; clause: string | null }>
+              } | null
+              const categories = details?.categories ?? {}
+              const CATEGORY_LABELS: Record<string, string> = {
+                liability: "Liability",
+                termination: "Termination",
+                autoRenewal: "Auto Renewal",
+                ipOwnership: "IP Ownership",
+                paymentTerms: "Payment Terms",
+                governingLaw: "Governing Law",
+              }
+              return (
+                <>
+                  {/* Hero section */}
+                  <div className="rounded-[var(--radius)] border border-border bg-card p-6">
+                    <div className="flex items-start justify-between gap-6 flex-wrap">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">Overall Risk</p>
+                        <RiskBadge level={riskData.riskScore} size="md" />
+                        {details?.summary && (
+                          <p className="mt-3 max-w-lg text-sm text-foreground/80 leading-relaxed">
+                            {details.summary}
+                          </p>
+                        )}
+                        {riskData.riskScoredAt && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Analyzed <RelativeTime date={riskData.riskScoredAt} />
+                          </p>
+                        )}
+                      </div>
+                      {/* Score gauge */}
+                      {details?.score != null && (
+                        <div className="flex flex-col items-center gap-1">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Score</p>
+                          <div
+                            className={cn(
+                              "flex size-16 items-center justify-center rounded-full text-2xl font-bold",
+                              details.score >= 67 ? "bg-red-100 text-red-700" :
+                              details.score >= 34 ? "bg-amber-100 text-amber-700" :
+                              "bg-emerald-100 text-emerald-700",
+                            )}
+                          >
+                            {details.score}
+                          </div>
+                          <p className="text-xs text-muted-foreground">/ 100</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={analyzeRisk}
+                        disabled={analyzingRisk}
+                      >
+                        {analyzingRisk ? (
+                          <><Loader2 className="size-3.5 animate-spin" /> Analyzing…</>
+                        ) : (
+                          <><RefreshCw className="size-3.5" /> Re-analyze</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Category cards 2x3 grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
+                      const cat = categories[key]
+                      if (!cat) return null
+                      return (
+                        <div
+                          key={key}
+                          className={cn(
+                            "rounded-[var(--radius)] border border-border bg-card p-4",
+                            "border-l-4",
+                            cat.level === "HIGH" ? "border-l-red-500" :
+                            cat.level === "MEDIUM" ? "border-l-amber-500" :
+                            "border-l-emerald-500",
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {label}
+                            </p>
+                            <RiskBadge level={cat.level} size="sm" />
+                          </div>
+                          <p className="text-[13px] text-foreground leading-snug">{cat.finding}</p>
+                          {cat.clause && (
+                            <p className="mt-2 text-xs italic text-muted-foreground line-clamp-2">
+                              &ldquo;{cat.clause}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </TabsContent>
       </Tabs>
