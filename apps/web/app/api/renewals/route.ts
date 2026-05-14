@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { SECURE_HEADERS } from "@/lib/api-headers"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -53,6 +54,6 @@ export async function GET(req: Request) {
       }
     })
 
-    return Response.json({ renewals: withDeadlines })
+    return Response.json({ renewals: withDeadlines }, { headers: SECURE_HEADERS })
   })
 }

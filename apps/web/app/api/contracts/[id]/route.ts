@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { enqueueNotification } from "@/lib/notifications/fanout"
+import { SECURE_HEADERS } from "@/lib/api-headers"
 import { z } from "zod"
 
 // Allowed status transitions — all forward and backward moves permitted so
@@ -110,7 +111,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       where: { id: params.id, extractedText: { not: null } },
     })
 
-    return Response.json({ ...contract, hasExtractedText: presence > 0 })
+    return Response.json({ ...contract, hasExtractedText: presence > 0 }, { headers: SECURE_HEADERS })
   })
 }
 

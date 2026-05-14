@@ -1,6 +1,7 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { SECURE_HEADERS } from "@/lib/api-headers"
 
 export type AnalyticsSummary = {
   expiringSoon: {
@@ -203,6 +204,6 @@ export async function GET(req: Request) {
       approvalFunnel,
       obligations,
     }
-    return Response.json(body)
+    return Response.json(body, { headers: SECURE_HEADERS })
   })
 }

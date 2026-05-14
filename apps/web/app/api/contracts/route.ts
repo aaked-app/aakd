@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { SECURE_HEADERS } from "@/lib/api-headers"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
@@ -100,7 +101,7 @@ export async function GET(req: Request) {
       prisma.contract.count({ where }),
     ])
 
-    return Response.json({ contracts, total, page, limit })
+    return Response.json({ contracts, total, page, limit }, { headers: SECURE_HEADERS })
   })
 }
 

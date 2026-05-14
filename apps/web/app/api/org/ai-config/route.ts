@@ -3,6 +3,7 @@ import { hasRole } from "@/lib/auth/roles"
 import { prisma } from "@/lib/db/client"
 import { encrypt } from "@/lib/notifications/crypto"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { SECURE_HEADERS } from "@/lib/api-headers"
 import { z } from "zod"
 
 const UpsertSchema = z.object({
@@ -24,14 +25,14 @@ export async function GET(req: Request) {
   })
 
   if (!config) {
-    return Response.json({ provider: null, model: null, hasKey: false })
+    return Response.json({ provider: null, model: null, hasKey: false }, { headers: SECURE_HEADERS })
   }
 
   return Response.json({
     provider: config.provider,
     model: config.model,
     hasKey: true,
-  })
+  }, { headers: SECURE_HEADERS })
 }
 
 export async function POST(req: Request) {
