@@ -23,6 +23,7 @@ vi.mock("@/lib/db/client", () => {
     invitation: { create: vi.fn() },
     apiKey: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn() },
     aIExtraction: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), upsert: vi.fn() },
+    orgAiConfig: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
     contractAlert: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
     approval: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), aggregate: vi.fn().mockResolvedValue({ _max: { step: null } }) },
     contractSigner: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },

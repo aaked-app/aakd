@@ -3,14 +3,23 @@
 import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { format } from "date-fns"
-import { ImageIcon } from "lucide-react"
+import { ImageIcon, Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useActiveOrganization, organization } from "@/lib/auth/client"
 import { useTranslations } from "next-intl"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
 
-type AIStatus = { provider: string | null; model: string | null }
+type AIStatus = {
+  provider: string | null
+  model: string | null
+  hasKey?: boolean
+  source?: "org" | "env" | null
+}
+
+type AiConfigStatus = "idle" | "testing" | "tested-ok" | "tested-fail" | "saving"
 
 const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
@@ -50,6 +59,15 @@ export default function OrgSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // AI config inline edit state
+  const [showAiForm, setShowAiForm] = useState(false)
+  const [aiProvider, setAiProvider] = useState<"anthropic" | "openai">("anthropic")
+  const [aiApiKey, setAiApiKey] = useState("")
+  const [showAiKey, setShowAiKey] = useState(false)
+  const [aiConfigStatus, setAiConfigStatus] = useState<AiConfigStatus>("idle")
+  const [aiConfigError, setAiConfigError] = useState("")
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
 
   useEffect(() => {
     if (activeOrg?.name) setName(activeOrg.name)
@@ -258,36 +276,251 @@ export default function OrgSettingsPage() {
       {/* AI Configuration */}
       <div className="rounded-[var(--radius)] border border-border bg-card p-6">
         <h2 className="text-sm font-semibold text-foreground mb-4">{t("aiConfig")}</h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground/80">{t("provider")}</span>
-            {aiStatus === null ? (
-              <span className="text-sm text-muted-foreground">{t("loading")}</span>
-            ) : aiStatus.provider ? (
+
+        {aiStatus === null ? (
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
+        ) : aiStatus.hasKey && aiStatus.source === "env" ? (
+          /* Server default — read-only */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/80">{t("provider")}</span>
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                {PROVIDER_LABELS[aiStatus.provider ?? ""] ?? aiStatus.provider}
+                <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Server default</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/80">{t("model")}</span>
+              {aiStatus.model ? (
+                <span className="text-sm font-mono text-foreground">{aiStatus.model}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              Using server-level AI credentials. You can override with your own key below.
+            </p>
+            {!showAiForm && (
+              <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>
+                Set org key
+              </Button>
+            )}
+          </div>
+        ) : aiStatus.hasKey && aiStatus.source === "org" ? (
+          /* Org BYOK key configured */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/80">{t("provider")}</span>
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                {PROVIDER_LABELS[aiStatus.provider] ?? aiStatus.provider}
+                {PROVIDER_LABELS[aiStatus.provider ?? ""] ?? aiStatus.provider}
+                <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Connected</span>
               </span>
-            ) : (
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/80">{t("model")}</span>
+              {aiStatus.model ? (
+                <span className="text-sm font-mono text-foreground">{aiStatus.model}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
+            </div>
+            {!showAiForm && !showRemoveConfirm && (
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>Change</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                  onClick={() => setShowRemoveConfirm(true)}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+            {showRemoveConfirm && (
+              <div className="flex items-center gap-3 pt-1">
+                <p className="text-sm text-muted-foreground">Remove your org AI key?</p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    await fetch("/api/org/ai-config", { method: "DELETE" })
+                    setShowRemoveConfirm(false)
+                    setAiStatus({ provider: null, model: null, hasKey: false, source: null })
+                    toast.success("AI key removed")
+                  }}
+                >
+                  Confirm
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowRemoveConfirm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Not configured */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/80">{t("provider")}</span>
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                 <span className="inline-block w-2 h-2 rounded-full bg-border" />
                 {t("notConfigured")}
               </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              No AI key configured — AI features are disabled.{" "}
+              <Link href="/onboarding" className="underline underline-offset-4 hover:text-foreground transition-colors">
+                Set up AI
+              </Link>
+              .
+            </p>
+            {!showAiForm && (
+              <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>
+                Set up AI
+              </Button>
             )}
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground/80">{t("model")}</span>
-            {aiStatus?.model ? (
-              <span className="text-sm font-mono text-foreground">{aiStatus.model}</span>
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
+        )}
+
+        {/* Inline form — shared by Change / Set up */}
+        {showAiForm && (
+          <div className="mt-5 pt-5 border-t border-border space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Provider</Label>
+              <div className="flex gap-2">
+                {(["anthropic", "openai"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => { setAiProvider(p); setAiConfigStatus("idle"); setAiConfigError("") }}
+                    className={cn(
+                      "flex-1 py-2 px-3 rounded-[calc(var(--radius)-1px)] border text-sm font-medium transition-all",
+                      aiProvider === p
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border text-foreground/70 hover:border-primary/40",
+                    )}
+                  >
+                    {p === "anthropic" ? "Anthropic / Claude" : "OpenAI / GPT-4o"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-key-settings" className="text-sm font-medium">API Key</Label>
+              <div className="relative">
+                <Input
+                  id="ai-key-settings"
+                  type={showAiKey ? "text" : "password"}
+                  placeholder={aiProvider === "anthropic" ? "sk-ant-api03-..." : "sk-proj-..."}
+                  value={aiApiKey}
+                  onChange={(e) => {
+                    setAiApiKey(e.target.value)
+                    if (aiConfigStatus === "tested-ok" || aiConfigStatus === "tested-fail") {
+                      setAiConfigStatus("idle")
+                      setAiConfigError("")
+                    }
+                  }}
+                  className="pr-10 font-mono text-sm"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowAiKey((v) => !v)}
+                >
+                  {showAiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {aiConfigStatus === "tested-ok" && (
+                <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" /> Key is valid
+                </p>
+              )}
+              {aiConfigStatus === "tested-fail" && (
+                <p className="flex items-center gap-1.5 text-sm text-destructive">
+                  <XCircle className="h-4 w-4 shrink-0" /> {aiConfigError || "Validation failed"}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!aiApiKey.trim() || aiConfigStatus === "testing" || aiConfigStatus === "saving"}
+                onClick={async () => {
+                  setAiConfigStatus("testing")
+                  setAiConfigError("")
+                  try {
+                    const res = await fetch("/api/org/ai-config/test", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim() }),
+                    })
+                    const data = (await res.json()) as { valid: boolean; error?: string }
+                    setAiConfigStatus(data.valid ? "tested-ok" : "tested-fail")
+                    if (!data.valid) setAiConfigError(data.error ?? "Validation failed")
+                  } catch {
+                    setAiConfigStatus("tested-fail")
+                    setAiConfigError("Network error")
+                  }
+                }}
+              >
+                {aiConfigStatus === "testing" ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Testing...</>
+                ) : "Test"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!aiApiKey.trim() || aiConfigStatus === "testing" || aiConfigStatus === "saving"}
+                onClick={async () => {
+                  setAiConfigStatus("saving")
+                  try {
+                    const res = await fetch("/api/org/ai-config", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim() }),
+                    })
+                    if (!res.ok) throw new Error("Save failed")
+                    const data = (await res.json()) as { provider: string; model: string | null }
+                    setAiStatus({ provider: data.provider, model: data.model, hasKey: true, source: "org" })
+                    setShowAiForm(false)
+                    setAiApiKey("")
+                    setAiConfigStatus("idle")
+                    toast.success("AI key saved")
+                  } catch {
+                    setAiConfigStatus("tested-fail")
+                    setAiConfigError("Failed to save")
+                  }
+                }}
+              >
+                {aiConfigStatus === "saving" ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving...</>
+                ) : "Save"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAiForm(false)
+                  setAiApiKey("")
+                  setAiConfigStatus("idle")
+                  setAiConfigError("")
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-        </div>
-        {!aiStatus?.provider && aiStatus !== null && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Set <code className="bg-muted px-1 rounded">AI_PROVIDER</code> and the corresponding API key in your environment to enable AI extraction and Q&amp;A.
-          </p>
         )}
       </div>
     </div>

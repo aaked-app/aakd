@@ -28,7 +28,7 @@ export default function CreateOrgPage() {
         toast.error(result.error.message ?? t("createOrgFailed"))
       } else {
         await organization.setActive({ organizationId: result.data.id })
-        router.push("/dashboard")
+        router.push("/onboarding")
       }
     } catch {
       toast.error(tc("error"))

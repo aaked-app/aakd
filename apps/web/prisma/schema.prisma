@@ -111,6 +111,7 @@ model Organization {
   importJobs              ImportJob[]
   googleDriveIntegration  GoogleDriveIntegration?
   notifications           Notification[]
+  aiConfig                OrgAiConfig?
 }
 
 model Member {
@@ -783,4 +784,17 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@index([organizationId])
+}
+
+// ─── Per-org AI config (BYOK) ─────────────────────────────────────────────────
+
+model OrgAiConfig {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String       // "anthropic" | "openai"
+  encryptedKey   String       // AES-256-GCM via lib/notifications/crypto.ts encrypt()
+  model          String?      // optional model override
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }

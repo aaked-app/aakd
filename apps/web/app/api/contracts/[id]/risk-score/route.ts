@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 
 const RISK_SYSTEM_PROMPT = `You are a contract risk analyzer. Analyze the contract text and return ONLY a valid JSON object with this exact shape:
 
@@ -26,20 +27,15 @@ Risk level guidelines:
 - MEDIUM: anything between
 Return ONLY the JSON, no markdown.`
 
-async function callAiForRiskScore(text: string): Promise<unknown | null> {
-  const provider = process.env.AI_PROVIDER?.toLowerCase() ?? (
-    process.env.ANTHROPIC_API_KEY ? "anthropic"
-      : process.env.OPENAI_API_KEY ? "openai"
-      : null
-  )
-
+async function callAiForRiskScore(text: string, organizationId: string): Promise<unknown | null> {
+  const aiConfig = await resolveAiConfig(organizationId)
   const truncated = text.slice(0, 60_000)
 
-  if (provider === "anthropic" || (!provider && process.env.ANTHROPIC_API_KEY)) {
+  if (aiConfig.provider === "anthropic" && aiConfig.apiKey) {
     const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const client = new Anthropic({ apiKey: aiConfig.apiKey })
     const msg = await client.messages.create({
-      model: "claude-3-5-haiku-latest",
+      model: aiConfig.model ?? "claude-3-5-haiku-latest",
       max_tokens: 1024,
       system: RISK_SYSTEM_PROMPT,
       messages: [{ role: "user", content: `Contract text:\n\n${truncated}` }],
@@ -49,11 +45,11 @@ async function callAiForRiskScore(text: string): Promise<unknown | null> {
     return JSON.parse(raw)
   }
 
-  if (provider === "openai" || process.env.OPENAI_API_KEY) {
+  if (aiConfig.provider === "openai" && aiConfig.apiKey) {
     const OpenAI = (await import("openai")).default
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const client = new OpenAI({ apiKey: aiConfig.apiKey })
     const resp = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: aiConfig.model ?? "gpt-4o-mini",
       messages: [
         { role: "system", content: RISK_SYSTEM_PROMPT },
         { role: "user", content: `Contract text:\n\n${truncated}` },
@@ -65,9 +61,9 @@ async function callAiForRiskScore(text: string): Promise<unknown | null> {
     return JSON.parse(raw)
   }
 
-  if (provider === "ollama" || process.env.OLLAMA_BASE_URL) {
+  if (aiConfig.provider === "ollama") {
     const ollamaBase = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434"
-    const ollamaModel = process.env.OLLAMA_MODEL ?? "llama3.1"
+    const ollamaModel = aiConfig.model ?? "llama3.1"
     const res = await fetch(`${ollamaBase}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,18 +101,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "No extracted text — upload and process a document first" }, { status: 400 })
     }
 
-    const hasAiKey = !!(
-      process.env.ANTHROPIC_API_KEY ||
-      process.env.OPENAI_API_KEY ||
-      process.env.OLLAMA_BASE_URL
-    )
-    if (!hasAiKey) {
+    const aiConfig = await resolveAiConfig(contract.organizationId)
+    if (!aiConfig.provider) {
       return Response.json({ error: "No AI provider configured" }, { status: 503 })
     }
 
     let riskDetails: unknown
     try {
-      riskDetails = await callAiForRiskScore(contract.extractedText)
+      riskDetails = await callAiForRiskScore(contract.extractedText, contract.organizationId)
     } catch (err) {
       console.error("[risk-score] AI call failed:", err)
       return Response.json({ error: "AI provider error" }, { status: 502 })

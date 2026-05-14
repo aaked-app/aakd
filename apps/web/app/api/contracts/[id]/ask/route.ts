@@ -5,6 +5,7 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { QA_SYSTEM_PROMPT } from "@/lib/ai/prompts"
 import { generateEmbedding } from "@/lib/embedding"
 import { chunkText } from "@/lib/ai/chunking"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
@@ -16,6 +17,7 @@ async function callQaLLM(
   contractTitle: string,
   contextText: string,
   question: string,
+  organizationId: string,
 ): Promise<string | null> {
   // Wrap user-controlled values in structural delimiters so the model can
   // distinguish trusted instructions from untrusted user input. The system
@@ -26,11 +28,13 @@ async function callQaLLM(
     `Relevant contract excerpts:\n${contextText}\n\n` +
     `<user_question>${question}</user_question>`
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  const aiConfig = await resolveAiConfig(organizationId)
+
+  if (aiConfig.provider === "anthropic" && aiConfig.apiKey) {
     const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const anthropic = new Anthropic({ apiKey: aiConfig.apiKey })
     const msg = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+      model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 1024,
       system: QA_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
@@ -39,15 +43,15 @@ async function callQaLLM(
     return block?.type === "text" ? block.text.trim() : null
   }
 
-  if (process.env.OPENAI_API_KEY) {
+  if (aiConfig.provider === "openai" && aiConfig.apiKey) {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${aiConfig.apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model: aiConfig.model ?? "gpt-4o-mini",
         max_tokens: 1024,
         messages: [
           { role: "system", content: QA_SYSTEM_PROMPT },
@@ -197,7 +201,9 @@ export async function POST(
       )
     }
 
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+    // Quick check before spending time on retrieval
+    const aiCfg = await resolveAiConfig(contract.organizationId)
+    if (!aiCfg.provider) {
       return Response.json(
         { error: "No AI provider configured" },
         { status: 503 },
@@ -226,7 +232,7 @@ export async function POST(
 
     let answer: string | null
     try {
-      answer = await callQaLLM(contract.title, buildContext(citations), question)
+      answer = await callQaLLM(contract.title, buildContext(citations), question, contract.organizationId)
     } catch (err) {
       console.error(`[ask] LLM call failed for contract ${id}:`, err)
       return Response.json({ error: "AI call failed" }, { status: 503 })
