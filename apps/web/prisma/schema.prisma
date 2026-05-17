@@ -777,6 +777,7 @@ model Notification {
   eventName      String
   title          String
   body           String
+  actionUrl      String?   // optional deep-link or action path (e.g. /accept-invitation?id=...)
   read           Boolean   @default(false)
   readAt         DateTime?
   createdAt      DateTime  @default(now())

@@ -145,7 +145,8 @@ export async function POST(req: Request) {
           organizationId: ctx.organizationId,
           eventName: "org.invited",
           title: "You've been invited",
-          body: `${inviterName} invited you to join ${orgName}. Check your email to accept.`,
+          body: `${inviterName} invited you to join ${orgName}.`,
+          actionUrl: `/accept-invitation?id=${invitation.id}`,
         },
       })
     } catch (err) {

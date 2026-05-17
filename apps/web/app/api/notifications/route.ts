@@ -33,6 +33,7 @@ export async function GET(req: Request) {
           eventName: true,
           title: true,
           body: true,
+          actionUrl: true,
           read: true,
           readAt: true,
           createdAt: true,

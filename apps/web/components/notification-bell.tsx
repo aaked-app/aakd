@@ -15,9 +15,12 @@ import {
   UserPlus,
   ShieldCheck,
   ClipboardCheck,
+  Loader2,
   type LucideIcon,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
+import { organization } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
 
 interface Notification {
@@ -26,6 +29,7 @@ interface Notification {
   eventName: string
   title: string
   body: string
+  actionUrl: string | null
   read: boolean
   readAt: string | null
   createdAt: string
@@ -96,7 +100,7 @@ function getEventMeta(eventName: string): EventMeta {
       iconBg: "bg-zinc-100 dark:bg-zinc-800",
       iconFg: "text-zinc-500 dark:text-zinc-400",
     }
-  if (e.includes("joined"))
+  if (e.includes("invited") || e.includes("joined"))
     return {
       Icon: UserPlus,
       iconBg: "bg-violet-100 dark:bg-violet-900/30",
@@ -130,6 +134,129 @@ function formatRelativeTime(dateString: string): string {
   if (h < 24) return `${h}h ago`
   if (d < 7) return `${d}d ago`
   return new Date(dateString).toLocaleDateString()
+}
+
+// ─── Inline invitation accept ───────────────────────────────────────────────
+
+type AcceptState = "idle" | "loading" | "done" | "error"
+
+function InviteNotificationRow({
+  n,
+  onAccepted,
+}: {
+  n: Notification
+  onAccepted: () => void
+}) {
+  const { Icon, iconBg, iconFg } = getEventMeta(n.eventName)
+  const [acceptState, setAcceptState] = useState<AcceptState>("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+
+  // Extract invitation ID from actionUrl, e.g. /accept-invitation?id=abc123
+  const invitationId = n.actionUrl
+    ? new URL(n.actionUrl, "http://localhost").searchParams.get("id")
+    : null
+
+  async function handleAccept() {
+    if (!invitationId) return
+    setAcceptState("loading")
+    setErrorMsg("")
+    try {
+      const res = await fetch(`/api/org/invitations/${invitationId}/accept`, {
+        method: "POST",
+      })
+      const body = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        const friendly: Record<string, string> = {
+          already_accepted: "Already accepted.",
+          expired: "This invitation has expired.",
+          email_mismatch: "Sent to a different email address.",
+        }
+        setErrorMsg(friendly[body?.error] ?? body?.error ?? "Failed to accept")
+        setAcceptState("error")
+        return
+      }
+
+      const orgId: string | undefined = body.organizationId
+      if (orgId) {
+        await organization.setActive({ organizationId: orgId }).catch(() => {})
+      }
+
+      setAcceptState("done")
+      setTimeout(() => {
+        onAccepted()
+        window.location.reload()
+      }, 900)
+    } catch {
+      setErrorMsg("Network error — try again")
+      setAcceptState("error")
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "w-full text-left flex items-start gap-3 px-4 py-3.5",
+        !n.read && "bg-primary/[0.04]",
+      )}
+    >
+      {/* Icon bubble */}
+      <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full", iconBg)}>
+        <Icon className={cn("h-3.5 w-3.5", iconFg)} strokeWidth={2} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className={cn(
+            "text-[12.5px] leading-snug",
+            n.read ? "text-foreground/75 font-normal" : "text-foreground font-semibold",
+          )}>
+            {n.title}
+          </p>
+          <span className="shrink-0 text-[10.5px] text-muted-foreground/70 mt-px whitespace-nowrap">
+            {formatRelativeTime(n.createdAt)}
+          </span>
+        </div>
+        <p className="text-[11.5px] text-muted-foreground mt-0.5 leading-snug">
+          {n.body}
+        </p>
+
+        {/* Action area */}
+        <div className="mt-2">
+          {acceptState === "idle" && invitationId && (
+            <Button
+              size="sm"
+              className="h-7 text-[11px] px-3"
+              onClick={handleAccept}
+            >
+              Accept invitation
+            </Button>
+          )}
+          {acceptState === "loading" && (
+            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Accepting…
+            </span>
+          )}
+          {acceptState === "done" && (
+            <span className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+              <CheckCircle2 className="h-3 w-3" />
+              Joined! Reloading…
+            </span>
+          )}
+          {acceptState === "error" && (
+            <span className="text-[11px] text-destructive">{errorMsg}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Unread dot */}
+      {!n.read && (
+        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+      )}
+    </div>
+  )
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -177,6 +304,8 @@ export function NotificationBell() {
   }
 
   function handleNotificationClick(n: Notification) {
+    // org.invited rows have their own Accept button — don't navigate on row click
+    if (n.eventName === "org.invited") return
     setOpen(false)
     if (n.contractId) router.push(`/contracts/${n.contractId}`)
   }
@@ -232,7 +361,7 @@ export function NotificationBell() {
         </div>
 
         {/* List */}
-        <div className="max-h-[380px] overflow-y-auto">
+        <div className="max-h-[420px] overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-6 gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -246,6 +375,17 @@ export function NotificationBell() {
           ) : (
             <div className="divide-y divide-border/60">
               {notifications.map((n) => {
+                // org.invited gets a dedicated row with an inline Accept button
+                if (n.eventName === "org.invited") {
+                  return (
+                    <InviteNotificationRow
+                      key={n.id}
+                      n={n}
+                      onAccepted={() => setOpen(false)}
+                    />
+                  )
+                }
+
                 const { Icon, iconBg, iconFg } = getEventMeta(n.eventName)
                 return (
                   <button
