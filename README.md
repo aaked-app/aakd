@@ -26,7 +26,7 @@ Your data never leaves your server. Bring your own AI key (Anthropic or OpenAI).
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/your-org/clauseflow.git
+git clone https://github.com/wassimbensalem/clauseflow.git
 cd clauseflow
 cp .env.example .env.local   # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
 
@@ -67,9 +67,7 @@ First signup creates your account and organization. Add your Anthropic or OpenAI
 |---|---|
 | Approval workflows with role-based routing | ✅ |
 | E-signatures via DocuSeal (self-hostable) | ✅ |
-| Track changes (accept / reject per-clause) | ✅ |
-| Comments & @mentions | ✅ |
-| Redlining with snapshot comparison | ✅ |
+| Track changes / redlining | 🚧 v2 |
 
 ### Renewals & Obligations
 | Feature | Status |
@@ -118,6 +116,7 @@ The only open-source, self-hostable, AI-native CLM with Arabic support and an MC
 - **Storage:** S3-compatible (MinIO for self-hosted, AWS S3 for cloud)
 - **AI:** Anthropic Claude · OpenAI · Ollama (local)
 - **E-signature:** DocuSeal
+- **Observability:** OpenTelemetry (opt-in OTLP traces, Jaeger-ready)
 
 ---
 
