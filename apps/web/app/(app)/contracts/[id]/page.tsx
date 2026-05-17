@@ -52,7 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -297,6 +297,8 @@ export default function ContractDetailPage() {
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [tagInput, setTagInput] = useState("")
   const [addingTag, setAddingTag] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
       const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes, riskRes] = await Promise.all([
@@ -518,7 +520,7 @@ export default function ContractDetailPage() {
   }
 
   async function deleteContract() {
-    if (!confirm("Archive this contract? Archived contracts are removed from your active list.")) return
+    setArchiving(true)
     try {
       const res = await fetch(`/api/contracts/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed")
@@ -526,7 +528,9 @@ export default function ContractDetailPage() {
       router.push("/contracts")
     } catch {
       toast.error("Failed to archive contract")
+      setArchiving(false)
     }
+    setArchiveOpen(false)
   }
 
   async function handleExtraction(extractionId: string, action: "accept" | "reject") {
@@ -836,7 +840,7 @@ export default function ContractDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={deleteContract}
+                onClick={() => setArchiveOpen(true)}
               >
                 <Archive className="size-3.5" />
                 Archive
@@ -2028,6 +2032,33 @@ export default function ContractDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Archive Confirmation Dialog */}
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-1">
+              <Archive className="h-5 w-5 text-destructive" />
+            </div>
+            <DialogTitle>Archive this contract?</DialogTitle>
+            <DialogDescription>
+              Archived contracts are removed from your active list. You can unarchive at any time from the contract detail page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-2">
+            <DialogClose render={<Button variant="outline" disabled={archiving} />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={deleteContract}
+              disabled={archiving}
+            >
+              {archiving ? "Archiving…" : "Archive contract"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Upload Dialog */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
