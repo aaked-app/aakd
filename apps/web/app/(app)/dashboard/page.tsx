@@ -164,18 +164,18 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-4 text-center max-w-sm px-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-100">
-              <FileText className="h-8 w-8 text-indigo-600" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius)] bg-primary/10 border border-primary/20">
+              <FileText className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-900">Upload your first contract</h2>
-              <p className="mt-1.5 text-sm text-zinc-500 leading-relaxed">
-                Get started by uploading a PDF or DOCX contract. ClauseFlow will extract key dates, parties, and risk signals automatically.
+              <h2 className="text-lg font-semibold text-foreground">Upload your first contract</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+                Get started by uploading a PDF or DOCX contract. Aakd will extract key dates, parties, and risk signals automatically.
               </p>
             </div>
             <Link
               href="/contracts/new"
-              className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium rounded-[var(--radius)] bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium rounded-[var(--radius)] bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
             >
               Get started →
             </Link>
