@@ -10,7 +10,8 @@ import * as dotenv from "dotenv"
 import path from "path"
 
 // Load env before any other imports that read process.env
-dotenv.config({ path: path.resolve(__dirname, ".env.local") })
+// override: true ensures .env.local always wins over any inherited shell vars
+dotenv.config({ path: path.resolve(__dirname, ".env.local"), override: true })
 
 // Initialise OTel after dotenv so env vars are available, before any
 // instrumented libraries (ioredis, Prisma) are used.
