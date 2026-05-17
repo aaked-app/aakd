@@ -7,11 +7,23 @@ import { SECURE_HEADERS } from "@/lib/api-headers"
 import { logger } from "@/lib/logger"
 import { z } from "zod"
 
-const UpsertSchema = z.object({
-  provider: z.enum(["anthropic", "openai"]),
-  apiKey: z.string().min(1),
-  model: z.string().optional(),
-})
+const UpsertSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("anthropic"),
+    apiKey: z.string().min(1),
+    model: z.string().optional(),
+  }),
+  z.object({
+    provider: z.literal("openai"),
+    apiKey: z.string().min(1),
+    model: z.string().optional(),
+  }),
+  z.object({
+    provider: z.literal("ollama"),
+    baseUrl: z.string().url(),
+    model: z.string().min(1),
+  }),
+])
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -56,11 +68,16 @@ export async function POST(req: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { provider, apiKey, model } = parsed.data
+  const { provider } = parsed.data
+
+  // For Ollama we encrypt the base URL; for cloud providers we encrypt the API key.
+  const credentialPlain =
+    parsed.data.provider === "ollama" ? parsed.data.baseUrl : parsed.data.apiKey
+  const model = parsed.data.provider === "ollama" ? parsed.data.model : (parsed.data.model ?? null)
 
   let encryptedKey: string
   try {
-    encryptedKey = encrypt(apiKey)
+    encryptedKey = encrypt(credentialPlain)
   } catch (err) {
     logger.error({ err }, "[ai-config] encryption failed")
     return Response.json({ error: "Encryption not configured on this server" }, { status: 500 })

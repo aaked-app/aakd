@@ -25,7 +25,19 @@ export default function CreateOrgPage() {
         slug: name.toLowerCase().replace(/\s+/g, "-"),
       })
       if (result.error) {
-        toast.error(result.error.message ?? t("createOrgFailed"))
+        // Better Auth returns a slug-uniqueness violation when two orgs share the
+        // same generated slug. Surface this as a friendly, actionable message.
+        const msg = result.error.message ?? ""
+        const isSlugConflict =
+          msg.toLowerCase().includes("slug") ||
+          msg.toLowerCase().includes("unique") ||
+          msg.toLowerCase().includes("already exists") ||
+          (result.error as { status?: number }).status === 409
+        toast.error(
+          isSlugConflict
+            ? "An organisation with that name already exists. Please choose a different name."
+            : msg || t("createOrgFailed"),
+        )
       } else {
         await organization.setActive({ organizationId: result.data.id })
         router.push("/onboarding")

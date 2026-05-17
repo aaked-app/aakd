@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Server } from "lucide-react"
 import { useSession, useActiveOrganization } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
-// ─── Provider card ────────────────────────────────────────────────────────────
-
-type Provider = "anthropic" | "openai"
+// ─── Logos ────────────────────────────────────────────────────────────────────
 
 function AnthropicLogo() {
   return (
@@ -42,6 +47,36 @@ function OpenAILogo() {
   )
 }
 
+// ─── Provider definitions ──────────────────────────────────────────────────────
+
+type Provider = "anthropic" | "openai" | "ollama"
+
+const PROVIDER_META: Record<Provider, { name: string; subtitle: string }> = {
+  anthropic: { name: "Anthropic", subtitle: "Claude models" },
+  openai: { name: "OpenAI", subtitle: "GPT models" },
+  ollama: { name: "Ollama", subtitle: "Local / self-hosted" },
+}
+
+const CLOUD_MODELS: Record<"anthropic" | "openai", { value: string; label: string }[]> = {
+  anthropic: [
+    { value: "claude-haiku-4-5", label: "Claude Haiku (fastest)" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet (balanced)" },
+    { value: "claude-opus-4-5", label: "Claude Opus (most capable)" },
+  ],
+  openai: [
+    { value: "gpt-4o-mini", label: "GPT-4o Mini (fastest)" },
+    { value: "gpt-4o", label: "GPT-4o (balanced)" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo (powerful)" },
+  ],
+}
+
+const DEFAULT_MODEL: Record<"anthropic" | "openai", string> = {
+  anthropic: "claude-haiku-4-5",
+  openai: "gpt-4o-mini",
+}
+
+// ─── Provider card ─────────────────────────────────────────────────────────────
+
 function ProviderCard({
   provider,
   selected,
@@ -51,38 +86,36 @@ function ProviderCard({
   selected: boolean
   onClick: () => void
 }) {
-  const isAnthropic = provider === "anthropic"
+  const meta = PROVIDER_META[provider]
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-3 p-5 rounded-[var(--radius)] border-2 transition-all cursor-pointer w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "flex flex-col items-center gap-3 p-4 rounded-[var(--radius)] border-2 transition-all cursor-pointer w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selected
           ? "border-primary bg-primary/5 text-primary"
           : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/40",
       )}
     >
       <div className={cn("transition-colors", selected ? "text-primary" : "text-foreground/70")}>
-        {isAnthropic ? <AnthropicLogo /> : <OpenAILogo />}
+        {provider === "anthropic" && <AnthropicLogo />}
+        {provider === "openai" && <OpenAILogo />}
+        {provider === "ollama" && <Server className="h-7 w-7" />}
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold leading-tight">
-          {isAnthropic ? "Anthropic" : "OpenAI"}
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {isAnthropic ? "Claude" : "GPT-4o"}
-        </p>
+        <p className="text-sm font-semibold leading-tight">{meta.name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{meta.subtitle}</p>
       </div>
     </button>
   )
 }
 
-// ─── State machine ────────────────────────────────────────────────────────────
+// ─── State machine ─────────────────────────────────────────────────────────────
 
 type Status = "idle" | "testing" | "tested-ok" | "tested-fail" | "saving"
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -92,10 +125,13 @@ export default function OnboardingPage() {
   const [provider, setProvider] = useState<Provider>("anthropic")
   const [apiKey, setApiKey] = useState("")
   const [showKey, setShowKey] = useState(false)
+  const [model, setModel] = useState<string>(DEFAULT_MODEL["anthropic"])
+  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434")
+  const [ollamaModel, setOllamaModel] = useState("")
   const [status, setStatus] = useState<Status>("idle")
   const [errorMsg, setErrorMsg] = useState("")
 
-  // Role guard — only admin/legal may configure AI
+  // Role guard — only admin/legal/owner may configure AI
   useEffect(() => {
     if (!isPending && !orgPending && activeOrg) {
       const member = (activeOrg as { members?: Array<{ userId: string; role: string }> }).members?.find(
@@ -107,24 +143,42 @@ export default function OnboardingPage() {
     }
   }, [isPending, orgPending, activeOrg, session, router])
 
-  const placeholder = provider === "anthropic" ? "sk-ant-api03-..." : "sk-proj-..."
+  function switchProvider(p: Provider) {
+    setProvider(p)
+    setStatus("idle")
+    setErrorMsg("")
+    if (p !== "ollama") {
+      setModel(DEFAULT_MODEL[p])
+    }
+  }
+
+  function resetFeedback() {
+    if (status === "tested-ok" || status === "tested-fail") {
+      setStatus("idle")
+      setErrorMsg("")
+    }
+  }
 
   async function handleTest() {
-    if (!apiKey.trim()) return
     setStatus("testing")
     setErrorMsg("")
     try {
+      const body =
+        provider === "ollama"
+          ? { provider, baseUrl: ollamaUrl.trim() }
+          : { provider, apiKey: apiKey.trim() }
+
       const res = await fetch("/api/org/ai-config/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, apiKey: apiKey.trim() }),
+        body: JSON.stringify(body),
       })
       const data = (await res.json()) as { valid: boolean; error?: string }
       if (data.valid) {
         setStatus("tested-ok")
       } else {
         setStatus("tested-fail")
-        setErrorMsg(data.error ?? "Key validation failed")
+        setErrorMsg(data.error ?? "Connection test failed")
       }
     } catch {
       setStatus("tested-fail")
@@ -133,14 +187,18 @@ export default function OnboardingPage() {
   }
 
   async function handleSave() {
-    if (!apiKey.trim()) return
     setStatus("saving")
     setErrorMsg("")
     try {
+      const body =
+        provider === "ollama"
+          ? { provider, baseUrl: ollamaUrl.trim(), model: ollamaModel.trim() }
+          : { provider, apiKey: apiKey.trim(), model }
+
       const res = await fetch("/api/org/ai-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, apiKey: apiKey.trim() }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -156,18 +214,26 @@ export default function OnboardingPage() {
   }
 
   const isBusy = status === "testing" || status === "saving"
-  const canSave = apiKey.trim().length > 0 && !isBusy
+
+  // Readiness checks per provider
+  const isOllamaReady = ollamaUrl.trim().length > 0 && ollamaModel.trim().length > 0
+  const isCloudReady = apiKey.trim().length > 0
+  const canTest = !isBusy && (provider === "ollama" ? ollamaUrl.trim().length > 0 : isCloudReady)
+  const canSave = !isBusy && (provider === "ollama" ? isOllamaReady : isCloudReady)
+
+  const apiKeyPlaceholder = provider === "anthropic" ? "sk-ant-api03-..." : "sk-proj-..."
 
   return (
     <div className="flex min-h-screen items-start justify-center pt-16 pb-8 px-4">
       <div className="w-full max-w-lg space-y-8">
+
         {/* Header */}
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Welcome to ClauseFlow
+            Welcome to Aakd
           </h1>
           <p className="text-sm text-muted-foreground">
-            Your organization is ready. Connect an AI provider to unlock powerful contract features.
+            Your organisation is ready. Connect an AI provider to unlock powerful contract features.
           </p>
         </div>
 
@@ -188,81 +254,127 @@ export default function OnboardingPage() {
           </ul>
         </div>
 
-        {/* Provider selector */}
+        {/* Provider selector — 3-column grid */}
         <div className="space-y-3">
           <Label className="text-sm font-medium text-foreground">AI Provider</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <ProviderCard
-              provider="anthropic"
-              selected={provider === "anthropic"}
-              onClick={() => {
-                setProvider("anthropic")
-                setStatus("idle")
-                setErrorMsg("")
-              }}
-            />
-            <ProviderCard
-              provider="openai"
-              selected={provider === "openai"}
-              onClick={() => {
-                setProvider("openai")
-                setStatus("idle")
-                setErrorMsg("")
-              }}
-            />
+          <div className="grid grid-cols-3 gap-3">
+            {(["anthropic", "openai", "ollama"] as Provider[]).map((p) => (
+              <ProviderCard
+                key={p}
+                provider={p}
+                selected={provider === p}
+                onClick={() => switchProvider(p)}
+              />
+            ))}
           </div>
         </div>
 
-        {/* API Key input */}
-        <div className="space-y-2">
-          <Label htmlFor="api-key" className="text-sm font-medium text-foreground">
-            API Key
-          </Label>
-          <div className="relative">
-            <Input
-              id="api-key"
-              type={showKey ? "text" : "password"}
-              placeholder={placeholder}
-              value={apiKey}
-              onChange={(e) => {
-                setApiKey(e.target.value)
-                if (status === "tested-ok" || status === "tested-fail") {
-                  setStatus("idle")
-                  setErrorMsg("")
-                }
-              }}
-              className="pr-10 font-mono text-sm"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              type="button"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setShowKey((v) => !v)}
-              aria-label={showKey ? "Hide key" : "Show key"}
-            >
-              {showKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
+        {/* Ollama-specific fields */}
+        {provider === "ollama" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ollama-url" className="text-sm font-medium text-foreground">
+                Ollama base URL
+              </Label>
+              <Input
+                id="ollama-url"
+                type="url"
+                placeholder="http://localhost:11434"
+                value={ollamaUrl}
+                onChange={(e) => { setOllamaUrl(e.target.value); resetFeedback() }}
+                className="font-mono text-sm"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground">
+                Default is <code className="font-mono">http://localhost:11434</code>. Change this
+                if Ollama runs on a different host or port.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ollama-model" className="text-sm font-medium text-foreground">
+                Model name
+              </Label>
+              <Input
+                id="ollama-model"
+                type="text"
+                placeholder="llama3.2, mistral, mxbai-embed-large, ..."
+                value={ollamaModel}
+                onChange={(e) => { setOllamaModel(e.target.value); resetFeedback() }}
+                className="font-mono text-sm"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter any model you have pulled locally with{" "}
+                <code className="font-mono">ollama pull &lt;model&gt;</code>.
+              </p>
+            </div>
           </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Cloud model selector */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Model</Label>
+              <Select
+                value={model}
+                onValueChange={(v) => { if (v) { setModel(v); resetFeedback() } }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLOUD_MODELS[provider as "anthropic" | "openai"].map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Inline feedback */}
-          {status === "tested-ok" && (
-            <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              Key is valid
-            </p>
-          )}
-          {status === "tested-fail" && (
-            <p className="flex items-center gap-1.5 text-sm text-destructive">
-              <XCircle className="h-4 w-4 shrink-0" />
-              {errorMsg || "Key validation failed"}
-            </p>
-          )}
-        </div>
+            {/* API Key input */}
+            <div className="space-y-2">
+              <Label htmlFor="api-key" className="text-sm font-medium text-foreground">
+                API Key
+              </Label>
+              <div className="relative">
+                <Input
+                  id="api-key"
+                  type={showKey ? "text" : "password"}
+                  placeholder={apiKeyPlaceholder}
+                  value={apiKey}
+                  onChange={(e) => { setApiKey(e.target.value); resetFeedback() }}
+                  className="pr-10 font-mono text-sm"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-label={showKey ? "Hide key" : "Show key"}
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Inline feedback */}
+        {status === "tested-ok" && (
+          <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            Connection successful
+          </p>
+        )}
+        {status === "tested-fail" && (
+          <p className="flex items-center gap-1.5 text-sm text-destructive">
+            <XCircle className="h-4 w-4 shrink-0" />
+            {errorMsg || "Connection test failed"}
+          </p>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-3">
@@ -270,7 +382,7 @@ export default function OnboardingPage() {
             type="button"
             variant="outline"
             onClick={handleTest}
-            disabled={!apiKey.trim() || isBusy}
+            disabled={!canTest}
             className="min-w-[140px]"
           >
             {status === "testing" ? (
@@ -311,13 +423,15 @@ export default function OnboardingPage() {
 
         {/* Security note */}
         <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          Your key is encrypted at rest and never logged.
+          {provider === "ollama"
+            ? "Your Ollama URL is encrypted at rest. No data leaves your server."
+            : "Your key is encrypted at rest and never logged."}{" "}
           You can change it anytime in{" "}
           <Link
             href="/settings/org"
             className="underline underline-offset-4 hover:text-foreground transition-colors"
           >
-            Settings &rarr; Organization
+            Settings &rarr; Organisation
           </Link>
           .
         </p>

@@ -4,10 +4,11 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
 import { z } from "zod"
 
-const TestSchema = z.object({
-  provider: z.enum(["anthropic", "openai"]),
-  apiKey: z.string().min(1),
-})
+const TestSchema = z.discriminatedUnion("provider", [
+  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1) }),
+  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1) }),
+  z.object({ provider: z.literal("ollama"), baseUrl: z.string().url() }),
+])
 
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
@@ -33,9 +34,29 @@ export async function POST(req: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { provider, apiKey } = parsed.data
+  const { provider } = parsed.data
 
   try {
+    if (provider === "ollama") {
+      const { baseUrl } = parsed.data as { provider: "ollama"; baseUrl: string }
+      let tagsUrl: string
+      try {
+        tagsUrl = new URL("/api/tags", baseUrl).toString()
+      } catch {
+        return Response.json({ valid: false, error: "Invalid Ollama base URL" })
+      }
+      const res = await fetch(tagsUrl, { signal: AbortSignal.timeout(5_000) })
+      if (res.ok) {
+        return Response.json({ valid: true })
+      }
+      return Response.json({
+        valid: false,
+        error: `Ollama server responded with ${res.status} — is it running at ${baseUrl}?`,
+      })
+    }
+
+    const apiKey = (parsed.data as { apiKey: string }).apiKey
+
     if (provider === "anthropic") {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -107,7 +128,7 @@ export async function POST(req: Request) {
       return Response.json({ valid: false, error: `OpenAI API error ${res.status}` })
     }
 
-    return Response.json({ valid: false, error: "Unknown provider" }, { status: 400 })
+    return Response.json({ valid: false, error: "Unsupported provider" }, { status: 400 })
   } catch (err) {
     logger.error({ err }, "[ai-config/test] provider connectivity error")
     return Response.json({ valid: false, error: "Network error — unable to reach provider" })

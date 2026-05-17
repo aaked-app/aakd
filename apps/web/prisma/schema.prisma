@@ -795,8 +795,8 @@ model OrgAiConfig {
   id             String       @id @default(cuid())
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  provider       String       // "anthropic" | "openai"
-  encryptedKey   String       // AES-256-GCM via lib/notifications/crypto.ts encrypt()
+  provider       String       // "anthropic" | "openai" | "ollama"
+  encryptedKey   String       // AES-256-GCM: API key for anthropic/openai, base URL for ollama
   model          String?      // optional model override
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
