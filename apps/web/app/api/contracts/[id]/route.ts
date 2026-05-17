@@ -150,6 +150,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // Validate status transition
     const { tagIds, folderId, startDate, endDate, renewalDate, status, ...rest } = parsed.data
+
+    // Strip any HTML tags from free-text fields to prevent XSS persistence
+    const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "")
+    if (rest.counterpartyName) rest.counterpartyName = stripHtml(rest.counterpartyName)
+    if (rest.notes) rest.notes = stripHtml(rest.notes)
+    if (rest.governingLaw) rest.governingLaw = stripHtml(rest.governingLaw)
+
     if (status && status !== existing.status) {
       const allowed = STATUS_TRANSITIONS[existing.status] ?? []
       if (!allowed.includes(status)) {
