@@ -102,7 +102,7 @@ else
   REDIS_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 40)
   MINIO_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 40)
   BETTER_AUTH_SECRET=$(openssl rand -base64 32)
-  NOTIFICATION_ENCRYPTION_KEY=$(openssl rand -base64 32)
+  NOTIFICATION_ENCRYPTION_KEY=$(openssl rand -hex 32)
   DOCUSEAL_SECRET_KEY_BASE=$(openssl rand -hex 64)
 
   # Write .env.prod
