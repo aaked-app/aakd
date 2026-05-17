@@ -92,6 +92,28 @@ if (!process.env.NOTIFICATION_ENCRYPTION_KEY) {
   throw new Error("NOTIFICATION_ENCRYPTION_KEY is required")
 }
 
+// ─── Migration readiness check ────────────────────────────────────────────────
+// The worker and app containers start concurrently. If the worker boots before
+// `prisma migrate deploy` completes in the app container, it will query with a
+// stale schema and fail. Poll until the _prisma_migrations table is readable.
+
+async function waitForMigrations(maxWaitMs = 60_000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      await getWorkerPrisma().$queryRaw`SELECT 1 FROM "_prisma_migrations" LIMIT 1`
+      console.log("[worker] Database migrations verified — starting job workers")
+      return
+    } catch {
+      console.log("[worker] Waiting for database migrations...")
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+  }
+  throw new Error("[worker] Database migrations did not complete within timeout")
+}
+
+await waitForMigrations()
+
 // ─── Redis connection ─────────────────────────────────────────────────────────
 
 const connection = {
@@ -2143,47 +2165,72 @@ salesforcePollQueue.add(
   .catch((err) => console.error("[salesforce.poll] Failed to register cron:", err))
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
+// Collect all Worker instances so the shutdown handler can pause and drain them
+// in one pass rather than calling close() on each individually.
 
-async function shutdown() {
-  console.log("[worker] Shutting down gracefully…")
-  await extractWorker.close()
-  await aiExtractWorker.close()
-  await embedWorker.close()
-  await alertsWorker.close()
-  await obligationsWorker.close()
-  await signingWorker.close()
-  await emailWorker.close()
-  await fanoutWorker.close()
-  await deliverWorker.close()
-  await documentConvertWorker.close()
-  await documentExportWorker.close()
-  await salesforcePollWorker.close()
-  await importWorker.close()
-  await obligationExtractWorker.close()
-  await contractExtractQueue.close()
-  await contractAiExtractQueue.close()
-  await contractEmbedQueue.close()
-  await alertsCheckQueue.close()
-  await obligationsCheckQueue.close()
-  await signingSyncQueue.close()
-  await emailQueue.close()
-  await notificationFanoutQueue.close()
-  await notificationDeliverQueue.close()
-  await documentConvertQueue.close()
-  await documentExportQueue.close()
-  await salesforcePollQueue.close()
-  await importProcessQueue.close()
-  await obligationExtractQueue.close()
+const allWorkers: Worker[] = [
+  extractWorker,
+  aiExtractWorker,
+  embedWorker,
+  alertsWorker,
+  obligationsWorker,
+  signingWorker,
+  emailWorker,
+  fanoutWorker,
+  deliverWorker,
+  documentConvertWorker,
+  documentExportWorker,
+  salesforcePollWorker,
+  importWorker,
+  obligationExtractWorker,
+]
+
+async function gracefulShutdown(signal: string) {
+  console.log(`[worker] Received ${signal}, shutting down gracefully...`)
+
+  // Stop workers from picking up new jobs while in-flight jobs finish.
+  await Promise.all(allWorkers.map((w) => w.pause()))
+
+  // Enforce a hard ceiling — if jobs haven't drained after 30 s, force exit.
+  const drainTimeout = setTimeout(() => {
+    console.error("[worker] Graceful shutdown timeout — forcing exit")
+    process.exit(1)
+  }, 30_000)
+
+  // Wait for in-flight jobs to complete, then close Redis connections.
+  await Promise.all(allWorkers.map((w) => w.close()))
+  clearTimeout(drainTimeout)
+
+  // Close queue connections (each Queue holds its own IORedis client).
+  await Promise.all([
+    contractExtractQueue.close(),
+    contractAiExtractQueue.close(),
+    contractEmbedQueue.close(),
+    alertsCheckQueue.close(),
+    obligationsCheckQueue.close(),
+    signingSyncQueue.close(),
+    emailQueue.close(),
+    notificationFanoutQueue.close(),
+    notificationDeliverQueue.close(),
+    documentConvertQueue.close(),
+    documentExportQueue.close(),
+    salesforcePollQueue.close(),
+    importProcessQueue.close(),
+    obligationExtractQueue.close(),
+  ])
+
+  // Disconnect Prisma pools. The app Prisma client is imported by some worker
+  // helpers (alerts/check, email senders) — disconnect it too to prevent a
+  // dangling pg pool on shutdown.
   await getWorkerPrisma().$disconnect()
-  // The app Prisma client (lib/db/client) is also imported by some worker
-  // helpers (alerts/check, email senders). Disconnecting it here prevents a
-  // dangling pg pool on graceful shutdown.
   await appPrisma.$disconnect().catch(() => {})
+
+  console.log("[worker] Graceful shutdown complete")
   process.exit(0)
 }
 
-process.on("SIGTERM", shutdown)
-process.on("SIGINT", shutdown)
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"))
+process.on("SIGINT", () => gracefulShutdown("SIGINT"))
 
 console.log("[worker] ClauseFlow BullMQ worker started")
 console.log(`[worker] Redis: ${maskRedisUrl(process.env.REDIS_URL ?? "redis://localhost:6379")}`)
