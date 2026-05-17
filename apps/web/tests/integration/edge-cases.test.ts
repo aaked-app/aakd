@@ -395,8 +395,17 @@ describe("RBAC — role enforcement", () => {
 })
 
 describe("Activity log completeness", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    // RBAC tests above leave resolveAuth set to viewer/member role.
+    // Reset to admin so activity-log tests can reach writeActivity.
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-1",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session" as const,
+    })
   })
 
   it("POST /api/contracts logs CREATED activity", async () => {

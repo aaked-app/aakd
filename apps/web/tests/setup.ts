@@ -5,8 +5,17 @@ vi.mock("@/lib/jobs/queues", () => ({
   contractExtractQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   contractAiExtractQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   contractEmbedQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
-  notificationFanoutQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  alertsCheckQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  signingSyncQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   emailQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  notificationFanoutQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  notificationDeliverQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  documentConvertQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  documentExportQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  obligationsCheckQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  salesforcePollQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  importProcessQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  obligationExtractQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
 }))
 
 vi.mock("@/lib/db/client", () => {
