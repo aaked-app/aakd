@@ -130,13 +130,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       include: OBLIGATION_INCLUDE,
     })
 
+    // Audit trail — must not be fire-and-forget
     await writeActivity(
       params.id,
       ctx.userId,
       "OBLIGATION_CREATED",
       `Obligation created: ${obligation.title}`,
       { obligationId: obligation.id },
-    ).catch((err) => console.error("[obligations] writeActivity error:", err))
+    )
 
     return Response.json(obligation, { status: 201 })
   })

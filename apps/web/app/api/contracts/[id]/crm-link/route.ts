@@ -156,13 +156,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       throw err
     }
 
+    // Audit trail — must not be fire-and-forget
     await writeActivity(
       params.id,
       ctx.userId,
       "CRM_LINKED",
       `Linked to ${provider} deal: ${deal.name}`,
       { provider, dealId: deal.id, dealName: deal.name },
-    ).catch((err) => console.error("[crm-link] writeActivity error:", err))
+    )
 
     return Response.json(
       {

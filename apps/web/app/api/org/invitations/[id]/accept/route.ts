@@ -1,5 +1,6 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { prisma } from "@/lib/db/client"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 
 // ─── POST /api/org/invitations/[id]/accept ────────────────────────────────────
 // Accepts a pending invitation for the currently logged-in user.
@@ -75,32 +76,37 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }),
   ])
 
-  // Notify org admins & owners that a new member joined (fire-and-forget)
-  Promise.all([
-    prisma.member.findMany({
-      where: {
-        organizationId: invitation.organizationId,
-        role: { in: ["admin", "owner"] },
-        NOT: { userId: ctx.userId },
-      },
-      select: { userId: true },
-    }),
-    prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, email: true } }),
-  ]).then(([admins, newUser]) => {
-    const displayName = newUser?.name || newUser?.email || "Someone"
-    for (const a of admins) {
-      prisma.notification.create({
-        data: {
-          userId: a.userId,
+  // Notify org admins & owners that a new member joined (non-critical side-effect)
+  fireAndLog(
+    Promise.all([
+      prisma.member.findMany({
+        where: {
           organizationId: invitation.organizationId,
-          contractId: null,
-          eventName: "member.joined",
-          title: "New member joined",
-          body: `${displayName} joined your organization`,
+          role: { in: ["admin", "owner"] },
+          NOT: { userId: ctx.userId },
         },
-      }).catch(() => {})
-    }
-  }).catch(() => {})
+        select: { userId: true },
+      }),
+      prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, email: true } }),
+    ]).then(([admins, newUser]) => {
+      const displayName = newUser?.name || newUser?.email || "Someone"
+      return Promise.all(
+        admins.map((a) =>
+          prisma.notification.create({
+            data: {
+              userId: a.userId,
+              organizationId: invitation.organizationId,
+              contractId: null,
+              eventName: "member.joined",
+              title: "New member joined",
+              body: `${displayName} joined your organization`,
+            },
+          }),
+        ),
+      )
+    }),
+    "prisma.notification.create:member.joined",
+  )
 
   return Response.json({
     organizationId: member.organizationId,

@@ -5,6 +5,7 @@ import { writeActivity } from "@/lib/db/activity"
 import { generateEmbedding } from "@/lib/embedding"
 import { QA_SYSTEM_PROMPT } from "@/lib/ai/prompts"
 import { rateLimit } from "@/lib/rate-limit"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
@@ -849,9 +850,10 @@ async function toolCreateObligation(
     },
   })
 
+  // Audit trail — must not be fire-and-forget
   await writeActivity(contractId, userId, "OBLIGATION_CREATED", `Obligation created: ${obligation.title}`, {
     obligationId: obligation.id,
-  }).catch((err) => console.error("[mcp] writeActivity OBLIGATION_CREATED error:", err))
+  })
 
   return toolSuccess(id, obligation)
 }
@@ -897,9 +899,10 @@ async function toolUpdateObligation(
     },
   })
 
+  // Audit trail — must not be fire-and-forget
   await writeActivity(contractId, userId, "UPDATED", `Obligation updated: ${obligation.title}`, {
     obligationId: obligation.id,
-  }).catch((err) => console.error("[mcp] writeActivity obligation UPDATED error:", err))
+  })
 
   return toolSuccess(id, obligation)
 }

@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { requireRole } from "@/lib/auth/roles"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
 
 const UpdateMemberSchema = z.object({
@@ -59,17 +60,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       include: { user: { select: { id: true, name: true, email: true, image: true } } },
     })
 
-    // Notify the affected member that their role changed (fire-and-forget)
-    prisma.notification.create({
-      data: {
-        userId: member.userId,
-        organizationId: ctx.organizationId,
-        contractId: null,
-        eventName: "member.role_changed",
-        title: "Role updated",
-        body: `Your role has been updated to ${parsed.data.role}`,
-      },
-    }).catch(() => {})
+    // Notify the affected member that their role changed (non-critical side-effect)
+    fireAndLog(
+      prisma.notification.create({
+        data: {
+          userId: member.userId,
+          organizationId: ctx.organizationId,
+          contractId: null,
+          eventName: "member.role_changed",
+          title: "Role updated",
+          body: `Your role has been updated to ${parsed.data.role}`,
+        },
+      }),
+      "prisma.notification.create:member.role_changed",
+    )
 
     return Response.json(updated)
   })

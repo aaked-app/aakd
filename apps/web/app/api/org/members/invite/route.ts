@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { hasRole, type Role } from "@/lib/auth/roles"
 import { prisma } from "@/lib/db/client"
 import { sendInvitationEmail } from "@/lib/email/invitation"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { randomBytes } from "crypto"
 import { z } from "zod"
 
@@ -115,15 +116,16 @@ export async function POST(req: Request) {
   const baseUrl = process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   const acceptUrl = `${baseUrl}/accept-invitation?id=${id}`
 
-  // Fire-and-forget — email failure must not abort the invitation
-  sendInvitationEmail({
-    to: parsed.data.email,
-    organizationName: org?.name ?? "your organization",
-    inviterName: inviter?.name ?? inviter?.email ?? "A teammate",
-    acceptUrl,
-  }).catch((err) => {
-    console.error("[invitation] sendInvitationEmail failed:", err)
-  })
+  // Non-critical side-effect — email failure must not abort the invitation
+  fireAndLog(
+    sendInvitationEmail({
+      to: parsed.data.email,
+      organizationName: org?.name ?? "your organization",
+      inviterName: inviter?.name ?? inviter?.email ?? "A teammate",
+      acceptUrl,
+    }),
+    "sendInvitationEmail:invite",
+  )
 
   return Response.json({ id: invitation.id, email: invitation.email, role: invitation.role }, { status: 201 })
 }

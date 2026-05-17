@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import { emailQueue } from "@/lib/jobs/queues"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
 
 const USER_SELECT = {
@@ -190,29 +191,39 @@ export async function PATCH(
       ...(body.comment ? { comment: body.comment } : {}),
     }
     if (body.decision === "approved") {
-      await enqueueNotification("approval.approved", params.id, ctx.userId, decisionMetadata)
+      fireAndLog(
+        enqueueNotification("approval.approved", params.id, ctx.userId, decisionMetadata),
+        "enqueueNotification:approval.approved",
+      )
     } else {
-      await enqueueNotification("approval.rejected", params.id, ctx.userId, decisionMetadata)
+      fireAndLog(
+        enqueueNotification("approval.rejected", params.id, ctx.userId, decisionMetadata),
+        "enqueueNotification:approval.rejected",
+      )
 
       // Email the requester with the rejection reason
       const contractForEmail = await prisma.contract.findUnique({
         where: { id: params.id },
         select: { title: true },
       })
-      emailQueue
-        .add("send", {
+      fireAndLog(
+        emailQueue.add("send", {
           kind: "approval_rejected",
           to: updated.requestedBy.email,
           requesterName: updated.requestedBy.name,
           reviewerName: updated.assignedTo.name,
           contractTitle: contractForEmail?.title ?? "Contract",
           comment: body.comment,
-        })
-        .catch(() => {})
+        }),
+        "emailQueue:approval_rejected",
+      )
     }
 
     if (advancedTo === "AWAITING_SIGNATURE") {
-      await enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {})
+      fireAndLog(
+        enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {}),
+        "enqueueNotification:contract.sent_for_signing",
+      )
     }
 
     // Notify the next-in-chain approver that it is now their turn.
@@ -229,22 +240,26 @@ export async function PATCH(
           select: { title: true },
         })
         const nextRequesterName = activatedNext.requestedBy?.name ?? "A team member"
-        emailQueue
-          .add("send", {
+        fireAndLog(
+          emailQueue.add("send", {
             kind: "approval_request",
             to: nextAssignee.email,
             assigneeName: nextAssignee.name,
             requesterName: nextRequesterName,
             contractTitle: contractForEmail?.title ?? "Contract",
-          })
-          .catch(() => {})
-        await enqueueNotification("approval.requested", params.id, ctx.userId, {
-          approvalId: activatedNext.id,
-          assigneeId: nextAssignee.id,
-          assigneeName: nextAssignee.name,
-          requesterId: activatedNext.requestedBy?.id ?? ctx.userId,
-          requesterName: nextRequesterName,
-        })
+          }),
+          "emailQueue:approval_request:nextInChain",
+        )
+        fireAndLog(
+          enqueueNotification("approval.requested", params.id, ctx.userId, {
+            approvalId: activatedNext.id,
+            assigneeId: nextAssignee.id,
+            assigneeName: nextAssignee.name,
+            requesterId: activatedNext.requestedBy?.id ?? ctx.userId,
+            requesterName: nextRequesterName,
+          }),
+          "enqueueNotification:approval.requested:nextInChain",
+        )
       }
     }
 

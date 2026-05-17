@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { emailQueue } from "@/lib/jobs/queues"
 import { enqueueNotification } from "@/lib/notifications/fanout"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
 
 const USER_SELECT = {
@@ -204,25 +205,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Only notify the assignee immediately if this approval is active ("pending").
     // "waiting" approvals are notified by the PATCH handler when they are activated.
     if (approvalStatus === "pending") {
-      emailQueue
-        .add("send", {
+      fireAndLog(
+        emailQueue.add("send", {
           kind: "approval_request",
           to: assigneeMember.user.email,
           assigneeName: assigneeMember.user.name,
           requesterName: requesterUser?.name ?? "A team member",
           contractTitle: contract.title,
           message: body.message,
-        })
-        .catch(() => {})
+        }),
+        "emailQueue:approval_request",
+      )
 
-      await enqueueNotification("approval.requested", params.id, ctx.userId, {
-        approvalId: approval.id,
-        assigneeId: assigneeMember.user.id,
-        assigneeName: assigneeMember.user.name,
-        requesterId: ctx.userId,
-        requesterName: requesterUser?.name ?? "A team member",
-        ...(body.message ? { message: body.message } : {}),
-      })
+      fireAndLog(
+        enqueueNotification("approval.requested", params.id, ctx.userId, {
+          approvalId: approval.id,
+          assigneeId: assigneeMember.user.id,
+          assigneeName: assigneeMember.user.name,
+          requesterId: ctx.userId,
+          requesterName: requesterUser?.name ?? "A team member",
+          ...(body.message ? { message: body.message } : {}),
+        }),
+        "enqueueNotification:approval.requested",
+      )
     }
 
     return Response.json({ approval }, { status: 201 })

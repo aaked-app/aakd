@@ -178,15 +178,26 @@ export function createSigningSyncWorker(connection: { url: string }) {
         take: job.data.contractId || job.data.submissionId ? 1 : 100,
       })
 
+      const errors: Array<{ contractId: string; error: string }> = []
       for (const contract of contracts) {
         try {
           await syncDocuSealContract(contract)
         } catch (err) {
-          console.error(`[signing] Failed to sync contract ${contract.id}:`, err)
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`[signing] Failed to sync contract ${contract.id}:`, message)
+          errors.push({ contractId: contract.id, error: message })
         }
       }
 
-      console.log(`[signing] Synced ${contracts.length} DocuSeal submission(s)`)
+      console.log(`[signing] Processed ${contracts.length} DocuSeal submission(s), ${errors.length} error(s)`)
+
+      if (errors.length > 0) {
+        // Throw to mark the job as failed so BullMQ retries it.
+        // Contracts that succeeded will not be re-processed (they're no longer "pending").
+        throw new Error(
+          `${errors.length} contract(s) failed to sync: ${JSON.stringify(errors)}`,
+        )
+      }
     },
     { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
   )

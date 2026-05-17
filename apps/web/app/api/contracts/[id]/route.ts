@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { enqueueNotification } from "@/lib/notifications/fanout"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { z } from "zod"
 
@@ -226,18 +227,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const changedFields = Object.keys(parsed.data).join(", ")
-    await writeActivity(params.id, ctx.userId, "UPDATED", changedFields).catch((err) =>
-      console.error("[PATCH /contracts/:id] writeActivity UPDATED error:", err)
-    )
+    // Audit trail — must not be fire-and-forget
+    await writeActivity(params.id, ctx.userId, "UPDATED", changedFields)
 
     if (status && status !== existing.status) {
-      await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`).catch((err) =>
-        console.error("[PATCH /contracts/:id] writeActivity STATUS_CHANGED error:", err)
-      )
+      // Audit trail — must not be fire-and-forget
+      await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`)
       if (status === "AWAITING_SIGNATURE") {
-        await enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {})
+        fireAndLog(
+          enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {}),
+          "enqueueNotification:contract.sent_for_signing",
+        )
       } else if (status === "ARCHIVED") {
-        await enqueueNotification("contract.archived", params.id, ctx.userId, {})
+        fireAndLog(
+          enqueueNotification("contract.archived", params.id, ctx.userId, {}),
+          "enqueueNotification:contract.archived",
+        )
       }
     }
 
@@ -260,12 +265,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ? parsed.data.noticePeriodDays
           : existing.noticePeriodDays ?? null
 
-      await generateAlertsForContract(
-        params.id,
-        resolvedEndDate,
-        resolvedRenewalDate,
-        resolvedNoticePeriodDays
-      ).catch((err) => console.error("[alerts] generateAlertsForContract failed:", err))
+      fireAndLog(
+        generateAlertsForContract(
+          params.id,
+          resolvedEndDate,
+          resolvedRenewalDate,
+          resolvedNoticePeriodDays,
+        ),
+        "generateAlertsForContract:contractUpdated",
+      )
     }
 
     return Response.json(updated)
@@ -295,9 +303,13 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       data: { status: "ARCHIVED" },
     })
 
+    // Audit trail — must not be fire-and-forget
     await writeActivity(params.id, ctx.userId, "ARCHIVED")
 
-    await enqueueNotification("contract.archived", params.id, ctx.userId, {})
+    fireAndLog(
+      enqueueNotification("contract.archived", params.id, ctx.userId, {}),
+      "enqueueNotification:contract.archived",
+    )
 
     return new Response(null, { status: 204 })
   })

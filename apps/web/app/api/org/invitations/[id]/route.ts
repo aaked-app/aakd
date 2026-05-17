@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { prisma } from "@/lib/db/client"
 import { sendInvitationEmail } from "@/lib/email/invitation"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 
 // ─── POST /api/org/invitations/[id]/resend ────────────────────────────────────
 // Refreshes the expiry to 30 days from now and re-sends the invitation email.
@@ -39,14 +40,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const baseUrl = process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   const acceptUrl = `${baseUrl}/accept-invitation?id=${params.id}`
 
-  sendInvitationEmail({
-    to: invitation.email,
-    organizationName: org?.name ?? "your organization",
-    inviterName: inviter?.name ?? inviter?.email ?? "A teammate",
-    acceptUrl,
-  }).catch((err) => {
-    console.error("[invitation] resend email failed:", err)
-  })
+  fireAndLog(
+    sendInvitationEmail({
+      to: invitation.email,
+      organizationName: org?.name ?? "your organization",
+      inviterName: inviter?.name ?? inviter?.email ?? "A teammate",
+      acceptUrl,
+    }),
+    "sendInvitationEmail:resend",
+  )
 
   return Response.json({ resent: true, expiresAt })
 }

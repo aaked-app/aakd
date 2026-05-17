@@ -4,6 +4,7 @@ import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
 import { isAllowedDocuSealUrl } from "@/lib/docuseal"
 import { enqueueNotification } from "@/lib/notifications/fanout"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 
 // ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
 // Receives DocuSeal webhook events.
@@ -120,15 +121,18 @@ export async function POST(req: Request) {
       })
 
       // Write an activity row so the feed shows each individual signer completing
-      await prisma.activity.create({
-        data: {
-          contractId: submissionContract.id,
-          userId: null,
-          actorLabel: "System",
-          action: "SIGNED",
-          detail: `Signer ${data.slug ?? data.id} completed signing`,
-        },
-      }).catch(() => {})
+      fireAndLog(
+        prisma.activity.create({
+          data: {
+            contractId: submissionContract.id,
+            userId: null,
+            actorLabel: "System",
+            action: "SIGNED",
+            detail: `Signer ${data.slug ?? data.id} completed signing`,
+          },
+        }),
+        "prisma.activity.create:signerCompleted",
+      )
     }
 
     return Response.json({ ok: true })

@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
 import type { ContractType } from "@prisma/client"
 
@@ -16,13 +17,9 @@ async function regenerateAlertsIfTouched(contractId: string, touchedFields: stri
     select: { endDate: true, renewalDate: true, noticePeriodDays: true },
   })
   if (!c) return
-  await generateAlertsForContract(
-    contractId,
-    c.endDate,
-    c.renewalDate,
-    c.noticePeriodDays,
-  ).catch((err) =>
-    console.error("[alerts] generateAlertsForContract failed after extraction accept:", err),
+  fireAndLog(
+    generateAlertsForContract(contractId, c.endDate, c.renewalDate, c.noticePeriodDays),
+    "generateAlertsForContract:extractionAccepted",
   )
 }
 

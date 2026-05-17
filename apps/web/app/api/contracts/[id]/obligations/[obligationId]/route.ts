@@ -140,6 +140,7 @@ export async function PATCH(
       include: OBLIGATION_INCLUDE,
     })
 
+    // Audit trail — must not be fire-and-forget
     if (completing) {
       await writeActivity(
         params.id,
@@ -147,7 +148,7 @@ export async function PATCH(
         "OBLIGATION_COMPLETED",
         `Obligation completed: ${updated.title}`,
         { obligationId: updated.id },
-      ).catch((err) => console.error("[obligations] writeActivity error:", err))
+      )
     } else {
       const changedFields = Object.keys(parsed.data).join(", ")
       await writeActivity(
@@ -156,7 +157,7 @@ export async function PATCH(
         "OBLIGATION_UPDATED",
         `Obligation updated: ${updated.title}${changedFields ? ` (${changedFields})` : ""}`,
         { obligationId: updated.id },
-      ).catch((err) => console.error("[obligations] writeActivity error:", err))
+      )
     }
 
     return Response.json(updated)
@@ -197,13 +198,14 @@ export async function DELETE(
       where: { id: params.obligationId },
     })
 
+    // Audit trail — must not be fire-and-forget
     await writeActivity(
       params.id,
       ctx.userId,
       "OBLIGATION_DELETED",
       `Obligation deleted: ${existing.title}`,
       { obligationId: existing.id },
-    ).catch((err) => console.error("[obligations] writeActivity error:", err))
+    )
 
     return new Response(null, { status: 204 })
   })

@@ -40,13 +40,14 @@ export async function DELETE(
 
     await prisma.crmLink.delete({ where: { id: link.id } })
 
+    // Audit trail — must not be fire-and-forget
     await writeActivity(
       params.id,
       ctx.userId,
       "CRM_UNLINKED",
       `Unlinked from ${link.provider} deal`,
       { provider: link.provider, dealId: link.externalDealId },
-    ).catch((err) => console.error("[crm-link] writeActivity error:", err))
+    )
 
     return new Response(null, { status: 204 })
   })

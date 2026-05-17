@@ -97,13 +97,14 @@ export async function POST(
         data: { status: "ACTIVE" },
       })
 
+      // Audit trail — must not be fire-and-forget
       await writeActivity(
         contract.id,
         ctx.userId,
         "CRM_SYNCED",
         `Status set to ACTIVE from ${provider} deal stage "${deal.stage}"`,
         { provider, dealId: deal.id, newStage: deal.stage },
-      ).catch((err) => console.error("[crm.sync] writeActivity error:", err))
+      )
     }
 
     return Response.json({ synced: true, deal })

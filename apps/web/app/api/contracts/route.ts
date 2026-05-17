@@ -6,6 +6,7 @@ import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { SECURE_HEADERS } from "@/lib/api-headers"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
@@ -183,14 +184,17 @@ export async function POST(req: Request) {
 
     await writeActivity(contract.id, ctx.userId, "CREATED")
 
-    // Generate renewal alerts if date fields were provided
+    // Generate renewal alerts if date fields were provided (non-critical side-effect)
     if (endDate || renewalDate || parsed.data.noticePeriodDays != null) {
-      await generateAlertsForContract(
-        contract.id,
-        endDate ? new Date(endDate) : null,
-        renewalDate ? new Date(renewalDate) : null,
-        parsed.data.noticePeriodDays ?? null
-      ).catch((err) => console.error("[alerts] generateAlertsForContract failed:", err))
+      fireAndLog(
+        generateAlertsForContract(
+          contract.id,
+          endDate ? new Date(endDate) : null,
+          renewalDate ? new Date(renewalDate) : null,
+          parsed.data.noticePeriodDays ?? null,
+        ),
+        "generateAlertsForContract:contractCreated",
+      )
     }
 
     return Response.json(contract, { status: 201 })

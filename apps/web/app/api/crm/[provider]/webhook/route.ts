@@ -105,13 +105,14 @@ export async function POST(req: Request, { params }: { params: { provider: strin
               data: { status: "ACTIVE" },
             })
 
+            // Audit trail — must not be fire-and-forget
             await writeActivity(
               link.contractId,
               null,
               "CRM_SYNCED",
               `Status set to ACTIVE from ${provider} deal stage "${event!.stage}"`,
               { provider, dealId: event!.dealId, newStage: event!.stage },
-            ).catch((err) => console.error("[crm.webhook] writeActivity error:", err))
+            )
           } catch (err) {
             // P2025: contract was not in AWAITING_SIGNATURE — silently skip.
             if ((err as { code?: string }).code !== "P2025") {
