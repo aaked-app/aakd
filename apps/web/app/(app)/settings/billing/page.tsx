@@ -160,7 +160,7 @@ export default function BillingPage() {
               Billing — Cloud Feature
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              ClauseFlow is open-source and self-hosted. Billing management is available
+              Aakd is open-source and self-hosted. Billing management is available
               in the hosted cloud version at clauseflow.io.
             </p>
           </div>

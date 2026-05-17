@@ -1,7 +1,7 @@
 /**
- * ClauseFlowLogo — shared brand mark.
- * Use <ClauseFlowLogoMark> for the square icon only (sidebar, favicon context).
- * Use <ClauseFlowLogo> for the full lockup (mark + wordmark).
+ * AakdLogo — shared brand mark.
+ * Use <AakdLogoMark> for the square icon only (sidebar, favicon context).
+ * Use <AakdLogo> for the full lockup (mark + wordmark).
  */
 
 interface LogoMarkProps {
@@ -9,7 +9,7 @@ interface LogoMarkProps {
   className?: string
 }
 
-export function ClauseFlowLogoMark({ size = 26, className }: LogoMarkProps) {
+export function AakdLogoMark({ size = 26, className }: LogoMarkProps) {
   return (
     <div
       className={className}
@@ -47,10 +47,10 @@ interface LogoProps {
   wordmarkClassName?: string
 }
 
-export function ClauseFlowLogo({ size = 26, className, wordmarkClassName }: LogoProps) {
+export function AakdLogo({ size = 26, className, wordmarkClassName }: LogoProps) {
   return (
     <div className={`flex items-center gap-2.5 ${className ?? ""}`}>
-      <ClauseFlowLogoMark size={size} />
+      <AakdLogoMark size={size} />
       <span
         className={`font-extrabold tracking-tight ${wordmarkClassName ?? ""}`}
         style={{
@@ -59,7 +59,7 @@ export function ClauseFlowLogo({ size = 26, className, wordmarkClassName }: Logo
           fontSize: Math.round(size * 0.54),
         }}
       >
-        ClauseFlow
+        Aakd
       </span>
     </div>
   )
