@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ChevronRight, Plus, Trash2 } from "lucide-react"
+import { ChevronRight, Plus, ScanText, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +13,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { ContractEditor, EMPTY_DOC } from "@/components/editor/contract-editor"
 
 const CONTRACT_TYPES = ["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"] as const
@@ -26,6 +32,12 @@ interface Variable {
   defaultValue?: string
 }
 
+function prettifySnakeCase(name: string): string {
+  return name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
 
 export function TemplateEditorPage({ templateId }: { templateId?: string }) {
   const router = useRouter()
@@ -39,7 +51,9 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
   const [variables, setVariables] = useState<Variable[]>([])
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
-  const [showAddVariable, setShowAddVariable] = useState(false)
+
+  // Sheet for adding a new variable
+  const [showAddSheet, setShowAddSheet] = useState(false)
   const [newVar, setNewVar] = useState<Variable>({
     name: "",
     label: "",
@@ -47,6 +61,9 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
     required: true,
     defaultValue: "",
   })
+
+  // Scan results
+  const [scanResults, setScanResults] = useState<string[] | null>(null)
 
   useEffect(() => {
     if (!isEdit || !templateId) return
@@ -91,11 +108,42 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
     }
     setVariables([...variables, { ...newVar, defaultValue: newVar.defaultValue || undefined }])
     setNewVar({ name: "", label: "", type: "text", required: true, defaultValue: "" })
-    setShowAddVariable(false)
+    setShowAddSheet(false)
   }
 
   function removeVariable(name: string) {
     setVariables((vs) => vs.filter((v) => v.name !== name))
+  }
+
+  function handleScan() {
+    const used = findUsedVariableNames(content)
+    const declaredNames = new Set(variables.map((v) => v.name))
+    const undeclared = used.filter((n) => !declaredNames.has(n))
+    setScanResults(undeclared)
+    if (undeclared.length === 0) {
+      toast.success("No undeclared variables found")
+    }
+  }
+
+  function addAllUndeclared() {
+    if (!scanResults || scanResults.length === 0) return
+    const toAdd: Variable[] = []
+    for (const vname of scanResults) {
+      if (!variables.some((v) => v.name === vname) && variables.length + toAdd.length < 50) {
+        toAdd.push({
+          name: vname,
+          label: prettifySnakeCase(vname),
+          type: "text",
+          required: true,
+          defaultValue: undefined,
+        })
+      }
+    }
+    if (toAdd.length > 0) {
+      setVariables((prev) => [...prev, ...toAdd])
+      toast.success(`Added ${toAdd.length} variable${toAdd.length > 1 ? "s" : ""}`)
+    }
+    setScanResults(null)
   }
 
   async function save() {
@@ -156,19 +204,20 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-zinc-500">Loading template…</div>
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading template…</div>
 
   return (
     <div className="p-6 space-y-4">
-      <nav className="flex items-center gap-1 text-sm text-zinc-500">
-        <Link href="/templates" className="hover:text-zinc-900">Templates</Link>
+      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+        <Link href="/templates" className="hover:text-foreground transition-colors">Templates</Link>
         <ChevronRight className="size-3.5" />
-        <span className="text-zinc-900">{isEdit ? name || "Edit Template" : "New Template"}</span>
+        <span className="text-foreground">{isEdit ? name || "Edit Template" : "New Template"}</span>
       </nav>
 
       <div className="grid grid-cols-12 gap-4">
+        {/* Sidebar */}
         <div className="col-span-12 md:col-span-3 space-y-4">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="tpl-name">Name <span className="text-red-500">*</span></Label>
               <Input
@@ -204,86 +253,75 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+          {/* Variables panel */}
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Variables</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7"
-                onClick={() => setShowAddVariable((v) => !v)}
-                disabled={variables.length >= 50}
-              >
-                <Plus className="size-3.5" /> Add
-              </Button>
-            </div>
-            {showAddVariable && (
-              <div className="space-y-2 rounded border border-zinc-200 p-2 bg-zinc-50">
-                <Input
-                  placeholder="Name (e.g. party_name)"
-                  value={newVar.name}
-                  onChange={(e) => setNewVar({ ...newVar, name: e.target.value })}
-                  className="h-8 text-sm"
-                />
-                <Input
-                  placeholder="Label (e.g. Party Name)"
-                  value={newVar.label}
-                  onChange={(e) => setNewVar({ ...newVar, label: e.target.value })}
-                  className="h-8 text-sm"
-                />
-                <Select
-                  value={newVar.type}
-                  onValueChange={(v) => v && setNewVar({ ...newVar, type: v as "text" | "date" | "number" })}
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variables</p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 text-muted-foreground"
+                  onClick={handleScan}
+                  title="Scan document for undeclared variable placeholders"
                 >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="text">Text</SelectItem>
-                    <SelectItem value="date">Date</SelectItem>
-                    <SelectItem value="number">Number</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  placeholder="Default value (optional)"
-                  value={newVar.defaultValue ?? ""}
-                  onChange={(e) => setNewVar({ ...newVar, defaultValue: e.target.value })}
-                  className="h-8 text-sm"
-                />
-                <label className="inline-flex items-center gap-2 text-xs text-zinc-700">
-                  <Switch
-                    checked={newVar.required}
-                    onCheckedChange={(c) => setNewVar({ ...newVar, required: c })}
-                  />
-                  Required
-                </label>
+                  <ScanText className="size-3.5" />
+                  Scan
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => {
+                    setNewVar({ name: "", label: "", type: "text", required: true, defaultValue: "" })
+                    setShowAddSheet(true)
+                  }}
+                  disabled={variables.length >= 50}
+                >
+                  <Plus className="size-3.5" /> Add
+                </Button>
+              </div>
+            </div>
+
+            {/* Scan results banner */}
+            {scanResults !== null && scanResults.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 space-y-2">
+                <p className="font-medium">Found undeclared:</p>
+                <p className="font-mono">{scanResults.map((n) => `{{${n}}}`).join(", ")}</p>
                 <div className="flex gap-2">
-                  <Button size="sm" className="h-7" onClick={addVariable}>Add</Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={addAllUndeclared}
+                  >
+                    Add all
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7"
-                    onClick={() => setShowAddVariable(false)}
+                    className="h-7 text-xs border-amber-300"
+                    onClick={() => setScanResults(null)}
                   >
-                    Cancel
+                    Dismiss
                   </Button>
                 </div>
               </div>
             )}
+
             <div className="space-y-1.5">
-              {variables.length === 0 && !showAddVariable && (
-                <p className="text-xs text-zinc-500">No variables declared yet.</p>
+              {variables.length === 0 && (
+                <p className="text-xs text-muted-foreground">No variables declared yet.</p>
               )}
               {variables.map((v) => (
-                <div key={v.name} className="rounded border border-zinc-200 px-2 py-1.5 text-xs flex items-center justify-between gap-2">
+                <div key={v.name} className="rounded border border-border px-2 py-1.5 text-xs flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium text-zinc-900 truncate">{v.label}</p>
-                    <p className="text-zinc-500 truncate">{v.name} · {v.type}{v.required ? " · req" : ""}</p>
+                    <p className="font-medium text-foreground truncate">{v.label}</p>
+                    <p className="text-muted-foreground truncate">{v.name} · {v.type}{v.required ? " · req" : ""}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeVariable(v.name)}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-destructive hover:text-destructive/80 transition-colors"
                     title="Remove variable"
                   >
                     <Trash2 className="size-3.5" />
@@ -294,6 +332,7 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
           </div>
         </div>
 
+        {/* Editor area */}
         <div className="col-span-12 md:col-span-9 space-y-3">
           <div className="flex items-center justify-end gap-2">
             <Link href="/templates">
@@ -313,10 +352,85 @@ export function TemplateEditorPage({ templateId }: { templateId?: string }) {
           />
         </div>
       </div>
+
+      {/* Add Variable Sheet */}
+      <Sheet open={showAddSheet} onOpenChange={(open) => !open && setShowAddSheet(false)}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add Variable</SheetTitle>
+          </SheetHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label>Name <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g. party_name"
+                value={newVar.name}
+                onChange={(e) => setNewVar({ ...newVar, name: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Lowercase letters, numbers, underscores only. Must start with a letter.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Label <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g. Party Name"
+                value={newVar.label}
+                onChange={(e) => setNewVar({ ...newVar, label: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Shown to users when they fill in this variable.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select
+                value={newVar.type}
+                onValueChange={(v) => v && setNewVar({ ...newVar, type: v as "text" | "date" | "number" })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Default value</Label>
+              <Input
+                placeholder="Optional — pre-fills the field"
+                value={newVar.defaultValue ?? ""}
+                onChange={(e) => setNewVar({ ...newVar, defaultValue: e.target.value })}
+              />
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer">
+              <Switch
+                checked={newVar.required}
+                onCheckedChange={(c) => setNewVar({ ...newVar, required: c })}
+              />
+              Required field
+            </label>
+            <div className="flex gap-2 pt-2">
+              <Button className="flex-1" onClick={addVariable}>
+                Add Variable
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowAddSheet(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Utility — extract all templateVariable names from a TipTap/Slate doc
+// ---------------------------------------------------------------------------
 function findUsedVariableNames(doc: unknown): string[] {
   const out = new Set<string>()
   function visit(n: unknown): void {

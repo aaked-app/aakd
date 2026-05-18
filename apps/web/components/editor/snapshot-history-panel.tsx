@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { Camera, Trash2, GitCompare } from "lucide-react"
+import { Camera, Trash2, GitCompare, RotateCcw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ export function SnapshotHistoryPanel({
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,6 +46,69 @@ export function SnapshotHistoryPanel({
   }, [contractId])
 
   useEffect(() => { load() }, [load, refreshTrigger])
+
+  async function restoreSnapshot(id: string, label: string) {
+    const confirmed = window.confirm(
+      `This will replace the current document with snapshot "${label}". This action cannot be undone. Continue?`,
+    )
+    if (!confirmed) return
+
+    setRestoring(id)
+    try {
+      // Fetch the snapshot content
+      const snapRes = await fetch(`/api/contracts/${contractId}/snapshots/${id}`)
+      if (!snapRes.ok) {
+        toast.error("Failed to fetch snapshot content")
+        return
+      }
+      const { snapshot } = await snapRes.json() as {
+        snapshot: { content: unknown; wordCount: number }
+      }
+
+      // Fetch current document version for the PUT conflict check
+      const docRes = await fetch(`/api/contracts/${contractId}/document`)
+      if (!docRes.ok) {
+        toast.error("Failed to fetch current document version")
+        return
+      }
+      const { document } = await docRes.json() as {
+        document: { version: number } | null
+      }
+      const clientVersion = document?.version ?? 0
+
+      // Write snapshot content back as the current document
+      const putRes = await fetch(`/api/contracts/${contractId}/document`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: snapshot.content,
+          wordCount: snapshot.wordCount,
+          clientVersion,
+        }),
+      })
+
+      if (!putRes.ok) {
+        const body = await putRes.json().catch(() => ({})) as { error?: string }
+        if (body.error === "conflict") {
+          toast.error("Document was edited while restoring. Please try again.")
+        } else if (body.error === "read_only_status") {
+          toast.error("This contract is read-only and cannot be restored.")
+        } else {
+          toast.error("Restore failed. Please try again.")
+        }
+        return
+      }
+
+      toast.success(`Restored to "${label}"`)
+      // Reload the page so the editor picks up the restored content
+      router.refresh()
+      window.location.reload()
+    } catch {
+      toast.error("Restore failed. Please try again.")
+    } finally {
+      setRestoring(null)
+    }
+  }
 
   async function deleteSnapshot(id: string) {
     setDeleting(id)
@@ -111,9 +175,19 @@ export function SnapshotHistoryPanel({
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-6 w-6 text-amber-500 hover:bg-amber-50"
+                  title="Restore to this version"
+                  disabled={restoring === snap.id || deleting === snap.id}
+                  onClick={() => restoreSnapshot(snap.id, snap.label)}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   className="h-6 w-6 text-red-400 hover:bg-red-50"
                   title="Delete snapshot"
-                  disabled={deleting === snap.id}
+                  disabled={deleting === snap.id || restoring === snap.id}
                   onClick={() => deleteSnapshot(snap.id)}
                 >
                   <Trash2 className="h-3 w-3" />

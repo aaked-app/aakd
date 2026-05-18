@@ -26,6 +26,325 @@ const READ_ONLY_STATUSES = new Set<ContractStatus>([
   "ARCHIVED",
 ])
 
+// ─── Coverage checklists by contract type ─────────────────────────────────────
+
+const COVERAGE_CHECKLISTS: Record<string, string[]> = {
+  NDA: ["Confidentiality", "Permitted Disclosure", "Return of Materials", "Term", "Governing Law"],
+  MSA: ["Services", "Payment", "Intellectual Property", "Limitation of Liability", "Termination", "Governing Law"],
+  SOW: ["Scope of Work", "Deliverables", "Timeline", "Payment", "Acceptance Criteria"],
+  EMPLOYMENT: ["Position", "Compensation", "Benefits", "Termination", "Non-Compete", "Confidentiality"],
+  VENDOR: ["Services", "Payment Terms", "Liability", "Termination", "Governing Law"],
+  CUSTOMER: ["Services", "Fees", "Liability", "Termination", "Governing Law"],
+  OTHER: ["Term", "Payment", "Termination", "Governing Law"],
+}
+
+// ─── Coverage helper (pure — no closure deps) ────────────────────────────────
+
+function tocMatchesChecklist(title: string, items: string[]): boolean {
+  const t = title.toLowerCase()
+  return items.some(
+    (ci) =>
+      t.includes(ci.toLowerCase()) ||
+      ci.toLowerCase().includes(t.slice(0, Math.min(t.length, 8))),
+  )
+}
+
+// ─── AI Assist panel ─────────────────────────────────────────────────────────
+
+interface AiAssistPanelProps {
+  contractOverview: Record<string, unknown> | null
+  overviewLoading: boolean
+  tocItems: { num: string; title: string; level: number }[]
+  selectedText: string | null
+  explainResult: {
+    explanation: string
+    risk: "low" | "medium" | "high" | "unknown"
+    riskReason?: string
+    suggestion?: string
+  } | null
+  explaining: boolean
+  onExplain: () => void
+  onClearExplain: () => void
+  canEdit: boolean
+  documentExists: boolean
+  showSendForExtraction: boolean
+  exportBusy: boolean
+  exportFormat: "docx" | "pdf" | null
+  extracting: boolean
+  onImport: () => void
+  onExportDocx: () => void
+  onExportPdf: () => void
+  onExtract: () => void
+  onSnapshot: () => void
+}
+
+function OverviewRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="flex items-start gap-2 text-[12px] py-0.5">
+      <span className="text-muted-foreground shrink-0 w-[90px]">{label}</span>
+      <span className={cn("text-foreground flex-1", !value && "text-muted-foreground/50 italic")}>
+        {value ?? "Not extracted"}
+      </span>
+    </div>
+  )
+}
+
+function formatDate(val: unknown): string | null {
+  if (!val || typeof val !== "string") return null
+  try {
+    return new Date(val).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  } catch {
+    return String(val)
+  }
+}
+
+function formatValue(val: unknown, currency: unknown): string | null {
+  if (val === null || val === undefined) return null
+  const num = typeof val === "number" ? val : Number(val)
+  if (isNaN(num)) return null
+  const cur = typeof currency === "string" ? currency : "USD"
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(num)
+  } catch {
+    return `${cur} ${num.toLocaleString()}`
+  }
+}
+
+const RISK_COLORS: Record<string, string> = {
+  low: "text-emerald-600",
+  medium: "text-amber-600",
+  high: "text-red-600",
+  unknown: "text-muted-foreground",
+}
+
+const RISK_DOTS: Record<string, string> = {
+  low: "bg-emerald-500",
+  medium: "bg-amber-500",
+  high: "bg-red-500",
+  unknown: "bg-muted-foreground",
+}
+
+function AiAssistPanel({
+  contractOverview,
+  overviewLoading,
+  tocItems,
+  selectedText,
+  explainResult,
+  explaining,
+  onExplain,
+  onClearExplain,
+  canEdit,
+  documentExists,
+  showSendForExtraction,
+  exportBusy,
+  exportFormat,
+  extracting,
+  onImport,
+  onExportDocx,
+  onExportPdf,
+  onExtract,
+  onSnapshot,
+}: AiAssistPanelProps) {
+  const contractType = (contractOverview?.contractType as string | null) ?? "OTHER"
+  const checklist = COVERAGE_CHECKLISTS[contractType] ?? COVERAGE_CHECKLISTS.OTHER
+
+  const parties =
+    contractOverview?.counterpartyName
+      ? `${String(contractOverview.counterpartyName)}`
+      : null
+
+  return (
+    <div className="space-y-4">
+      {/* Section A — Contract Overview */}
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2">
+          Contract Overview
+        </p>
+        <div className="border border-border rounded-md px-3 py-2 space-y-0.5 bg-muted/10">
+          {overviewLoading ? (
+            <div className="space-y-2 py-1">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex gap-2">
+                  <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-muted/60 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <OverviewRow label="Type" value={contractOverview?.contractType as string | null} />
+              <OverviewRow label="Counterparty" value={parties} />
+              <OverviewRow label="Effective" value={formatDate(contractOverview?.startDate)} />
+              <OverviewRow label="Expires" value={formatDate(contractOverview?.endDate)} />
+              <OverviewRow
+                label="Value"
+                value={formatValue(contractOverview?.value, contractOverview?.currency)}
+              />
+              <OverviewRow label="Gov. Law" value={contractOverview?.governingLaw as string | null} />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Section B — Coverage Check */}
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2">
+          Coverage Check
+          <span className="ml-1 font-normal normal-case text-muted-foreground/60">({contractType})</span>
+        </p>
+        <div className="border border-border rounded-md px-3 py-2 space-y-1 bg-muted/10">
+          {checklist.map((clause) => {
+            const present = tocItems.some((t) => t.title.toLowerCase().includes(clause.toLowerCase()))
+            return (
+              <div key={clause} className="flex items-center gap-2 text-[12px]">
+                <span className={cn("text-[13px] leading-none shrink-0", present ? "text-emerald-600" : "text-amber-600")}>
+                  {present ? "✓" : "○"}
+                </span>
+                <span className={cn("flex-1", present ? "text-foreground" : "text-muted-foreground")}>
+                  {clause}
+                </span>
+                {!present && (
+                  <span className="text-[10px] text-amber-600 shrink-0">missing</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Section C — Clause Explain (appears when text is selected) */}
+      {selectedText && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2">
+            Selected Text
+          </p>
+          <div className="border border-border rounded-md px-3 py-2 bg-muted/10 space-y-2">
+            <p className="text-[11px] text-muted-foreground italic line-clamp-3">
+              &ldquo;{selectedText}&rdquo;
+            </p>
+            {!explainResult ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-[11px]"
+                disabled={explaining}
+                onClick={onExplain}
+              >
+                {explaining ? "Explaining…" : "Explain this clause →"}
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-1">
+                    Explanation
+                  </p>
+                  <p className="text-[12px] text-foreground leading-relaxed">
+                    {explainResult.explanation}
+                  </p>
+                </div>
+                {explainResult.risk !== "unknown" && (
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+                      Risk
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", RISK_DOTS[explainResult.risk] ?? "bg-muted")} />
+                      <span className={cn("text-[12px] font-medium capitalize", RISK_COLORS[explainResult.risk] ?? "text-foreground")}>
+                        {explainResult.risk}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {explainResult.riskReason && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {explainResult.riskReason}
+                  </p>
+                )}
+                {explainResult.suggestion && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-1">
+                      Suggestion
+                    </p>
+                    <p className="text-[11px] text-muted-foreground italic leading-relaxed">
+                      &ldquo;{explainResult.suggestion}&rdquo;
+                    </p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="text-[11px]" onClick={onClearExplain}>
+                    Clear
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-[11px] flex-1" disabled={explaining} onClick={onExplain}>
+                    {explaining ? "Explaining…" : "Re-explain"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Document actions — collapsible */}
+      <details className="border-t border-border pt-2 mt-2 group">
+        <summary className="text-[11px] text-muted-foreground cursor-pointer select-none list-none flex items-center gap-1 hover:text-foreground transition-colors">
+          <span className="group-open:rotate-90 transition-transform inline-block text-[10px]">›</span>
+          Document actions
+        </summary>
+        <div className="pt-2 space-y-1.5">
+          {canEdit && (
+            <Button variant="outline" size="sm" className="w-full justify-start" onClick={onImport}>
+              Import from Word or PDF
+            </Button>
+          )}
+          {documentExists && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                disabled={exportBusy}
+                onClick={onExportDocx}
+              >
+                {exportBusy && exportFormat === "docx" ? "Exporting…" : "Export to Word"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                disabled={exportBusy}
+                onClick={onExportPdf}
+              >
+                {exportBusy && exportFormat === "pdf" ? "Exporting…" : "Export to PDF"}
+              </Button>
+            </>
+          )}
+          {showSendForExtraction && (
+            <Button
+              size="sm"
+              className="w-full justify-start"
+              onClick={onExtract}
+              disabled={extracting}
+            >
+              Re-run AI Extraction
+            </Button>
+          )}
+          {documentExists && canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-1.5"
+              onClick={onSnapshot}
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Save snapshot
+            </Button>
+          )}
+        </div>
+      </details>
+    </div>
+  )
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CommentAuthor {
@@ -116,7 +435,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
   const [exportBusy, setExportBusy] = useState(false)
   const [extractOpen, setExtractOpen] = useState(false)
   const [extracting, setExtracting] = useState(false)
-  const [rightTab, setRightTab] = useState<"details" | "comments" | "changes" | "snapshots">("details")
+  const [rightTab, setRightTab] = useState<"assist" | "comments" | "changes" | "snapshots">("assist")
 
   // Snapshot state
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false)
@@ -138,6 +457,18 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
 
   // Track changes state — derive from editor content
   const [editorJson, setEditorJson] = useState<unknown>(null)
+
+  // AI Assist tab state
+  const [contractOverview, setContractOverview] = useState<Record<string, unknown> | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(false)
+  const [selectedText, setSelectedText] = useState<string | null>(null)
+  const [explainResult, setExplainResult] = useState<{
+    explanation: string
+    risk: "low" | "medium" | "high" | "unknown"
+    riskReason?: string
+    suggestion?: string
+  } | null>(null)
+  const [explaining, setExplaining] = useState(false)
 
   const canEdit = role !== "viewer" && !READ_ONLY_STATUSES.has(contractStatus)
   const canExtract = role === "admin" || role === "legal"
@@ -217,6 +548,27 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
   useEffect(() => {
     loadComments()
   }, [loadComments])
+
+  // ─── Fetch contract overview for AI Assist tab ─────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadOverview() {
+      setOverviewLoading(true)
+      try {
+        const res = await fetch(`/api/contracts/${contractId}`)
+        if (!res.ok || cancelled) return
+        const data = await res.json() as Record<string, unknown>
+        if (!cancelled) setContractOverview(data)
+      } catch {
+        // silently ignore — overview is supplemental
+      } finally {
+        if (!cancelled) setOverviewLoading(false)
+      }
+    }
+    loadOverview()
+    return () => { cancelled = true }
+  }, [contractId])
 
   // ─── Poll timers ───────────────────────────────────────────────────────────
 
@@ -527,6 +879,33 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     setEditorJson(editorRef.current.getJSON())
   }
 
+  // ─── Clause explain ────────────────────────────────────────────────────────
+
+  async function handleExplain() {
+    if (!selectedText) return
+    setExplaining(true)
+    try {
+      const res = await fetch(`/api/contracts/${contractId}/clause-explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: selectedText }),
+      })
+      if (!res.ok) {
+        toast.error("Explain failed")
+        return
+      }
+      const data = await res.json() as {
+        explanation: string
+        risk: "low" | "medium" | "high" | "unknown"
+        riskReason?: string
+        suggestion?: string
+      }
+      setExplainResult(data)
+    } finally {
+      setExplaining(false)
+    }
+  }
+
   // ─── TOC derivation ────────────────────────────────────────────────────────
 
   const tocItems = useMemo(() => {
@@ -549,6 +928,12 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     )
 
     return headings.map((n, i) => {
+      // Detect heading level
+      let level = 1
+      if (n.type === "heading" && n.attrs?.level) level = n.attrs.level as number
+      if (n.type === "h2") level = 2
+      if (n.type === "h3") level = 3
+
       let title = ""
       if (n.type === "heading" && Array.isArray(n.content)) {
         title = n.content
@@ -561,9 +946,27 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
       return {
         num: String(i + 1),
         title: title || `Section ${i + 1}`,
+        level,
       }
     })
   }, [content])
+
+  // ─── Coverage derivation ───────────────────────────────────────────────────
+
+  const contractType = (contractOverview?.contractType as string | null) ?? "OTHER"
+  const checklist = COVERAGE_CHECKLISTS[contractType] ?? COVERAGE_CHECKLISTS.OTHER
+
+  const missingSections = useMemo(() => {
+    const titles = tocItems.map((i) => i.title.toLowerCase())
+    return checklist.filter(
+      (ci) =>
+        !titles.some(
+          (t) =>
+            t.includes(ci.toLowerCase()) ||
+            ci.toLowerCase().includes(t.slice(0, Math.min(t.length, 8))),
+        ),
+    )
+  }, [checklist, tocItems])
 
   // ─── Derived counts ────────────────────────────────────────────────────────
 
@@ -629,6 +1032,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
         <aside className="w-[200px] shrink-0 border-r border-border bg-muted/30 overflow-y-auto flex flex-col">
           <div className="px-3.5 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground flex items-center">
             <span>Clauses</span>
+            <span className="ml-1 text-[9px] text-muted-foreground/50" title="Green = required for this contract type">●</span>
             {unresolvedComments > 0 && (
               <span className="ml-auto text-[10px] text-amber-600 font-semibold">{unresolvedComments}</span>
             )}
@@ -636,28 +1040,81 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           {tocItems.length === 0 ? (
             <div className="px-3.5 text-[11px] text-muted-foreground/60 italic">No headings yet</div>
           ) : (
-            tocItems.map((item, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => scrollToHeading(item.title)}
-                className={cn(
-                  "flex items-center gap-2 w-full px-3.5 py-1.5 text-left text-[12px] hover:bg-muted/50 transition-colors cursor-pointer",
-                  activeHeading === item.title
-                    ? "text-primary font-medium bg-primary/5"
-                    : "text-foreground/80"
-                )}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
-                <span className="text-[10.5px] text-muted-foreground min-w-[18px]">{item.num}</span>
-                <span className="truncate">{item.title}</span>
-              </button>
-            ))
+            tocItems.map((item, i) => {
+              const indent = (item.level - 1) * 12
+              const dotSize = item.level === 1 ? "w-1.5 h-1.5" : "w-1 h-1"
+              const dotOpacity = item.level === 3 ? "opacity-50" : ""
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => scrollToHeading(item.title)}
+                  style={{ paddingLeft: `${14 + indent}px` }}
+                  className={cn(
+                    "flex items-center gap-2 w-full pr-3.5 py-1.5 text-left text-[12px] hover:bg-muted/50 transition-colors cursor-pointer",
+                    activeHeading === item.title
+                      ? "text-primary font-medium bg-primary/5"
+                      : "text-foreground/80"
+                  )}
+                >
+                  <span className={cn(
+                    "rounded-full shrink-0",
+                    dotSize,
+                    dotOpacity,
+                    tocMatchesChecklist(item.title, checklist) ? "bg-emerald-400" : "bg-muted-foreground/25",
+                  )} />
+                  <span className="text-[10.5px] text-muted-foreground min-w-[18px]">{item.num}</span>
+                  <span className="truncate">{item.title}</span>
+                </button>
+              )
+            })
+          )}
+          {missingSections.length > 0 && (
+            <div className="mt-2 px-3 pb-3 border-t border-border/50 pt-2">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-red-500 mb-1.5">Missing</p>
+              {missingSections.map((item) => (
+                <div key={item} className="flex items-center gap-2 py-0.5 text-[11px] text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-300 shrink-0" />
+                  <span className="truncate">{item}</span>
+                </div>
+              ))}
+            </div>
           )}
         </aside>
 
         {/* CENTER: Editor (flex-1) */}
-        <div className="flex-1 overflow-auto bg-muted/10">
+        <div className="flex-1 overflow-hidden bg-muted/10 flex flex-col">
+          {/* Redline review banner — shown when Changes tab is active and there are tracked changes */}
+          {rightTab === "changes" && changeCount > 0 && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-3">
+              <GitBranch className="size-4 text-amber-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-amber-800">
+                  Reviewing {changeCount} tracked change{changeCount !== 1 ? "s" : ""}
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  Use the Changes panel to accept or reject each edit before finalizing.
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleAcceptAllChanges}
+                  className="text-[11px] bg-emerald-600 text-white px-2.5 py-1 rounded hover:bg-emerald-700 transition-colors"
+                >
+                  Accept all
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRejectAllChanges}
+                  className="text-[11px] bg-red-600 text-white px-2.5 py-1 rounded hover:bg-red-700 transition-colors"
+                >
+                  Reject all
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="flex-1 overflow-auto">
           <div className="max-w-[720px] mx-auto px-8 py-6">
             {/* Change/comment info bar */}
             {(changeCount > 0 || unresolvedComments > 0) && (
@@ -691,11 +1148,24 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
               onAcceptAllChanges={handleAcceptAllChanges}
               onRejectAllChanges={handleRejectAllChanges}
               onSelectionChange={setActiveHeading}
-              onEditorReady={(ed) => { editorRef.current = ed }}
+              onEditorReady={(ed) => {
+                editorRef.current = ed
+                // Listen for selection changes to power the AI Assist clause explain
+                ed.on("selectionUpdate", ({ editor: e }) => {
+                  const { from, to } = e.state.selection
+                  if (from !== to) {
+                    const text = e.state.doc.textBetween(from, to, " ")
+                    setSelectedText(text.slice(0, 2000))
+                  } else {
+                    setSelectedText(null)
+                  }
+                })
+              }}
               onChange={(json) => {
                 setEditorJson(json)
               }}
             />
+          </div>
           </div>
         </div>
 
@@ -705,15 +1175,15 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           <div className="flex border-b border-border shrink-0">
             <button
               type="button"
-              onClick={() => setRightTab("details")}
+              onClick={() => setRightTab("assist")}
               className={cn(
                 "flex-1 py-2.5 text-[11px] font-medium capitalize transition-colors",
-                rightTab === "details"
+                rightTab === "assist"
                   ? "border-b-2 border-primary text-primary"
                   : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Details
+              AI Assist
             </button>
             <button
               type="button"
@@ -756,65 +1226,29 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-3">
 
-            {/* ── Details tab ───────────────────────────────── */}
-            {rightTab === "details" && (
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold pt-1">Document</p>
-                {canEdit && (
-                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setImportOpen(true)}>
-                    Import from Word or PDF
-                  </Button>
-                )}
-                {documentExists && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                      disabled={exportBusy}
-                      onClick={() => handleExport("docx")}
-                    >
-                      {exportBusy && exportFormat === "docx" ? "Exporting…" : "Export to Word"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                      disabled={exportBusy}
-                      onClick={() => handleExport("pdf")}
-                    >
-                      {exportBusy && exportFormat === "pdf" ? "Exporting…" : "Export to PDF"}
-                    </Button>
-                  </>
-                )}
-                {showSendForExtraction && (
-                  <>
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold pt-3">AI</p>
-                    <Button
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={() => setExtractOpen(true)}
-                      disabled={extracting}
-                    >
-                      Re-run AI Extraction
-                    </Button>
-                  </>
-                )}
-                {documentExists && canEdit && (
-                  <>
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold pt-3">Snapshots</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setSnapshotDialogOpen(true)}
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      Save snapshot
-                    </Button>
-                  </>
-                )}
-              </div>
+            {/* ── AI Assist tab ──────────────────────────────── */}
+            {rightTab === "assist" && (
+              <AiAssistPanel
+                contractOverview={contractOverview}
+                overviewLoading={overviewLoading}
+                tocItems={tocItems}
+                selectedText={selectedText}
+                explainResult={explainResult}
+                explaining={explaining}
+                onExplain={() => void handleExplain()}
+                onClearExplain={() => setExplainResult(null)}
+                canEdit={canEdit}
+                documentExists={documentExists}
+                showSendForExtraction={showSendForExtraction}
+                exportBusy={exportBusy}
+                exportFormat={exportFormat}
+                extracting={extracting}
+                onImport={() => setImportOpen(true)}
+                onExportDocx={() => handleExport("docx")}
+                onExportPdf={() => handleExport("pdf")}
+                onExtract={() => setExtractOpen(true)}
+                onSnapshot={() => setSnapshotDialogOpen(true)}
+              />
             )}
 
             {/* ── Comments tab ──────────────────────────────── */}

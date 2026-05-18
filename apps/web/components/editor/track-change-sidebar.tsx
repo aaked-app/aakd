@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Editor } from "@tiptap/react"
 import { formatDistanceToNow } from "date-fns"
-import { Check, X } from "lucide-react"
+import { ArrowRight, Check, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -14,6 +14,149 @@ import {
   rejectChange,
   scrollToChange,
 } from "./contract-editor"
+
+// ── Heading lookup ────────────────────────────────────────────────────────────
+
+function getNearestHeading(editor: Editor, pos: number): string {
+  let heading = "Preamble"
+  editor.state.doc.descendants((node, nodePos) => {
+    if (node.type.name === "heading" && nodePos < pos) {
+      heading = node.textContent || heading
+    }
+  })
+  return heading
+}
+
+// ── Context extraction ────────────────────────────────────────────────────────
+
+function getChangeContext(editor: Editor, change: ChangeItem): {
+  before: string
+  after: string
+} {
+  const docSize = editor.state.doc.content.size
+  const before = editor.state.doc
+    .textBetween(Math.max(0, change.from - 50), change.from, " ")
+    .slice(-20)
+  const after = editor.state.doc
+    .textBetween(change.to, Math.min(docSize, change.to + 50), " ")
+    .slice(0, 20)
+  return { before, after }
+}
+
+// ── ChangeCard sub-component ──────────────────────────────────────────────────
+
+interface ChangeCardProps {
+  change: ChangeItem
+  editor: Editor
+  isActive: boolean
+  onActivate: () => void
+  onAccept: () => void
+  onReject: () => void
+}
+
+function ChangeCard({
+  change,
+  editor,
+  isActive,
+  onActivate,
+  onAccept,
+  onReject,
+}: ChangeCardProps) {
+  const { before, after } = getChangeContext(editor, change)
+  const displayText = change.text || "(empty)"
+
+  const timeLabel = change.createdAt
+    ? formatDistanceToNow(new Date(change.createdAt), { addSuffix: true })
+    : null
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border p-2 cursor-pointer transition-colors",
+        isActive
+          ? "border-indigo-200 bg-indigo-50"
+          : "border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50",
+      )}
+      onClick={onActivate}
+    >
+      {/* Top row: badge + time + navigate + accept/reject */}
+      <div className="flex items-center gap-1 mb-1.5">
+        <Badge
+          variant="secondary"
+          className={cn(
+            "text-[10px] h-4 px-1 shrink-0",
+            change.type === "insertion"
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-red-50 text-red-700",
+          )}
+        >
+          {change.type === "insertion" ? "Added" : "Removed"}
+        </Badge>
+        {timeLabel && (
+          <span className="text-[10px] text-zinc-400 truncate flex-1">{timeLabel}</span>
+        )}
+        {!timeLabel && <span className="flex-1" />}
+
+        {/* Navigate button */}
+        <button
+          type="button"
+          title="Jump to change"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            scrollToChange(editor, change)
+          }}
+          className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/30 flex items-center justify-center shrink-0"
+        >
+          <ArrowRight className="size-3" />
+        </button>
+
+        {/* Accept */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-5 w-5 text-emerald-600 hover:bg-emerald-50 shrink-0"
+          title="Accept"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAccept()
+          }}
+        >
+          <Check className="h-3 w-3" />
+        </Button>
+
+        {/* Reject */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-5 w-5 text-red-500 hover:bg-red-50 shrink-0"
+          title="Reject"
+          onClick={(e) => {
+            e.stopPropagation()
+            onReject()
+          }}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {/* Context line */}
+      <p className="text-[11px] text-zinc-600 leading-snug break-words">
+        {before && <span className="text-zinc-400">…{before}</span>}
+        <span
+          className={cn(
+            "font-medium",
+            change.type === "insertion" ? "text-emerald-700" : "text-red-600 line-through",
+          )}
+        >
+          [{displayText.slice(0, 80)}{displayText.length > 80 ? "…" : ""}]
+        </span>
+        {after && <span className="text-zinc-400">{after}…</span>}
+      </p>
+    </div>
+  )
+}
+
+// ── TrackChangeSidebar ────────────────────────────────────────────────────────
 
 interface TrackChangeSidebarProps {
   editor: Editor
@@ -28,28 +171,52 @@ export function TrackChangeSidebar({
 }: TrackChangeSidebarProps) {
   const [changes, setChanges] = useState<ChangeItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   // Re-collect changes whenever the editor state updates
   useEffect(() => {
     const update = () => setChanges(collectChanges(editor))
     editor.on("update", update)
     update()
-    return () => { editor.off("update", update) }
+    return () => {
+      editor.off("update", update)
+    }
   }, [editor])
+
+  function toggleSection(section: string) {
+    setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
 
   if (changes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-sm text-zinc-400 gap-2">
-        <Check className="h-8 w-8 text-zinc-300" />
-        <p>No pending changes</p>
+      <div className="flex flex-col items-center gap-3 py-12 px-4 text-center">
+        <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+          <Check className="size-5 text-muted-foreground" />
+        </div>
+        <p className="text-sm font-medium text-foreground">All caught up</p>
+        <p className="text-[12px] text-muted-foreground">
+          Enable Track Changes in the toolbar to start recording edits, or import a redlined
+          document to review changes.
+        </p>
       </div>
     )
   }
 
+  // ── Group changes by nearest heading ────────────────────────────────────────
+
+  const grouped = changes.reduce<Record<string, ChangeItem[]>>((acc, change) => {
+    const section = getNearestHeading(editor, change.from)
+    if (!acc[section]) acc[section] = []
+    acc[section].push(change)
+    return acc
+  }, {})
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header with bulk actions */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100">
+      {/* Header with global bulk actions */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100 shrink-0">
         <span className="text-xs font-medium text-zinc-500">
           {changes.length} change{changes.length !== 1 ? "s" : ""}
         </span>
@@ -63,76 +230,74 @@ export function TrackChangeSidebar({
         </div>
       </div>
 
+      {/* Grouped sections */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-2 space-y-1">
-          {changes.map((change) => (
-            <div
-              key={change.id}
-              className={cn(
-                "rounded-md border p-2 cursor-pointer transition-colors",
-                activeId === change.id
-                  ? "border-indigo-200 bg-indigo-50"
-                  : "border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50",
-              )}
-              onClick={() => {
-                setActiveId(change.id)
-                scrollToChange(editor, change)
-              }}
+        {Object.entries(grouped).map(([section, sectionChanges]) => (
+          <div key={section}>
+            {/* Section header */}
+            <button
+              type="button"
+              onClick={() => toggleSection(section)}
+              className="flex items-center justify-between w-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/30 transition-colors"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-[10px] h-4 px-1",
-                        change.type === "insertion"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700",
-                      )}
-                    >
-                      {change.type === "insertion" ? "Added" : "Removed"}
-                    </Badge>
-                    {change.createdAt && (
-                      <span className="text-[10px] text-zinc-400">
-                        {formatDistanceToNow(new Date(change.createdAt), { addSuffix: true })}
-                      </span>
+              <span className="truncate mr-2">{section}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Section-level accept/reject all */}
+                <button
+                  type="button"
+                  title="Accept all in section"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    sectionChanges.forEach((c) => acceptChange(editor, c))
+                  }}
+                  className="text-[10px] text-emerald-600 hover:bg-emerald-50 px-1.5 py-0.5 rounded"
+                >
+                  ✓ All
+                </button>
+                <button
+                  type="button"
+                  title="Reject all in section"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    sectionChanges.forEach((c) => rejectChange(editor, c))
+                  }}
+                  className="text-[10px] text-red-500 hover:bg-red-50 px-1.5 py-0.5 rounded"
+                >
+                  ✗ All
+                </button>
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] font-normal">{sectionChanges.length}</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-3 transition-transform",
+                      collapsed[section] && "-rotate-90",
                     )}
-                  </div>
-                  <p className="text-xs text-zinc-700 truncate">
-                    {change.text || "(empty)"}
-                  </p>
-                </div>
-                <div className="flex gap-0.5 shrink-0">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 text-emerald-600 hover:bg-emerald-50"
-                    title="Accept"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      acceptChange(editor, change)
-                    }}
-                  >
-                    <Check className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 text-red-500 hover:bg-red-50"
-                    title="Reject"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      rejectChange(editor, change)
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
+                  />
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
+            </button>
+
+            {/* Section cards */}
+            {!collapsed[section] && (
+              <div className="space-y-1 px-2 pb-2">
+                {sectionChanges.map((change) => (
+                  <ChangeCard
+                    key={change.id}
+                    change={change}
+                    editor={editor}
+                    isActive={activeId === change.id}
+                    onActivate={() => {
+                      setActiveId(change.id)
+                      scrollToChange(editor, change)
+                    }}
+                    onAccept={() => acceptChange(editor, change)}
+                    onReject={() => rejectChange(editor, change)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

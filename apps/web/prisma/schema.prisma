@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ─── Better Auth tables ───────────────────────────────────────────────────────
@@ -48,6 +46,7 @@ model User {
   commentsAuthored            ContractComment[]        @relation("CommentAuthor")
   commentsResolved            ContractComment[]        @relation("CommentResolver")
   snapshotsCreated            DocumentSnapshot[]       @relation("SnapshotCreator")
+  createdSnippets             ClauseSnippet[]          @relation("SnippetCreatedBy")
 }
 
 model Session {
@@ -114,6 +113,7 @@ model Organization {
   googleDriveIntegration  GoogleDriveIntegration?
   notifications           Notification[]
   aiConfig                OrgAiConfig?
+  clauseSnippets          ClauseSnippet[]
 }
 
 model Member {
@@ -803,4 +803,23 @@ model OrgAiConfig {
   model          String?      // optional model override
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+// ─── Clause Snippet Library ───────────────────────────────────────────────────
+
+model ClauseSnippet {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation("SnippetCreatedBy", fields: [createdById], references: [id])
+  name           String       @db.VarChar(200)
+  category       String       @db.VarChar(100)
+  contentText    String       @db.Text
+  content        Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("clause_snippets")
 }
