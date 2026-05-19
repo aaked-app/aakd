@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
@@ -127,7 +127,7 @@ function countDiffWords(chunks: DiffChunk[], type: "added" | "removed"): number 
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function ComparisonPage() {
+function ComparisonPageBody() {
   const params = useParams<{ id: string }>()
   const searchParams = useSearchParams()
 
@@ -493,5 +493,13 @@ export default function ComparisonPage() {
 
       </div>
     </div>
+  )
+}
+
+export default function ComparisonPage() {
+  return (
+    <Suspense fallback={null}>
+      <ComparisonPageBody />
+    </Suspense>
   )
 }
