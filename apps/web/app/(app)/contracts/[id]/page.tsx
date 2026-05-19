@@ -54,6 +54,17 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -673,7 +684,6 @@ export default function ContractDetailPage() {
   }
 
   async function cancelApproval(approvalId: string) {
-    if (!window.confirm("Cancel this approval request?")) return
     try {
       const res = await fetch(`/api/contracts/${id}/approvals/${approvalId}`, {
         method: "DELETE",
@@ -1549,14 +1559,33 @@ export default function ContractDetailPage() {
                               )}
                               {(isPending || isWaiting) &&
                                 (approval.requestedBy.id === session?.user?.id || isAdminOrOwner) && (
-                                <button
-                                  type="button"
-                                  title="Cancel approval request"
-                                  onClick={() => cancelApproval(approval.id)}
-                                  className="text-muted-foreground hover:text-destructive transition-colors"
-                                >
-                                  <X className="size-3.5" />
-                                </button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger
+                                    render={
+                                      <button
+                                        type="button"
+                                        title="Cancel approval request"
+                                        className="text-muted-foreground hover:text-destructive transition-colors"
+                                      >
+                                        <X className="size-3.5" />
+                                      </button>
+                                    }
+                                  />
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Cancel approval request?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will withdraw the approval request. The approver will no longer be able to review it.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Keep it</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => cancelApproval(approval.id)}>
+                                        Cancel request
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                             </div>
                           </div>

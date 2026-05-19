@@ -7,6 +7,17 @@ import { Search, Trash2, ChevronDown, ChevronRight, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,7 +147,6 @@ export function ClauseSnippetsPanel({
   // ─── Delete user snippet ─────────────────────────────────────────────────
 
   async function deleteSnippet(id: string) {
-    if (!window.confirm("Delete this snippet? This cannot be undone.")) return
     try {
       const res = await fetch(`/api/snippets/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Delete failed")
@@ -401,14 +411,31 @@ function SnippetRow({
           Insert
         </Button>
         {onDelete && (
-          <button
-            type="button"
-            title="Delete snippet"
-            onClick={onDelete}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <button
+                  type="button"
+                  title="Delete snippet"
+                  className="h-6 w-6 inline-flex items-center justify-center rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              }
+            />
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this snippet?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This cannot be undone. The snippet will be permanently removed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
     </div>

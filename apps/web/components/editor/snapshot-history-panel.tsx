@@ -7,6 +7,17 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Snapshot {
   id: string
@@ -48,11 +59,6 @@ export function SnapshotHistoryPanel({
   useEffect(() => { load() }, [load, refreshTrigger])
 
   async function restoreSnapshot(id: string, label: string) {
-    const confirmed = window.confirm(
-      `This will replace the current document with snapshot "${label}". This action cannot be undone. Continue?`,
-    )
-    if (!confirmed) return
-
     setRestoring(id)
     try {
       // Fetch the snapshot content
@@ -172,16 +178,35 @@ export function SnapshotHistoryPanel({
                 >
                   <GitCompare className="h-3 w-3" />
                 </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-amber-500 hover:bg-amber-50"
-                  title="Restore to this version"
-                  disabled={restoring === snap.id || deleting === snap.id}
-                  onClick={() => restoreSnapshot(snap.id, snap.label)}
-                >
-                  <RotateCcw className="h-3 w-3" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-amber-500 hover:bg-amber-50"
+                        title="Restore to this version"
+                        disabled={restoring === snap.id || deleting === snap.id}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    }
+                  />
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Restore snapshot?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will replace the current document with snapshot &ldquo;{snap.label}&rdquo;. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => restoreSnapshot(snap.id, snap.label)}>
+                        Restore
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
                 <Button
                   size="icon"
                   variant="ghost"

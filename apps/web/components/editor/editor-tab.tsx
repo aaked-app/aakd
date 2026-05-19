@@ -12,7 +12,7 @@ import { ContractEditor, EMPTY_DOC, acceptAllChanges, rejectAllChanges } from "@
 import { cn } from "@/lib/utils"
 import type { ContractStatus } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
-import { Trash2, MessageSquare, GitBranch, CheckCircle2, Loader2, Camera } from "lucide-react"
+import { Trash2, MessageSquare, GitBranch, CheckCircle2, Loader2, Camera, PenLine } from "lucide-react"
 import type { Editor } from "@tiptap/react"
 import { TrackChangeSidebar } from "@/components/editor/track-change-sidebar"
 import { SnapshotSaveDialog } from "@/components/editor/snapshot-save-dialog"
@@ -1084,19 +1084,20 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
 
         {/* CENTER: Editor (flex-1) */}
         <div className="flex-1 overflow-hidden bg-muted/10 flex flex-col">
-          {/* Redline review banner — shown when Changes tab is active and there are tracked changes */}
+          {/* Redline review mode banner — shown when Changes tab is active and there are tracked changes */}
           {rightTab === "changes" && changeCount > 0 && (
-            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-3">
-              <GitBranch className="size-4 text-amber-600 shrink-0" />
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-2">
+              <PenLine className="size-4 text-amber-600 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium text-amber-800">
-                  Reviewing {changeCount} tracked change{changeCount !== 1 ? "s" : ""}
-                </p>
-                <p className="text-[11px] text-amber-700">
-                  Use the Changes panel to accept or reject each edit before finalizing.
+                  Redline review mode
+                  <span className="font-normal text-amber-700">
+                    {" "}— {changeCount} tracked change{changeCount !== 1 ? "s" : ""}.
+                    Accept or reject each edit before finalizing.
+                  </span>
                 </p>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={handleAcceptAllChanges}
@@ -1110,6 +1111,13 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
                   className="text-[11px] bg-red-600 text-white px-2.5 py-1 rounded hover:bg-red-700 transition-colors"
                 >
                   Reject all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab("assist")}
+                  className="text-[11px] text-amber-700 hover:text-amber-900 underline ml-1"
+                >
+                  Exit review mode
                 </button>
               </div>
             </div>
