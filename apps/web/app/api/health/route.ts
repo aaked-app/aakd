@@ -32,6 +32,7 @@ async function probeRedis(): Promise<"ok" | "error"> {
       enableOfflineQueue: false,
       lazyConnect: true,
       connectTimeout: PROBE_TIMEOUT_MS,
+      ...(url.startsWith("rediss://") ? { tls: {} } : {}),
     })
     await withTimeout(client.ping(), PROBE_TIMEOUT_MS)
     return "ok"
