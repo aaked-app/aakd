@@ -1,4 +1,4 @@
-# ClauseFlow
+# Aakd
 
 Stop paying $1,500 to find out your MSA is fine.
 
@@ -26,8 +26,8 @@ Your data never leaves your server. Bring your own AI key (Anthropic or OpenAI).
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/wassimbensalem/clauseflow.git
-cd clauseflow
+git clone https://github.com/aaked-app/aakd.git
+cd aakd
 cp .env.example .env.local   # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
 
 # 2. Start everything
@@ -38,6 +38,12 @@ open http://localhost:3000
 ```
 
 First signup creates your account and organization. Add your Anthropic or OpenAI API key in Settings → AI to enable extraction, Q&A, and risk scoring.
+
+---
+
+## Screenshots
+
+> Screenshots and demo GIF coming soon — star the repo to get notified.
 
 ---
 
@@ -67,7 +73,19 @@ First signup creates your account and organization. Add your Anthropic or OpenAI
 |---|---|
 | Approval workflows with role-based routing | ✅ |
 | E-signatures via DocuSeal (self-hostable) | ✅ |
-| Track changes / redlining | 🚧 v2 |
+| Track changes / redlining with version comparison | ✅ |
+| Snapshot comparison with word-level diff | ✅ |
+| Track changes sidebar with author context | ✅ |
+
+### Authoring
+| Feature | Status |
+|---|---|
+| Rich document editor (TipTap) with track changes | ✅ |
+| Template studio with variable fill wizard | ✅ |
+| Built-in clause snippet library (13 standard legal clauses) | ✅ |
+| Word import + DOCX/PDF export | ✅ |
+| Contract snapshots & version history | ✅ |
+| AI Companion tab — contract Q&A inline in editor | ✅ |
 
 ### Renewals & Obligations
 | Feature | Status |
@@ -92,9 +110,9 @@ English · Français · Deutsch · Español · العربية (RTL)
 
 ---
 
-## Why ClauseFlow?
+## Why Aakd?
 
-| | ClauseFlow | Ironclad | DocuSign CLM | Signit |
+| | Aakd | Ironclad | DocuSign CLM | Signit |
 |---|---|---|---|---|
 | Open source | ✅ | ❌ | ❌ | ❌ |
 | Self-hostable | ✅ | ❌ | ❌ | ❌ |
@@ -129,7 +147,7 @@ Minimum environment variables:
 DATABASE_URL=postgresql://...
 BETTER_AUTH_SECRET=<random 32+ char string>
 BETTER_AUTH_URL=http://localhost:3000
-STORAGE_BUCKET=clauseflow
+STORAGE_BUCKET=aakd
 STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
 STORAGE_ENDPOINT=http://minio:9000   # leave empty for AWS S3
