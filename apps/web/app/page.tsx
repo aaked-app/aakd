@@ -302,7 +302,7 @@ function LPNav() {
       {/* CTA buttons + locale switcher */}
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <LandingLocaleSwitcher />
-        <OutlineBtn href="https://github.com/aaked-app/aaked" small>
+        <OutlineBtn href="https://github.com/aaked-app/aakd" small>
           <GitHubIcon size={14} /> GitHub
         </OutlineBtn>
         <PrimaryBtn href="/register" small>
@@ -522,7 +522,7 @@ function HeroSection() {
           <PrimaryBtn href="/register" large>
             {t("nav.getEarlyAccess")} <ArrowRight size={15} />
           </PrimaryBtn>
-          <OutlineBtn href="https://github.com/aaked-app/aaked" large>
+          <OutlineBtn href="https://github.com/aaked-app/aakd" large>
             <GitHubIcon size={17} /> {t("nav.viewOnGitHub")}
           </OutlineBtn>
         </div>
@@ -1581,7 +1581,7 @@ function OpenSourceSection() {
         </div>
 
         <div style={{ textAlign: "center", marginTop: 48 }}>
-          <OutlineBtn href="https://github.com/aaked-app/aaked" large>
+          <OutlineBtn href="https://github.com/aaked-app/aakd" large>
             <GitHubIcon size={17} /> {t("nav.starOnGitHub")}
           </OutlineBtn>
         </div>
@@ -2069,7 +2069,7 @@ function FinalCTA() {
           <PrimaryBtn href="/register" large>
             {t("nav.getEarlyAccess")} <ArrowRight size={15} />
           </PrimaryBtn>
-          <OutlineBtn href="https://github.com/aaked-app/aaked" large>
+          <OutlineBtn href="https://github.com/aaked-app/aakd" large>
             <GitHubIcon size={17} /> {t("nav.viewOnGitHub")}
           </OutlineBtn>
         </div>
@@ -2195,7 +2195,7 @@ function LPFooter() {
           {t("footer.copyright")}
         </span>
         <Link
-          href="https://github.com/aaked-app/aaked"
+          href="https://github.com/aaked-app/aakd"
           style={{ color: DARK_MUTED, display: "flex" }}
         >
           <GitHubIcon size={16} />
