@@ -560,6 +560,11 @@
       "q5": "Welche Sprachen unterstützt Aaked?",
       "a5": "Die Oberfläche unterstützt Englisch, Arabisch (mit vollem RTL), Französisch, Deutsch und Spanisch. Sie können Verträge in jeder Sprache verfassen."
     },
+    "contact": {
+      "eyebrow": "Kontakt",
+      "heading": "Lass uns reden",
+      "sub": "Fragen, Partnerschaften oder einfach Hallo sagen — schreib uns direkt."
+    },
     "cta": {
       "heading": "Bereit, die Kontrolle über Ihre Verträge zu übernehmen?",
       "subtitle": "Erhalten Sie frühen Zugang zur gehosteten Version oder klonen Sie das Repository und stellen Sie es heute auf Ihrer eigenen Infrastruktur bereit."

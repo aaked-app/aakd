@@ -560,6 +560,11 @@
       "q5": "Quelles langues Aaked supporte-t-il ?",
       "a5": "L'interface supporte l'anglais, l'arabe (avec RTL complet), le français, l'allemand et l'espagnol. Vous pouvez rédiger des contrats dans n'importe quelle langue."
     },
+    "contact": {
+      "eyebrow": "Contact",
+      "heading": "Parlons-en",
+      "sub": "Questions, partenariats, ou juste pour dire bonjour — écrivez-nous directement."
+    },
     "cta": {
       "heading": "Prêt à prendre le contrôle de vos contrats ?",
       "subtitle": "Obtenez un accès anticipé à la version hébergée, ou clonez le dépôt et déployez sur votre propre infrastructure aujourd'hui."

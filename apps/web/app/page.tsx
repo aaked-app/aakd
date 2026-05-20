@@ -1919,6 +1919,92 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   )
 }
 
+/* ─── Contact ────────────────────────────────────────────────────── */
+function ContactSection() {
+  const t = useTranslations("landing")
+  return (
+    <section
+      style={{
+        background: DARK_BG,
+        padding: "80px 24px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <p
+          style={{
+            color: G2,
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            marginBottom: 16,
+          }}
+        >
+          {t("contact.eyebrow")}
+        </p>
+        <h2
+          style={{
+            color: "#fff",
+            fontSize: "clamp(28px, 4vw, 40px)",
+            fontWeight: 800,
+            lineHeight: 1.15,
+            marginBottom: 16,
+            fontFamily: "var(--font-sora)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {t("contact.heading")}
+        </h2>
+        <p
+          style={{
+            color: "#94a3b8",
+            fontSize: 17,
+            lineHeight: 1.7,
+            marginBottom: 36,
+          }}
+        >
+          {t("contact.sub")}
+        </p>
+        <a
+          href="mailto:bswassim@gmail.com"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            background: G,
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 16,
+            padding: "14px 32px",
+            borderRadius: 10,
+            textDecoration: "none",
+            letterSpacing: "-0.01em",
+            transition: "opacity 0.2s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+          bswassim@gmail.com
+        </a>
+      </div>
+    </section>
+  )
+}
+
 /* ─── Final CTA ──────────────────────────────────────────────────── */
 function FinalCTA() {
   const t = useTranslations("landing")
@@ -2158,6 +2244,7 @@ export default function LandingPage() {
       <SecuritySection />
       <IntegrationsSection />
       <FAQSection />
+      <ContactSection />
       <FinalCTA />
       <LPFooter />
     </div>

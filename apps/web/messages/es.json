@@ -560,6 +560,11 @@
       "q5": "¿Qué idiomas admite Aaked?",
       "a5": "La interfaz admite inglés, árabe (con RTL completo), francés, alemán y español. Puede redactar contratos en cualquier idioma."
     },
+    "contact": {
+      "eyebrow": "Contacto",
+      "heading": "Hablemos",
+      "sub": "Preguntas, colaboraciones o simplemente saludar — escríbenos directamente."
+    },
     "cta": {
       "heading": "¿Listo para tomar el control de sus contratos?",
       "subtitle": "Obtenga acceso anticipado a la versión alojada, o clone el repositorio y despliegue en su propia infraestructura hoy."

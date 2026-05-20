@@ -560,6 +560,11 @@
       "q5": "What languages does Aaked support?",
       "a5": "The interface supports English, Arabic (with full RTL), French, German, and Spanish. You can draft contracts in any language, and the AI features work across all supported languages."
     },
+    "contact": {
+      "eyebrow": "Contact",
+      "heading": "Let's talk",
+      "sub": "Questions, partnerships, or just want to say hi — reach out directly."
+    },
     "cta": {
       "heading": "Ready to take control of your contracts?",
       "subtitle": "Get early access to the hosted version, or clone the repo and deploy on your own infrastructure today."
