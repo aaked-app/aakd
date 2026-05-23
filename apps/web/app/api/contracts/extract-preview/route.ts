@@ -7,6 +7,10 @@ import Anthropic from "@anthropic-ai/sdk"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
 
+// Vercel: synchronous LLM extraction can take 30-90s on large PDFs.
+// Override default to ensure we run on Fluid Compute's 300s ceiling, not legacy 10/60s.
+export const maxDuration = 300
+
 const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
 const MAX_TEXT_CHARS = 8000
 

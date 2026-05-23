@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { generateApiKey } from "@/lib/auth/api-keys"
 import { requireRole } from "@/lib/auth/roles"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 
 const CreateApiKeySchema = z.object({
@@ -90,6 +91,13 @@ export async function POST(req: Request) {
         expiresAt: true,
         createdAt: true,
       },
+    })
+
+    captureServerEvent(ctx.userId, "api_key_created", {
+      organizationId: ctx.organizationId,
+      scopes: parsed.data.scopes,
+      hasExpiry: !!parsed.data.expiresAt,
+      keyCount: keyCount + 1,
     })
 
     return Response.json({ apiKey, rawKey: raw }, { status: 201 })

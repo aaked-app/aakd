@@ -7,6 +7,9 @@ import { logger } from "@/lib/logger"
 import Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
 
+// Vercel: clause explanation is a synchronous LLM call; pin to Fluid Compute ceiling.
+export const maxDuration = 300
+
 const ClauseExplainSchema = z.object({
   text: z.string().min(1).max(3000),
 })

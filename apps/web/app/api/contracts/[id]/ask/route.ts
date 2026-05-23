@@ -7,9 +7,14 @@ import { generateEmbedding } from "@/lib/embedding"
 import { chunkText } from "@/lib/ai/chunking"
 import { resolveAiConfig, withAiConfigCache } from "@/lib/ai/resolve"
 import { logger } from "@/lib/logger"
+import { captureServerEvent } from "@/lib/posthog-server"
 import Anthropic from "@anthropic-ai/sdk"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
+
+// Vercel: embedding + retrieval + LLM call can take 15-60s.
+// Pin to Fluid Compute ceiling so we don't 504 on the platform default.
+export const maxDuration = 300
 
 const AskSchema = z.object({
   question: z.string().min(1).max(2000),
@@ -242,6 +247,15 @@ export async function POST(
     if (!answer) {
       return Response.json({ error: "No AI provider configured" }, { status: 503 })
     }
+
+    captureServerEvent(ctx.userId, "ai_qa_asked", {
+      contractId: contract.id,
+      organizationId: contract.organizationId,
+      questionLength: question.length,
+      answerLength: answer.length,
+      citationCount: citations.length,
+      provider: aiCfg.provider,
+    })
 
     return Response.json({
       answer,

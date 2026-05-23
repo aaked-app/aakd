@@ -8,6 +8,9 @@ import { rateLimit } from "@/lib/rate-limit"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
+// MCP tool calls include semantic search + LLM inference. Pin to Fluid Compute ceiling.
+export const maxDuration = 300
+
 // ---------------------------------------------------------------------------
 // JSON-RPC 2.0 types
 // ---------------------------------------------------------------------------

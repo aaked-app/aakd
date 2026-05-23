@@ -4,6 +4,7 @@ import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
+import posthog from "posthog-js"
 import { signUp } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +40,16 @@ function RegisterForm() {
       if (result.error) {
         toast.error(result.error.message ?? t("registrationFailed"))
       } else {
+        // Fire activation signal — PostHog respects consent (no-op if user opted out).
+        // Identify happens later in (app)/layout.tsx once session resolves.
+        try {
+          posthog.capture("signup_completed", {
+            hasInvite: !!callbackURL,
+            destination,
+          })
+        } catch {
+          // Never block the redirect on a telemetry failure.
+        }
         router.push(destination)
       }
     } catch {

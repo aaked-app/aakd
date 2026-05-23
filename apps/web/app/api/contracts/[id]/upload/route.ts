@@ -8,6 +8,7 @@ import { enqueueNotification } from "@/lib/notifications/fanout"
 import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
+import { captureServerEvent } from "@/lib/posthog-server"
 
 // GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -196,6 +197,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const downloadUrl = await storage.getSignedDownloadUrl(key)
+
+    captureServerEvent(ctx.userId, "file_uploaded", {
+      contractId: params.id,
+      organizationId: ctx.organizationId,
+      mimeType,
+      sizeBytes: buffer.byteLength,
+      version: contractFile.version,
+      isFirstFile: contractFile.version === 1,
+    })
 
     return Response.json({ ...contractFile, downloadUrl, extractionQueued: true }, { status: 201 })
   })
