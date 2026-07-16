@@ -16,6 +16,14 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const statusParam = url.searchParams.get("status")
     const q = url.searchParams.get("q")?.trim() ?? ""
+    const page = (() => {
+      const n = parseInt(url.searchParams.get("page") ?? "1", 10)
+      return Number.isNaN(n) ? 1 : Math.max(1, n)
+    })()
+    const limit = (() => {
+      const n = parseInt(url.searchParams.get("limit") ?? "50", 10)
+      return Number.isNaN(n) ? 50 : Math.min(Math.max(1, n), 100)
+    })()
 
     const statusFilter: ObligationStatus | undefined =
       statusParam && VALID_STATUSES.has(statusParam as ObligationStatus)
@@ -31,23 +39,28 @@ export async function GET(req: Request) {
       ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
     }
 
-    const obligations = await prisma.contractObligation.findMany({
-      where,
-      include: {
-        assignee: { select: USER_SELECT },
-        completedBy: { select: COMPLETED_BY_SELECT },
-        createdBy: { select: COMPLETED_BY_SELECT },
-        subTasks: {
-          orderBy: { createdAt: "asc" },
-          include: { completedBy: { select: COMPLETED_BY_SELECT } },
+    const [obligations, total] = await Promise.all([
+      prisma.contractObligation.findMany({
+        where,
+        include: {
+          assignee: { select: USER_SELECT },
+          completedBy: { select: COMPLETED_BY_SELECT },
+          createdBy: { select: COMPLETED_BY_SELECT },
+          subTasks: {
+            orderBy: { createdAt: "asc" },
+            include: { completedBy: { select: COMPLETED_BY_SELECT } },
+          },
+          contract: {
+            select: { id: true, title: true, counterpartyName: true },
+          },
         },
-        contract: {
-          select: { id: true, title: true, counterpartyName: true },
-        },
-      },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-    })
+        orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.contractObligation.count({ where }),
+    ])
 
-    return Response.json({ obligations, total: obligations.length })
+    return Response.json({ obligations, total, page, limit })
   })
 }
