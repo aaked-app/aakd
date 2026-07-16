@@ -56,6 +56,10 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json({ error: "Missing key parameter" }, { status: 400 })
   }
 
+  if (!key.startsWith(`avatars/${ctx.userId}/`)) {
+    return new Response("Not Found", { status: 404 })
+  }
+
   const signedUrl = await storage.getSignedDownloadUrl(key, 3600)
   return Response.redirect(signedUrl, 302)
 }
