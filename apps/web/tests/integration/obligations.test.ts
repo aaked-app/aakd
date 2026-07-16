@@ -1225,6 +1225,7 @@ describe("GET /api/obligations", () => {
   it("returns 200 with empty obligations list", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
     const { GET } = await import("@/app/api/obligations/route")
     const res = await GET(new Request("http://localhost/api/obligations"))
     expect(res.status).toBe(200)
@@ -1241,6 +1242,7 @@ describe("GET /api/obligations", () => {
         contract: { id: "contract-1", title: "NDA", counterpartyName: "Acme" },
       },
     ] as any)
+    vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(1)
     const { GET } = await import("@/app/api/obligations/route")
     const res = await GET(new Request("http://localhost/api/obligations"))
     expect(res.status).toBe(200)

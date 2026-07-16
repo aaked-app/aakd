@@ -882,7 +882,7 @@ describe("GET /api/user/avatar", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { GET } = await import("@/app/api/user/avatar/route")
     const res = await GET(
-      new Request("http://localhost/api/user/avatar?key=avatars/user-1/file.png"),
+      new Request(`http://localhost/api/user/avatar?key=avatars/${memberCtx.userId}/file.png`),
     )
     expect(res.status).toBe(302)
     expect(res.headers.get("Location")).toBe("https://s3.example.com/logo.png")
