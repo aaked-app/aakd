@@ -1,5 +1,5 @@
 FROM node:20-alpine AS base
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.33.3
 
 # ── deps: install all workspace deps with lockfile ───────────────────────────
 FROM base AS deps

@@ -1,5 +1,5 @@
 FROM node:20-alpine AS deps
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.33.3
 WORKDIR /app
 # Copy manifests first — cached until a manifest changes
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
