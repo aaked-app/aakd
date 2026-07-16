@@ -21,12 +21,20 @@ const ORG_SCOPED_MODELS = new Set([
   // M10: Import / migration tools
   "ImportJob",
   "DocumentSnapshot", "OrgAiConfig", "ClauseSnippet",
+  "Member", "GoogleDriveIntegration",
   // Notification has a direct organizationId column but is deliberately EXCLUDED:
   // GET /api/notifications widens its query with an OR clause (organizationId
   // match OR eventName === "org.invited") so invite notifications — stored
   // under an org the invitee hasn't joined yet — still surface. Auto-injecting
   // organizationId here would AND that filter onto the OR clause and hide
   // cross-org invite notifications. Do not add it here.
+  //
+  // Invitation has a direct organizationId column but is deliberately EXCLUDED:
+  // POST /api/org/invitations/[id]/accept reads and updates an invitation by
+  // id alone, before the accepting user is a member of that invitation's org —
+  // their active ctx.organizationId is a *different* org (or none) at that
+  // point. Auto-injecting it into the where clause would return null and
+  // break every invite acceptance. Do not add it here.
 ])
 
 type ScopedQueryArgs = {
