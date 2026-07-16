@@ -20,6 +20,13 @@ const ORG_SCOPED_MODELS = new Set([
   "CrmIntegration",
   // M10: Import / migration tools
   "ImportJob",
+  "DocumentSnapshot", "OrgAiConfig", "ClauseSnippet",
+  // Notification has a direct organizationId column but is deliberately EXCLUDED:
+  // GET /api/notifications widens its query with an OR clause (organizationId
+  // match OR eventName === "org.invited") so invite notifications — stored
+  // under an org the invitee hasn't joined yet — still surface. Auto-injecting
+  // organizationId here would AND that filter onto the OR clause and hide
+  // cross-org invite notifications. Do not add it here.
 ])
 
 type ScopedQueryArgs = {
