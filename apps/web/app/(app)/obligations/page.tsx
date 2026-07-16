@@ -25,7 +25,32 @@ type FlatObligation = Obligation & {
 
 type FilterKey = "All" | "Overdue" | "Due Soon" | "Upcoming" | "Completed"
 
+type RawObligation = Obligation & {
+  contract: { id: string; title: string; counterpartyName: string | null }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Stat cards, search, and filtering below all operate on the full obligation
+// set, so we page through the (now capped) API until every obligation is
+// fetched rather than switching to server-side pagination. Each request is
+// still bounded — this just restores "see all obligations" without
+// reintroducing the unbounded single query the API used to make.
+const OBLIGATIONS_PAGE_LIMIT = 100
+const OBLIGATIONS_MAX_PAGES = 50 // safety cap in case `total` is ever wrong
+
+async function fetchAllObligations(): Promise<RawObligation[]> {
+  const all: RawObligation[] = []
+  for (let page = 1; page <= OBLIGATIONS_MAX_PAGES; page++) {
+    const res = await fetch(`/api/obligations?page=${page}&limit=${OBLIGATIONS_PAGE_LIMIT}`)
+    if (!res.ok) throw new Error("obligations")
+    const data = await res.json()
+    const batch: RawObligation[] = data.obligations ?? []
+    all.push(...batch)
+    if (batch.length === 0 || all.length >= (data.total ?? all.length)) break
+  }
+  return all
+}
 
 function getInitials(name: string): string {
   return name
@@ -412,14 +437,10 @@ export default function ObligationsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [obRes, memRes] = await Promise.all([
-          fetch("/api/obligations"),
+        const [list, memRes] = await Promise.all([
+          fetchAllObligations(),
           fetch("/api/org/members"),
         ])
-        if (!obRes.ok) throw new Error("obligations")
-        const data = await obRes.json()
-        const list: Array<Obligation & { contract: { id: string; title: string; counterpartyName: string | null } }> =
-          data.obligations ?? []
         const flat: FlatObligation[] = list.map((o) => ({
           ...o,
           contractTitle: o.contract.title,
