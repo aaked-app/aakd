@@ -802,6 +802,15 @@ describe("GET /api/org/logo", () => {
     expect(res.status).toBe(302)
     expect(res.headers.get("Location")).toBe("https://s3.example.com/logo.png")
   })
+
+  it("returns 404 when key belongs to a different org (IDOR guard)", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const { GET } = await import("@/app/api/org/logo/route")
+    const res = await GET(
+      new Request("http://localhost/api/org/logo?key=orgs/org-2/logo/file.png"),
+    )
+    expect(res.status).toBe(404)
+  })
 })
 
 // ─── POST /api/user/avatar ────────────────────────────────────────────────────
@@ -886,6 +895,15 @@ describe("GET /api/user/avatar", () => {
     )
     expect(res.status).toBe(302)
     expect(res.headers.get("Location")).toBe("https://s3.example.com/logo.png")
+  })
+
+  it("returns 404 when key belongs to a different user (IDOR guard)", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    const { GET } = await import("@/app/api/user/avatar/route")
+    const res = await GET(
+      new Request("http://localhost/api/user/avatar?key=avatars/some-other-user/file.png"),
+    )
+    expect(res.status).toBe(404)
   })
 })
 

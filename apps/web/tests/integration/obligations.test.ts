@@ -1292,4 +1292,42 @@ describe("GET /api/obligations", () => {
       status: { not: "ARCHIVED" },
     })
   })
+
+  it("defaults to page 1 and take 50 when no page/limit given", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
+    const { GET } = await import("@/app/api/obligations/route")
+    const res = await GET(new Request("http://localhost/api/obligations"))
+    const findManyCall = vi.mocked(prisma.contractObligation.findMany).mock.calls[0][0] as any
+    expect(findManyCall.skip).toBe(0)
+    expect(findManyCall.take).toBe(50)
+    const body = await res.json()
+    expect(body).toMatchObject({ total: 0, page: 1, limit: 50 })
+  })
+
+  it("clamps limit above 100 down to 100", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
+    const { GET } = await import("@/app/api/obligations/route")
+    const res = await GET(new Request("http://localhost/api/obligations?limit=200"))
+    const findManyCall = vi.mocked(prisma.contractObligation.findMany).mock.calls[0][0] as any
+    expect(findManyCall.take).toBe(100)
+    const body = await res.json()
+    expect(body.limit).toBe(100)
+  })
+
+  it("applies skip for page 2", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
+    const { GET } = await import("@/app/api/obligations/route")
+    const res = await GET(new Request("http://localhost/api/obligations?page=2&limit=20"))
+    const findManyCall = vi.mocked(prisma.contractObligation.findMany).mock.calls[0][0] as any
+    expect(findManyCall.skip).toBe(20)
+    expect(findManyCall.take).toBe(20)
+    const body = await res.json()
+    expect(body).toMatchObject({ page: 2, limit: 20 })
+  })
 })
