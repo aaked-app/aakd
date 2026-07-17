@@ -1887,10 +1887,20 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       // DOCX: mammoth → HTML → Plate AST (formatting preserved)
       let html: string
       try {
-        const result = await mammoth.convertToHtml({ buffer })
+        // DOCX is a ZIP container, and mammoth's internal unzip (jszip/pako)
+        // does not protect against a forged declared size — see the
+        // extract-worker DOCX branch above for the full explanation. This
+        // buffer comes straight from a user-uploaded file, so it must be
+        // sanitized the same way before mammoth ever touches it.
+        const sanitized = Buffer.from(sanitizeZipBuffer(buffer))
+        const result = await mammoth.convertToHtml({ buffer: sanitized })
         html = result.value ?? ""
       } catch (err) {
-        logger.error({ err, contractId }, "[document.convert] mammoth failed for DOCX")
+        if (err instanceof ZipBombError) {
+          logger.warn({ contractId }, "[document.convert] DOCX decompressed-size ceiling exceeded")
+        } else {
+          logger.error({ err, contractId }, "[document.convert] mammoth failed for DOCX")
+        }
         await storage.delete(storageKey).catch(() => {})
         throw err
       }
