@@ -163,9 +163,12 @@ export default function MembersPage() {
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        toast.error(body?.error === "cannot_demote_last_admin"
-          ? "Can't change — this is the last admin"
-          : body?.error ?? t("failedToChangeRole"))
+        const msg: Record<string, string> = {
+          cannot_demote_last_admin: "Can't change — this is the last admin",
+          cannot_demote_last_owner: "Can't change — this is the last owner",
+          Forbidden: "Only an owner can change another owner's role",
+        }
+        toast.error(msg[body?.error] ?? body?.error ?? t("failedToChangeRole"))
         return
       }
       toast.success(t("roleUpdated"))
