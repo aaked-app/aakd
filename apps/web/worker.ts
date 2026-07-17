@@ -38,6 +38,7 @@ import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
+import { assertZipDecompressedSizeWithinLimit, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
@@ -353,12 +354,20 @@ const extractWorker = new Worker<ContractExtractJobData>(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ) {
       try {
+        // DOCX is a ZIP container — validate its declared decompressed size
+        // before mammoth inflates it internally, so a decompression bomb
+        // can't exhaust the worker process.
+        assertZipDecompressedSizeWithinLimit(buffer)
         const result = await mammoth.extractRawText({ buffer })
         extractedText = result.value?.trim() || null
         logger.debug({ fileId, chars: extractedText?.length ?? 0 }, "[extract] DOCX text extracted")
       } catch (err) {
         // Don't re-throw — null extractedText triggers the graceful "no text" path below.
-        logger.error({ err, fileId, contractId }, "[extract] mammoth failed")
+        if (err instanceof ZipBombError) {
+          logger.warn({ fileId, contractId }, "[extract] DOCX decompressed-size ceiling exceeded")
+        } else {
+          logger.error({ err, fileId, contractId }, "[extract] mammoth failed")
+        }
       }
     } else {
       logger.warn({ fileId, contractId, mimeType: contractFile.mimeType }, "[extract] unsupported mime type")

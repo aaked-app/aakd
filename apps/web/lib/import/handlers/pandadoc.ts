@@ -12,6 +12,7 @@ import { storage } from "@/lib/storage"
 import { createImportedContract } from "../create-contract"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { parseImportDate, parseCurrency } from "../parse-utils"
+import { safeUnzipSync } from "../zip-safety"
 import type { ImportProcessContext } from "../processor"
 
 const MAX_DOCUMENTS = 50
@@ -54,7 +55,10 @@ export async function runPandadocHandler(
 
   let entries: ReturnType<typeof unzipSync>
   try {
-    entries = unzipSync(zipBuffer)
+    // safeUnzipSync enforces a decompressed-size ceiling per entry and in
+    // total, so a decompression bomb never gets fully decompressed into
+    // memory.
+    entries = safeUnzipSync(zipBuffer)
   } catch (err) {
     throw new Error(`zip_extract_failed: ${(err as Error).message}`)
   }

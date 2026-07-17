@@ -6,6 +6,7 @@ import OpenAI from "openai"
 import Anthropic from "@anthropic-ai/sdk"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
+import { assertZipDecompressedSizeWithinLimit } from "@/lib/import/zip-safety"
 
 // Vercel: synchronous LLM extraction can take 30-90s on large PDFs.
 // Override default to ensure we run on Fluid Compute's 300s ceiling, not legacy 10/60s.
@@ -38,7 +39,10 @@ async function extractText(buffer: Buffer, fileType: "pdf" | "docx"): Promise<st
     const result = await pdfParse(buffer)
     return result.text
   }
-  // DOCX
+  // DOCX is a ZIP container — validate its declared decompressed size before
+  // mammoth inflates it internally, so a decompression bomb can't exhaust
+  // this route.
+  assertZipDecompressedSizeWithinLimit(buffer)
   const result = await mammoth.extractRawText({ buffer })
   return result.value
 }

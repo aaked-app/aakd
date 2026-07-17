@@ -2,7 +2,6 @@
  * Batch file import handler — covers BATCH_FILES (ZIP or multi-upload via S3
  * manifest) and GOOGLE_DRIVE (download from Drive API, otherwise identical).
  */
-import { unzipSync } from "fflate"
 import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
@@ -10,10 +9,10 @@ import { storage } from "@/lib/storage"
 import { createImportedContract, sanitizeFilename } from "../create-contract"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { downloadDriveFile } from "../gdrive-client"
+import { safeUnzipSync, ZipBombError } from "../zip-safety"
 import type { ImportProcessContext } from "../processor"
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024
-const MAX_TOTAL_BYTES = 500 * 1024 * 1024
 const MAX_FILES = 50
 
 export async function runBatchHandler(
@@ -155,37 +154,35 @@ async function handleZip(job: ImportJob, ctx: ImportProcessContext): Promise<voi
   }
   const zipBuffer = Buffer.from(await res.arrayBuffer())
 
-  let entries: ReturnType<typeof unzipSync>
+  let entries: ReturnType<typeof safeUnzipSync>
   try {
-    entries = unzipSync(zipBuffer)
+    // safeUnzipSync rejects entries by declared size (and skips non pdf/docx
+    // entries) BEFORE inflating them, so a decompression bomb never gets
+    // fully decompressed into memory.
+    entries = safeUnzipSync(zipBuffer, {
+      accept: (path) => {
+        if (shouldSkipEntry(path)) return false
+        const lower = path.toLowerCase()
+        return lower.endsWith(".pdf") || lower.endsWith(".docx")
+      },
+    })
   } catch (err) {
-    throw new Error(`zip_extract_failed: ${(err as Error).message}`)
-  }
-
-  const candidates: FileLike[] = []
-  let totalSize = 0
-  for (const [path, content] of Object.entries(entries)) {
-    if (shouldSkipEntry(path)) continue
-    const lower = path.toLowerCase()
-    if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) continue
-
-    totalSize += content.byteLength
-    if (totalSize > MAX_TOTAL_BYTES) {
-      // Spec: total uncompressed size must not exceed 500 MB — abort the job.
+    if (err instanceof ZipBombError) {
       const db = getWorkerPrisma()
       await db.importJob.update({
         where: { id: job.id },
         data: { status: "FAILED", completedAt: new Date() },
       })
-      throw new Error("total_size_too_large")
+      throw new Error(`total_size_too_large: ${err.message}`)
     }
-
-    candidates.push({
-      buffer: Buffer.from(content),
-      filename: basename(path),
-      sourceRef: path,
-    })
+    throw new Error(`zip_extract_failed: ${(err as Error).message}`)
   }
+
+  const candidates: FileLike[] = Object.entries(entries).map(([path, content]) => ({
+    buffer: Buffer.from(content),
+    filename: basename(path),
+    sourceRef: path,
+  }))
 
   if (candidates.length === 0) {
     throw new Error("no_valid_files_in_zip")
