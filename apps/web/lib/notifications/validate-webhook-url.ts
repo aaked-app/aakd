@@ -17,6 +17,21 @@ const BLOCKED_IP_RANGES = [
   /^0\.0\.0\.0$/,                    // unspecified
 ]
 
+// Narrower blocklist for the Ollama connectivity-test endpoint
+// (org/ai-config/test). A self-hosted Ollama server legitimately runs on an
+// RFC-1918 LAN address (or a Docker service hostname resolving to one) — that
+// range must stay reachable. Only reject ranges that are NEVER a legitimate
+// Ollama target: loopback, link-local (which covers the cloud metadata IP
+// 169.254.169.254), and their IPv6 equivalents.
+const NEVER_LEGITIMATE_IP_RANGES = [
+  /^127\./,                          // loopback IPv4
+  /^169\.254\./,                     // link-local (AWS IMDS / GCP metadata)
+  /^::1$/,                           // IPv6 loopback
+  /^fc00:/i,                         // IPv6 unique local
+  /^fd[0-9a-f]{2}:/i,               // IPv6 unique local
+  /^fe80:/i,                         // IPv6 link-local
+]
+
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "0.0.0.0",
@@ -26,23 +41,21 @@ const BLOCKED_HOSTNAMES = new Set([
   "metadata.google.internal",        // GCP metadata service
 ])
 
-function isBlockedIP(ip: string): boolean {
-  return BLOCKED_IP_RANGES.some((re) => re.test(ip))
+function matchesAny(ip: string, ranges: RegExp[]): boolean {
+  return ranges.some((re) => re.test(ip))
 }
 
 /**
- * Validates a webhook URL to prevent SSRF attacks.
- *
- * Rejects:
- * - Non-http/https protocols
- * - localhost and other loopback hostnames
- * - RFC-1918 private IP ranges
- * - Link-local IPs (AWS IMDS, GCP metadata, etc.)
- * - Literal private IP addresses in the URL (bypasses DNS-only checks)
- *
- * Throws an Error with a user-friendly message when the URL is rejected.
+ * Shared core: resolves `urlString`'s hostname (or checks it directly when
+ * already a literal IP) and throws if any resolved/literal address matches
+ * `blockedRanges`. `resolvedErrorMessage` lets each caller phrase the
+ * "resolves to a blocked range" case for its own context.
  */
-export async function validateWebhookUrl(urlString: string): Promise<void> {
+async function checkUrlAgainstRanges(
+  urlString: string,
+  blockedRanges: RegExp[],
+  resolvedErrorMessage: string,
+): Promise<void> {
   let url: URL
   try {
     url = new URL(urlString)
@@ -64,24 +77,25 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
   // dns.resolve4/6 is designed for hostnames → it returns ENOTFOUND for
   // literal IPs, which the catch block would swallow, leaving the IP unchecked.
   if (net.isIP(hostname) !== 0) {
-    if (isBlockedIP(hostname)) {
+    if (matchesAny(hostname, blockedRanges)) {
       throw new Error("Private or internal IP addresses are not allowed")
     }
-    // Literal public IP — nothing else to check.
+    // Literal public (or, for the narrow blocklist, RFC-1918) IP — nothing
+    // else to check.
     return
   }
 
-  // Hostname case: resolve to IPs and verify none are private.
-  // DNS failure is non-fatal — we let delivery fail safely rather than
-  // blocking registration on transient DNS errors.
+  // Hostname case: resolve to IPs and verify none are blocked.
+  // DNS failure is non-fatal — we let the caller (delivery/test) fail safely
+  // rather than blocking on a transient DNS error.
   try {
     const v4Addresses = await dns.resolve4(hostname).catch(() => [] as string[])
     const v6Addresses = await dns.resolve6(hostname).catch(() => [] as string[])
     const allIPs = [...v4Addresses, ...v6Addresses]
 
     for (const ip of allIPs) {
-      if (isBlockedIP(ip)) {
-        throw new Error("Webhook URL resolves to a private or internal IP range")
+      if (matchesAny(ip, blockedRanges)) {
+        throw new Error(resolvedErrorMessage)
       }
     }
   } catch (err: unknown) {
@@ -90,10 +104,51 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
     if (
       message.includes("private") ||
       message.includes("internal") ||
-      message.includes("not allowed")
+      message.includes("not allowed") ||
+      message.includes("loopback") ||
+      message.includes("link-local")
     ) {
       throw err
     }
-    // DNS lookup failed — allow registration; delivery will fail safely.
+    // DNS lookup failed — allow; delivery/test will fail safely.
   }
+}
+
+/**
+ * Validates a webhook URL to prevent SSRF attacks.
+ *
+ * Rejects:
+ * - Non-http/https protocols
+ * - localhost and other loopback hostnames
+ * - RFC-1918 private IP ranges
+ * - Link-local IPs (AWS IMDS, GCP metadata, etc.)
+ * - Literal private IP addresses in the URL (bypasses DNS-only checks)
+ *
+ * Throws an Error with a user-friendly message when the URL is rejected.
+ */
+export async function validateWebhookUrl(urlString: string): Promise<void> {
+  return checkUrlAgainstRanges(
+    urlString,
+    BLOCKED_IP_RANGES,
+    "Webhook URL resolves to a private or internal IP range",
+  )
+}
+
+/**
+ * Validates the base URL for the Ollama connectivity-test endpoint
+ * (org/ai-config/test). Deliberately narrower than validateWebhookUrl: this
+ * product is self-hostable, and a self-hosted Ollama server legitimately
+ * runs on an RFC-1918 LAN address (e.g. 192.168.1.10, or a Docker service
+ * name that resolves to one) — that range must stay reachable. Only rejects
+ * targets that are never legitimate here: loopback, link-local (including
+ * the cloud metadata IP 169.254.169.254), and their IPv6 equivalents.
+ *
+ * Throws an Error with a user-friendly message when the URL is rejected.
+ */
+export async function validateOllamaTestUrl(urlString: string): Promise<void> {
+  return checkUrlAgainstRanges(
+    urlString,
+    NEVER_LEGITIMATE_IP_RANGES,
+    "Ollama URL resolves to a loopback or link-local address, which is never a valid target",
+  )
 }

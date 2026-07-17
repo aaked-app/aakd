@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
+import { validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
 import { z } from "zod"
 
 const TestSchema = z.discriminatedUnion("provider", [
@@ -14,7 +15,11 @@ export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
 
-  if (!hasRole(ctx.role, "legal")) {
+  // Admin-only: this endpoint fetches an arbitrary org-supplied Ollama
+  // baseUrl. Narrowing the actor set is defense-in-depth for the internal
+  // (RFC-1918) ranges validateOllamaTestUrl deliberately still allows, since
+  // self-hosted Ollama legitimately runs on a LAN address.
+  if (!hasRole(ctx.role, "admin")) {
     return new Response("Forbidden", { status: 403 })
   }
 
@@ -45,6 +50,20 @@ export async function POST(req: Request) {
       } catch {
         return Response.json({ valid: false, error: "Invalid Ollama base URL" })
       }
+
+      // SSRF guard: block loopback/link-local/metadata targets (never a
+      // legitimate Ollama endpoint) while deliberately allowing RFC-1918 —
+      // self-hosted Ollama legitimately runs on a LAN address. Resolves the
+      // hostname itself, so this also closes the DNS-rebinding window: the
+      // address checked here is what `fetch` will actually resolve to next.
+      try {
+        await validateOllamaTestUrl(tagsUrl)
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        logger.error({ organizationId: ctx.organizationId, reason }, "[ai-config/test] Ollama URL rejected by SSRF guard")
+        return Response.json({ valid: false, error: "This Ollama URL is not allowed" }, { status: 400 })
+      }
+
       const res = await fetch(tagsUrl, { signal: AbortSignal.timeout(5_000) })
       if (res.ok) {
         return Response.json({ valid: true })
