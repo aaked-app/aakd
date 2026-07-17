@@ -635,4 +635,60 @@ describe("Org-level isolation for member/API key operations", () => {
       expect.stringContaining("Vendor Contracts"),
     )
   })
+
+  it("GET comments defaults to page 1 / limit 50 and clamps limit above 100", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-1",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "c1",
+      organizationId: "org-1",
+    } as any)
+    vi.mocked(prisma.contractComment.findMany).mockResolvedValue([])
+    vi.mocked(prisma.contractComment.count).mockResolvedValue(0)
+
+    const { GET } = await import("@/app/api/contracts/[id]/comments/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/c1/comments?limit=500"),
+      { params: { id: "c1" } },
+    )
+    const findManyCall = vi.mocked(prisma.contractComment.findMany).mock.calls[0][0] as any
+    expect(findManyCall.skip).toBe(0)
+    expect(findManyCall.take).toBe(100)
+    const body = await res.json()
+    expect(body).toMatchObject({ total: 0, page: 1, limit: 100 })
+  })
+
+  it("GET snapshots defaults to page 1 / limit 50 and clamps limit above 100", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-1",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "c1",
+      organizationId: "org-1",
+    } as any)
+    vi.mocked(prisma.documentSnapshot.findMany).mockResolvedValue([])
+    vi.mocked(prisma.documentSnapshot.count).mockResolvedValue(0)
+
+    const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/c1/snapshots?page=2&limit=20"),
+      { params: { id: "c1" } },
+    )
+    const findManyCall = vi.mocked(prisma.documentSnapshot.findMany).mock.calls[0][0] as any
+    expect(findManyCall.skip).toBe(20)
+    expect(findManyCall.take).toBe(20)
+    const body = await res.json()
+    expect(body).toMatchObject({ page: 2, limit: 20 })
+  })
 })

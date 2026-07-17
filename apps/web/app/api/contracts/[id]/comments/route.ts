@@ -29,16 +29,33 @@ export async function GET(
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
 
-    const comments = await prisma.contractComment.findMany({
-      where: { contractId: params.id },
-      orderBy: { createdAt: "asc" },
-      include: {
-        author: { select: AUTHOR_SELECT },
-        resolvedBy: { select: AUTHOR_SELECT },
-      },
-    })
+    const url = new URL(req.url)
+    const page = (() => {
+      const n = parseInt(url.searchParams.get("page") ?? "1", 10)
+      return Number.isNaN(n) ? 1 : Math.max(1, n)
+    })()
+    const limit = (() => {
+      const n = parseInt(url.searchParams.get("limit") ?? "50", 10)
+      return Number.isNaN(n) ? 50 : Math.min(Math.max(1, n), 100)
+    })()
 
-    return Response.json({ comments })
+    const where = { contractId: params.id }
+
+    const [comments, total] = await Promise.all([
+      prisma.contractComment.findMany({
+        where,
+        orderBy: { createdAt: "asc" },
+        include: {
+          author: { select: AUTHOR_SELECT },
+          resolvedBy: { select: AUTHOR_SELECT },
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.contractComment.count({ where }),
+    ])
+
+    return Response.json({ comments, total, page, limit })
   })
 }
 

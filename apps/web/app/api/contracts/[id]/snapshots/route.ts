@@ -25,19 +25,36 @@ export async function GET(
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
 
-    const snapshots = await prisma.documentSnapshot.findMany({
-      where: { contractId: params.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        label: true,
-        wordCount: true,
-        createdAt: true,
-        createdBy: { select: { name: true } },
-      },
-    })
+    const url = new URL(req.url)
+    const page = (() => {
+      const n = parseInt(url.searchParams.get("page") ?? "1", 10)
+      return Number.isNaN(n) ? 1 : Math.max(1, n)
+    })()
+    const limit = (() => {
+      const n = parseInt(url.searchParams.get("limit") ?? "50", 10)
+      return Number.isNaN(n) ? 50 : Math.min(Math.max(1, n), 100)
+    })()
 
-    return Response.json({ snapshots })
+    const where = { contractId: params.id }
+
+    const [snapshots, total] = await Promise.all([
+      prisma.documentSnapshot.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          label: true,
+          wordCount: true,
+          createdAt: true,
+          createdBy: { select: { name: true } },
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.documentSnapshot.count({ where }),
+    ])
+
+    return Response.json({ snapshots, total, page, limit })
   })
 }
 
