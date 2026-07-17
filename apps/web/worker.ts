@@ -688,12 +688,24 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     // ai_extract). It's independent of embeddings: chain it whether or not
     // embedding generation succeeds, so metadata still flows even when the
     // embedding provider is down or unconfigured.
-    const chainAiExtract = () =>
-      contractAiExtractQueue
-        .add("ai_extract", { contractId, extractedText })
-        .catch((err) =>
-          logger.error({ err, contractId }, "[embed] failed to enqueue ai_extract"),
+    //
+    // If the enqueue itself fails (e.g. a transient Redis blip), rethrow so
+    // this job fails and BullMQ retries it (attempts: 3, exponential backoff
+    // below) instead of silently marking embed "completed" with the chain
+    // never re-driven. Safe to retry: the embedding upsert is ON CONFLICT,
+    // and the chunk-embedding swap only replaces rows inside a transaction —
+    // re-running this handler from the top is idempotent.
+    const chainAiExtract = async () => {
+      try {
+        await contractAiExtractQueue.add("ai_extract", { contractId, extractedText })
+      } catch (err) {
+        logger.error(
+          { err, contractId },
+          "[embed] failed to enqueue ai_extract — failing job so BullMQ retries",
         )
+        throw err
+      }
+    }
 
     const embedding = await generateEmbedding(extractedText)
     if (!embedding) {
