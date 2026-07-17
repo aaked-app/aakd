@@ -196,39 +196,38 @@ async function runContractBook(
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
       )
 
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: title,
-          status: "success",
-          contractId,
-        },
+      // Upsert on (jobId, rowIndex) — a retry re-processes the same
+      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef: title, status: "success", contractId },
+        update: { sourceRef: title, status: "success", contractId, errorMessage: null },
       })
       succeeded += 1
     } catch (err) {
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: row.Title ?? `row_${rowIndex}`,
-          status: "failed",
-          errorMessage: (err as Error).message || "unknown_error",
-        },
+      const sourceRef = row.Title ?? `row_${rowIndex}`
+      const errorMessage = (err as Error).message || "unknown_error"
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef, status: "failed", errorMessage },
+        update: { sourceRef, status: "failed", errorMessage, contractId: null },
       })
       failed += 1
     }
   }
 
   for (let i = MAX_DOCUMENTS; i < records.length; i++) {
-    await db.importRow.create({
-      data: {
+    const sourceRef = records[i].Title ?? `row_${i + 1}`
+    await db.importRow.upsert({
+      where: { jobId_rowIndex: { jobId: job.id, rowIndex: i + 1 } },
+      create: {
         jobId: job.id,
         rowIndex: i + 1,
-        sourceRef: records[i].Title ?? `row_${i + 1}`,
+        sourceRef,
         status: "skipped",
         errorMessage: "batch_limit_exceeded",
       },
+      update: { sourceRef, status: "skipped", errorMessage: "batch_limit_exceeded" },
     })
   }
 
@@ -379,39 +378,36 @@ async function runDocuSign(
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
       )
 
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: doc.dir,
-          status: "success",
-          contractId,
-        },
+      // Upsert on (jobId, rowIndex) — a retry re-processes the same
+      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "success", contractId },
+        update: { sourceRef: doc.dir, status: "success", contractId, errorMessage: null },
       })
       succeeded += 1
     } catch (err) {
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: doc.dir,
-          status: "failed",
-          errorMessage: (err as Error).message || "unknown_error",
-        },
+      const errorMessage = (err as Error).message || "unknown_error"
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "failed", errorMessage },
+        update: { sourceRef: doc.dir, status: "failed", errorMessage, contractId: null },
       })
       failed += 1
     }
   }
 
   for (let i = MAX_DOCUMENTS; i < candidates.length; i++) {
-    await db.importRow.create({
-      data: {
+    await db.importRow.upsert({
+      where: { jobId_rowIndex: { jobId: job.id, rowIndex: i + 1 } },
+      create: {
         jobId: job.id,
         rowIndex: i + 1,
         sourceRef: candidates[i].dir,
         status: "skipped",
         errorMessage: "batch_limit_exceeded",
       },
+      update: { sourceRef: candidates[i].dir, status: "skipped", errorMessage: "batch_limit_exceeded" },
     })
   }
 

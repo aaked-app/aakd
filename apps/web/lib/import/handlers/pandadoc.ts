@@ -122,25 +122,20 @@ export async function runPandadocHandler(
         organizationId: ctx.organizationId,
         ownerId: ctx.createdById,
       })
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: doc.dir,
-          status: "success",
-          contractId,
-        },
+      // Upsert on (jobId, rowIndex) — a retry re-processes the same
+      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "success", contractId },
+        update: { sourceRef: doc.dir, status: "success", contractId, errorMessage: null },
       })
       succeeded += 1
     } catch (err) {
-      await db.importRow.create({
-        data: {
-          jobId: job.id,
-          rowIndex,
-          sourceRef: doc.dir,
-          status: "failed",
-          errorMessage: (err as Error).message || "unknown_error",
-        },
+      const errorMessage = (err as Error).message || "unknown_error"
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "failed", errorMessage },
+        update: { sourceRef: doc.dir, status: "failed", errorMessage, contractId: null },
       })
       failed += 1
     }
@@ -148,14 +143,16 @@ export async function runPandadocHandler(
 
   for (let i = 0; i < tail.length; i++) {
     const rowIndex = MAX_DOCUMENTS + i + 1
-    await db.importRow.create({
-      data: {
+    await db.importRow.upsert({
+      where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+      create: {
         jobId: job.id,
         rowIndex,
         sourceRef: tail[i].dir,
         status: "skipped",
         errorMessage: "batch_limit_exceeded",
       },
+      update: { sourceRef: tail[i].dir, status: "skipped", errorMessage: "batch_limit_exceeded" },
     })
   }
 

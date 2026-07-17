@@ -167,18 +167,30 @@ export async function runCsvHandler(
 async function flushOutcomes(jobId: string, batch: RowOutcome[]): Promise<void> {
   if (batch.length === 0) return
   const db = getWorkerPrisma()
-  // Use createMany for new rows — we don't track existing ImportRow ids since
-  // they're created here for the first time.
-  await db.importRow.createMany({
-    data: batch.map((o) => ({
-      jobId,
-      rowIndex: o.rowIndex,
-      sourceRef: o.sourceRef,
-      status: o.status,
-      errorMessage: o.errorMessage,
-      contractId: o.contractId ?? null,
-    })),
-  })
+  // Upsert on (jobId, rowIndex) instead of createMany — a retry re-processes
+  // the same rowIndex, and a blind createMany would either violate the
+  // unique(jobId, rowIndex) constraint or (with skipDuplicates) silently
+  // leave the row stuck at its old "failed" status instead of recording the
+  // retry's outcome.
+  for (const o of batch) {
+    await db.importRow.upsert({
+      where: { jobId_rowIndex: { jobId, rowIndex: o.rowIndex } },
+      create: {
+        jobId,
+        rowIndex: o.rowIndex,
+        sourceRef: o.sourceRef,
+        status: o.status,
+        errorMessage: o.errorMessage,
+        contractId: o.contractId ?? null,
+      },
+      update: {
+        sourceRef: o.sourceRef,
+        status: o.status,
+        errorMessage: o.errorMessage ?? null,
+        contractId: o.contractId ?? null,
+      },
+    })
+  }
 }
 
 function mapRow(row: Record<string, string>, mapping: Mapping) {
@@ -280,5 +292,5 @@ function mapRow(row: Record<string, string>, mapping: Mapping) {
   return data as { title: string } & Record<string, unknown>
 }
 
-// Re-export field list for tests.
-export { IMPORT_FIELDS }
+// Re-export for tests.
+export { IMPORT_FIELDS, flushOutcomes }

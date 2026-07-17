@@ -737,8 +737,8 @@ model ImportRow {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@unique([jobId, rowIndex])
   @@index([jobId, status])
-  @@index([jobId, rowIndex])
 }
 
 model GoogleDriveIntegration {
