@@ -41,8 +41,42 @@ const BLOCKED_HOSTNAMES = new Set([
   "metadata.google.internal",        // GCP metadata service
 ])
 
+// WHATWG URL always normalizes a bracketed IPv6 literal's hostname to its
+// canonical bracketed+compressed form (e.g. "[::1]", "[::ffff:a9fe:a9fe]") —
+// net.isIP() and our range regexes both expect the unbracketed form.
+function stripBrackets(hostname: string): string {
+  return hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname
+}
+
+// Matches an IPv4 address embedded inside an IPv6 literal — the two forms
+// the URL parser can normalize a literal into:
+//   - IPv4-mapped (::ffff:a9fe:a9fe, or pre-normalization ::ffff:169.254.169.254)
+//   - NAT64 well-known prefix (64:ff9b::a9fe:a9fe, RFC 6052)
+// Without this, an attacker reaches a blocked IPv4 target (e.g. the cloud
+// metadata IP) by wrapping it in an IPv6 literal, since the address never
+// textually matches an IPv4 regex like /^169\.254\./.
+const IPV4_EMBEDDED_HEX_RE = /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i
+const IPV4_EMBEDDED_DOTTED_RE = /^(?:::ffff:|64:ff9b::)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i
+
+function extractEmbeddedIPv4(ip: string): string | null {
+  const dotted = ip.match(IPV4_EMBEDDED_DOTTED_RE)
+  if (dotted) return dotted[1]
+
+  const hex = ip.match(IPV4_EMBEDDED_HEX_RE)
+  if (hex) {
+    const hi = parseInt(hex[1], 16)
+    const lo = parseInt(hex[2], 16)
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+  }
+  return null
+}
+
 function matchesAny(ip: string, ranges: RegExp[]): boolean {
-  return ranges.some((re) => re.test(ip))
+  if (ranges.some((re) => re.test(ip))) return true
+  const embedded = extractEmbeddedIPv4(ip)
+  return embedded !== null && ranges.some((re) => re.test(embedded))
 }
 
 /**
@@ -67,7 +101,7 @@ async function checkUrlAgainstRanges(
     throw new Error("Only http and https URLs are allowed")
   }
 
-  const hostname = url.hostname.toLowerCase()
+  const hostname = stripBrackets(url.hostname.toLowerCase())
 
   if (BLOCKED_HOSTNAMES.has(hostname)) {
     throw new Error("Private or internal URLs are not allowed")
