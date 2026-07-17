@@ -430,6 +430,26 @@ export interface CommentData {
   updatedAt: string
 }
 
+// ─── Fetch-all-pages helper ────────────────────────────────────────────────────
+// The comments list API is capped at 100/page — loop until we have every
+// comment (or hit the safety cap) so the panel doesn't silently truncate.
+
+const COMMENTS_PAGE_LIMIT = 100
+const COMMENTS_MAX_PAGES = 50 // safety cap in case `total` is ever wrong
+
+async function fetchAllComments(contractId: string): Promise<CommentData[]> {
+  const all: CommentData[] = []
+  for (let page = 1; page <= COMMENTS_MAX_PAGES; page++) {
+    const res = await fetch(`/api/contracts/${contractId}/comments?page=${page}&limit=${COMMENTS_PAGE_LIMIT}`)
+    if (!res.ok) throw new Error("comments")
+    const data = await res.json() as { comments: CommentData[]; total?: number }
+    const batch = data.comments ?? []
+    all.push(...batch)
+    if (batch.length === 0 || all.length >= (data.total ?? all.length)) break
+  }
+  return all
+}
+
 // ─── Change extraction helper ─────────────────────────────────────────────────
 
 function extractChanges(json: unknown): { type: "insertion" | "deletion"; text: string }[] {
@@ -602,10 +622,7 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
 
   const loadComments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/contracts/${contractId}/comments`)
-      if (!res.ok) return
-      const data = await res.json() as { comments: CommentData[] }
-      setComments(data.comments)
+      setComments(await fetchAllComments(contractId))
     } catch {
       // silently ignore
     }

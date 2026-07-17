@@ -27,6 +27,26 @@ interface Snapshot {
   createdBy: { name: string }
 }
 
+// ─── Fetch-all-pages helper ────────────────────────────────────────────────────
+// The snapshots list API is capped at 100/page — loop until we have every
+// snapshot (or hit the safety cap) so the history panel doesn't silently truncate.
+
+const SNAPSHOTS_PAGE_LIMIT = 100
+const SNAPSHOTS_MAX_PAGES = 50 // safety cap in case `total` is ever wrong
+
+async function fetchAllSnapshots(contractId: string): Promise<Snapshot[]> {
+  const all: Snapshot[] = []
+  for (let page = 1; page <= SNAPSHOTS_MAX_PAGES; page++) {
+    const res = await fetch(`/api/contracts/${contractId}/snapshots?page=${page}&limit=${SNAPSHOTS_PAGE_LIMIT}`)
+    if (!res.ok) throw new Error("snapshots")
+    const data = await res.json() as { snapshots: Snapshot[]; total?: number }
+    const batch = data.snapshots ?? []
+    all.push(...batch)
+    if (batch.length === 0 || all.length >= (data.total ?? all.length)) break
+  }
+  return all
+}
+
 interface SnapshotHistoryPanelProps {
   contractId: string
   refreshTrigger?: number  // increment to force reload
@@ -45,10 +65,7 @@ export function SnapshotHistoryPanel({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/contracts/${contractId}/snapshots`)
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setSnapshots(data.snapshots)
+      setSnapshots(await fetchAllSnapshots(contractId))
     } catch {
       toast.error("Failed to load snapshots")
     } finally {
