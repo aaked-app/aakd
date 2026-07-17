@@ -1052,7 +1052,15 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
     // Return value is stored by BullMQ in Redis and available via job.returnvalue
     return suggestions
   },
-  { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 } },
+  {
+    connection,
+    defaultJobOptions: {
+      removeOnComplete: 100,
+      removeOnFail: 200,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 5000 },
+    },
+  },
 )
 
 obligationExtractWorker.on("completed", (job) =>
