@@ -13,6 +13,7 @@
  */
 import { HUMAN_EVENT_LABELS, type NotificationEventName } from "@/lib/notifications/fanout"
 import { logger } from "@/lib/logger"
+import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
 
 export interface AlertWebhookOpts {
   contractTitle: string
@@ -236,6 +237,18 @@ export async function sendSlackEvent(opts: NotificationEventOpts): Promise<boole
 
   const payload = { text: `${label}: ${contractTitle}`, blocks }
 
+  // Re-validate at delivery time, not just registration time (same
+  // DNS-rebinding TOCTOU as outbound webhooks — the channel's URL passed
+  // validation at registration but may since have been repointed at a
+  // private/link-local address).
+  try {
+    await validateWebhookUrl(webhookUrl)
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    logger.error({ contractId, eventName, reason }, "[webhooks] Slack event URL rejected by delivery-time SSRF revalidation")
+    return false
+  }
+
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -310,6 +323,18 @@ export async function sendTeamsEvent(opts: NotificationEventOpts): Promise<boole
         },
       },
     ],
+  }
+
+  // Re-validate at delivery time, not just registration time (same
+  // DNS-rebinding TOCTOU as outbound webhooks — the channel's URL passed
+  // validation at registration but may since have been repointed at a
+  // private/link-local address).
+  try {
+    await validateWebhookUrl(webhookUrl)
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    logger.error({ contractId, eventName, reason }, "[webhooks] Teams event URL rejected by delivery-time SSRF revalidation")
+    return false
   }
 
   try {

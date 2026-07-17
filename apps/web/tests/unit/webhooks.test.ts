@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest"
-import { sendSlackAlert, sendTeamsAlert } from "@/lib/notifications/webhooks"
+import { sendSlackAlert, sendTeamsAlert, sendSlackEvent, sendTeamsEvent } from "@/lib/notifications/webhooks"
+
+vi.mock("@/lib/notifications/validate-webhook-url", () => ({
+  validateWebhookUrl: vi.fn().mockResolvedValue(undefined),
+}))
 
 // ─── Shared test fixture ──────────────────────────────────────────────────────
 
@@ -179,5 +183,70 @@ describe("sendTeamsAlert", () => {
     const factSet = card.body.find((b: { type: string }) => b.type === "FactSet")!
     const factValues: string[] = factSet.facts.map((f: { value: string }) => f.value)
     expect(factValues).toContain("Unknown")
+  })
+})
+
+// ─── sendSlackEvent / sendTeamsEvent — delivery-time SSRF revalidation ────────
+
+const EVENT_OPTS = {
+  webhookUrl: "https://hooks.slack.com/services/TEST/WEBHOOK",
+  eventName: "contract.created",
+  contractTitle: "Acme SaaS MSA",
+  counterpartyName: "Acme Corp",
+  actorName: "Jane Doe",
+  contractId: "ctr_abc123",
+  appUrl: "https://app.clauseflow.io",
+  metadata: {},
+}
+
+describe("sendSlackEvent — delivery-time SSRF revalidation", () => {
+  it("returns false and never calls fetch when validateWebhookUrl rejects (e.g. DNS-rebound target)", async () => {
+    const { validateWebhookUrl } = await import("@/lib/notifications/validate-webhook-url")
+    vi.mocked(validateWebhookUrl).mockRejectedValueOnce(
+      new Error("Webhook URL resolves to a private or internal IP range"),
+    )
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+    const result = await sendSlackEvent(EVENT_OPTS)
+
+    expect(result).toBe(false)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("proceeds to fetch when validateWebhookUrl resolves", async () => {
+    const { validateWebhookUrl } = await import("@/lib/notifications/validate-webhook-url")
+    vi.mocked(validateWebhookUrl).mockResolvedValueOnce(undefined)
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }))
+
+    const result = await sendSlackEvent(EVENT_OPTS)
+
+    expect(result).toBe(true)
+    expect(fetchSpy).toHaveBeenCalledOnce()
+  })
+})
+
+describe("sendTeamsEvent — delivery-time SSRF revalidation", () => {
+  it("returns false and never calls fetch when validateWebhookUrl rejects (e.g. DNS-rebound target)", async () => {
+    const { validateWebhookUrl } = await import("@/lib/notifications/validate-webhook-url")
+    vi.mocked(validateWebhookUrl).mockRejectedValueOnce(
+      new Error("Webhook URL resolves to a private or internal IP range"),
+    )
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+    const result = await sendTeamsEvent(EVENT_OPTS)
+
+    expect(result).toBe(false)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("proceeds to fetch when validateWebhookUrl resolves", async () => {
+    const { validateWebhookUrl } = await import("@/lib/notifications/validate-webhook-url")
+    vi.mocked(validateWebhookUrl).mockResolvedValueOnce(undefined)
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }))
+
+    const result = await sendTeamsEvent(EVENT_OPTS)
+
+    expect(result).toBe(true)
+    expect(fetchSpy).toHaveBeenCalledOnce()
   })
 })
