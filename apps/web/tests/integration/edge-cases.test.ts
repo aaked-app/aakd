@@ -593,4 +593,46 @@ describe("Org-level isolation for member/API key operations", () => {
     expect(res.status).toBe(404)
     expect(prisma.member.update).not.toHaveBeenCalled()
   })
+
+  it("deleting a folder writes an Activity row for each contract moved to root", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-1",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+    vi.mocked(prisma.folder.findUnique).mockResolvedValue({
+      id: "folder-1",
+      organizationId: "org-1",
+      name: "Vendor Contracts",
+    } as any)
+    vi.mocked(prisma.contract.findMany).mockResolvedValue([
+      { id: "c1" },
+      { id: "c2" },
+    ] as any)
+    vi.mocked(prisma.contract.updateMany).mockResolvedValue({ count: 2 } as any)
+    vi.mocked(prisma.folder.delete).mockResolvedValue({} as any)
+
+    const { writeActivity } = await import("@/lib/db/activity")
+    const { DELETE } = await import("@/app/api/folders/[id]/route")
+    const req = new Request("http://localhost/api/folders/folder-1", { method: "DELETE" })
+    const res = await DELETE(req, { params: { id: "folder-1" } })
+
+    expect(res.status).toBe(204)
+    expect(writeActivity).toHaveBeenCalledTimes(2)
+    expect(writeActivity).toHaveBeenCalledWith(
+      "c1",
+      "user-1",
+      "UPDATED",
+      expect.stringContaining("Vendor Contracts"),
+    )
+    expect(writeActivity).toHaveBeenCalledWith(
+      "c2",
+      "user-1",
+      "UPDATED",
+      expect.stringContaining("Vendor Contracts"),
+    )
+  })
 })

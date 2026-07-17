@@ -1,6 +1,7 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { writeActivity } from "@/lib/db/activity"
 import { z } from "zod"
 
 const RenameFolderSchema = z.object({
@@ -53,16 +54,33 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   return requestContext.run(ctx, async () => {
     const existing = await prisma.folder.findUnique({
       where: { id: params.id },
-      select: { id: true, organizationId: true },
+      select: { id: true, organizationId: true, name: true },
     })
     if (!existing || existing.organizationId !== ctx.organizationId)
       return Response.json({ error: "Not Found" }, { status: 404 })
+
+    const affectedContracts = await prisma.contract.findMany({
+      where: { folderId: params.id },
+      select: { id: true },
+    })
 
     // Move contracts to root
     await prisma.contract.updateMany({
       where: { folderId: params.id },
       data: { folderId: null },
     })
+
+    // Audit trail — must not be fire-and-forget
+    await Promise.all(
+      affectedContracts.map((contract) =>
+        writeActivity(
+          contract.id,
+          ctx.userId,
+          "UPDATED",
+          `Removed from folder "${existing.name}" (folder deleted)`,
+        ),
+      ),
+    )
 
     await prisma.folder.delete({ where: { id: params.id } })
 
