@@ -38,7 +38,7 @@ import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
-import { assertZipDecompressedSizeWithinLimit, ZipBombError } from "@/lib/import/zip-safety"
+import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
@@ -354,11 +354,14 @@ const extractWorker = new Worker<ContractExtractJobData>(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ) {
       try {
-        // DOCX is a ZIP container — validate its declared decompressed size
-        // before mammoth inflates it internally, so a decompression bomb
-        // can't exhaust the worker process.
-        assertZipDecompressedSizeWithinLimit(buffer)
-        const result = await mammoth.extractRawText({ buffer })
+        // DOCX is a ZIP container, and mammoth's internal unzip (jszip/pako)
+        // does not protect against a forged declared size — it inflates
+        // toward the archive's real size before its own mismatch check
+        // fires. Re-serialize through our own capped, verified-safe
+        // unzip/rezip round-trip first, so mammoth only ever sees data
+        // already bounded by our decompressed-size ceiling.
+        const sanitized = Buffer.from(sanitizeZipBuffer(buffer))
+        const result = await mammoth.extractRawText({ buffer: sanitized })
         extractedText = result.value?.trim() || null
         logger.debug({ fileId, chars: extractedText?.length ?? 0 }, "[extract] DOCX text extracted")
       } catch (err) {
