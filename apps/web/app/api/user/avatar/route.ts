@@ -1,7 +1,8 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { storage } from "@/lib/storage"
+import { detectImageKind, mimeForImageKind } from "@/lib/utils/image-magic-bytes"
 
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
+const ALLOWED_KINDS = new Set(["jpeg", "png", "webp", "gif"])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
 function sanitizeFilename(name: string): string {
@@ -24,23 +25,24 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Missing file field" }, { status: 400 })
   }
 
-  if (!ALLOWED_TYPES.has(file.type)) {
-    return Response.json(
-      { error: "Only JPEG, PNG, WebP, and GIF images are allowed" },
-      { status: 400 },
-    )
-  }
-
   const buffer = Buffer.from(await file.arrayBuffer())
 
   if (buffer.byteLength > MAX_BYTES) {
     return Response.json({ error: "File exceeds 5 MB limit" }, { status: 413 })
   }
 
+  const kind = detectImageKind(buffer)
+  if (!kind || !ALLOWED_KINDS.has(kind)) {
+    return Response.json(
+      { error: "Only JPEG, PNG, WebP, and GIF images are allowed" },
+      { status: 400 },
+    )
+  }
+
   const sanitized = sanitizeFilename(file.name || "avatar")
   const key = `avatars/${ctx.userId}/${Date.now()}_${sanitized}`
 
-  await storage.upload(key, buffer, file.type)
+  await storage.upload(key, buffer, mimeForImageKind(kind))
 
   const url = `/api/user/avatar?key=${encodeURIComponent(key)}`
   return Response.json({ url }, { status: 201 })

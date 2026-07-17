@@ -709,6 +709,12 @@ describe("POST /api/org/invitations/[id]/accept", () => {
   })
 })
 
+// Real magic-byte fixtures — the routes now sniff content, not the client-
+// supplied MIME string, so fake ["data"] payloads no longer pass validation.
+const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
+const JPEG_BYTES = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+const GIF_BYTES = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x00, 0x00])
+
 // ─── POST /api/org/logo ────────────────────────────────────────────────────────
 
 describe("POST /api/org/logo (upload)", () => {
@@ -742,18 +748,27 @@ describe("POST /api/org/logo (upload)", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { POST } = await import("@/app/api/org/logo/route")
     const fd = new FormData()
-    fd.append("file", new File(["data"], "logo.gif", { type: "image/gif" }))
+    fd.append("file", new File([GIF_BYTES], "logo.gif", { type: "image/gif" }))
     const res = await POST(makeFormRequest("http://localhost/api/org/logo", fd))
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/JPEG|PNG|WebP/)
   })
 
+  it("returns 400 when content isn't a real image regardless of claimed MIME type (spoofed upload)", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const { POST } = await import("@/app/api/org/logo/route")
+    const fd = new FormData()
+    fd.append("file", new File(["<script>alert(1)</script>"], "logo.png", { type: "image/png" }))
+    const res = await POST(makeFormRequest("http://localhost/api/org/logo", fd))
+    expect(res.status).toBe(400)
+  })
+
   it("returns 201 with url when valid PNG uploaded by admin", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { POST } = await import("@/app/api/org/logo/route")
     const fd = new FormData()
-    fd.append("file", new File(["data"], "logo.png", { type: "image/png" }))
+    fd.append("file", new File([PNG_BYTES], "logo.png", { type: "image/png" }))
     const res = await POST(makeFormRequest("http://localhost/api/org/logo", fd))
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -764,7 +779,7 @@ describe("POST /api/org/logo (upload)", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(legalCtx)
     const { POST } = await import("@/app/api/org/logo/route")
     const fd = new FormData()
-    fd.append("file", new File(["data"], "logo.png", { type: "image/png" }))
+    fd.append("file", new File([PNG_BYTES], "logo.png", { type: "image/png" }))
     const res = await POST(makeFormRequest("http://localhost/api/org/logo", fd))
     expect(res.status).toBe(201)
   })
@@ -843,11 +858,20 @@ describe("POST /api/user/avatar (upload)", () => {
     expect(res.status).toBe(400)
   })
 
+  it("returns 400 when content isn't a real image regardless of claimed MIME type (spoofed upload)", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    const { POST } = await import("@/app/api/user/avatar/route")
+    const fd = new FormData()
+    fd.append("file", new File(["<script>alert(1)</script>"], "avatar.png", { type: "image/png" }))
+    const res = await POST(makeFormRequest("http://localhost/api/user/avatar", fd))
+    expect(res.status).toBe(400)
+  })
+
   it("returns 201 with url when valid GIF uploaded", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { POST } = await import("@/app/api/user/avatar/route")
     const fd = new FormData()
-    fd.append("file", new File(["data"], "avatar.gif", { type: "image/gif" }))
+    fd.append("file", new File([GIF_BYTES], "avatar.gif", { type: "image/gif" }))
     const res = await POST(makeFormRequest("http://localhost/api/user/avatar", fd))
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -858,7 +882,7 @@ describe("POST /api/user/avatar (upload)", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { POST } = await import("@/app/api/user/avatar/route")
     const fd = new FormData()
-    fd.append("file", new File(["data"], "avatar.jpg", { type: "image/jpeg" }))
+    fd.append("file", new File([JPEG_BYTES], "avatar.jpg", { type: "image/jpeg" }))
     const res = await POST(makeFormRequest("http://localhost/api/user/avatar", fd))
     expect(res.status).toBe(201)
   })
