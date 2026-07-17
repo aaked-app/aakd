@@ -686,6 +686,86 @@ describe("Org-level isolation for member/API key operations", () => {
     expect(prisma.member.update).toHaveBeenCalled()
   })
 
+  it("admin cannot delete an owner's membership — 403 Forbidden", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-admin",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-owner",
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+
+    const { DELETE } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-owner", { method: "DELETE" })
+    const res = await DELETE(req, { params: { id: "member-owner" } })
+
+    expect(res.status).toBe(403)
+    expect(prisma.member.delete).not.toHaveBeenCalled()
+  })
+
+  it("sole owner's membership cannot be deleted, even by another owner — 409 Conflict", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-other-owner",
+      organizationId: "org-1",
+      role: "owner",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-owner",
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+    vi.mocked(prisma.member.count).mockResolvedValue(1)
+
+    const { DELETE } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-owner", { method: "DELETE" })
+    const res = await DELETE(req, { params: { id: "member-owner" } })
+
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error).toBe("cannot_remove_last_owner")
+    expect(prisma.member.delete).not.toHaveBeenCalled()
+  })
+
+  it("owner can delete a co-owner's membership when another owner remains", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-co-owner",
+      userId: "user-co-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+    vi.mocked(prisma.member.count).mockResolvedValue(2)
+    vi.mocked(prisma.member.delete).mockResolvedValue({} as any)
+
+    const { DELETE } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-co-owner", { method: "DELETE" })
+    const res = await DELETE(req, { params: { id: "member-co-owner" } })
+
+    expect(res.status).toBe(204)
+    expect(prisma.member.delete).toHaveBeenCalled()
+  })
+
   it("deleting a folder writes an Activity row for each contract moved to root", async () => {
     const { resolveAuth } = await import("@/lib/auth/middleware")
     vi.mocked(resolveAuth).mockResolvedValue({

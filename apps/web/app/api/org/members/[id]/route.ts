@@ -113,7 +113,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   return requestContext.run(ctx, async () => {
     const member = await prisma.member.findUnique({
       where: { id: params.id },
-      select: { id: true, userId: true, organizationId: true },
+      select: { id: true, userId: true, organizationId: true, role: true },
     })
     if (!member || member.organizationId !== ctx.organizationId) {
       return new Response("Not Found", { status: 404 })
@@ -121,6 +121,26 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
     if (member.userId === ctx.userId) {
       return new Response("Cannot remove yourself", { status: 400 })
+    }
+
+    // Only an owner can remove another owner — an admin removing the owner
+    // would leave the org with no one at the top of the hierarchy.
+    if (member.role === "owner" && ctx.role !== "owner") {
+      return Response.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // Don't let the org remove its last owner — that would leave the org
+    // with no one able to perform owner-only operations.
+    if (member.role === "owner") {
+      const ownerCount = await prisma.member.count({
+        where: { organizationId: ctx.organizationId, role: "owner" },
+      })
+      if (ownerCount <= 1) {
+        return Response.json(
+          { error: "cannot_remove_last_owner" },
+          { status: 409 },
+        )
+      }
     }
 
     await prisma.member.delete({ where: { id: params.id } })
