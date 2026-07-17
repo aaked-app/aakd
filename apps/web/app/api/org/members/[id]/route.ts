@@ -40,6 +40,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return new Response("Not Found", { status: 404 })
     }
 
+    // Only an owner can change another owner's role — an admin demoting
+    // the owner would leave the org with no one at the top of the hierarchy.
+    if (member.role === "owner" && ctx.role !== "owner") {
+      return Response.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // Don't let the org demote its last owner — that would leave the org
+    // with no one able to perform owner-only operations. (The role schema
+    // never accepts "owner" as a target, so any role change here is a demotion.)
+    if (member.role === "owner") {
+      const ownerCount = await prisma.member.count({
+        where: { organizationId: ctx.organizationId, role: "owner" },
+      })
+      if (ownerCount <= 1) {
+        return Response.json(
+          { error: "cannot_demote_last_owner" },
+          { status: 409 },
+        )
+      }
+    }
+
     // Don't let the org demote its last admin — that would lock everyone
     // out of admin-only operations (members, api keys, integrations).
     if (member.role === "admin" && parsed.data.role !== "admin") {

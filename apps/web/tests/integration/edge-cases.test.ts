@@ -594,6 +594,98 @@ describe("Org-level isolation for member/API key operations", () => {
     expect(prisma.member.update).not.toHaveBeenCalled()
   })
 
+  it("admin cannot demote an owner — 403 Forbidden", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-admin",
+      organizationId: "org-1",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-owner",
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+
+    const { PATCH } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-owner", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "viewer" }),
+    })
+    const res = await PATCH(req, { params: { id: "member-owner" } })
+
+    expect(res.status).toBe(403)
+    expect(prisma.member.update).not.toHaveBeenCalled()
+  })
+
+  it("sole owner cannot be demoted, even by themselves — 409 Conflict", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-owner",
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+    vi.mocked(prisma.member.count).mockResolvedValue(1)
+
+    const { PATCH } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-owner", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "admin" }),
+    })
+    const res = await PATCH(req, { params: { id: "member-owner" } })
+
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error).toBe("cannot_demote_last_owner")
+    expect(prisma.member.update).not.toHaveBeenCalled()
+  })
+
+  it("owner can demote a co-owner when another owner remains", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-owner",
+      organizationId: "org-1",
+      role: "owner",
+      source: "session",
+      requestId: "test-request-id",
+    })
+
+    vi.mocked(prisma.member.findUnique).mockResolvedValue({
+      id: "member-co-owner",
+      userId: "user-co-owner",
+      organizationId: "org-1",
+      role: "owner",
+    } as any)
+    vi.mocked(prisma.member.count).mockResolvedValue(2)
+    vi.mocked(prisma.member.update).mockResolvedValue({ id: "member-co-owner", role: "admin" } as any)
+
+    const { PATCH } = await import("@/app/api/org/members/[id]/route")
+    const req = new Request("http://localhost/api/org/members/member-co-owner", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "admin" }),
+    })
+    const res = await PATCH(req, { params: { id: "member-co-owner" } })
+
+    expect(res.status).toBe(200)
+    expect(prisma.member.update).toHaveBeenCalled()
+  })
+
   it("deleting a folder writes an Activity row for each contract moved to root", async () => {
     const { resolveAuth } = await import("@/lib/auth/middleware")
     vi.mocked(resolveAuth).mockResolvedValue({
