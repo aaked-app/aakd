@@ -44,6 +44,7 @@ import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/emai
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
 import { sendSlackEvent, sendTeamsEvent } from "@/lib/notifications/webhooks"
 import { decrypt } from "@/lib/notifications/crypto"
+import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
 import { buildUnsubscribeToken } from "@/lib/notifications/unsubscribe-token"
 import {
   DEFAULT_EMAIL_ENABLED,
@@ -1747,6 +1748,33 @@ const deliverWorker = new Worker<NotificationDeliverJobData>(
       let httpStatus: number | null = null
       let bodyText: string | null = null
       let success = false
+
+      // Re-validate at delivery time, not just registration time. The
+      // registration-time check (org/webhooks POST route) resolves DNS once;
+      // an attacker who controls DNS for the target domain can pass that
+      // check with a public IP, then repoint the record to a private/
+      // link-local address (e.g. the cloud metadata IP) before this job
+      // runs. Re-running the same guard against the address actually used
+      // by fetch closes that TOCTOU window.
+      try {
+        await validateWebhookUrl(plaintextUrl)
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        logger.error(
+          { webhookId: data.webhookId, attempt: data.attempt, reason },
+          "[deliver] webhook URL rejected by delivery-time SSRF revalidation",
+        )
+        await db.webhookDeliveryLog.update({
+          where: { id: data.deliveryLogId },
+          data: {
+            status: "failed",
+            httpStatus: null,
+            responseBody: `Blocked: ${reason}`.slice(0, 1000),
+            durationMs: Date.now() - start,
+          },
+        })
+        return
+      }
 
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 10_000)
