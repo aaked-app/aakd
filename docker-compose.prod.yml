@@ -111,11 +111,11 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       # Email (Resend SMTP)
-      SMTP_HOST: smtp.resend.com
-      SMTP_PORT: 465
-      SMTP_SECURE: "true"
-      SMTP_USER: resend
-      SMTP_PASS: ${RESEND_API_KEY:?RESEND_API_KEY must be set}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@${DOMAIN}}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # DocuSeal
@@ -152,11 +152,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      SMTP_HOST: smtp.resend.com
-      SMTP_PORT: 465
-      SMTP_SECURE: "true"
-      SMTP_USER: resend
-      SMTP_PASS: ${RESEND_API_KEY}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@${DOMAIN}}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       DOCUSEAL_API_URL: http://docuseal:3000

@@ -587,6 +587,23 @@ export default function ContractsPage() {
                           : "—"}
                       </dd>
                     </div>
+                    <div className="col-span-2 min-w-0">
+                      <dt className="text-xs text-muted-foreground">{t("tableOwner")}</dt>
+                      <dd className="mt-1 flex min-w-0 items-center gap-2 text-foreground">
+                        {contract.owner?.image ? (
+                          <img
+                            src={contract.owner.image}
+                            className="size-6 shrink-0 rounded-full object-cover"
+                            alt={contract.owner.name ?? contract.ownerId}
+                          />
+                        ) : (
+                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                            {ownerInitials(contract.owner?.name)}
+                          </span>
+                        )}
+                        <span className="truncate">{contract.owner?.name ?? "—"}</span>
+                      </dd>
+                    </div>
                   </dl>
                 </li>
               ))}

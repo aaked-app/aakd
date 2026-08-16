@@ -110,6 +110,18 @@ else
     read -rp "$(echo -e "${BOLD}Your email address${NC} (optional renewal alerts): ")" ALERT_EMAIL_TO
   fi
   ALERT_EMAIL_TO="${ALERT_EMAIL_TO:-}"
+  SMTP_HOST="${SMTP_HOST:-}"
+  SMTP_PORT="${SMTP_PORT:-587}"
+  SMTP_SECURE="${SMTP_SECURE:-false}"
+  SMTP_USER="${SMTP_USER:-}"
+  SMTP_PASS="${SMTP_PASS:-}"
+  if [ -n "$RESEND_API_KEY" ]; then
+    SMTP_HOST="smtp.resend.com"
+    SMTP_PORT="465"
+    SMTP_SECURE="true"
+    SMTP_USER="resend"
+    SMTP_PASS="$RESEND_API_KEY"
+  fi
 
   # Auto-generate secrets
   log "Generating secrets..."
@@ -143,6 +155,11 @@ NOTIFICATION_ENCRYPTION_KEY=${NOTIFICATION_ENCRYPTION_KEY}
 
 # Email (Resend)
 RESEND_API_KEY=${RESEND_API_KEY}
+SMTP_HOST=${SMTP_HOST}
+SMTP_PORT=${SMTP_PORT}
+SMTP_SECURE=${SMTP_SECURE}
+SMTP_USER=${SMTP_USER}
+SMTP_PASS=${SMTP_PASS}
 SMTP_FROM=${SMTP_FROM}
 ALERT_EMAIL_TO=${ALERT_EMAIL_TO}
 

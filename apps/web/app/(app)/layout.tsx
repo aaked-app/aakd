@@ -19,7 +19,6 @@ import {
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { CmdK } from "@/components/cmd-k"
 import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -434,7 +433,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <CmdK />
       <GlobalProviders />
     </div>
   )

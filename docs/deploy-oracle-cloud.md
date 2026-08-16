@@ -62,9 +62,9 @@ Wait 1–2 minutes for DNS to propagate. Verify with: `nslookup app.yourdomain.c
 
 ---
 
-## Step 4 — Create a Resend account (5 min)
+## Step 4 — Configure email (optional, 5 min)
 
-Resend sends your transactional emails (invites, alerts, etc.). Free tier: 100 emails/day.
+Email is optional. Without it, the application still works, but invitations and renewal alerts are not delivered. Resend is the simplest option for transactional email and has a free tier, but any SMTP provider works.
 
 1. Go to **https://resend.com** → Sign up
 2. Go to **Domains** → Add your domain → follow the DNS instructions
@@ -193,7 +193,7 @@ scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/claus
 | Oracle Cloud ARM VM (4 CPU, 24 GB) | **$0/month (Always Free)** |
 | Oracle Cloud block storage (50 GB) | **$0/month (Always Free)** |
 | Cloudflare (DNS + proxy) | **$0/month** |
-| Resend (100 emails/day) | **$0/month** |
+| Email provider (optional) | **$0+ / month** |
 | Domain name | ~$10/year |
 | **Total** | **~$0.83/month** |
 

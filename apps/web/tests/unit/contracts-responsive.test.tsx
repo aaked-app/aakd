@@ -64,7 +64,7 @@ describe("ContractsPage responsive contract representations", () => {
     vi.clearAllMocks()
   })
 
-  it("renders the fetched contract in both the desktop table and mobile list", async () => {
+  it("renders contract and owner context in both desktop and mobile representations", async () => {
     render(<ContractsPage />)
 
     await waitFor(() => {
@@ -75,7 +75,9 @@ describe("ContractsPage responsive contract representations", () => {
     const mobileList = screen.getByRole("list", { name: "title" })
 
     expect(within(desktopTable).getByText("Northwind master agreement")).toBeInTheDocument()
+    expect(within(desktopTable).getByTitle("Alex Johnson")).toBeInTheDocument()
     expect(within(mobileList).getByText("Northwind master agreement")).toBeInTheDocument()
     expect(within(mobileList).getByText("Northwind")).toBeInTheDocument()
+    expect(within(mobileList).getByText("Alex Johnson")).toBeInTheDocument()
   })
 })
