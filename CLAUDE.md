@@ -244,7 +244,7 @@ AI and email are optional — the app runs without them (AI features degrade gra
 | M9 — Ecosystem: CRM | ✅ Complete | HubSpot, Salesforce, Pipedrive — OAuth, deal linking, sync, webhooks |
 | M10 — Migration Tools | ✅ Complete | Import from CSV/spreadsheets, PandaDoc, ContractBook, DocuSign CLM, Google Drive, bulk PDF/DOCX — 5-tab UI, 14 API routes, row-level progress tracking |
 | M11 — Internationalization | ✅ Complete | EN/FR/DE/AR(RTL)/ES — next-intl, cookie-based locale, locale switcher in settings, nav translated, User.locale field |
-| M12 — Redlining | Pending | Tracked changes, version comparison (deferred post-launch) |
+| M12 — Redlining | ✅ Complete | Tracked changes (`TrackChangeSidebar`, per-change accept/reject, redline review mode), `DocumentSnapshot` + snapshot compare API for version comparison |
 | 🚀 | — | **Open Source Launch** — publish repo publicly, LinkedIn, developer communities |
 
 ### Cloud / Hosted SaaS Track (after open source launch)
