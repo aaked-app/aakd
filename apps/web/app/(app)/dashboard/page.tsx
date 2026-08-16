@@ -130,7 +130,8 @@ export default function DashboardPage() {
 
   const activeCount   = analytics?.byStatus.find((s) => s.status === "ACTIVE")?.count ?? 0
   const expiringCount = analytics?.expiringSoon.next30 ?? 0
-  const pendingCount  = analytics?.approvalFunnel.pending ?? 0
+  const overdueCount = analytics?.obligations?.overdue ?? 0
+  const dueSoonCount = analytics?.obligations?.dueSoon ?? 0
 
   const totalContracts = analytics?.byStatus.reduce((sum, s) => sum + s.count, 0) ?? null
 
@@ -217,10 +218,11 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stat cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3 px-7 pt-4 shrink-0">
+      <div className="grid grid-cols-2 gap-3 px-7 pt-4 shrink-0 md:grid-cols-4">
         <StatCard title={t("activeContracts")}  value={activeCount}   sub={t("totalInPortfolio")}  loading={loading} />
         <StatCard title={t("expiringSoon")}      value={expiringCount} sub={t("within30Days")}      loading={loading} />
-        <StatCard title={t("pendingApprovals")}  value={pendingCount}  sub={t("awaitingReview")}    loading={loading} />
+        <StatCard title={t("overdueObligations")} value={overdueCount} sub={t("needsAttention")} loading={loading} />
+        <StatCard title={t("dueSoonObligations")} value={dueSoonCount} sub={t("within7Days")} loading={loading} />
       </div>
 
       {/* ── Main grid ────────────────────────────────────────────────── */}

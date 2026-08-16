@@ -260,6 +260,7 @@ interface Props {
   obligation: Obligation | null
   members: OrgMember[]
   onSaved: (obligation: Obligation) => void
+  initialValues?: Partial<FormState>
 }
 
 export function ObligationSheet({
@@ -269,6 +270,7 @@ export function ObligationSheet({
   obligation,
   members,
   onSaved,
+  initialValues,
 }: Props) {
   const t = useTranslations("obligations")
   const PRIORITY_OPTIONS: { value: ObligationPriority; label: string; dot: string; pill: string }[] = [
@@ -282,8 +284,8 @@ export function ObligationSheet({
 
   useEffect(() => {
     if (!open) return
-    setForm(obligation ? obligationToForm(obligation) : EMPTY_FORM)
-  }, [open, obligation])
+    setForm(obligation ? obligationToForm(obligation) : { ...EMPTY_FORM, ...initialValues })
+  }, [open, obligation, initialValues])
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((p) => ({ ...p, [key]: value }))

@@ -1206,6 +1206,46 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const body = await res.json()
     expect(body.state).toBe("not_found")
   })
+
+  it("does not expose a job belonging to another contract", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-other", organizationId: "org-1" },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ title: "private" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
+      { params: { id: "contract-1" } },
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ state: "not_found" })
+  })
+
+  it("does not expose a job belonging to another organization", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-1", organizationId: "org-other" },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ title: "private" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
+      { params: { id: "contract-1" } },
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ state: "not_found" })
+  })
 })
 
 // ─── 11. GET /api/obligations (global list) ───────────────────────────────────

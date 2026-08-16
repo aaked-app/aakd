@@ -5,12 +5,12 @@
 
 ## 1. ICP Card — Primary Persona (UAE)
 
-**Name:** Layla Al-Mansouri (fictional composite)  
-**Title:** Operations Manager / Chief of Staff  
-**Company:** 30–150 person free zone company (DMCC, JLT, DIFC, ADGM)  
-**Industry:** Professional services, financial services, real estate, trading  
-**Location:** Dubai or Abu Dhabi  
-**Reports to:** CEO or COO  
+**Name:** Layla Al-Mansouri (fictional composite)
+**Title:** Operations Manager / Chief of Staff
+**Company:** 30–150 person free zone company (DMCC, JLT, DIFC, ADGM)
+**Industry:** Professional services, financial services, real estate, trading
+**Location:** Dubai or Abu Dhabi
+**Reports to:** CEO or COO
 
 ### Day in the life
 - Manages vendor contracts, client agreements, NDAs, service contracts
@@ -40,12 +40,12 @@
 
 ## 2. ICP Card — Secondary Persona (Saudi Arabia)
 
-**Name:** Khaled Al-Harbi (fictional composite)  
-**Title:** Legal & Compliance Officer / Contracts Manager  
-**Company:** 100–500 person Saudi company  
-**Industry:** Contracting, manufacturing, healthcare, government supply chain  
-**Location:** Riyadh or Jeddah  
-**Reports to:** General Manager or CFO  
+**Name:** Khaled Al-Harbi (fictional composite)
+**Title:** Legal & Compliance Officer / Contracts Manager
+**Company:** 100–500 person Saudi company
+**Industry:** Contracting, manufacturing, healthcare, government supply chain
+**Location:** Riyadh or Jeddah
+**Reports to:** General Manager or CFO
 
 ### Day in the life
 - Manages contracts across departments — procurement, HR, vendor, client
@@ -75,11 +75,11 @@
 ## 3. Top Pain Points (with sources)
 
 ### Pain #1 — Contract Invisibility (Universal)
-**Quote (EY Law survey):** *"90% of contracting professionals admit they face difficulties finding their contracts."*  
+**Quote (EY Law survey):** *"90% of contracting professionals admit they face difficulties finding their contracts."*
 The single most common complaint. Contracts live in email, WhatsApp, shared drives. No one knows the status.
 
 ### Pain #2 — Arabic Legal Compliance (MENA-specific, hard blocker)
-**Legal reality:** In Saudi Arabia, Arabic is the PRIMARY language by Ministry of Commerce order. English documents have no binding legal authority. In UAE, every contract must be in Arabic OR accompanied by a certified Arabic translation. Where English and Arabic conflict, Arabic prevails.  
+**Legal reality:** In Saudi Arabia, Arabic is the PRIMARY language by Ministry of Commerce order. English documents have no binding legal authority. In UAE, every contract must be in Arabic OR accompanied by a certified Arabic translation. Where English and Arabic conflict, Arabic prevails.
 **User pain:** Writing contracts in Arabic is hard without templates. Translating is expensive ($50–200/page for legal translation). No Western CLM tool makes this easy.
 
 ### Pain #3 — Missed Renewals (Universal, high-urgency)

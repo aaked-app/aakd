@@ -1,6 +1,6 @@
 # Aakd
 
-Stop paying $1,500 to find out your MSA is fine.
+Open-source contract management for teams that want to run their own stack.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](./docker-compose.yml)
@@ -18,7 +18,7 @@ Stop paying $1,500 to find out your MSA is fine.
 5. **Collaborate** — approvals, comments, e-signatures, track changes, all in one place
 6. **Automate** — Slack/Teams alerts, webhooks, API, MCP server for AI agents
 
-Your data never leaves your server. Bring your own AI key (Anthropic or OpenAI). Host anywhere.
+When self-hosted, your contracts stay on infrastructure you control. AI providers are optional: use Ollama locally or bring your own provider key.
 
 ---
 
@@ -31,13 +31,13 @@ cd aakd
 cp .env.example .env.local   # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
 
 # 2. Start everything
-docker-compose up
+docker compose up
 
 # 3. Open the app
 open http://localhost:3000
 ```
 
-First signup creates your account and organization. Add your Anthropic or OpenAI API key in Settings → AI to enable extraction, Q&A, and risk scoring.
+First signup creates your account and organization. The repository, uploads, manual metadata, approvals, obligations, and signing screens work without an AI key. Configure an AI provider in Settings only when you want extraction, Q&A, risk scoring, or AI-assisted obligation suggestions.
 
 ---
 
@@ -125,9 +125,9 @@ English · Français · Deutsch · Español · العربية (RTL)
 | BYOK AI (no per-use fee) | ✅ | ❌ | ❌ | ❌ |
 | Arabic RTL | ✅ | ❌ | ❌ | ✅ |
 | MCP server | ✅ | ❌ | ❌ | ❌ |
-| Starting price | Free / hosting | $2,000+/mo | $500+/mo | Opaque |
+| Software model | Free self-hosted software | Paid SaaS | Paid SaaS | Commercial |
 
-The only open-source, self-hostable, AI-native CLM with Arabic support and an MCP server. Your contracts stay on your servers. Forever.
+This project is open source and self-hostable. It is not currently a hosted service and does not claim formal compliance certifications or enterprise identity features.
 
 ---
 
@@ -145,6 +145,8 @@ The only open-source, self-hostable, AI-native CLM with Arabic support and an MC
 ---
 
 ## Self-hosting
+
+The default compose stack runs the web app, BullMQ worker, PostgreSQL, Redis, and MinIO. You need a database URL, Better Auth secret, Redis URL, and S3-compatible storage credentials. AI credentials are optional for local/manual workflows and required only for AI-assisted features.
 
 See [docker-compose.yml](./docker-compose.yml) for the full stack.
 

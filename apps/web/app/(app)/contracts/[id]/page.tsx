@@ -908,12 +908,8 @@ export default function ContractDetailPage() {
               Signing
             </TabsTrigger>
           )}
-          <TabsTrigger
-            value="editor"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
-          >
-            Editor
-          </TabsTrigger>
+          {/* The editor remains available for existing deep links, but is hidden
+              from the primary workflow until authoring is production-ready. */}
           <TabsTrigger
             value="obligations"
             className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"

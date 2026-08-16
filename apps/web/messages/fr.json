@@ -310,8 +310,12 @@
     "activeContracts": "Contrats actifs",
     "expiringSoon": "Expirant bientôt",
     "pendingApprovals": "Approbations en attente",
+    "overdueObligations": "Obligations en retard",
+    "dueSoonObligations": "À échéance bientôt",
     "totalInPortfolio": "Total du portefeuille",
     "within30Days": "Dans les 30 jours",
+    "within7Days": "Dans les 7 jours",
+    "needsAttention": "Nécessite votre attention",
     "awaitingReview": "En attente de révision",
     "recentContracts": "Contrats récents",
     "viewAll": "Tout voir",
@@ -499,7 +503,7 @@
       "heading": "Tout ce dont vous avez besoin pour gérer vos contrats",
       "subtitle": "Du premier brouillon à la signature finale — et chaque obligation qui suit.",
       "i0title": "Rédaction assistée par IA",
-      "i0desc": "Générez des contrats en quelques secondes. Utilisez des modèles locaux, vos propres clés API, ou notre IA hébergée — vos données, votre choix.",
+      "i0desc": "Générez des contrats en quelques secondes avec des modèles locaux ou vos propres clés API. Gardez le contrôle de vos données et de votre infrastructure.",
       "i1title": "Bibliothèque de modèles",
       "i1desc": "Modèles prédéfinis pour les NDA, accords SaaS, contrats de travail et plus encore. Personnalisez avec des variables intelligentes.",
       "i2title": "Signatures électroniques intégrées",
@@ -527,19 +531,19 @@
       "heading": "Vos contrats. Votre infrastructure.",
       "subtitle": "Aaked est entièrement open source sous licence AGPL. Déployez sur vos propres serveurs pour une souveraineté totale des données — sans dépendance fournisseur, sans tarification par siège.",
       "0title": "Auto-hébergement partout",
-      "0desc": "Docker, Kubernetes ou bare metal. Exécutez Aaked où votre équipe de conformité en a besoin. Un seul commande pour déployer.",
+      "0desc": "Docker ou bare metal. Exécutez Aaked sur une infrastructure que vous contrôlez.",
       "1title": "Apportez votre propre IA",
-      "1desc": "Connectez des LLM locaux, utilisez OpenAI, Anthropic ou n'importe quel fournisseur. Vos clés API, vos modèles — aucune donnée ne quitte votre réseau.",
+      "1desc": "Connectez des LLM locaux ou utilisez OpenAI, Anthropic ou un autre fournisseur avec vos propres clés. Le traitement des données dépend du fournisseur et du déploiement choisis.",
       "2title": "Piloté par la communauté",
       "2desc": "Construit par des développeurs et des équipes juridiques du monde entier. Chaque demande de fonctionnalité, correction de bug et amélioration est transparente."
     },
     "security": {
       "heading": "Sécurité de niveau entreprise",
-      "s0": "SOC 2 Type II",
-      "s1": "Conforme RGPD",
+      "s0": "Accès basé sur les rôles",
+      "s1": "Contrôles de confidentialité",
       "s2": "Chiffrement AES-256",
       "s3": "Journal d'audit",
-      "s4": "SSO / SAML"
+      "s4": "Déploiement auto-hébergé"
     },
     "integrations": {
       "eyebrow": "Intégrations",
@@ -548,13 +552,13 @@
     "faq": {
       "heading": "Questions fréquemment posées",
       "q0": "Aaked est-il vraiment gratuit ?",
-      "a0": "Oui. Aaked est open source sous licence AGPL. Vous pouvez l'auto-héberger gratuitement avec des utilisateurs, contrats et fonctionnalités illimités. Nous proposons également une version hébergée gratuite.",
+      "a0": "Oui. Aaked est open source sous licence AGPL. Vous pouvez l'auto-héberger gratuitement avec des utilisateurs, contrats et fonctionnalités illimités. Une version hébergée n'est pas actuellement disponible.",
       "q1": "Comment fonctionne l'auto-hébergement ?",
-      "a1": "Déployez avec une seule commande Docker ou utilisez notre Helm chart Kubernetes. Nous fournissons une documentation détaillée, des scripts de migration et un support communautaire.",
+      "a1": "Déployez avec Docker en suivant les services indiqués dans notre guide d'auto-hébergement. Vos données restent sur une infrastructure que vous contrôlez.",
       "q2": "Puis-je utiliser mes propres modèles IA ?",
       "a2": "Absolument. Aaked supporte les LLM locaux (via Ollama, vLLM, etc.), OpenAI, Anthropic, Azure et toute API compatible OpenAI. Utilisez vos propres clés API.",
       "q3": "Aaked convient-il aux entreprises ?",
-      "a3": "Oui. Aaked inclut SSO/SAML, contrôle d'accès basé sur les rôles, journal d'audit, conformité SOC 2 et outils RGPD. De nombreuses équipes dans des secteurs réglementés utilisent Aaked en production.",
+      "a3": "Aaked inclut les rôles d'organisation, les contrôles d'accès et les journaux d'audit. SSO/SAML, certifications formelles et support entreprise hébergé ne sont pas actuellement inclus.",
       "q4": "Comment migrer depuis DocuSign ou d'autres outils ?",
       "a4": "Nous fournissons des outils d'import pour DocuSign, PandaDoc et les migrations CSV. Notre équipe peut aider lors de la période d'accès anticipé.",
       "q5": "Quelles langues Aaked supporte-t-il ?",
@@ -567,7 +571,7 @@
     },
     "cta": {
       "heading": "Prêt à prendre le contrôle de vos contrats ?",
-      "subtitle": "Obtenez un accès anticipé à la version hébergée, ou clonez le dépôt et déployez sur votre propre infrastructure aujourd'hui."
+      "subtitle": "Clonez le dépôt et déployez Aaked sur votre propre infrastructure aujourd'hui."
     },
     "footer": {
       "tagline": "La plateforme de contrats. Open source, propulsée par l'IA, conçue pour les équipes soucieuses de la souveraineté des données.",

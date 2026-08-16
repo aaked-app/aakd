@@ -13,6 +13,12 @@ dist/
 .codex/
 apps/web/.claude/
 
+# Local browser/build output
+.playwright-mcp/
+apps/web/.next-stale-*/
+apps/web/playwright-report/
+apps/web/test-results/
+
 # Python artifacts
 .pytest_cache/
 __pycache__/

@@ -9,6 +9,7 @@ import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
 
 // GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -156,15 +157,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await writeActivity(params.id, ctx.userId, "UPLOADED", filename)
 
-    await enqueueNotification("contract.uploaded", params.id, ctx.userId, {})
+    fireAndLog(
+      enqueueNotification("contract.uploaded", params.id, ctx.userId, {}),
+      "enqueueNotification:contractUploaded",
+      ctx.requestId,
+    )
     // Write in-app notification directly — does not depend on worker being up
-    await writeInAppToOrgMembers(
-      ctx.organizationId,
-      params.id,
-      "contract.uploaded",
-      "Contract file uploaded",
-      `A file was uploaded to "${existing.title}"`,
-      ctx.userId, // exclude the uploader
+    fireAndLog(
+      writeInAppToOrgMembers(
+        ctx.organizationId,
+        params.id,
+        "contract.uploaded",
+        "Contract file uploaded",
+        `A file was uploaded to "${existing.title}"`,
+        ctx.userId, // exclude the uploader
+      ),
+      "writeInAppToOrgMembers:contractUploaded",
+      ctx.requestId,
     )
 
     // Enqueue text extraction job — heavy work must not block the API route
@@ -173,6 +182,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         contractId: params.id,
         fileId: contractFile.id,
         storageKey: key,
+        preserveUserFields: true,
       })
     } catch (err) {
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue extraction job")

@@ -48,6 +48,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Enqueue — pass extractedText so the worker doesn't need another DB round-trip
     const job = await obligationExtractQueue.add("extract", {
       contractId: contract.id,
+      organizationId: ctx.organizationId,
       extractedText: contract.extractedText.slice(0, 100_000),
       requestedById: ctx.userId,
     })
@@ -80,6 +81,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const job = await queue.getJob(jobId)
 
     if (!job) {
+      return Response.json({ state: "not_found" })
+    }
+
+    // BullMQ job IDs are global to the queue. Bind the poll to the same
+    // contract and organization before exposing state or return values.
+    const jobData = job.data as { contractId?: string; organizationId?: string } | undefined
+    if (
+      jobData?.contractId !== params.id ||
+      jobData?.organizationId !== ctx.organizationId
+    ) {
       return Response.json({ state: "not_found" })
     }
 

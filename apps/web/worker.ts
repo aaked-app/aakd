@@ -278,7 +278,7 @@ function getTextLimitForProvider(): number {
 const extractWorker = new Worker<ContractExtractJobData>(
   "contract.extract",
   async (job: Job<ContractExtractJobData>) => {
-    const { contractId, fileId, storageKey } = job.data
+    const { contractId, fileId, storageKey, preserveUserFields } = job.data
 
     logger.info({ jobId: job.id, contractId, fileId }, "[extract] processing job")
 
@@ -388,7 +388,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
       // embed worker chains ai_extract once embeddings land so semantic search
       // is always populated even when the LLM extractor fails or is missing.
-      await contractEmbedQueue.add("embed", { contractId, extractedText })
+      await contractEmbedQueue.add("embed", { contractId, extractedText, preserveUserFields })
       logger.info({ contractId }, "[extract] enqueued embed job")
     } else {
       // Silent failures (typically scanned/image PDFs) used to disappear into
@@ -490,7 +490,7 @@ async function callExtractionLLM(text: string): Promise<string | null> {
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
   "contract.ai_extract",
   async (job: Job<ContractAiExtractJobData>) => {
-    const { contractId, extractedText } = job.data
+    const { contractId, extractedText, preserveUserFields } = job.data
 
     logger.info({ jobId: job.id, contractId }, "[ai_extract] processing job")
 
@@ -613,12 +613,53 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     }
 
     const db = getWorkerPrisma()
+    let persistedFieldData = fieldData
+
+    if (preserveUserFields) {
+      // The upload review form may contain values entered or corrected by the
+      // user before this background job runs. Seeded AI rows are safe to enrich;
+      // fields without a seed row must not be re-labelled as AI just because the
+      // document also contains a value.
+      const [contract, existingRows] = await Promise.all([
+        db.contract.findUnique({
+          where: { id: contractId },
+          select: {
+            contractType: true,
+            startDate: true,
+            endDate: true,
+            renewalDate: true,
+            value: true,
+            currency: true,
+            counterpartyName: true,
+            governingLaw: true,
+            noticePeriodDays: true,
+            autoRenewal: true,
+          },
+        }),
+        db.aIExtraction.findMany({
+          where: { contractId },
+          select: { field: true },
+        }),
+      ])
+      const seededFields = new Set(existingRows.map((row) => row.field))
+      const contractValues = contract as Record<string, unknown> | null
+      persistedFieldData = fieldData.filter(({ field }) =>
+        seededFields.has(field) ||
+        contractValues?.[field] === null ||
+        contractValues?.[field] === undefined,
+      )
+    }
+
+    if (persistedFieldData.length === 0) {
+      logger.info({ contractId }, "[ai_extract] all returned fields were supplied by the user")
+      return
+    }
     // Two-step write: createMany skipDuplicates inserts only fields with no
     // prior row, then updateMany refreshes the rest — but only when the row
     // is NOT accepted. Without the status guard a re-run would clobber a
     // human-reviewed value back to "pending" and overwrite their edits.
     await db.aIExtraction.createMany({
-      data: fieldData.map(({ field, data }) => ({
+      data: persistedFieldData.map(({ field, data }) => ({
         contractId,
         field,
         rawValue: String(data.value),
@@ -631,7 +672,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       skipDuplicates: true,
     })
 
-    for (const { field, data } of fieldData) {
+    for (const { field, data } of persistedFieldData) {
       await db.aIExtraction.updateMany({
         where: { contractId, field, status: { not: "accepted" } },
         data: {
@@ -672,7 +713,7 @@ aiExtractWorker.on("failed", (job, err) =>
 const embedWorker = new Worker<ContractEmbedJobData>(
   "contract.embed",
   async (job: Job<ContractEmbedJobData>) => {
-    const { contractId, extractedText } = job.data
+    const { contractId, extractedText, preserveUserFields } = job.data
 
     logger.info({ jobId: job.id, contractId }, "[embed] processing job")
 
@@ -689,7 +730,7 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     // re-running this handler from the top is idempotent.
     const chainAiExtract = async () => {
       try {
-        await contractAiExtractQueue.add("ai_extract", { contractId, extractedText })
+        await contractAiExtractQueue.add("ai_extract", { contractId, extractedText, preserveUserFields })
       } catch (err) {
         logger.error(
           { err, contractId },

@@ -310,8 +310,12 @@
     "activeContracts": "Active Contracts",
     "expiringSoon": "Expiring Soon",
     "pendingApprovals": "Pending Approvals",
+    "overdueObligations": "Overdue Obligations",
+    "dueSoonObligations": "Due Soon",
     "totalInPortfolio": "Total in portfolio",
     "within30Days": "Within 30 days",
+    "within7Days": "Within 7 days",
+    "needsAttention": "Needs attention",
     "awaitingReview": "Awaiting review",
     "recentContracts": "Recent Contracts",
     "viewAll": "View all",
@@ -499,7 +503,7 @@
       "heading": "Everything you need to manage contracts",
       "subtitle": "From first draft to final signature — and every obligation that follows.",
       "i0title": "AI-Powered Drafting",
-      "i0desc": "Generate contracts in seconds. Use local models, bring your own API keys, or use our hosted AI — your data, your choice.",
+      "i0desc": "Generate contracts in seconds with local models or your own AI provider keys. Keep control of your data and infrastructure.",
       "i1title": "Template Library",
       "i1desc": "Pre-built templates for NDAs, SaaS agreements, employment contracts, and more. Customize with smart variables.",
       "i2title": "Built-In E-Signatures",
@@ -527,19 +531,19 @@
       "heading": "Your contracts. Your infrastructure.",
       "subtitle": "Aakd is fully open source under the AGPL License. Deploy on your own servers for complete data sovereignty — no vendor lock-in, no per-seat pricing, no compromises.",
       "0title": "Self-Host Anywhere",
-      "0desc": "Docker, Kubernetes, or bare metal. Run Aakd wherever your compliance team needs it. One command to deploy.",
+      "0desc": "Docker or bare metal. Run Aakd on infrastructure you control with the services listed in our self-hosting guide.",
       "1title": "Bring Your Own AI",
-      "1desc": "Connect local LLMs, use OpenAI, Anthropic, or any provider. Your API keys, your models — no data leaves your network.",
+      "1desc": "Connect local LLMs or use OpenAI, Anthropic, or another provider with your own keys. Data handling follows the provider and deployment you choose.",
       "2title": "Community Driven",
       "2desc": "Built by developers and legal teams worldwide. Every feature request, bug fix, and improvement is transparent."
     },
     "security": {
       "heading": "Enterprise-grade security",
-      "s0": "SOC 2 Type II",
-      "s1": "GDPR Compliant",
+      "s0": "Role-based access",
+      "s1": "Privacy controls",
       "s2": "AES-256 Encryption",
       "s3": "Audit Logging",
-      "s4": "SSO / SAML"
+      "s4": "Self-hosted deployment"
     },
     "integrations": {
       "eyebrow": "Integrations",
@@ -548,13 +552,13 @@
     "faq": {
       "heading": "Frequently asked questions",
       "q0": "Is Aakd really free?",
-      "a0": "Yes. Aakd is open source under the AGPL License. You can self-host it at no cost with unlimited users, contracts, and features. We also offer a free hosted version for teams who don't want to manage infrastructure.",
+      "a0": "Yes. Aakd is open source under the AGPL License. You can self-host it at no cost with unlimited users, contracts, and features. A hosted version is not currently available.",
       "q1": "How does self-hosting work?",
-      "a1": "Deploy with a single Docker command or use our Kubernetes Helm chart. We provide detailed documentation, migration scripts, and community support. Your data never touches our servers.",
+      "a1": "Deploy with Docker using the services described in our self-hosting guide. We provide documentation and community support. Your data stays on infrastructure you control.",
       "q2": "Can I use my own AI models?",
       "a2": "Absolutely. Aakd supports local LLMs (via Ollama, vLLM, etc.), OpenAI, Anthropic, Azure, and any OpenAI-compatible API. Bring your own API keys — we never proxy your AI requests.",
       "q3": "Is Aakd suitable for enterprise use?",
-      "a3": "Yes. Aakd includes SSO/SAML, role-based access control, audit logging, SOC 2 readiness, and GDPR compliance tools. Many teams in regulated industries use Aakd in production.",
+      "a3": "Aakd includes organization roles, access controls, and audit logging. SSO/SAML, formal compliance certifications, and hosted enterprise support are not currently included.",
       "q4": "How do I migrate from DocuSign or other tools?",
       "a4": "We provide import tools for DocuSign, PandaDoc, and CSV-based migration. Our team can assist with complex migrations during the early access period.",
       "q5": "What languages does Aakd support?",
@@ -567,7 +571,7 @@
     },
     "cta": {
       "heading": "Ready to take control of your contracts?",
-      "subtitle": "Get early access to the hosted version, or clone the repo and deploy on your own infrastructure today."
+      "subtitle": "Clone the repository and deploy Aakd on your own infrastructure today."
     },
     "footer": {
       "tagline": "The contract platform. Open source, AI-powered, and built for teams that care about data sovereignty.",

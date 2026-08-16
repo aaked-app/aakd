@@ -250,7 +250,7 @@ All routes require `resolveAuth(req)`. Return 401 if null. Return 404 (not 403) 
 **`GET /api/crm/[provider]/callback`**
 - No auth check — called by CRM during OAuth flow
 - Validates state cookie + HMAC, extracts orgId + userId
-- Calls `provider.exchangeCode(code)` 
+- Calls `provider.exchangeCode(code)`
 - Encrypts tokens with AES-256-GCM (same key as M5: `NOTIFICATION_ENCRYPTION_KEY`)
 - Upserts `CrmIntegration` record
 - Clears state cookie

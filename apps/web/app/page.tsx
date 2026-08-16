@@ -527,7 +527,7 @@ function HeroSection() {
           </OutlineBtn>
         </div>
         <p style={{ color: "#64748b", fontSize: 13, marginTop: 12, textAlign: "center" }}>
-          ✦ Hosted version live · Self-host in 5 minutes with Docker
+          ✦ Open source · Self-host with Docker and the documented services
         </p>
       </div>
 
@@ -2077,7 +2077,7 @@ function FinalCTA() {
           </OutlineBtn>
         </div>
         <p style={{ color: "#64748b", fontSize: 13, marginTop: 12, textAlign: "center" }}>
-          ✦ Hosted version live · Self-host in 5 minutes with Docker
+          ✦ Open source · Self-host with Docker and the documented services
         </p>
       </div>
     </section>

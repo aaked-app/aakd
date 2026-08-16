@@ -13,11 +13,15 @@ export interface ContractExtractJobData {
   contractId: string
   fileId: string
   storageKey: string
+  /** Initial uploads already contain user-reviewed metadata from the fast review form. */
+  preserveUserFields?: boolean
 }
 
 export interface ContractAiExtractJobData {
   contractId: string
   extractedText: string
+  /** Do not create AI suggestions for metadata the user supplied during upload. */
+  preserveUserFields?: boolean
 }
 
 export interface AlertsCheckJobData {
@@ -43,6 +47,7 @@ export interface ImportProcessJobData {
 export interface ContractEmbedJobData {
   contractId: string
   extractedText: string
+  preserveUserFields?: boolean
 }
 
 export interface SigningSyncJobData {
@@ -87,6 +92,7 @@ export type EmailJobData =
 
 export interface ObligationExtractJobData {
   contractId: string
+  organizationId: string
   extractedText: string  // passed in so the worker doesn't need a DB read
   requestedById: string
 }

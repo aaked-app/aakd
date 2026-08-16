@@ -1,12 +1,12 @@
-# Deploy ClauseFlow on Oracle Cloud (Free Forever)
+# Deploy Aakd on Oracle Cloud
 
-Total time: ~30 minutes. Cost: $0/month forever.
+Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and free-tier terms can change, so verify current terms before deploying.
 
 ---
 
 ## What you'll get
 
-- ClauseFlow at `https://app.yourdomain.com`
+- Aakd at `https://app.yourdomain.com`
 - DocuSeal (e-signatures) at `https://sign.yourdomain.com`
 - Auto-SSL via Let's Encrypt (Caddy)
 - Daily PostgreSQL backups
@@ -92,7 +92,7 @@ On the VM, run:
 # Install git if needed
 sudo apt-get update && sudo apt-get install -y git
 
-# Clone ClauseFlow
+# Clone Aakd
 git clone https://github.com/YOUR_ORG/clauseflow.git ~/clauseflow
 cd ~/clauseflow
 
@@ -136,7 +136,7 @@ E-signatures now work.
 
 ---
 
-## Updating ClauseFlow
+## Updating Aakd
 
 ```bash
 cd ~/clauseflow

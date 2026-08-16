@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import {
   Building2,
   Users,
-  CreditCard,
   Key,
   ClipboardList,
   Plug2,
@@ -42,7 +41,6 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         { label: t("members"),           href: "/settings/members",       icon: Users },
         { label: t("apiKeys"),           href: "/settings/api-keys",      icon: Key },
         { label: t("auditLog"),          href: "/settings/audit-log",     icon: ClipboardList },
-        { label: t("billing"),           href: "/settings/billing",       icon: CreditCard, disabled: true },
       ],
     },
     {

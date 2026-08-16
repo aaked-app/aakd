@@ -74,8 +74,7 @@ export function ObligationList({
   const [extracting, setExtracting] = useState(false)
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
-  const [acceptingIdx, setAcceptingIdx] = useState<number | null>(null)
-  const [acceptingAll, setAcceptingAll] = useState(false)
+  const [reviewingIdx, setReviewingIdx] = useState<number | null>(null)
   const [jobId, setJobId] = useState<string | null>(() => {
     // Hydrate from localStorage on mount — survives navigation
     if (typeof window === "undefined") return null
@@ -179,94 +178,6 @@ export function ObligationList({
     }
   }
 
-  async function acceptSuggestion(idx: number, s: AISuggestion) {
-    setAcceptingIdx(idx)
-    try {
-      const dueDate = new Date()
-      // Ensure at least 1 day in the future to pass server validation
-      dueDate.setDate(dueDate.getDate() + Math.max(s.suggestedDueDays ?? 30, 1))
-      const res = await fetch(`/api/contracts/${contractId}/obligations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: s.title,
-          description: s.description,
-          clauseReference: s.clauseReference,
-          priority: s.priority,
-          dueDate: dueDate.toISOString(),
-          reminderDays: 7,
-        }),
-      })
-      if (!res.ok) throw new Error()
-      const created = await res.json()
-      onChange([...obligations, created])
-      setDismissedIds((prev) => new Set(prev).add(idx))
-      toast.success(`Obligation "${s.title}" created.`)
-    } catch {
-      toast.error("Failed to create obligation.")
-    } finally {
-      setAcceptingIdx(null)
-    }
-  }
-
-  async function acceptAll() {
-    setAcceptingAll(true)
-    const pending = suggestions
-      .map((s, idx) => ({ s, idx }))
-      .filter(({ idx }) => !dismissedIds.has(idx))
-
-    const created: Obligation[] = []
-    const newDismissed = new Set(dismissedIds)
-    let failCount = 0
-
-    for (const { s, idx } of pending) {
-      try {
-        const dueDate = new Date()
-        // Ensure at least 1 day in the future to pass server validation
-        const days = Math.max(s.suggestedDueDays ?? 30, 1)
-        dueDate.setDate(dueDate.getDate() + days)
-        const res = await fetch(`/api/contracts/${contractId}/obligations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: s.title,
-            description: s.description,
-            clauseReference: s.clauseReference,
-            priority: s.priority,
-            dueDate: dueDate.toISOString(),
-            reminderDays: 7,
-          }),
-        })
-        if (res.ok) {
-          const ob = await res.json()
-          created.push(ob)
-          newDismissed.add(idx)
-        } else {
-          failCount++
-        }
-      } catch {
-        failCount++
-      }
-    }
-
-    if (created.length > 0) {
-      onChange([...obligations, ...created])
-      setDismissedIds(newDismissed)
-      // Only clear the suggestions panel when at least some were saved.
-      // If everything succeeded, also clear localStorage.
-      if (failCount === 0) {
-        setSuggestions([])
-        localStorage.removeItem(`obligation_extract_job_${contractId}`)
-        setJobId(null)
-      }
-      toast.success(`${created.length} obligation${created.length !== 1 ? "s" : ""} created.${failCount > 0 ? ` ${failCount} failed — remaining suggestions kept.` : ""}`)
-    } else {
-      // Nothing was created — keep suggestions visible so the user can retry.
-      toast.error("Failed to create obligations. Please try again.")
-    }
-    setAcceptingAll(false)
-  }
-
   function openEdit(ob: Obligation) {
     setEditing(ob)
     setSheetOpen(true)
@@ -279,6 +190,21 @@ export function ObligationList({
         : [...obligations, updated],
     )
   }
+
+  const reviewInitialValues = useMemo(() => {
+    if (reviewingIdx === null || !suggestions[reviewingIdx]) return undefined
+    const suggestion = suggestions[reviewingIdx]
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + Math.max(suggestion.suggestedDueDays ?? 30, 1))
+    return {
+      title: suggestion.title,
+      description: suggestion.description ?? "",
+      clauseReference: suggestion.clauseReference ?? "",
+      priority: suggestion.priority,
+      dueDate: dueDate.toISOString().slice(0, 10),
+      reminderDays: 7,
+    }
+  }, [reviewingIdx, suggestions])
 
   async function complete(ob: Obligation) {
     try {
@@ -436,18 +362,9 @@ export function ObligationList({
         <div className="rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
-              AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review and accept
+              AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review before creating
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                className="h-7 text-xs"
-                disabled={acceptingAll}
-                onClick={acceptAll}
-              >
-                {acceptingAll ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
-                {acceptingAll ? "Accepting…" : `Accept All (${suggestions.filter((_, i) => !dismissedIds.has(i)).length})`}
-              </Button>
               <button
                 type="button"
                 onClick={() => {
@@ -497,10 +414,14 @@ export function ObligationList({
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      disabled={acceptingIdx === idx || acceptingAll}
-                      onClick={() => acceptSuggestion(idx, s)}
+                      disabled={reviewingIdx !== null}
+                      onClick={() => {
+                        setReviewingIdx(idx)
+                        setEditing(null)
+                        setSheetOpen(true)
+                      }}
                     >
-                      {acceptingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Accept"}
+                      {reviewingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Review"}
                     </Button>
                     <button
                       type="button"
@@ -669,11 +590,21 @@ export function ObligationList({
 
       <ObligationSheet
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open)
+          if (!open) setReviewingIdx(null)
+        }}
         contractId={contractId}
         members={members}
         obligation={editing}
-        onSaved={applyChange}
+        initialValues={reviewInitialValues}
+        onSaved={(saved) => {
+          applyChange(saved)
+          if (reviewingIdx !== null) {
+            setDismissedIds((prev) => new Set(prev).add(reviewingIdx))
+            setReviewingIdx(null)
+          }
+        }}
       />
     </div>
   )

@@ -233,13 +233,29 @@ export default function OnboardingPage() {
             Welcome to Aakd
           </h1>
           <p className="text-sm text-muted-foreground">
-            Your organisation is ready. Connect an AI provider to unlock powerful contract features.
+            Your organisation is ready. Start with a contract, then add AI when you need extraction or review assistance.
           </p>
+        </div>
+
+        <div className="rounded-[var(--radius)] border border-primary/25 bg-primary/5 p-5 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Start with your first contract</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload a PDF or DOCX and review the contract manually. AI setup is optional and can be completed later in Settings.
+            </p>
+          </div>
+          <Link
+            href="/contracts/new"
+            onClick={() => localStorage.setItem("cf_onboarding_done", "1")}
+            className="inline-flex h-9 items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Upload a contract
+          </Link>
         </div>
 
         {/* Feature list */}
         <div className="rounded-[var(--radius)] border border-border bg-card p-5 space-y-2">
-          <p className="text-sm font-medium text-foreground mb-3">Set up AI to unlock:</p>
+          <p className="text-sm font-medium text-foreground mb-3">Optional AI features:</p>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             {[
               "Contract extraction and Q&A",

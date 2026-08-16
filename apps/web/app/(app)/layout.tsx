@@ -9,8 +9,6 @@ import {
   Layers,
   Target,
   BarChart2,
-  Bot,
-  MessageSquare,
   Settings,
   LogOut,
   Search,
@@ -247,13 +245,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("templates"),   href: "/templates",   icon: Layers },
         { label: t("obligations"), href: "/obligations", icon: Target },
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
-      ],
-    },
-    {
-      title: t("sections.ai"),
-      items: [
-        { label: t("aiAgents"),  href: "/ai/agents", icon: Bot,          disabled: true },
-        { label: t("aiCreate"),  href: "/ai/create", icon: MessageSquare, disabled: true },
       ],
     },
     {
