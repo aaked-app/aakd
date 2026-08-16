@@ -1,6 +1,39 @@
 # Changelog
 
-All notable changes to ClauseFlow are documented in this file.
+All notable changes to Aakd are documented in this file.
+
+---
+
+## [1.2.0] — 2026-08-16
+
+### Open Source Launch
+
+Everything the Open Source Track roadmap covers is now shipped. This is the
+first version cut as an actual git tag / GitHub Release rather than just a
+changelog entry.
+
+- **M5 — Ecosystem: Notifications** — full Slack/Teams event coverage, user-configurable webhooks, Zapier/Make connector, one-click unsubscribe
+- **M6 — Authoring** — `ContractDocument` + `ContractTemplate`, server-side Plate editor, Word import, DOCX/PDF export, template API + use endpoint
+- **M7 — Obligation Tracking** — `ContractObligation` + sub-tasks, full CRUD API, obligations tab on contract detail, daily cron auto-overdue, reminder notifications
+- **M8 — Analytics** — `/analytics` dashboard, 5 Recharts widgets, single `GET /api/analytics/summary`, org-scoped, graceful degradation when obligations are absent
+- **M9 — Ecosystem: CRM** — HubSpot, Salesforce, Pipedrive: OAuth, deal linking, sync, webhooks
+- **M10 — Migration Tools** — import from CSV/spreadsheets, PandaDoc, ContractBook, DocuSign CLM, Google Drive, bulk PDF/DOCX; 5-tab UI, 14 API routes, row-level progress tracking
+- **M11 — Internationalization** — EN/FR/DE/AR (RTL)/ES via next-intl, cookie-based locale, locale switcher, translated nav
+- **M12 — Redlining** — `TrackChangeSidebar` with per-change accept/reject, redline review mode, `DocumentSnapshot` + snapshot compare API for version comparison
+
+### Security
+
+- SSRF hardening on webhook delivery and the AI-config test endpoint (bracketed IPv6, IPv4-mapped, metadata/loopback bypasses)
+- Zip-bomb protection on DOCX import (mammoth) and DOCX conversion
+- Magic-byte validation on image uploads (avatar, org logo)
+- Protection against demoting/removing the last org owner
+- Paginated contract comments/snapshots endpoints (previously unbounded)
+
+### Project
+
+- Added `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`
+- Fixed a local dev environment mismatch between `.env.example` and `docker-compose.dev.yml` that broke first-time setup
+- Standardized branding on "Aakd" across the app (previously inconsistent with "Aaked" in a handful of surfaces)
 
 ---
 
