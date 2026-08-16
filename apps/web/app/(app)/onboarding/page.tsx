@@ -415,6 +415,7 @@ export default function OnboardingPage() {
         <div className="text-center">
           <Link
             href="/dashboard"
+            onClick={() => localStorage.setItem("cf_onboarding_done", "1")}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
           >
             Skip for now
