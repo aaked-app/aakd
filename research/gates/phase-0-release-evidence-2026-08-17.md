@@ -12,7 +12,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
 | Production build | PASS | `pnpm build` completed successfully |
-| Unit/integration tests | PASS | 48 files, 1,046 tests passed |
+| Unit/integration tests | PASS | 49 files, 1,051 tests passed, including the localized landing-page truth and CTA contract |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 pnpm --filter web test:e2e`: 18 tests passed |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page |
