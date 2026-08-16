@@ -59,6 +59,19 @@ cd ~/aakd
 bash scripts/update.sh
 ```
 
+To diagnose a running installation or export a backup:
+
+```bash
+bash scripts/doctor.sh
+bash scripts/backup.sh
+```
+
+Restoring is deliberately guarded because it replaces the current database:
+
+```bash
+bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
+```
+
 For the full production checklist, backups, TLS, storage, email and troubleshooting, see [the self-hosting guide](docs/self-hosting.md) and [the Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md).
 
 ---

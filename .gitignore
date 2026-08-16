@@ -35,3 +35,6 @@ yarn.lock
 
 # QA test state — may contain credentials, never commit
 reports/test-state.json
+
+# Local production backup exports
+backups/

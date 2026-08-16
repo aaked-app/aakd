@@ -97,6 +97,19 @@ To update an existing deployment:
 bash scripts/update.sh
 ```
 
+To check service health and create a downloadable database backup:
+
+```bash
+bash scripts/doctor.sh
+bash scripts/backup.sh
+```
+
+Restore requires both an explicit flag and typing `RESTORE` because it replaces the current database schema:
+
+```bash
+bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
+```
+
 ---
 
 ## Environment Variables

@@ -159,6 +159,10 @@ docker compose -f docker-compose.prod.yml logs -f app
 # Check service status
 docker compose -f docker-compose.prod.yml ps
 
+# Run deployment diagnostics and export a host backup
+bash scripts/doctor.sh
+bash scripts/backup.sh
+
 # Restart a specific service
 docker compose -f docker-compose.prod.yml restart worker
 
