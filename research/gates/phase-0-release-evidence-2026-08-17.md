@@ -31,6 +31,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 - Existing tests intentionally log simulated Redis, storage, CRM, webhook, and provider failures while asserting graceful handling.
 - A clean cloud VM install and real customer evidence are still required before claiming operational or product-market readiness.
 - The local Docker daemon was unavailable during this run; the Compose files were validated syntactically with all required variables supplied.
+- GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
 
 ## Release interpretation
 
