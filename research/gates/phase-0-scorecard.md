@@ -18,7 +18,7 @@ This scorecard separates engineering release readiness from product evidence. A 
 | Automated tests | 100% of committed test files and tests pass | Vitest, Playwright, isolation and security reports | Continue release verification | Fix or explicitly remove invalid tests; no ignored failures |
 | Release-blocking security findings | 0 open P0/P1 findings | Security and isolation test report | Continue release verification | Block release |
 | Protected API authentication | 100% of protected routes have authentication and organization scope | Route inventory plus tests | Continue release verification | Block release |
-| MCP mutation authorization | 100% of mutation cases enforce role, scope, attribution and approval policy | MCP security matrix | Continue release verification | Block release |
+| MCP mutation authorization | 100% of mutation cases enforce role, scope and attribution; approval-gated workflows remain behind the existing approval API | MCP security matrix and approval route tests | Continue release verification | Block release |
 | Agent read minimization | 0 unauthorized raw-text or cross-tenant disclosures in the adversarial suite | MCP/API adversarial tests | Continue release verification | Block release |
 | Clean install | 1 clean environment reaches the app using documented steps and accepts a real PDF/DOCX | Fresh-machine run log | Continue release verification | Fix setup/docs |
 | First useful action | 1 real PDF/DOCX reaches a cited, reviewable action without external operator help | E2E run and screen recording/log | Continue release verification | Fix activation flow |
