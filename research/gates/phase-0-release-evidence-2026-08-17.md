@@ -19,7 +19,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 | MCP security regressions | PASS | 40 MCP tests passed; viewer writes rejected and contract list/detail responses omit raw extracted text and tenant identifiers |
 | AI review safety | PASS | Bulk acceptance endpoint and UI removed; individual accept/reject/edit actions remain reviewable |
 | Authenticated workflow usability | PASS | Cookie consent no longer blocks authenticated routes; onboarding tour is hidden synchronously on the dedicated onboarding page |
-| Compose syntax and required interpolation | PASS | `docker compose config --quiet` and production Compose config pass with generated placeholder secrets; shell syntax checks pass for deploy/update/doctor/backup/restore scripts |
+| Compose syntax and required interpolation | PASS | `scripts/validate-self-hosting.sh` validates development and production Compose files with generated placeholder secrets; shell syntax checks pass for deploy/update/doctor/backup/restore/validator scripts |
 | Fresh VM/container boot | HOLD | Docker daemon was unavailable in this workstation session, so a clean runtime boot was not claimed |
 
 ## Known non-blocking warnings

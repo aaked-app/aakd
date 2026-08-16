@@ -14,6 +14,14 @@ Aakd is self-hostable. This guide covers deploying the complete stack on your ow
 
 ## Quick Start
 
+Before starting a deployment, you can validate both Compose files and the required secret interpolation without changing your local environment:
+
+```bash
+bash scripts/validate-self-hosting.sh
+```
+
+This checks configuration only. It does not start or modify containers.
+
 ### 1. Clone the repository
 
 ```bash
