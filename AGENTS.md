@@ -46,6 +46,9 @@ Use `docker compose up` with a populated `.env` for the local stack. Production 
 ## Working method
 
 - Inspect the touched route/component/schema/worker path and closest tests before editing.
+- For substantial features, integrations, workflow redesigns, and auth/schema changes,
+  the Spec Kit pilot may be used. See `docs/spec-kit-pilot.md`; it supplements this
+  file and never replaces the existing QA, review, CI, or release gates.
 - Make surgical changes only; preserve unrelated user work and avoid opportunistic refactors.
 - Add focused tests for behavior changes. Run the narrowest relevant verification, and also run `pnpm --filter web test:isolation` for auth, membership, API-key, or org-data work.
 - For schema changes, create a Prisma migration. For environment changes, update `.env.example` and relevant deployment documentation.

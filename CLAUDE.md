@@ -69,6 +69,11 @@ CI runs Prisma generation, type checking, linting, tests, and a production build
 3. Add or adjust focused tests whenever behavior changes. Security-sensitive changes need organization-isolation coverage.
 4. Run the relevant commands above and report what ran and what did not.
 
+For substantial features, integrations, workflow redesigns, and auth/schema changes,
+the repository's Spec Kit pilot can preserve feature intent and acceptance criteria.
+Use the repository-local Codex skills described in `docs/spec-kit-pilot.md`. It does
+not replace this guide, `AGENTS.md`, tests, QA, review, CI, or release approval.
+
 For user-facing changes, maintain all supported locales in `apps/web/messages/` and account for Arabic RTL. For schema changes, add a Prisma migration instead of editing the schema alone. For secrets/configuration changes, update `.env.example` and deployment documentation when appropriate.
 
 ## Configuration and observability

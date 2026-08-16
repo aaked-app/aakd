@@ -13,6 +13,11 @@ dist/
 .codex/
 apps/web/.claude/
 
+# Keep reviewed project-local Spec Kit skills; ignore future agent-local data.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+
 # Python artifacts
 .pytest_cache/
 __pycache__/
