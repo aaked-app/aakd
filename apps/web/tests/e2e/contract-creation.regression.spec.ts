@@ -21,7 +21,9 @@ test("new users can create and open a contract", async ({ page }) => {
   const acceptCookies = page.getByRole("button", { name: "Accept", exact: true })
   if (await acceptCookies.isVisible().catch(() => false)) await acceptCookies.click()
 
-  await page.getByRole("link", { name: /new contract/i }).first().click()
+  // The command palette also exposes a hidden "New Contract" action. Target
+  // the visible dashboard link a customer actually clicks.
+  await page.locator('a[href="/contracts/new"]:visible').first().click()
   await expect(page).toHaveURL(/\/contracts\/new/)
   await page.locator('input[type="file"]').setInputFiles({
     name: "e2e-service-agreement.pdf",
