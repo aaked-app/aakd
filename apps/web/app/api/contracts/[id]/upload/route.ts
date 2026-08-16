@@ -181,6 +181,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Enqueue document.convert so the editor tab is populated after upload.
     // This converts the PDF/DOCX to TipTap JSON and saves it as a ContractDocument.
+    // The uploaded contract file is durable and must never be cleaned up by the
+    // converter (only explicit editor imports use disposable tmp objects).
     const fileType = mimeType === "application/pdf" ? "pdf" : "docx"
     try {
       await documentConvertQueue.add("convert", {
@@ -189,6 +191,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         requestedById: ctx.userId,
         jobId: contractFile.id,
         fileType,
+        deleteSource: false,
       })
     } catch (err) {
       // Non-fatal — the extraction job is already queued; the editor will just

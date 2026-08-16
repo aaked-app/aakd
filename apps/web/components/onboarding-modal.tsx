@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { Sparkles, FileText, Plug, Users } from "lucide-react"
 
 interface Step {
@@ -39,17 +40,23 @@ const STEPS: Step[] = [
 const STORAGE_KEY = "cf_onboarding_done"
 
 export function OnboardingModal() {
+  const pathname = usePathname()
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
 
   useEffect(() => {
+    if (pathname === "/onboarding") {
+      setVisible(false)
+      return
+    }
+
     if (typeof window !== "undefined") {
       const done = localStorage.getItem(STORAGE_KEY)
       if (!done) {
         setVisible(true)
       }
     }
-  }, [])
+  }, [pathname])
 
   function close() {
     localStorage.setItem(STORAGE_KEY, "1")

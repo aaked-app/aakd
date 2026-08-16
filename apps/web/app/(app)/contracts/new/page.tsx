@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, DragEvent, ChangeEvent } from "react"
 import { useTranslations } from "next-intl"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ArrowLeft, Upload, Sparkles, FileText, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -557,7 +556,6 @@ function ReviewScreen({
 // ---- Main Page ----
 
 export default function NewContractPage() {
-  const router = useRouter()
   const [pageState, setPageState] = useState<PageState>("upload")
   const [file, setFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<FormData>(defaultFormData)
@@ -718,10 +716,7 @@ export default function NewContractPage() {
       }
 
       toast.success("Contract created")
-      // Invalidate the router cache so the dashboard reflects the new contract
-      // immediately when the user navigates back.
-      router.refresh()
-      router.push(`/contracts/${contract.id}`)
+      window.location.assign(`/contracts/${contract.id}`)
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to create contract",

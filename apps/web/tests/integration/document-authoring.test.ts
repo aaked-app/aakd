@@ -1174,6 +1174,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     expect(documentConvertQueue.add).toHaveBeenCalledWith("convert", expect.objectContaining({
       contractId: "contract-1",
       fileType: "docx",
+      deleteSource: true,
     }))
   })
 
@@ -1189,6 +1190,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     expect(res.status).toBe(202)
     expect(documentConvertQueue.add).toHaveBeenCalledWith("convert", expect.objectContaining({
       fileType: "pdf",
+      deleteSource: true,
     }))
   })
 

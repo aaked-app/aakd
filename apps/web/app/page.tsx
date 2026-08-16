@@ -1479,8 +1479,8 @@ function DeepDiveMockup({ type }: { type: "ai" | "editor" | "analytics" }) {
           ))}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-          {["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map((m) => (
-            <span key={m} style={{ fontSize: 8, color: MUTED, flex: 1, textAlign: "center" }}>
+          {["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map((m, i) => (
+            <span key={`${m}-${i}`} style={{ fontSize: 8, color: MUTED, flex: 1, textAlign: "center" }}>
               {m}
             </span>
           ))}

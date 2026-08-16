@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Shield, CheckCircle, XCircle, Loader2 } from "lucide-react"
@@ -17,6 +17,7 @@ function AcceptInvitationContent() {
   const [state, setState] = useState<State>("loading")
   const [errorMsg, setErrorMsg] = useState<string>("")
   const [orgName, setOrgName] = useState<string>("")
+  const hasStartedAcceptance = useRef(false)
 
   const invitationId = searchParams.get("id")
 
@@ -34,6 +35,11 @@ function AcceptInvitationContent() {
       router.replace(`/login?callbackURL=${encodeURIComponent(callbackURL)}`)
       return
     }
+
+    // Setting the invited organization active updates the session and can
+    // re-run this effect. Accept an invitation at most once per page visit.
+    if (hasStartedAcceptance.current) return
+    hasStartedAcceptance.current = true
 
     // Logged in — call our own accept endpoint (not Better Auth's, which
     // has quirks with manually-created invitations and returns spurious errors).

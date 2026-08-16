@@ -1,271 +1,96 @@
-# ClauseFlow — CLAUDE.md
-> Single source of truth for every agent and developer working in this repo.
-> Read this fully before touching any code.
+# Aakd — Project Guide for Claude Code and Codex
 
----
+Read this file before changing code. It is shared guidance for Claude Code, Codex, and human contributors. `AGENTS.md` contains the repository's additional operating rules; when both apply, follow the more specific instruction.
 
-## What this is
+## Product and current state
 
-ClauseFlow is an **open source, self-hostable Contract Lifecycle Management (CLM) platform**.
-Stack: Next.js 14 App Router · TypeScript · Tailwind CSS · Prisma · PostgreSQL + pgvector · Better Auth · BullMQ + Redis · S3-compatible storage (MinIO / AWS S3).
+Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management (CLM) platform. The public repository is [aaked-app/aakd](https://github.com/aaked-app/aakd); the current release is v1.2.1.
 
----
+It supports contract storage and search, AI extraction and cited Q&A, renewals and obligations, approvals and DocuSeal signing, authoring/templates/redlining, notifications and webhooks, CRM integrations, imports, an MCP endpoint, and English/French/German/Spanish/Arabic (RTL).
 
-## Locked decisions — do not revisit
+## Workspace map
 
-| Decision | Choice |
-|---|---|
-| Framework | Next.js 14 App Router — no Pages Router |
-| Auth | Better Auth (email/password + org plugin) — not NextAuth, not Clerk |
-| Database | PostgreSQL 16 + pgvector extension |
-| ORM | Prisma — with org-scope middleware (see below) |
-| Background jobs | BullMQ + Redis — no inline async hacks |
-| File storage | S3-compatible via abstracted client — never import AWS SDK directly |
-| Styling | Tailwind CSS only — no CSS modules, no styled-components |
-| E-signature | DocuSeal API integration — never build signing from scratch |
-| AI extraction | Anthropic Claude (default) — via ExtractionProvider abstraction |
-| AI embeddings | OpenAI text-embedding-3-small (cloud) / Ollama 1536-dim embedding model such as mxbai-embed-large (self-host) — via EmbeddingProvider abstraction |
-| Embedding dimension | Fixed at 1536 — never change this without a migration plan |
-| License | AGPL-3.0 |
-
----
-
-## Project structure
-
-```
-apps/
-  web/                        # Next.js app
-    app/
-      (auth)/                 # login, register — public routes
-      (app)/                  # authenticated routes — all require session or API key
-        dashboard/
-        contracts/
-        contracts/[id]/
-        settings/
-          api-keys/           # API key management UI
-      api/
-        contracts/            # contract CRUD
-        org/                  # org settings, members, api-keys
-        search/               # full-text + semantic search
-        alerts/               # renewal alerts
-        webhooks/             # DocuSeal / Documenso callbacks
-        mcp/                  # MCP server endpoint
-    components/               # shared React components
-    lib/
-      auth/                   # resolveAuth() — two-path: session + Bearer
-      db/                     # Prisma client + org-scope middleware
-      storage/                # S3-compatible storage client
-      ai/                     # provider abstraction (ExtractionProvider, EmbeddingProvider)
-      jobs/                   # BullMQ queue definitions + job handlers
-      email/                  # Nodemailer email sender
-    prisma/
-      schema.prisma
-      migrations/
-packages/
-  ai/                         # ExtractionProvider + EmbeddingProvider interfaces + implementations
-  storage/                    # S3 client abstraction
-  email/                      # email templates + sender
-worker/                       # BullMQ worker process (standalone Node.js)
-docker-compose.yml            # self-hosting entrypoint
-docker-compose.dev.yml        # dev overrides
-.env.example                  # all env vars documented
+```text
+apps/web/
+  app/                 Next.js 14 App Router pages and API routes
+  components/          React UI (Tailwind CSS)
+  lib/                 auth, Prisma, storage, AI, jobs, imports, CRM, editor, notifications
+  prisma/schema.prisma Prisma schema and migrations
+  worker.ts            standalone BullMQ worker entry point
+  tests/               unit, integration, security, and E2E tests
+  messages/            next-intl translations
+worker/jobs/           worker modules shared by apps/web/worker.ts
+docs/                  API, self-hosting, deployment, and integration guides
+docker-compose*.yml    local/dev and production stacks
 ```
 
----
+This is a pnpm workspace, but the only active package is `apps/web` (`web`). Use `@/` for imports inside that package.
 
-## Multi-tenancy — the most important rule
+## Commands
 
-**Every database query MUST be org-scoped.** This is enforced via Prisma middleware — not per-route manually.
-
-```typescript
-// lib/db/middleware.ts — this runs on EVERY query automatically
-// organizationId is injected from AsyncLocalStorage (set by resolveAuth)
-```
-
-**Never** write a raw Prisma query that fetches contracts, files, activities, tags, folders, or API keys without the middleware being active.
-
-**The isolation test must pass before every M0 merge:**
-- Create contract in org A
-- Attempt to read it as org B user via API
-- Must return 404 (not 403 — don't leak resource existence)
-
----
-
-## Auth — two paths, one middleware
-
-```typescript
-// resolveAuth(req) returns AuthContext | null
-// Path 1: Better Auth session cookie (browser users)
-// Path 2: Authorization: Bearer cf_live_... (agents + API clients)
-```
-
-API keys are scoped to an org. Every agent authenticates with a Bearer token.
-API key format: `cf_live_` prefix + 32 random bytes (hex).
-Storage: SHA-256 `lookupHash` for fast DB lookup + bcrypt `keyHash` for secure compare.
-**Never store raw API keys in the database.**
-
----
-
-## AI providers — two separate abstractions
-
-```typescript
-// ExtractionProvider — answers questions, extracts metadata
-//   Implementations: AnthropicExtractor | OpenAIExtractor | OllamaExtractor
-
-// EmbeddingProvider — turns text into vectors
-//   Implementations: OpenAIEmbedder | OllamaEmbedder
-//   Anthropic has NO embedding model — do not try to use it for embeddings
-```
-
-**Every AI output must include:**
-- `sourceText`: exact quote from the contract
-- `sourcePage`: page number
-- `confidence`: 0–1 score
-- `extractedBy`: "ai" | "user"
-
-**AI results go into a human review queue first — never auto-populate canonical fields.**
-
----
-
-## Background jobs (BullMQ)
-
-All async work goes through named queues. Never do heavy work inline in an API route.
-
-| Queue | Purpose |
-|---|---|
-| `contract.extract` | PDF/DOCX text extraction after upload |
-| `contract.embed` | Generate pgvector embeddings after text extraction |
-| `contract.ai_extract` | Run AI metadata extraction after embedding |
-| `alerts.check` | Daily cron: fire renewal alerts |
-| `signing.sync` | Sync DocuSeal signing status |
-| `email.send` | Send queued email notifications |
-
-Job handlers live in `worker/` — not in `apps/web/`.
-
----
-
-## File uploads
-
-- Accept: PDF and DOCX only. Validate by magic bytes, not MIME header.
-- Max size: 50 MB per file.
-- Storage: always via the abstracted storage client — never import `@aws-sdk` directly in app code.
-- After upload: enqueue `contract.extract` job. Never parse inline.
-- Security: sanitize filenames. Reject files that cause pdf-parse to throw.
-
----
-
-## API conventions
-
-- All routes under `(app)/` require auth. Call `resolveAuth(req)` first — return 401 if null.
-- Soft-delete only — set `status: ARCHIVED`, never hard-delete contracts.
-- Write to the `Activity` table on every contract state change. This is the audit trail.
-- Return 404 (not 403) when a resource exists but belongs to another org.
-- Validate request bodies with Zod before touching the database.
-
----
-
-## What NOT to build (v1 scope — do not add these)
-
-These are intentionally deferred to later milestones. Do not implement in M0–M4.
-
-- Tracked changes / redlining → v3
-- Counterparty negotiation portal → v3
-- Browser-native contract editor → v2
-- Template + clause library → v2
-- Obligation tracking → v2
-- Analytics / reporting dashboard → v2
-- Guided contracting / legal playbooks → v3
-- AI redlining with playbook enforcement → v3
-- SSO / SAML → v4 Enterprise
-- CRM-native contract generation (Salesforce/HubSpot CPQ→contract) → v4 Enterprise
-- Mobile app → v4 Enterprise
-
-If a task seems to require any of these, stop and ask.
-
----
-
-## Key commands
+Run these from the repository root:
 
 ```bash
-# Development
-pnpm dev                    # start Next.js dev server
-pnpm worker:dev             # start BullMQ worker in watch mode
-pnpm db:migrate             # prisma migrate dev
-pnpm db:studio              # prisma studio
-
-# Testing
-pnpm test                   # vitest unit + integration
-pnpm test:e2e               # playwright e2e
-pnpm test:isolation         # org-scope isolation test (must pass before every merge)
-
-# Docker
-docker-compose up           # full self-hosted stack
-docker-compose -f docker-compose.dev.yml up   # dev with hot reload
-
-# Type checking
-pnpm typecheck              # tsc --noEmit across all packages
+pnpm install
+pnpm dev                         # Next.js development server
+pnpm --filter web worker:dev      # BullMQ worker in watch mode
+pnpm build
+pnpm typecheck
+pnpm --filter web lint
+pnpm --filter web test
+pnpm --filter web test:e2e
+pnpm --filter web test:isolation  # cross-organization isolation regression test
+pnpm --filter web db:generate
+pnpm --filter web db:migrate
+pnpm --filter web db:studio
 ```
 
----
+For the complete local stack, copy `.env.example` to `.env` and run `docker compose up`. Use `docker-compose.dev.yml` for development overrides and `docker-compose.prod.yml` only with `.env.prod` for production. Do not expose the development MinIO or Mailpit defaults publicly.
 
-## Environment variables
+CI runs Prisma generation, type checking, linting, tests, and a production build. Match the narrowest relevant check locally; run `pnpm --filter web test:isolation` for changes that touch auth, organization membership, API keys, or organization-scoped data.
 
-See `.env.example` for the full list. Minimum required to run:
-```
-DATABASE_URL
-BETTER_AUTH_SECRET
-BETTER_AUTH_URL
-STORAGE_ENDPOINT (empty for AWS S3, set for MinIO)
-STORAGE_BUCKET
-STORAGE_ACCESS_KEY
-STORAGE_SECRET_KEY
-REDIS_URL
-```
+## Architecture and non-negotiable boundaries
 
-AI and email are optional — the app runs without them (AI features degrade gracefully).
+- **Framework/UI:** Next.js 14 App Router, React 18, TypeScript strict mode, Tailwind CSS. Keep server/client boundaries explicit.
+- **Data:** PostgreSQL 16 with pgvector through Prisma 7. Schema and migrations live in `apps/web/prisma/`.
+- **Auth:** Better Auth supports browser sessions and `Authorization: Bearer cf_live_...` API keys. Raw API keys are never stored: use SHA-256 lookup hashes and bcrypt key hashes.
+- **Multi-tenancy:** `resolveAuth(req)` returns the authenticated organization context. Protected API handlers must authenticate first and execute organization-scoped database work inside `requestContext.run(ctx, async () => ...)`. The Prisma extension in `lib/db/client.ts` injects scope for direct-org models, but it is not permission to bypass route-level authorization or relationship checks.
+- **Access control:** Return `401` when unauthenticated and `404`, not `403`, for resources belonging to another organization. API-key write operations must also enforce `requireWriteScope(ctx)`.
+- **Validation/auditing:** Parse request bodies with Zod before database work. Contract state changes must create an `Activity` record. Archive contracts by setting their status; do not hard-delete them.
+- **Files:** PDF and DOCX only; validate magic bytes, sanitize names, limit uploads to 50 MB, and use `lib/storage/`. Do not parse large uploads inline in routes.
+- **Async work:** Use BullMQ queues from `lib/jobs/queues.ts`; `apps/web/worker.ts` owns the workers. Current queues include extraction, embeddings, AI extraction, alerts, obligations, signing sync, email, notifications, document conversion/export, CRM polling, and imports.
+- **AI:** Anthropic, OpenAI, and Ollama are supported through the AI helpers. Embeddings are fixed at 1536 dimensions. AI-derived contract data needs exact source text, source page, confidence, and human review; do not silently write it as canonical data.
+- **External services:** use the S3-compatible storage abstraction, DocuSeal for signing, and the existing CRM/notification abstractions. Never introduce direct AWS SDK usage outside the storage layer or heavy background processing in a route handler.
 
----
+## Change workflow
 
-## Milestones
+1. Inspect the affected route, component, schema, worker handler, and nearest tests before editing.
+2. Keep changes surgical and preserve existing conventions. Avoid unrelated refactors and do not overwrite uncommitted user changes.
+3. Add or adjust focused tests whenever behavior changes. Security-sensitive changes need organization-isolation coverage.
+4. Run the relevant commands above and report what ran and what did not.
 
-### Open Source Track (ship first)
+For substantial features, integrations, workflow redesigns, and auth/schema changes,
+the repository's Spec Kit pilot can preserve feature intent and acceptance criteria.
+Use the repository-local Codex skills described in `docs/spec-kit-pilot.md`. It does
+not replace this guide, `AGENTS.md`, tests, QA, review, CI, or release approval.
 
-| Milestone | Status | Scope |
-|---|---|---|
-| M0 — Contract Repository | ✅ Complete | CRUD, upload, RBAC, API keys, Docker |
-| M1 — Renewal Tracking | ✅ Complete | AI extraction, alerts, email, full-text + semantic search |
-| M2 — Workflow + Signing | ✅ Complete | Approvals, DocuSeal signing, signing sync, MCP server |
-| M3 — AI Layer | ✅ Complete | Retrieval-grounded Contract Q&A with excerpt citations |
-| M4 — Launch Prep | ✅ Complete | Self-hosting docs, API reference, v1.0.0 changelog |
-| M5 — Ecosystem: Notifications | ✅ Complete | Full Slack/Teams event coverage, user-configurable webhooks, Zapier/Make connector, one-click unsubscribe |
-| M6 — Authoring | ✅ Complete | ContractDocument + ContractTemplate, Plate editor (server-side), Word import, DOCX/PDF export, template API + use endpoint |
-| M7 — Obligation Tracking | ✅ Complete | ContractObligation + sub-tasks, full CRUD API, obligations tab on contract detail, daily cron auto-overdue, reminder notifications |
-| M8 — Analytics | ✅ Complete | /analytics page, 5 Recharts widgets, single GET /api/analytics/summary, org-scoped, obligation widget w/ graceful degradation |
-| M9 — Ecosystem: CRM | ✅ Complete | HubSpot, Salesforce, Pipedrive — OAuth, deal linking, sync, webhooks |
-| M10 — Migration Tools | ✅ Complete | Import from CSV/spreadsheets, PandaDoc, ContractBook, DocuSign CLM, Google Drive, bulk PDF/DOCX — 5-tab UI, 14 API routes, row-level progress tracking |
-| M11 — Internationalization | ✅ Complete | EN/FR/DE/AR(RTL)/ES — next-intl, cookie-based locale, locale switcher in settings, nav translated, User.locale field |
-| M12 — Redlining | ✅ Complete | Tracked changes (`TrackChangeSidebar`, per-change accept/reject, redline review mode), `DocumentSnapshot` + snapshot compare API for version comparison |
-| 🚀 | — | **Open Source Launch** — publish repo publicly, LinkedIn, developer communities |
+For user-facing changes, maintain all supported locales in `apps/web/messages/` and account for Arabic RTL. For schema changes, add a Prisma migration instead of editing the schema alone. For secrets/configuration changes, update `.env.example` and deployment documentation when appropriate.
 
-### Cloud / Hosted SaaS Track (after open source launch)
+## Configuration and observability
 
-| Milestone | Scope |
-|---|---|
-| C1 — Cloud Infra | Multi-tenant deployment, clauseflow.com, env isolation per org |
-| C2 — Billing | Stripe subscriptions, plan enforcement, usage tracking |
-| C3 — Managed AI | We host Anthropic/OpenAI keys, usage metering, per-org quotas |
-| C4 — AI Agents | Renewal Agent, Review Agent, Intake Agent (cloud-only) |
-| C5 — Enterprise | SSO/SAML (Okta, Azure AD), Google Drive/SharePoint import, commercial license, **per-contract/folder-level visibility ACLs** (user-scoped access on top of org-scope) |
+Required runtime infrastructure is PostgreSQL, Redis, S3-compatible storage, and Better Auth. `NOTIFICATION_ENCRYPTION_KEY` is required when the worker starts; AI, SMTP, DocuSeal, CRM, OpenTelemetry, Sentry, and PostHog are optional integrations with their variables documented in `.env.example`.
 
----
+Use structured logging from `lib/logger.ts`; retain the request ID propagated by `middleware.ts`. OpenTelemetry is opt-in. Never log API keys, passwords, encryption material, OAuth tokens, uploaded contract text, or other secrets.
 
-## Agents working on this repo
+## Naming note
 
-| Agent | Role |
-|---|---|
-| `ceo` | Orchestrates, decides, gates quality — talk to this one first |
-| `clauseflow-engineer` | Full-stack implementation in this repo — knows this stack cold |
-| `lead-engineer` | General engineering tasks not specific to this stack |
-| `qa-tester` | Adversarial testing, edge cases, security |
-| `code-reviewer` | Final review before any merge |
-| `researcher` | Investigates unknowns (library choices, API docs, competitors) |
+The product is **Aakd**. Some internal identifiers and deployment defaults still use the historical `clauseflow` name (for example database names, bucket names, Docker volume names, and API-key prefix `cf_live_`). Treat them as compatibility-sensitive: do not rename them casually or as part of unrelated work.
+
+## Reference material
+
+- `README.md` — product overview and quick start
+- `CONTRIBUTING.md` — contributor workflow
+- `docs/self-hosting.md` and `docs/deploy-oracle-cloud.md` — operations
+- `docs/api-reference.md` and `docs/zapier-integration.md` — integrations
+- `SECURITY.md` — vulnerability reporting and security policy
+- `CHANGELOG.md` — release history
