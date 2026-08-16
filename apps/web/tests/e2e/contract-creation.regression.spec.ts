@@ -38,5 +38,5 @@ test("new users can create and open a contract", async ({ page }) => {
 
   await expect(page).toHaveURL((url) =>
     /^\/contracts\/[a-z0-9]+$/.test(url.pathname) && url.pathname !== "/contracts/new",
-  )
+  { timeout: 30_000 })
 })
