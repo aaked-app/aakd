@@ -165,8 +165,10 @@ const execAsync = promisify(exec)
 
 // ─── OCR helper ───────────────────────────────────────────────────────────────
 // Attempts OCR on a PDF buffer.
-// Strategy 1: pdftoppm CLI (in the Docker image) → per-page PNGs → tesseract.js
-// Strategy 2: tesseract.js directly on the raw buffer (limited support)
+// Strategy: pdftoppm CLI (in the Docker image) → per-page PNGs → tesseract.js.
+// Tesseract cannot safely decode PDF buffers directly: malformed PDFs can make
+// its worker thread terminate the whole Node process outside this function's
+// try/catch boundary.
 // Returns OCR text prefixed with "[OCR] ", or null if all methods fail.
 
 async function attemptOcr(buffer: Buffer): Promise<string | null> {
@@ -179,49 +181,38 @@ async function attemptOcr(buffer: Buffer): Promise<string | null> {
     pdftoppmAvailable = false
   }
 
+  if (!pdftoppmAvailable) {
+    logger.warn("[ocr] pdftoppm is unavailable; skipping OCR safely")
+    return null
+  }
+
   let ocrText = ""
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clauseflow-ocr-"))
+  const pdfPath = path.join(tmpDir, "input.pdf")
+  try {
+    await fs.writeFile(pdfPath, buffer)
+    // Render each page to PNG at 150 DPI
+    await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tmpDir, "page")}"`)
+    const files = (await fs.readdir(tmpDir))
+      .filter((f) => f.endsWith(".png"))
+      .sort()
 
-  if (pdftoppmAvailable) {
-    // Strategy 1: pdftoppm → page images → tesseract
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clauseflow-ocr-"))
-    const pdfPath = path.join(tmpDir, "input.pdf")
-    try {
-      await fs.writeFile(pdfPath, buffer)
-      // Render each page to PNG at 150 DPI
-      await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tmpDir, "page")}"`)
-      const files = (await fs.readdir(tmpDir))
-        .filter((f) => f.endsWith(".png"))
-        .sort()
-
-      if (files.length === 0) {
-        logger.warn("[ocr] pdftoppm produced no page images")
-      } else {
-        const { createWorker } = await import("tesseract.js")
-        const tWorker = await createWorker("eng")
-        for (const fname of files) {
-          const imgBuffer = await fs.readFile(path.join(tmpDir, fname))
-          const { data } = await tWorker.recognize(imgBuffer)
-          if (data.text) ocrText += data.text + "\n"
-        }
-        await tWorker.terminate()
-      }
-    } catch (err) {
-      logger.warn({ err }, "[ocr] pdftoppm+tesseract strategy failed")
-    } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-    }
-  } else {
-    // Strategy 2: tesseract directly on PDF buffer (limited but dependency-free)
-    try {
+    if (files.length === 0) {
+      logger.warn("[ocr] pdftoppm produced no page images")
+    } else {
       const { createWorker } = await import("tesseract.js")
       const tWorker = await createWorker("eng")
-      const { data } = await tWorker.recognize(buffer)
-      ocrText = data.text ?? ""
+      for (const fname of files) {
+        const imgBuffer = await fs.readFile(path.join(tmpDir, fname))
+        const { data } = await tWorker.recognize(imgBuffer)
+        if (data.text) ocrText += data.text + "\n"
+      }
       await tWorker.terminate()
-    } catch (err) {
-      logger.warn({ err }, "[ocr] tesseract direct-PDF strategy failed")
-      return null
     }
+  } catch (err) {
+    logger.warn({ err }, "[ocr] pdftoppm+tesseract strategy failed")
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
 
   const cleaned = ocrText.trim()
