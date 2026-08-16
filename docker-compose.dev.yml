@@ -4,7 +4,10 @@ services:
     environment:
       POSTGRES_DB: clauseflow
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      # Local dev only, container is bound to localhost and never exposed.
+      # Avoids every contributor needing to keep a password in sync between
+      # this file and their .env — see DATABASE_URL below.
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5433:5432"
     volumes:
@@ -38,7 +41,7 @@ services:
     working_dir: /app/apps/web
     command: sh -c "npm install -g tsx && tsx watch worker.ts"
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/clauseflow
+      DATABASE_URL: postgresql://postgres@db:5432/clauseflow
       REDIS_URL: redis://redis:6379
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: clauseflow
