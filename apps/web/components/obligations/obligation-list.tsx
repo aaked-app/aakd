@@ -28,6 +28,8 @@ interface Props {
   members: OrgMember[]
   contractArchived: boolean
   role: string | undefined
+  hasContractFile: boolean
+  hasExtractedText: boolean
   onChange: (next: Obligation[]) => void
 }
 
@@ -57,6 +59,8 @@ export function ObligationList({
   members,
   contractArchived,
   role,
+  hasContractFile,
+  hasExtractedText,
   onChange,
 }: Props) {
   const t = useTranslations("obligations")
@@ -150,6 +154,14 @@ export function ObligationList({
   }, [jobId, contractId])
 
   async function extractWithAI() {
+    if (!hasContractFile) {
+      toast.error("Upload a PDF or DOCX first.")
+      return
+    }
+    if (!hasExtractedText) {
+      toast.info("Your document is still being prepared. Try again in a moment.")
+      return
+    }
     setExtracting(true)
     setSuggestions([])
     setDismissedIds(new Set())
@@ -158,7 +170,9 @@ export function ObligationList({
       if (res.status === 422) {
         const body = await res.json()
         if (body.error === "no_extracted_text") {
-          toast.error("Contract text not yet extracted. Upload a PDF or DOCX first.")
+          toast.error("Upload a PDF or DOCX first.")
+        } else if (body.error === "text_processing") {
+          toast.info("Your document is still being prepared. Try again in a moment.")
         } else if (body.error === "no_ai_provider") {
           toast.error("No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.")
         } else {
@@ -248,9 +262,9 @@ export function ObligationList({
         </div>
         <div className="flex items-center gap-2">
           {canCreate && (
-            <Button size="sm" variant="outline" onClick={extractWithAI} disabled={extracting}>
-              {extracting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              {extracting ? "Extracting…" : "Extract with AI"}
+            <Button size="sm" variant="outline" onClick={extractWithAI} disabled={extracting || !hasContractFile || !hasExtractedText}>
+              {extracting || (hasContractFile && !hasExtractedText) ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Preparing text…" : "Extract with AI"}
             </Button>
           )}
           {canCreate && (
@@ -318,14 +332,14 @@ export function ObligationList({
               size="sm"
               variant="outline"
               onClick={extractWithAI}
-              disabled={extracting}
+              disabled={extracting || !hasContractFile || !hasExtractedText}
             >
               {extracting ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Sparkles className="size-4" />
               )}
-              {extracting ? "Extracting…" : "Extract with AI"}
+              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Preparing text…" : "Extract with AI"}
             </Button>
           )}
           {canCreate && (

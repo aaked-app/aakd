@@ -277,6 +277,7 @@ export default function ContractDetailPage() {
 
   const [contract, setContract] = useState<Contract | null>(null)
   const [files, setFiles] = useState<ContractFile[]>([])
+  const [previewFileState, setPreviewFileState] = useState<{ file: ContractFile; url: string } | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [alerts, setAlerts] = useState<ContractAlert[]>([])
   const [extractions, setExtractions] = useState<AIExtraction[]>([])
@@ -397,13 +398,18 @@ export default function ContractDetailPage() {
     extractionPollRef.current = setInterval(async () => {
       attempts++
       try {
-        const res = await fetch(`/api/contracts/${id}/extractions`)
-        if (res.ok) {
-          const data = await res.json()
-          if ((data.extractions ?? []).length > 0) {
-            setExtractions(data.extractions)
-            // Polling will auto-stop on next effect run because extractions.length > 0
-          }
+        const [extractionsRes, contractRes] = await Promise.all([
+          fetch(`/api/contracts/${id}/extractions`),
+          fetch(`/api/contracts/${id}`),
+        ])
+        if (extractionsRes.ok) {
+          const data = await extractionsRes.json()
+          if ((data.extractions ?? []).length > 0) setExtractions(data.extractions)
+        }
+        if (contractRes.ok) {
+          const data = await contractRes.json()
+          const refreshed = data.contract ?? data
+          setContract((current) => current ? { ...current, hasExtractedText: refreshed.hasExtractedText } : current)
         }
       } catch { /* network hiccup — keep polling */ }
 
@@ -519,12 +525,12 @@ export default function ContractDetailPage() {
     }
   }
 
-  async function previewFile(fileId: string) {
+  async function previewFile(file: ContractFile) {
     try {
-      const res = await fetch(`/api/contracts/${id}/upload?fileId=${fileId}`)
+      const res = await fetch(`/api/contracts/${id}/upload?fileId=${file.id}`)
       if (!res.ok) throw new Error("Preview failed")
       const { url } = await res.json()
-      window.open(url, "_blank", "noopener,noreferrer")
+      setPreviewFileState({ file, url })
     } catch {
       toast.error("Failed to open preview")
     }
@@ -1272,7 +1278,7 @@ export default function ContractDetailPage() {
                             variant="ghost"
                             size="sm"
                             className="size-8 p-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => previewFile(f.id)}
+                            onClick={() => previewFile(f)}
                             title="Preview"
                           >
                             <ExternalLink className="size-4" />
@@ -1783,6 +1789,8 @@ export default function ContractDetailPage() {
               members={members}
               contractArchived={contract.status === "ARCHIVED"}
               role={currentMember?.role}
+              hasContractFile={files.length > 0}
+              hasExtractedText={contract.hasExtractedText === true}
               onChange={setObligations}
             />
           </div>
@@ -2057,6 +2065,55 @@ export default function ContractDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={previewFileState !== null} onOpenChange={(open) => { if (!open) setPreviewFileState(null) }}>
+        <DialogContent className="w-[min(96vw,1100px)] max-w-none gap-0 p-0 overflow-hidden">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle className="truncate pr-8">{previewFileState?.file.filename ?? "Document preview"}</DialogTitle>
+            <DialogDescription>
+              {previewFileState?.file.mimeType === "application/pdf" || previewFileState?.file.filename.toLowerCase().endsWith(".pdf")
+                ? "Previewing the uploaded PDF"
+                : "This file can be downloaded and opened in its native application."}
+            </DialogDescription>
+          </DialogHeader>
+          {previewFileState && (
+            previewFileState.file.mimeType === "application/pdf" || previewFileState.file.filename.toLowerCase().endsWith(".pdf") ? (
+              <iframe
+                src={previewFileState.url}
+                title={`Preview of ${previewFileState.file.filename}`}
+                className="h-[min(75vh,800px)] w-full bg-muted"
+              />
+            ) : (
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+                <FileText className="size-10 text-muted-foreground/50" />
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Browser preview is available for PDFs. Download this DOCX file to review it in Word or LibreOffice.
+                </p>
+                <a
+                  href={previewFileState.url}
+                  download={previewFileState.file.filename}
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Download document
+                </a>
+              </div>
+            )
+          )}
+          {previewFileState && (
+            <div className="flex justify-end border-t border-border px-5 py-3">
+              <a
+                href={previewFileState.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+              >
+                Open in new tab
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Archive Confirmation Dialog */}
       <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>

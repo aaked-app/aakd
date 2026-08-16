@@ -6,7 +6,6 @@ import Link from "next/link"
 import {
   LayoutDashboard,
   FileText,
-  Layers,
   Target,
   BarChart2,
   Settings,
@@ -282,7 +281,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("dashboard"),   href: "/dashboard",   icon: LayoutDashboard, exact: true },
         { label: t("contracts"),   href: "/contracts",   icon: FileText },
         { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
-        { label: t("templates"),   href: "/templates",   icon: Layers },
         { label: t("obligations"), href: "/obligations", icon: Target },
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
       ],
