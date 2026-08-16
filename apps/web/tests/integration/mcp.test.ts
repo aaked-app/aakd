@@ -503,6 +503,33 @@ describe("POST /api/mcp — error handling", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/mcp — initialize", () => {
+  it("supports the standard Claude/Codex-style handshake sequence", async () => {
+    const { POST } = await import("@/app/api/mcp/route")
+
+    const initialize = await POST(mcpRequest("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "compatibility-fixture", version: "1.0.0" },
+    }))
+    expect(initialize.status).toBe(200)
+    expect((await initialize.json()).result.protocolVersion).toBe("2024-11-05")
+
+    const initialized = await POST(new Request("http://localhost/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer cf_live_test" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    }))
+    expect(initialized.status).toBe(202)
+
+    const tools = await POST(mcpRequest("tools/list"))
+    expect(tools.status).toBe(200)
+    expect((await tools.json()).result.tools.length).toBeGreaterThan(0)
+
+    const ping = await POST(mcpRequest("ping"))
+    expect(ping.status).toBe(200)
+    expect((await ping.json()).result).toEqual({})
+  })
+
   it("returns protocolVersion, capabilities, and serverInfo", async () => {
     const { POST } = await import("@/app/api/mcp/route")
     const res = await POST(mcpRequest("initialize", {
