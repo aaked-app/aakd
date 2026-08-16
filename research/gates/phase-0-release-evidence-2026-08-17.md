@@ -16,7 +16,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 pnpm --filter web test:e2e`: 18 tests passed |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page |
-| MCP security regressions | PASS | 40 MCP tests passed; viewer writes rejected and contract list/detail responses omit raw extracted text and tenant identifiers |
+| MCP security regressions | PASS | 41 MCP tests passed, including the standard initialize/initialized/tools-list/ping handshake; viewer writes are rejected and contract list/detail responses omit raw extracted text and tenant identifiers |
 | AI review safety | PASS | Bulk acceptance endpoint and UI removed; individual accept/reject/edit actions remain reviewable |
 | Authenticated workflow usability | PASS | Cookie consent no longer blocks authenticated routes; onboarding tour is hidden synchronously on the dedicated onboarding page |
 | Activation instrumentation | PASS | Server-side events cover contract creation, file upload, individual fact review, and obligation create/complete; telemetry excludes contract, organization, extracted-value, and file-size identifiers |
