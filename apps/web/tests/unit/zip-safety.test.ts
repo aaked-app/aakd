@@ -107,16 +107,22 @@ describe("safeUnzipSync", () => {
     expect(() => safeUnzipSync(zipped)).toThrow(ZipBombError)
   })
 
-  it("rejects once the running total across entries exceeds the total ceiling", () => {
-    const chunkSize = Math.floor(MAX_TOTAL_DECOMPRESSED_BYTES / 3) + 1
-    const chunk = new Uint8Array(chunkSize).fill(1)
-    const zipped = zipSync(
-      { "a.bin": chunk, "b.bin": chunk, "c.bin": chunk },
-      { level: 9 },
-    )
+  it(
+    "rejects once the running total across entries exceeds the total ceiling",
+    () => {
+      const chunkSize = Math.floor(MAX_TOTAL_DECOMPRESSED_BYTES / 3) + 1
+      const chunk = new Uint8Array(chunkSize).fill(1)
+      const zipped = zipSync(
+        { "a.bin": chunk, "b.bin": chunk, "c.bin": chunk },
+        { level: 9 },
+      )
 
-    expect(() => safeUnzipSync(zipped)).toThrow(ZipBombError)
-  })
+      expect(() => safeUnzipSync(zipped)).toThrow(ZipBombError)
+    },
+    // ~500MB total gets deflate-compressed at level 9 to build the fixture —
+    // comfortably under 10s locally, but flaky on a loaded/shared CI runner.
+    30_000,
+  )
 
   it("skips entries the accept filter rejects without size-checking them", () => {
     // A junk entry that will never be imported (accept() filters it out)
