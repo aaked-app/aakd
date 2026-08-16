@@ -41,7 +41,7 @@ const locales = [
   { code: "ar", label: "العربية" },
 ]
 
-function LandingLocaleSwitcher() {
+function LandingLocaleSwitcher({ mobile = false }: { mobile?: boolean }) {
   const t = useTranslations("landing")
   const [current, setCurrent] = useState("en")
 
@@ -58,7 +58,7 @@ function LandingLocaleSwitcher() {
   }
 
   return (
-    <label className="relative hidden sm:block">
+    <label className={mobile ? "relative block sm:hidden" : "relative hidden sm:block"}>
       <span className="sr-only">{t("nav.language")}</span>
       <select
         aria-label={t("nav.language")}
@@ -107,7 +107,7 @@ function LandingHeader() {
           <Link href="/login" className="hidden rounded-md px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 md:inline-flex motion-reduce:transition-none">
             {t("nav.signIn")}
           </Link>
-          <Link href="/register" className="inline-flex h-9 items-center rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 motion-reduce:transition-none">
+          <Link href="/register" className="hidden h-9 items-center rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 sm:inline-flex motion-reduce:transition-none">
             {t("nav.createWorkspace")}
           </Link>
 
@@ -126,9 +126,11 @@ function LandingHeader() {
                   {item.label}
                 </a>
               ))}
-              <Link href="/login" className="mt-1 block border-t border-slate-100 px-3 pt-3 text-sm font-semibold text-emerald-800 md:hidden">
-                {t("nav.signIn")}
-              </Link>
+              <div className="mt-1 space-y-2 border-t border-slate-100 px-2 pt-3 md:hidden">
+                <LandingLocaleSwitcher mobile />
+                <Link href="/login" className="block rounded-md px-1 py-2 text-sm font-semibold text-slate-700">{t("nav.signIn")}</Link>
+                <Link href="/register" className="flex min-h-10 items-center justify-center rounded-md bg-emerald-800 px-3 text-sm font-semibold text-white sm:hidden">{t("nav.createWorkspace")}</Link>
+              </div>
             </nav>
           </details>
         </div>
