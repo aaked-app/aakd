@@ -17,7 +17,7 @@ import {
   ChevronDown,
   RefreshCw,
 } from "lucide-react"
-import { useSession, useActiveOrganization, signOut } from "@/lib/auth/client"
+import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { CmdK } from "@/components/cmd-k"
@@ -233,6 +233,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session, isPending } = useSession()
   const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
+  const { data: orgs, isPending: orgsListPending } = useListOrganizations()
   const t = useTranslations("nav")
   const ph = usePostHog()
 
@@ -269,6 +270,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [isPending, session, router])
 
+  // Better Auth only sets activeOrganizationId on the session when the client
+  // explicitly calls setActive() (org creation, invite accept). A fresh
+  // session — new device, cleared cookies, session renewal — has no
+  // activeOrganizationId even though the user is a member of an org, and
+  // useActiveOrganization() has no fallback of its own. resolveAuth() on the
+  // server already falls back to the user's first membership (see
+  // lib/auth/middleware.ts); mirror that here instead of showing a dead-end
+  // "no organization" screen to someone who actually has one.
+  useEffect(() => {
+    if (orgPending || orgsListPending || activeOrg || !orgs?.length) return
+    organization.setActive({ organizationId: orgs[0].id }).catch(() => {})
+  }, [orgPending, orgsListPending, activeOrg, orgs])
+
   // Identify authenticated user in PostHog so events are tied to real people
   useEffect(() => {
     if (!session?.user || !ph) return
@@ -280,7 +294,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })
   }, [session?.user?.id, activeOrg?.id, ph])
 
-  if (isPending || orgPending) {
+  // While activeOrg is null but the org list hasn't resolved yet (or has, and
+  // the auto-activate effect above just fired), keep showing the skeleton
+  // rather than flashing the "no organization" screen.
+  const resolvingOrg = !activeOrg && (orgsListPending || Boolean(orgs?.length))
+
+  if (isPending || orgPending || resolvingOrg) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="space-y-3 w-64">
@@ -294,9 +313,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!session?.user) return null
 
-  // User is authenticated but has no active org yet — they registered without
-  // creating one (e.g. planning to join via invitation). Show a holding screen
-  // instead of redirecting so accept-invitation can resolve naturally.
+  // User is authenticated, has no active org, and genuinely has zero
+  // memberships — they registered without creating one (e.g. planning to
+  // join via invitation). Show a holding screen instead of redirecting so
+  // accept-invitation can resolve naturally.
   if (!activeOrg) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 gap-6">

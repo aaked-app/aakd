@@ -17,5 +17,6 @@ export const {
   signUp,
   useSession,
   useActiveOrganization,
+  useListOrganizations,
   organization,
 } = authClient
