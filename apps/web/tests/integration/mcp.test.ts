@@ -225,6 +225,26 @@ describe("POST /api/mcp — tools/call get_contract", () => {
     expect(data.title).toBe("My NDA")
   })
 
+  it("does not expose the full extracted contract text", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "c1",
+      title: "Private NDA",
+      organizationId: "org-1",
+      extractedText: "CONFIDENTIAL FULL CONTRACT BODY",
+      owner: null,
+      tags: [],
+      files: [],
+      extractions: [],
+    } as any)
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", { name: "get_contract", arguments: { id: "c1" } }),
+    )
+    const body = await res.json()
+    expect(body.result.content[0].text).not.toContain("CONFIDENTIAL FULL CONTRACT BODY")
+  })
+
   it("returns isError:true when contract belongs to a different org", async () => {
     const mockContract = {
       id: "c2",
@@ -325,6 +345,25 @@ describe("POST /api/mcp — tools/call create_contract", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.result.isError).toBe(true)
+  })
+
+  it("rejects contract creation for a session viewer", async () => {
+    vi.mocked(prisma.contract.create).mockClear()
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...mockCtx, role: "viewer" })
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", {
+        name: "create_contract",
+        arguments: { title: "Viewer must not create" },
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toMatch(/member role/i)
+    expect(prisma.contract.create).not.toHaveBeenCalled()
   })
 })
 

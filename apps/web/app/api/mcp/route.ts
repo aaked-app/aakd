@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -20,6 +21,12 @@ interface McpRequest {
   id: string | number
   method: string
   params?: unknown
+}
+
+/** MCP mutations must enforce both the organization role and API-key scope.
+ * Session authentication alone must never turn a viewer into a writer. */
+function canWriteMcp(ctx: { role: string; source: "session" | "api_key"; scopes?: string[] }) {
+  return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("write") === true)
 }
 
 function jsonRpcResult(id: string | number, result: unknown) {
@@ -483,7 +490,32 @@ async function toolGetContract(
 
   const contract = await prisma.contract.findUnique({
     where: { id: parsed.data.id },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      contractType: true,
+      status: true,
+      ownerId: true,
+      counterpartyName: true,
+      counterpartyContact: true,
+      value: true,
+      currency: true,
+      governingLaw: true,
+      startDate: true,
+      endDate: true,
+      renewalDate: true,
+      noticePeriodDays: true,
+      autoRenewal: true,
+      notes: true,
+      organizationId: true,
+      folderId: true,
+      riskScore: true,
+      riskScoredAt: true,
+      docusealSubmissionId: true,
+      signingUrl: true,
+      signingStatus: true,
+      createdAt: true,
+      updatedAt: true,
       owner: { select: { id: true, name: true, email: true } },
       tags: true,
       files: {
@@ -513,7 +545,8 @@ async function toolGetContract(
     return toolError(id, "Error: Contract not found")
   }
 
-  return toolSuccess(id, contract)
+  const { organizationId: _organizationId, extractedText: _extractedText, ...safeContract } = contract as typeof contract & { extractedText?: string | null }
+  return toolSuccess(id, safeContract)
 }
 
 async function toolCreateContract(
@@ -1260,8 +1293,8 @@ export async function POST(req: Request) {
         case "get_contract":
           return toolGetContract(toolArgs, ctx.organizationId, id)
         case "create_contract":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolCreateContract(toolArgs, ctx.organizationId, ctx.userId, id)
         case "list_contracts":
@@ -1274,13 +1307,13 @@ export async function POST(req: Request) {
         case "list_obligations":
           return toolListObligations(toolArgs, ctx.organizationId, id)
         case "create_obligation":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolCreateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
         case "update_obligation":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolUpdateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
         // M8 Analytics
