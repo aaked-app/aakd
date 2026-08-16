@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 
 const USER_SELECT = { id: true, name: true, email: true, image: true } as const
@@ -149,6 +150,7 @@ export async function PATCH(
         `Obligation completed: ${updated.title}`,
         { obligationId: updated.id },
       )
+      captureServerEvent(ctx.userId, "obligation_completed")
     } else {
       const changedFields = Object.keys(parsed.data).join(", ")
       await writeActivity(

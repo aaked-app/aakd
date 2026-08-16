@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
@@ -237,6 +238,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         "METADATA_UPDATED",
         `Accepted AI extraction for field "${extraction.field}"`,
       )
+
+      // Keep activation telemetry aggregate-only. Never send document identifiers
+      // or extracted values to the analytics provider.
+      captureServerEvent(ctx.userId, "contract_fact_reviewed", {
+        action: body.action,
+        field: extraction.field,
+      })
 
       await regenerateAlertsIfTouched(params.id, [extraction.field])
     } else {

@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 
 const USER_SELECT = { id: true, name: true, email: true, image: true } as const
@@ -138,6 +139,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       `Obligation created: ${obligation.title}`,
       { obligationId: obligation.id },
     )
+
+    captureServerEvent(ctx.userId, "obligation_created", {
+      priority: data.priority,
+      hasDueDate: Boolean(data.dueDate),
+      hasAssignee: Boolean(data.assigneeId),
+    })
 
     return Response.json(obligation, { status: 201 })
   })

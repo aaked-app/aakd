@@ -212,10 +212,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const downloadUrl = await storage.getSignedDownloadUrl(key)
 
     captureServerEvent(ctx.userId, "file_uploaded", {
-      contractId: params.id,
-      organizationId: ctx.organizationId,
       mimeType,
-      sizeBytes: buffer.byteLength,
       version: contractFile.version,
       isFirstFile: contractFile.version === 1,
     })
