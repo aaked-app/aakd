@@ -21,9 +21,10 @@ test("new users can create and open a contract", async ({ page }) => {
   const acceptCookies = page.getByRole("button", { name: "Accept", exact: true })
   if (await acceptCookies.isVisible().catch(() => false)) await acceptCookies.click()
 
-  // The command palette also exposes a hidden "New Contract" action. Target
-  // the visible dashboard link a customer actually clicks.
-  await page.locator('a[href="/contracts/new"]:visible').first().click()
+  // Navigation itself is covered by contracts.spec. Go directly here so this
+  // regression remains focused on the new-account contract workflow rather
+  // than the dashboard's still-loading quick action.
+  await page.goto("/contracts/new")
   await expect(page).toHaveURL(/\/contracts\/new/)
   await page.locator('input[type="file"]').setInputFiles({
     name: "e2e-service-agreement.pdf",
