@@ -1,12 +1,12 @@
 # Aakd product vision and evidence-gated roadmap
 
 **Date:** 2026-08-16
-**Status:** Founder-approved strategic direction; evidence-gated execution roadmap, revision 2
+**Status:** Founder-approved strategic direction; evidence-gated execution roadmap, revision 3
 **Decision standard:** Facts, hypotheses and unknowns are kept separate. Every major choice includes alternatives, counterarguments and an invalidation condition.
 
 ## 1. Executive decision
 
-Aakd should be built boldly as a full, professional, open-source CLM and, over time, an Agreement Operations platform. Its product ambition is broad. Its first successful user journey and market-entry message must remain sharp.
+Aakd should be built boldly as a professional CLM on a permanently useful AGPL core and, over time, an Agreement Operations platform. Its product ambition is broad. Its first successful user journey and market-entry message must remain sharp.
 
 The proposed long-term category is an **open agreement operations platform**:
 
@@ -18,8 +18,8 @@ The proposed entry promise is narrower:
 
 This separates two decisions that the first draft mixed too closely:
 
-- **Product scope:** a complete professional OSS CLM with agreement intelligence, safe automation and progressive enterprise depth.
-- **Entry motion:** one understandable cited-action experience that reaches value quickly and can coexist with existing tools.
+- **Product scope:** a professional CLM with a complete, self-hostable community core, agreement intelligence, safe automation and progressive paid operational/enterprise depth.
+- **Entry motion:** cited obligation-to-action is the provisional control hypothesis. Governing-truth and no-migration recipe journeys are challengers tested against it.
 
 This resolves an apparent contradiction:
 
@@ -30,7 +30,7 @@ This resolves an apparent contradiction:
 - A contract-native recipe engine becomes a platform layer after its primitives stabilize. A generic visual canvas is not the first product because n8n and Power Automate already excel at generic orchestration.
 - Customer evidence selects the first buyer, message, recipes and commercial priorities. It does not give small or unproven competitors veto power over Aakd's architecture.
 
-**CEO confidence:** moderate in the direction; low in the initial paid ICP. The product thesis is coherent, but buyer, willingness to pay, repeat use and Cloud preference remain unvalidated.
+**CEO confidence:** moderate in the direction; low in the initial paid ICP. The product thesis is coherent, but buyer, willingness to pay, repeat use and Cloud preference remain unvalidated. “Full” means a useful end-to-end community product, not that every enterprise operating control is free; the feature-placement constitution below prevents arbitrary open-core erosion.
 
 ## 2. Premise challenge
 
@@ -358,7 +358,20 @@ Stars remain a reach metric. Activation, retention, contribution and commercial 
 
 ## 10. Roadmap
 
-Dates are directional; gates control progression.
+Dates are directional. Dependency gates control deeper investment, external beta and GA; minimal reusable foundation work may overlap.
+
+### Decision 0 — record operating constraints before dependent work (week 0)
+
+The founder records four provisional decisions, each with a review date:
+
+1. **Geography:** initial corpus, language and regulatory context. Recommended: UK-first English corpus, while preserving Arabic/RTL product support, because current prospect evidence is strongest in the UK.
+2. **Deployment:** recommended default is managed multi-tenant beta, with isolated deployment only for paid demand; community self-hosting remains first-class.
+3. **Feature placement:** publish the constitution below before promoting paid editions.
+4. **Capacity/funding posture:** record available founder, engineering, design and Cloud-operations time. Dates must be reforecast when capacity changes.
+
+**Feature-placement constitution:** the AGPL core permanently includes repository, authoring/review basics, agreement/fact/action data, source citations, human review, core recipes, API/export, self-hosting and security fixes. Paid offerings may include managed operations, SSO/SCIM, advanced governance, legal hold/retention administration, isolated infrastructure, premium support and certified compliance evidence. No paid feature may make community data hostage or block export/migration.
+
+**Planning capacity assumption:** the dates assume one founder/product owner, two full-time product engineers, shared design support and at least 0.5 FTE for Cloud/security operations by beta. Maximum concurrent initiatives: one activation journey, one foundation primitive and one operational workstream. With less capacity, preserve order and move dates.
 
 ### Execution model — build and validate in parallel
 
@@ -370,6 +383,8 @@ The roadmap runs three controlled lanes:
 
 Evidence may reorder journeys, recipes, integrations and GTM. It does not halt all foundational product work. Random feature accumulation remains frozen.
 
+**Work-in-progress cap:** one activation path, one corpus and one output integration until the Phase 1 gate. No new connector without repeated customer evidence. Existing modules are classified in Phase 0 as **maintain**, **security-only**, **experimental** or **retire-candidate**; no module receives expansion work without usage or strategic-foundation evidence.
+
 ### Phase 0 — Truth, safety, activation and evidence (0–6 weeks)
 
 **Outcome:** a trustworthy product surface and evidence package.
@@ -379,13 +394,15 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 - verify previously reported security fixes and establish a release security checklist;
 - measure workspace creation, healthy install, first upload, first review, first action and return;
 - run the fixed-scope Contract Action Diagnostic with qualified organizations;
-- create the synthetic demo corpus and expected result.
-- compare three wedges on the same representative corpora: relationship-aware governing truth, cited obligation-to-action execution, and progressive no-migration recipes;
+- create the synthetic demo corpus and expected result, including conflicting amendments, duplicate imports, ambiguous precedence, missing pages, departed owners, timezone-sensitive notice dates, failed external delivery and low-confidence critical clauses;
+- allocate 60% of evidence effort to cited obligation-to-action as the provisional control and 20% each to relationship-aware governing truth and progressive no-migration recipes; select the winner by paid demand first, then repeat use, activation time and correction burden;
 - maintain only a lightweight competitor watch; perform deep evaluation when a project reaches Tier 3 or its claims are needed in public comparisons.
 
 **Product gate:** clean installation and synthetic first action in under ten minutes; truthful feature status; no release-blocking security issue; reliable upload/extraction/recovery path.
 
 **Market gate:** five independent organizations report the same recent episode; three provide representative corpora; two economic owners prepay the same narrow pilot.
+
+**Pilot evidence contract:** before outreach, record a non-refundable minimum pilot price, 30–60 day duration, included contract volume, one supported workflow, economic buyer and success review. Discounting is permitted only when disclosed; refundable deposits do not count as payment evidence.
 
 **Kill condition:** after 20 qualified conversations, no two prepayments or no repeated problem pattern kills that wedge/segment/message. Record the evidence and test the next observed journey; do not kill the platform solely from a failed wedge.
 
@@ -401,9 +418,9 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 - keep authoring, approvals, signing, imports and integrations available progressively instead of presenting them as separate competing products;
 - publish a clear stable/experimental/planned capability matrix and upgrade path.
 
-**Gate:** at least 70% of qualified test contracts yield one accepted action; median first-action time under ten minutes for the supported path; two organizations complete and repeat the workflow; two qualified organizations prefer and can fund managed operation.
+**Quality gate:** on at least 100 documents spanning at least three selected contract types, measure citation validity and precision/recall separately for critical, high and routine actions. No silent critical error is permitted; low-confidence critical results must stop and request review. At least 70% of eligible contracts must yield one accepted action, median first-action time must be under ten minutes, two organizations must repeat the workflow, and two qualified organizations must prefer and fund managed operation.
 
-**Kill condition:** correction/support above two founder-hours per 25 contracts, incumbent adequacy or weak repeat use kills the cited-action **entry hypothesis**. The product lane continues only on primitives reused by another validated journey.
+**Kill condition:** more than 4.8 founder/support minutes per processed contract or more than two total onboarding/correction/infrastructure/customer-communication hours per activated organization per 25-contract cycle, incumbent adequacy or weak repeat use kills the cited-action **entry hypothesis**. The product lane continues only on primitives reused by another validated journey.
 
 ### Phase 2 — Agreement intelligence foundation (months 2–6)
 
@@ -411,13 +428,14 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 
 - agreement-family graph and precedence;
 - versioned fact ledger and correction history;
+- dependency tracking and correction propagation: affected actions, recipes, notifications and external tasks become stale; users are alerted; unsafe automation stops; external side effects enter explicit reconciliation rather than being silently overwritten;
 - rights, conditions and completion evidence in the action model;
 - relationship-centric contract brief;
 - safe imports from one proven system of record.
 
 **Build rule:** implement the minimal extensible relationship/fact/action primitives while Phase 1 evidence is collected; avoid speculative industry schemas and broad graph visualization.
 
-**Gate:** three real corpora need agreement precedence; reviewed outputs achieve the workflow-specific quality target; support effort falls rather than rises; retained organizations use a second agreement family. If precedence is rare, keep the relationship model simple rather than removing the platform direction.
+**Gate:** three real corpora need agreement precedence; amendment/correction tests prove no silent overwrite and correct stale-state propagation; reviewed outputs achieve the workflow-specific quality target; support effort falls rather than rises; retained organizations use a second agreement family. If precedence is rare, keep the relationship model simple rather than removing the platform direction.
 
 ### Phase 3 — Contract-native recipes and extensibility (months 4–9)
 
@@ -426,7 +444,7 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 - three proven contract-native recipes;
 - trigger/condition/action/approval primitives;
 - dry-run, idempotency, retry, permission and audit behavior;
-- boundary integrations with n8n, Power Automate or task systems;
+- exactly one boundary integration with n8n, Power Automate or a task system, selected from Phase 1 evidence;
 - recipe packaging and contribution format.
 - stable domain events, APIs and MCP tools so advanced users can integrate without waiting for the visual builder.
 
@@ -443,7 +461,9 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 
 Cloud beta may begin as soon as the secure, reliable core is operable. It does not wait for every platform feature. General availability remains gated by production controls and retention.
 
-**Gate:** ten paying organizations, target gross margin, three-month logo retention signal, bounded onboarding/support and no unresolved critical control gap. Exact thresholds are set from observed costs before GA.
+**Beta prerequisite:** before admitting external Cloud customers, record numeric GA targets for gross margin, provisioning and onboarding hours, monthly support hours per organization, restore success, uptime, critical incidents and three-month retained-logo denominator.
+
+**GA gate:** ten paying organizations; the precommitted gross-margin, onboarding, support, restore and uptime targets are met; at least eight of ten eligible logos remain at three months; zero unresolved critical control gap; and no more than one critical production incident in the preceding 90 days.
 
 ### Phase 5 — Enterprise assurance and expansion (9–18 months)
 
@@ -470,6 +490,8 @@ Cloud beta may begin as soon as the secure, reliable core is operable. It does n
 **Gate:** repeat external contributions, maintained third-party extensions, active installs and partner-originated qualified opportunities.
 
 ### Roadmap governance
+
+Each phase has a one-page scorecard containing the gate, evidence owner, review date, PASS action, FAIL action and reusable artifacts retained. Product owns activation and quality evidence; founder owns buyer/payment evidence; Cloud/security owner owns operational gates. A PASS authorizes deeper investment or launch. A FAIL stops that investment and triggers the stated redirect; it does not erase reusable foundations.
 
 Review monthly:
 
@@ -536,6 +558,21 @@ This measures operational value better than documents uploaded, AI questions or 
 - onboarding/support minutes and gross margin;
 - OSS-sourced qualified pipeline, not merely traffic.
 
+### Metric dictionary
+
+| Term | Operational definition |
+|---|---|
+| Qualified organization | Has at least 50 active executed agreements or 20 recurring/SOW agreements, a named operational owner, a recent target-workflow episode and authority to supply redacted documents; consultants without an internal use case are excluded. |
+| Representative corpus | At least 20 redacted documents from the target workflow, including amendments/exceptions and the selected contract-type mix; synthetic-only sets do not count for market gates. |
+| Accepted action | A human reviewer confirms the action, owner, date/condition and exact source citation without material correction. |
+| Repeat / second cycle | The same organization completes the workflow on a new agreement family or scheduled event at least seven days after first activation without founder execution. |
+| Meaningful variation | A recipe change to trigger, condition, owner, approval or output—not label/copy changes only. |
+| Active installation | An opted-in installation on a supported release performs the core workflow in a rolling 30-day window; demos and CI are excluded. |
+| Substantive contribution | An external merged fix/feature/doc or maintained extension that changes user/developer outcomes; typo-only changes are excluded. |
+| Qualified commercial lead | Meets the qualified-organization rule and has an identified economic owner, target workflow, timing and plausible budget. |
+
+Every dashboard must state unit, denominator, window, exclusions and source. Thresholds cannot be redefined after a gate review starts.
+
 ## 12. Explicit non-goals until gates are met
 
 - another generic contract chatbot;
@@ -566,9 +603,9 @@ This measures operational value better than documents uploaded, AI questions or 
 | Scope | Maintaining a full CLM consumes the team | Freeze random expansion, preserve the full architecture and make advanced modules contextual | Core maintenance prevents foundation, activation and customer learning |
 | Liability | Customers expect legal advice | Make decision authority and review boundaries explicit | Buyers require Aakd to assume unacceptable legal responsibility |
 
-## 14. Founder decisions still required
+## 14. Founder decisions and review points
 
-These should be decided after reviewing the evidence, not before it:
+Decision 0 records provisional answers before dependent work begins. Evidence may change them only at the stated review date:
 
 1. **Company ambition and funding posture:** capital-efficient vertical business or venture-scale platform. This changes acceptable scope, speed and enterprise investment.
 2. **Initial geography:** UK/EU, MENA or broader English-speaking market. This changes regulation, language advantage, buyer access and integration priorities.
@@ -596,4 +633,4 @@ These should be decided after reviewing the evidence, not before it:
 
 ## 16. Immediate next action
 
-Approve the north-star architecture and the build-and-validate execution model. Execute Phase 0 immediately, begin only the reusable Phase 1–2 foundations that improve reliability, activation and the agreement/fact/action model, and keep random feature expansion frozen. At the first monthly review, use evidence to reorder the entry journey—not to relitigate the company vision because a small project launched a landing page.
+Record Decision 0, assign the three lane owners and publish the feature-placement constitution. Then execute Phase 0, begin only the reusable Phase 1–2 foundations that improve reliability, activation and the agreement/fact/action model, and keep random feature expansion frozen. At the first monthly review, use evidence to reorder the entry journey—not to relitigate the company vision because a small project launched a landing page.
