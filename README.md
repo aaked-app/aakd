@@ -43,7 +43,13 @@ First signup creates your account and organization. Add your Anthropic or OpenAI
 
 ## Screenshots
 
-> Screenshots and demo GIF coming soon — star the repo to get notified.
+**Dashboard** — renewal timeline, pending approvals, and recent contracts at a glance.
+
+![Aakd dashboard](docs/screenshots/dashboard.png)
+
+**Contract repository** — full-text search, status and risk filters, at-a-glance value and end dates.
+
+![Aakd contracts list](docs/screenshots/contracts.png)
 
 ---
 
