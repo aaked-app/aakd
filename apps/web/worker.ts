@@ -1873,7 +1873,7 @@ deliverWorker.on("failed", (job, err) =>
 const documentConvertWorker = new Worker<DocumentConvertJobData>(
   "document.convert",
   async (job: Job<DocumentConvertJobData>) => {
-    const { contractId, storageKey, requestedById, fileType = "docx" } = job.data
+    const { contractId, storageKey, requestedById, fileType = "docx", deleteSource = false } = job.data
     logger.info({ jobId: job.id, contractId, fileType }, "[document.convert] processing job")
 
     const db = getWorkerPrisma()
@@ -1886,7 +1886,7 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       buffer = Buffer.from(await res.arrayBuffer())
     } catch (err) {
       logger.error({ err, contractId, storageKey }, "[document.convert] download failed")
-      await storage.delete(storageKey).catch(() => {})
+      if (deleteSource) await storage.delete(storageKey).catch(() => {})
       throw err
     }
 
@@ -1904,7 +1904,7 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
           logger.debug({ contractId, htmlChars: html.length }, "[document.convert] PDF→DOCX via LibreOffice, mammoth HTML")
         } catch (err) {
           logger.error({ err, contractId }, "[document.convert] mammoth failed on LibreOffice DOCX")
-          await storage.delete(storageKey).catch(() => {})
+          if (deleteSource) await storage.delete(storageKey).catch(() => {})
           throw err
         }
         nodes = htmlToPlateNodes(html)
@@ -1917,7 +1917,7 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
           logger.debug({ contractId, rawChars: rawText.length }, "[document.convert] PDF text extracted (fallback)")
         } catch (err) {
           logger.error({ err, contractId }, "[document.convert] pdf-parse failed")
-          await storage.delete(storageKey).catch(() => {})
+          if (deleteSource) await storage.delete(storageKey).catch(() => {})
           throw err
         }
         nodes = plaintextToPlateNodes(rawText)
@@ -1940,7 +1940,7 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
         } else {
           logger.error({ err, contractId }, "[document.convert] mammoth failed for DOCX")
         }
-        await storage.delete(storageKey).catch(() => {})
+        if (deleteSource) await storage.delete(storageKey).catch(() => {})
         throw err
       }
       nodes = htmlToPlateNodes(html)
@@ -1978,9 +1978,11 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       })
     }
 
-    await storage.delete(storageKey).catch((err) =>
-      logger.warn({ err, storageKey }, "[document.convert] failed to delete tmp object"),
-    )
+    if (deleteSource) {
+      await storage.delete(storageKey).catch((err) =>
+        logger.warn({ err, storageKey }, "[document.convert] failed to delete tmp object"),
+      )
+    }
 
     const sourceLabel = fileType === "pdf" ? "PDF" : "Word document"
     await db.activity.create({

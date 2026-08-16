@@ -86,6 +86,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       requestedById: ctx.userId,
       fileType,
       jobId: "", // overwritten below using the actual BullMQ job id
+      deleteSource: true,
     })
     // BullMQ assigns the id; pass it back so the GET route can verify ownership
     // by reading job.data.requestedById, and so the client can poll.
@@ -96,6 +97,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         requestedById: ctx.userId,
         fileType,
         jobId: job.id,
+        deleteSource: true,
       })
     }
 

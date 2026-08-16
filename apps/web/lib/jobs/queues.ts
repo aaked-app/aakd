@@ -99,6 +99,8 @@ export interface DocumentConvertJobData {
   requestedById: string
   jobId: string
   fileType: "docx" | "pdf"
+  /** Only document-import uploads live under a disposable tmp key. */
+  deleteSource?: boolean
 }
 
 export interface DocumentExportJobData {
