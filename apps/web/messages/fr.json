@@ -537,7 +537,8 @@
       "faq": "FAQ",
       "getEarlyAccess": "Rejoindre maintenant",
       "viewOnGitHub": "Voir sur GitHub",
-      "starOnGitHub": "Étoile sur GitHub"
+      "starOnGitHub": "Étoile sur GitHub",
+      "home": "Accueil Aakd", "primary": "Navigation principale", "mobile": "Navigation mobile", "menu": "Ouvrir le menu", "language": "Langue", "outcome": "Fonctionnement", "trust": "Confiance", "agentAccess": "Accès des agents", "capabilities": "Fonctionnalités", "selfHosting": "Auto-hébergement", "signIn": "Se connecter", "createWorkspace": "Créer un espace"
     },
     "hero": {
       "eyebrow": "Open Source · Gratuit · Auto-hébergeable",
@@ -636,6 +637,46 @@
       "lContact": "Contact",
       "lPrivacy": "Confidentialité",
       "lTerms": "Conditions"
-    }
+    },
+    "heroNew": { "eyebrow": "Opérations contractuelles open source", "title": "Sachez ce que vos contrats exigent ensuite.", "subtitle": "Transformez les contrats signés en suggestions citées, faits vérifiés, actions attribuées et preuves d’exécution — sur l’infrastructure que vous contrôlez.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, au choix du fournisseur, et n’est jamais l’autorité finale." },
+    "proof": {
+      "diagramLabel": "Exemple synthétique du contrat à l’action", "synthetic": "Exemple synthétique", "filename": "Exemple de contrat de services · PDF",
+      "source": { "label": "Source contractuelle", "exact": "Source exacte", "excerpt": "Le fournisseur remettra le rapport de service trimestriel dans les dix jours ouvrés suivant la fin du trimestre.", "page": "Page 8 · Section 4.2" },
+      "suggestion": { "label": "Suggestion citée", "title": "Rapport de service trimestriel", "description": "Préparer et remettre le rapport après chaque trimestre civil.", "confidence": "Confiance élevée", "review": "Vérification requise" },
+      "action": { "label": "Action attribuée", "title": "Préparer le rapport de service T3", "ownerLabel": "Responsable", "owner": "Opérations commerciales", "dueLabel": "Échéance", "due": "10 jours ouvrés après la fin du trimestre", "evidenceLabel": "Preuve", "evidence": "Accusé de réception" }
+    },
+    "trust": { "eyebrow": "Vérifiable par conception", "title": "La confiance commence par le document, pas par la réponse.", "subtitle": "Aakd relie les suggestions importantes à leur source exacte et laisse aux personnes autorisées le contrôle de ce qui devient un fait fiable.", "items": {
+      "0": { "title": "La source avant la réponse", "description": "Vérifiez l’extrait et la page qui justifient une suggestion plutôt que d’accepter un résumé isolé." },
+      "1": { "title": "L’humain garde l’autorité", "description": "L’IA peut suggérer. Les réviseurs autorisés confirment les faits, responsables et actions avant leur mise en œuvre." },
+      "2": { "title": "Les corrections restent visibles", "description": "L’historique de révision et le contexte de source permettent de comprendre pourquoi un résultat a changé." }
+    } },
+    "agent": { "eyebrow": "Accès agent gouverné", "title": "Utile aux agents. Gouverné par les personnes.", "subtitle": "Aakd expose le contexte contractuel via des interfaces API et MCP limitées, sans transformer un modèle en décideur anonyme.", "gatewayTitle": "Passerelle d’agents", "gatewayStatus": "Modèle d’accès en lecture d’abord", "items": {
+      "0": { "title": "Limité par permissions", "description": "L’accès suit l’organisation authentifiée, le rôle et la portée de la clé API." },
+      "1": { "title": "Résultats minimisés", "description": "Seuls les champs nécessaires sont renvoyés, sans divulgation par défaut du contrat entier." },
+      "2": { "title": "Contexte cité", "description": "Les faits vérifiés et suggestions conservent source, fraîcheur et incertitude." },
+      "3": { "title": "Autorité humaine", "description": "Les changements importants et actions externes restent soumis à une vérification et une approbation humaines explicites." }
+    }, "caveat": "La surface MCP actuelle est renforcée en Phase 0. Aakd ne prétend ni aux décisions juridiques autonomes ni à l’exécution agentique sans restriction." },
+    "capabilities": { "eyebrow": "Étendue CLM professionnelle", "title": "Un espace contractuel complet, révélé progressivement.", "subtitle": "Commencez par une action citée. Accédez au reste du cycle de vie quand le travail l’exige.", "items": {
+      "0": { "status": "Disponible", "title": "Référentiel et recherche", "description": "Stockez des contrats PDF et DOCX, organisez les versions et retrouvez le contenu." },
+      "1": { "status": "IA facultative", "title": "Intelligence contractuelle citée", "description": "Vérifiez métadonnées, risques, suggestions d’obligations et réponses citées lorsqu’un fournisseur IA est configuré." },
+      "2": { "status": "Disponible", "title": "Obligations et renouvellements", "description": "Suivez responsables, échéances, rappels, sous-tâches et état d’exécution." },
+      "3": { "status": "Disponible", "title": "Approbations et signature", "description": "Coordonnez revues, commentaires, historique d’approbation et signature DocuSeal facultative." },
+      "4": { "status": "Phase ultérieure", "title": "Rédaction et modèles", "description": "Le code inclut édition, modèles et redlining, mais ils ne font pas partie de la promesse de premier parcours Phase 0." },
+      "5": { "status": "Disponible", "title": "API, MCP et intégrations", "description": "Utilisez des interfaces limitées, webhooks, notifications, imports et connexions métier prises en charge." }
+    }, "statusNote": "L’état reflète le dépôt actuel. Cloud hébergé, SSO/SCIM et certifications formelles ne sont pas proposés actuellement." },
+    "selfHost": { "eyebrow": "Cœur AGPL", "title": "Exécutez une pile contractuelle que vous pouvez inspecter.", "subtitle": "Déployez Aakd sur votre infrastructure. Gardez un cœur open source utile, portable et indépendant d’un service hébergé.", "items": {
+      "0": { "title": "Déploiement documenté", "description": "Les guides Docker couvrent l’application web, le worker, PostgreSQL, Redis et le stockage compatible S3." },
+      "1": { "title": "Choix du fournisseur", "description": "Travaillez sans IA, exécutez Ollama localement ou utilisez les clés de fournisseurs pris en charge." },
+      "2": { "title": "Données du cœur portables", "description": "Le produit communautaire inclut API et exports sans exiger d’édition gérée." }
+    }, "guide": "Lire le guide d’auto-hébergement", "terminalLabel": "Démarrage rapide", "requirements": "La production exige une configuration sécurisée, des sauvegardes et une revue opérationnelle. Les valeurs de développement ne doivent pas être exposées publiquement." },
+    "faqNew": { "eyebrow": "Réponses directes", "title": "Ce qui est disponible — et ce qui ne l’est pas.", "subtitle": "Aakd est en Phase 0. Les déclarations publiques doivent rester aussi vérifiables que le produit.", "items": {
+      "0": { "question": "Aakd est-il open source et auto-hébergeable ?", "answer": "Oui. Le cœur est sous licence AGPL-3.0 et peut être déployé sur votre infrastructure avec la pile documentée." },
+      "1": { "question": "Aakd prend-il des décisions juridiques autonomes ?", "answer": "Non. Les fonctions IA produisent des suggestions vérifiables et des réponses citées. Les humains gardent l’autorité sur les faits, décisions juridiques et actions importantes." },
+      "2": { "question": "Ai-je besoin d’un fournisseur IA ?", "answer": "Non. Le référentiel, les métadonnées manuelles, approbations, obligations et signatures fonctionnent sans clé IA. Les fonctions assistées exigent un fournisseur pris en charge." },
+      "3": { "question": "Un service Cloud géré est-il disponible ?", "answer": "Pas actuellement. Le Cloud géré appartient à une phase ultérieure et dépend de preuves d’activation, clients, fiabilité et exploitation." },
+      "4": { "question": "Aakd inclut-il SSO et certifications entreprise ?", "answer": "Pas actuellement. Rôles, accès limités et journaux d’audit existent ; SSO/SCIM, certifications et assurance entreprise restent des contrôles ultérieurs." }
+    } },
+    "finalCta": { "title": "Commencez par un contrat et une prochaine action fiable.", "subtitle": "Créez un espace ou inspectez le code source avant de décider si Aakd convient à vos opérations contractuelles.", "primary": "Créer un espace", "secondary": "Voir sur GitHub" },
+    "footerNew": { "tagline": "Opérations contractuelles open source avec suggestions citées, vérification humaine et contrôle du déploiement.", "product": "Produit", "resources": "Ressources", "selfHosting": "Guide d’auto-hébergement", "api": "Référence API et MCP", "security": "Politique de sécurité", "copyright": "© 2026 Aakd · AGPL-3.0", "github": "Dépôt GitHub" }
   }
 }

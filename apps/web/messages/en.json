@@ -537,7 +537,19 @@
       "faq": "FAQ",
       "getEarlyAccess": "Join Now",
       "viewOnGitHub": "View on GitHub",
-      "starOnGitHub": "Star on GitHub"
+      "starOnGitHub": "Star on GitHub",
+      "home": "Aakd home",
+      "primary": "Primary navigation",
+      "mobile": "Mobile navigation",
+      "menu": "Open navigation menu",
+      "language": "Language",
+      "outcome": "How it works",
+      "trust": "Trust",
+      "agentAccess": "Agent access",
+      "capabilities": "Capabilities",
+      "selfHosting": "Self-hosting",
+      "signIn": "Sign in",
+      "createWorkspace": "Create workspace"
     },
     "hero": {
       "eyebrow": "Open Source · Free · Self-Hostable",
@@ -636,6 +648,121 @@
       "lContact": "Contact",
       "lPrivacy": "Privacy",
       "lTerms": "Terms"
+    },
+    "heroNew": {
+      "eyebrow": "Open source agreement operations",
+      "title": "Know what your agreements require next.",
+      "subtitle": "Turn executed agreements into cited suggestions, reviewed facts, owned actions and completion evidence — on infrastructure you control.",
+      "primaryCta": "Create workspace",
+      "secondaryCta": "View on GitHub",
+      "qualifier": "Self-hostable AGPL core. AI is optional, provider-selectable and never the final authority."
+    },
+    "proof": {
+      "diagramLabel": "Synthetic agreement-to-action example",
+      "synthetic": "Synthetic example",
+      "filename": "Example services agreement · PDF",
+      "source": {
+        "label": "Agreement source",
+        "exact": "Exact source",
+        "excerpt": "Supplier will provide the quarterly service report within ten business days after quarter end.",
+        "page": "Page 8 · Section 4.2"
+      },
+      "suggestion": {
+        "label": "Cited suggestion",
+        "title": "Quarterly service report",
+        "description": "Prepare and deliver the report after each calendar quarter.",
+        "confidence": "High confidence",
+        "review": "Review required"
+      },
+      "action": {
+        "label": "Owned action",
+        "title": "Prepare Q3 service report",
+        "ownerLabel": "Owner",
+        "owner": "Commercial operations",
+        "dueLabel": "Due",
+        "due": "10 business days after quarter end",
+        "evidenceLabel": "Evidence",
+        "evidence": "Delivery receipt"
+      }
+    },
+    "trust": {
+      "eyebrow": "Reviewable by design",
+      "title": "Trust starts with the document, not the answer.",
+      "subtitle": "Aakd keeps consequential suggestions connected to their exact source and puts authorized people in control of what becomes trusted state.",
+      "items": {
+        "0": { "title": "Source before answer", "description": "Review the excerpt and page that support a suggestion instead of accepting a detached summary." },
+        "1": { "title": "Humans keep authority", "description": "AI can suggest. Authorized reviewers confirm facts, owners and actions before they become operational." },
+        "2": { "title": "Corrections stay visible", "description": "Review history and source context make it possible to understand why a result changed." }
+      }
+    },
+    "agent": {
+      "eyebrow": "Governed agent access",
+      "title": "Useful to agents. Governed by people.",
+      "subtitle": "Aakd exposes agreement context through scoped API and MCP interfaces without turning a model into an anonymous decision-maker.",
+      "gatewayTitle": "Agent Gateway",
+      "gatewayStatus": "Read-first access model",
+      "items": {
+        "0": { "title": "Permission-scoped", "description": "Access follows the authenticated organization, role and API-key scope." },
+        "1": { "title": "Minimized results", "description": "Return the fields needed for the job instead of defaulting to whole-contract disclosure." },
+        "2": { "title": "Cited context", "description": "Reviewed facts and suggestions retain source context, freshness and uncertainty." },
+        "3": { "title": "Human authority", "description": "Consequential changes and external actions remain subject to explicit human review and approval." }
+      },
+      "caveat": "The current MCP surface is being hardened in Phase 0. Aakd does not claim autonomous legal decisions or unrestricted agent execution."
+    },
+    "capabilities": {
+      "eyebrow": "Professional CLM breadth",
+      "title": "A complete contract workspace, revealed progressively.",
+      "subtitle": "Start with one cited action. Reach the broader lifecycle tools when the work calls for them.",
+      "items": {
+        "0": { "status": "Available", "title": "Repository and search", "description": "Store PDF and DOCX agreements, organize versions and find contract content." },
+        "1": { "status": "AI optional", "title": "Cited agreement intelligence", "description": "Review extracted metadata, risks, obligation suggestions and cited Q&A when an AI provider is configured." },
+        "2": { "status": "Available", "title": "Obligations and renewals", "description": "Track owners, due dates, reminders, subtasks and completion status." },
+        "3": { "status": "Available", "title": "Approvals and signing", "description": "Coordinate reviews, comments, approval history and optional DocuSeal signing." },
+        "4": { "status": "Later-phase", "title": "Authoring and templates", "description": "The codebase includes editing, templates and redlining, but these are not part of the Phase 0 first-run promise." },
+        "5": { "status": "Available", "title": "API, MCP and integrations", "description": "Use scoped interfaces, webhooks, notifications, imports and supported business-system connections." }
+      },
+      "statusNote": "Capability status reflects the current repository. Hosted Cloud, SSO/SCIM and formal compliance certifications are not currently offered."
+    },
+    "selfHost": {
+      "eyebrow": "AGPL core",
+      "title": "Run the contract stack you can inspect.",
+      "subtitle": "Deploy Aakd on infrastructure you control. Keep the open core useful, portable and independent of a hosted service.",
+      "items": {
+        "0": { "title": "Documented deployment", "description": "Docker-based guides cover the web app, worker, PostgreSQL, Redis and S3-compatible storage." },
+        "1": { "title": "Provider choice", "description": "Use manual workflows without AI, run Ollama locally or bring supported provider keys." },
+        "2": { "title": "Portable core data", "description": "The community product includes API access and exports without requiring a managed edition." }
+      },
+      "guide": "Read the self-hosting guide",
+      "terminalLabel": "Quick start",
+      "requirements": "Production deployment requires secure configuration, backups and operational review. The development defaults are not for public exposure."
+    },
+    "faqNew": {
+      "eyebrow": "Straight answers",
+      "title": "What is available — and what is not.",
+      "subtitle": "Aakd is in Phase 0. Public claims should stay as inspectable as the product.",
+      "items": {
+        "0": { "question": "Is Aakd open source and self-hostable?", "answer": "Yes. The core is licensed under AGPL-3.0 and can be deployed on your own infrastructure using the documented stack." },
+        "1": { "question": "Does Aakd make autonomous legal decisions?", "answer": "No. AI features produce reviewable suggestions and cited answers. Humans retain authority over canonical facts, legal decisions and consequential actions." },
+        "2": { "question": "Do I need an AI provider to use Aakd?", "answer": "No. Repository, manual metadata, approvals, obligations and signing flows can work without an AI key. AI-assisted features require a configured supported provider." },
+        "3": { "question": "Is a managed Cloud service available?", "answer": "Not currently. Managed Cloud belongs to a later roadmap phase and depends on activation, customer, reliability and operational evidence." },
+        "4": { "question": "Does Aakd include enterprise certifications and SSO?", "answer": "Not currently. Organization roles, scoped access and audit records exist, while SSO/SCIM, formal certifications and enterprise assurance remain later-phase controls." }
+      }
+    },
+    "finalCta": {
+      "title": "Start with one agreement and one trusted next action.",
+      "subtitle": "Create a workspace or inspect the source before deciding whether Aakd fits your contract operations.",
+      "primary": "Create workspace",
+      "secondary": "View on GitHub"
+    },
+    "footerNew": {
+      "tagline": "Open-source agreement operations with cited suggestions, human review and deployment control.",
+      "product": "Product",
+      "resources": "Resources",
+      "selfHosting": "Self-hosting guide",
+      "api": "API and MCP reference",
+      "security": "Security policy",
+      "copyright": "© 2026 Aakd · AGPL-3.0",
+      "github": "GitHub repository"
     }
   }
 }
