@@ -181,7 +181,7 @@ function ArrowRight({ size = 16 }: { size?: number }) {
   )
 }
 
-function AakedMark({ size = 28, color = "#fff" }: { size?: number; color?: string }) {
+function AakdMark({ size = 28, color = "#fff" }: { size?: number; color?: string }) {
   return (
     <div
       style={{
@@ -271,7 +271,7 @@ function LPNav() {
     >
       {/* Logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <AakedMark size={30} />
+        <AakdMark size={30} />
         <span
           style={{
             fontFamily: "var(--font-sora)",
@@ -281,7 +281,7 @@ function LPNav() {
             color: "#fff",
           }}
         >
-          Aaked
+          Aakd
         </span>
       </div>
 
@@ -651,7 +651,7 @@ function ProductMockup() {
               padding: "4px 8px 14px",
             }}
           >
-            <AakedMark size={22} />
+            <AakdMark size={22} />
             <span
               style={{
                 fontFamily: "var(--font-sora)",
@@ -660,7 +660,7 @@ function ProductMockup() {
                 color: "#fff",
               }}
             >
-              Aaked
+              Aakd
             </span>
           </div>
           {[
@@ -2110,7 +2110,7 @@ function LPFooter() {
           <div
             style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}
           >
-            <AakedMark size={26} />
+            <AakdMark size={26} />
             <span
               style={{
                 fontFamily: "var(--font-sora)",
@@ -2119,7 +2119,7 @@ function LPFooter() {
                 color: "#fff",
               }}
             >
-              Aaked
+              Aakd
             </span>
           </div>
           <p

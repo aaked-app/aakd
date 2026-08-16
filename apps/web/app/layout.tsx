@@ -31,7 +31,7 @@ const sora = Sora({
 })
 
 export const metadata: Metadata = {
-  title: "Aaked",
+  title: "Aakd",
   description: "Open source, self-hostable contract management",
 }
 
