@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { auth } from "@/lib/auth/config"
 import { prisma } from "@/lib/db/client"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 
@@ -8,7 +9,12 @@ import { fireAndLog } from "@/lib/utils/fire-and-log"
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const ctx = await resolveAuth(req)
-  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  // An invited user is not a member of this organization yet, so resolveAuth()
+  // intentionally returns null for their otherwise-valid session. Fall back to
+  // Better Auth's session lookup only for this bootstrap transition.
+  const session = ctx ? null : await auth.api.getSession({ headers: req.headers })
+  const userId = ctx?.userId ?? session?.user?.id
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const invitation = await prisma.invitation.findUnique({
     where: { id: params.id },
@@ -18,17 +24,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return Response.json({ error: "Invitation not found" }, { status: 404 })
   }
 
-  if (invitation.status !== "pending") {
-    return Response.json({ error: "already_accepted" }, { status: 409 })
-  }
-
-  if (invitation.expiresAt < new Date()) {
+  if (invitation.status === "pending" && invitation.expiresAt < new Date()) {
     return Response.json({ error: "expired" }, { status: 410 })
   }
 
   // Verify the logged-in user's email matches the invitation
   const user = await prisma.user.findUnique({
-    where: { id: ctx.userId },
+    where: { id: userId },
     select: { email: true },
   })
 
@@ -39,11 +41,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     )
   }
 
+  if (invitation.status !== "pending") {
+    // A session refresh can repeat the accept request after the first request
+    // has committed. Make that retry safe for the same invitee only.
+    if (invitation.status === "accepted") {
+      const acceptedMember = await prisma.member.findUnique({
+        where: {
+          userId_organizationId: {
+            userId,
+            organizationId: invitation.organizationId,
+          },
+        },
+      })
+      if (acceptedMember) {
+        return Response.json({
+          organizationId: invitation.organizationId,
+          role: acceptedMember.role,
+          alreadyMember: true,
+        })
+      }
+    }
+    return Response.json({ error: "already_accepted" }, { status: 409 })
+  }
+
   // Check if already a member
   const existing = await prisma.member.findUnique({
     where: {
       userId_organizationId: {
-        userId: ctx.userId,
+        userId,
         organizationId: invitation.organizationId,
       },
     },
@@ -63,8 +88,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const [member] = await prisma.$transaction([
     prisma.member.create({
       data: {
-        id: `${ctx.userId}-${invitation.organizationId}`.slice(0, 36),
-        userId: ctx.userId,
+        id: `${userId}-${invitation.organizationId}`.slice(0, 36),
+        userId,
         organizationId: invitation.organizationId,
         role: invitation.role ?? "member",
         createdAt: new Date(),
@@ -83,11 +108,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         where: {
           organizationId: invitation.organizationId,
           role: { in: ["admin", "owner"] },
-          NOT: { userId: ctx.userId },
+          NOT: { userId },
         },
         select: { userId: true },
       }),
-      prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, email: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     ]).then(([admins, newUser]) => {
       const displayName = newUser?.name || newUser?.email || "Someone"
       return Promise.all(

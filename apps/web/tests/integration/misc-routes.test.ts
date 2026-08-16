@@ -18,12 +18,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { prisma } from "@/lib/db/client"
+import { auth } from "@/lib/auth/config"
 
 // ─── Module mocks (must be hoisted before imports) ────────────────────────────
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn(),
   requireWriteScope: vi.fn(() => null),
+}))
+
+vi.mock("@/lib/auth/config", () => ({
+  auth: { api: { getSession: vi.fn().mockResolvedValue(null) } },
 }))
 
 vi.mock("@/lib/db/activity", () => ({
@@ -569,7 +574,11 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
 // ─── POST /api/org/invitations/[id]/accept ────────────────────────────────────
 
 describe("POST /api/org/invitations/[id]/accept", () => {
-  beforeEach(() => { vi.clearAllMocks(); resetMockQueues() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(auth.api.getSession).mockResolvedValue(null)
+    resetMockQueues()
+  })
 
   it("returns 401 when unauthenticated", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
@@ -579,6 +588,32 @@ describe("POST /api/org/invitations/[id]/accept", () => {
       { params: { id: "inv-1" } },
     )
     expect(res.status).toBe(401)
+  })
+
+  it("accepts a valid session before the invitee has a membership", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(null)
+    vi.mocked(auth.api.getSession).mockResolvedValueOnce({ user: { id: "invitee-1" } } as any)
+    vi.mocked(prisma.invitation.findUnique).mockResolvedValueOnce({
+      id: "inv-1", organizationId: "org-1", status: "pending", email: "invitee@example.com",
+      expiresAt: new Date(Date.now() + 86400_000), role: "member",
+    } as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ email: "invitee@example.com" } as any)
+    vi.mocked(prisma.member.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.$transaction).mockResolvedValueOnce([
+      { id: "member-new", organizationId: "org-1", role: "member" },
+      { id: "inv-1", status: "accepted" },
+    ] as any)
+
+    const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
+    const res = await POST(
+      new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
+      { params: { id: "inv-1" } },
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.member.findUnique).toHaveBeenCalledWith({
+      where: { userId_organizationId: { userId: "invitee-1", organizationId: "org-1" } },
+    })
   })
 
   it("returns 404 when invitation not found", async () => {
@@ -602,6 +637,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
       expiresAt: new Date(Date.now() + 86400_000),
       role: "member",
     } as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ email: "admin@example.com" } as any)
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
