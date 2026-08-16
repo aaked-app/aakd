@@ -2,44 +2,34 @@
 
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Sparkles, FileText, Plug, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
-interface Step {
+interface StepMeta {
   icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
+  key: "welcome" | "contract" | "tools" | "team"
 }
 
-const STEPS: Step[] = [
-  {
-    icon: Sparkles,
-    title: "Welcome to Aakd",
-    description:
-      "Let's set up your workspace. This only takes a minute.",
-  },
-  {
-    icon: FileText,
-    title: "Create your first contract",
-    description:
-      "Start from scratch, use a template, or create with AI assistance.",
-  },
-  {
-    icon: Plug,
-    title: "Connect your tools",
-    description:
-      "Link your CRM, e-signature, and storage providers.",
-  },
-  {
-    icon: Users,
-    title: "Invite your team",
-    description:
-      "Add team members and assign roles to collaborate effectively.",
-  },
+const STEPS: StepMeta[] = [
+  { icon: Sparkles, key: "welcome" },
+  { icon: FileText, key: "contract" },
+  { icon: Plug, key: "tools" },
+  { icon: Users, key: "team" },
 ]
 
 const STORAGE_KEY = "cf_onboarding_done"
 
 export function OnboardingModal() {
+  const t = useTranslations("onboarding.modal")
   const pathname = usePathname()
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
@@ -71,59 +61,62 @@ export function OnboardingModal() {
     }
   }
 
-  if (!visible) return null
+  // The dedicated onboarding page owns the first-run flow. Hide the compact
+  // tour synchronously during navigation so it cannot intercept its controls.
+  if (!visible || pathname === "/onboarding") return null
 
   const current = STEPS[step]
   const Icon = current.icon
   const isLast = step === STEPS.length - 1
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[9992] flex items-center justify-center">
-      <div className="w-[480px] rounded-xl bg-card border border-border shadow-2xl overflow-hidden">
-        {/* Top section */}
-        <div className="p-8 pb-6 text-center">
-          <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
-            <Icon className="h-7 w-7" />
+    <Dialog open={visible}>
+      <DialogContent
+        showCloseButton={false}
+        className="w-[calc(100%-2rem)] max-w-lg gap-0 overflow-hidden p-0"
+      >
+        <div className="p-6 text-center sm:p-8">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-14 sm:w-14">
+            <Icon className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
           </div>
-          <p className="text-xl font-bold mb-2">{current.title}</p>
-          <p className="text-[14px] text-muted-foreground leading-relaxed">
-            {current.description}
-          </p>
+          <DialogHeader className="mt-5 items-center gap-2 text-center">
+            <DialogTitle className="text-xl font-semibold leading-tight sm:text-2xl">
+              {t(`steps.${current.key}.title`)}
+            </DialogTitle>
+            <DialogDescription className="max-w-sm text-sm leading-6">
+              {t(`steps.${current.key}.description`)}
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Step dots */}
-          <div className="flex justify-center gap-1.5 mt-5">
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                className={
-                  i === step
-                    ? "w-5 h-1.5 rounded-full bg-primary transition-all"
-                    : "w-1.5 h-1.5 rounded-full bg-muted transition-all"
-                }
-              />
-            ))}
+          <div className="mt-6">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("progress", { current: step + 1, total: STEPS.length })}
+            </p>
+            <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
+              {STEPS.map((item, index) => (
+                <span
+                  key={item.key}
+                  className={
+                    index === step
+                      ? "h-1.5 w-6 rounded-full bg-primary transition-all"
+                      : "h-1.5 w-1.5 rounded-full bg-muted transition-all"
+                  }
+                />
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-8 pb-6 flex justify-between">
-          <button
-            type="button"
-            onClick={close}
-            className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Skip
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            className="inline-flex items-center h-8 px-4 text-sm font-medium rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            {isLast ? "Get Started" : "Next"}
-          </button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter className="m-0 flex-col gap-2 rounded-none border-t bg-muted/20 p-4 sm:m-0 sm:flex-row sm:justify-between sm:p-5">
+          <Button type="button" variant="ghost" onClick={close} className="h-11 w-full sm:w-auto">
+            {t("actions.skip")}
+          </Button>
+          <Button type="button" onClick={next} className="h-11 w-full sm:w-auto sm:min-w-28">
+            {isLast ? t("actions.getStarted") : t("actions.next")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

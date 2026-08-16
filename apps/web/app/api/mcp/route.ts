@@ -517,7 +517,7 @@ async function toolGetContract(
       createdAt: true,
       updatedAt: true,
       owner: { select: { id: true, name: true, email: true } },
-      tags: true,
+      tags: { select: { id: true, name: true, color: true } },
       files: {
         where: { isLatest: true },
         select: { id: true, filename: true, mimeType: true, sizeBytes: true, version: true, createdAt: true },
@@ -614,9 +614,25 @@ async function toolListContracts(
   const [contracts, total] = await Promise.all([
     prisma.contract.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        contractType: true,
+        status: true,
+        ownerId: true,
+        counterpartyName: true,
+        value: true,
+        currency: true,
+        endDate: true,
+        renewalDate: true,
+        autoRenewal: true,
+        riskScore: true,
+        riskScoredAt: true,
+        signingStatus: true,
+        createdAt: true,
+        updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
-        tags: true,
+        tags: { select: { id: true, name: true, color: true } },
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * limit,

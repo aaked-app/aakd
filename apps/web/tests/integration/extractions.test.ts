@@ -253,21 +253,10 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     expect(prisma.aIExtraction.update).not.toHaveBeenCalled()
   })
 
-  it("accept_all marks all pending extractions accepted and updates contract", async () => {
-    const pending = [
-      { id: "ex-1", field: "counterpartyName", rawValue: "Acme Corp" },
-      { id: "ex-2", field: "startDate",         rawValue: "2024-01-01" },
-      { id: "ex-3", field: "value",             rawValue: "50000" },
-    ]
-
+  it("rejects bulk acceptance so every AI value requires individual review", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    // The $transaction callback receives prisma as tx — these mocks are shared
-    vi.mocked(prisma.aIExtraction.findMany).mockResolvedValueOnce(pending as any)
-    vi.mocked(prisma.aIExtraction.updateMany).mockResolvedValueOnce({ count: 3 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce({} as any)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/extractions/route")
-
     const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -277,34 +266,9 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       PATCH(req, { params: { id: "contract-1" } }),
     )
 
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.accepted).toBe(3)
-    expect(prisma.$transaction).toHaveBeenCalled()
-  })
-
-  it("accept_all returns { accepted: 0 } when no pending extractions exist", async () => {
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    // The $transaction callback receives prisma as tx — findMany inside returns []
-    vi.mocked(prisma.aIExtraction.findMany).mockResolvedValueOnce([] as any)
-
-    const { PATCH } = await import("@/app/api/contracts/[id]/extractions/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "accept_all" }),
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.accepted).toBe(0)
-    // $transaction is always called; it returns 0 early when there are no pending extractions
-    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(res.status).toBe(400)
     expect(prisma.aIExtraction.updateMany).not.toHaveBeenCalled()
+    expect(prisma.contract.update).not.toHaveBeenCalled()
   })
 
   it("edit updates rawValue then accepts and writes to contract", async () => {

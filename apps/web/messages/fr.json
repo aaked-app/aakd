@@ -111,14 +111,49 @@
       "authoring": "Rédaction",
       "crm": "CRM"
     },
-    "actions": {
+  "actions": {
       "new": "Nouveau contrat",
       "archive": "Archiver",
       "restore": "Restaurer",
       "sign": "Envoyer pour signature",
       "extract": "Lancer l'extraction IA",
-      "upload": "Téléverser un document"
-    }
+    "upload": "Téléverser un document"
+  },
+  "workspace": {
+    "breadcrumb": "Navigation du contrat",
+    "actions": "Actions du contrat",
+    "tabs": "Espace de travail du contrat",
+    "changeStatus": "Modifier le statut",
+    "moveTo": "Déplacer vers",
+    "sendForApproval": "Envoyer pour approbation",
+    "sendForSigning": "Envoyer pour signature",
+    "archive": "Archiver",
+    "overview": "Aperçu",
+    "files": "Fichiers",
+    "aiExtractions": "Extractions IA",
+    "approvals": "Approbations",
+    "signing": "Signature",
+    "obligations": "Obligations",
+    "risk": "Risque",
+    "editor": "Éditeur",
+    "details": "Détails du contrat",
+    "editContract": "Modifier le contrat",
+    "activity": "Activité",
+    "noActivity": "Aucune activité pour le moment",
+    "counterparty": "Contrepartie",
+    "contractValue": "Valeur du contrat",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "owner": "Responsable",
+    "type": "Type",
+    "governingLaw": "Droit applicable",
+    "noticePeriod": "Préavis",
+    "days": "jours",
+    "folder": "Dossier",
+    "removeTag": "Supprimer {tag}",
+    "addTag": "Ajouter une étiquette",
+    "sourcePage": "Page source {page}"
+  }
   },
   "auth": {
     "login": "Se connecter",
@@ -474,6 +509,18 @@
     "APPROVAL_CANCELLED": "Cancelled approval request",
     "noActivity": "No activity yet."
   },
+  "onboarding": {
+    "eyebrow": "Configuration de l’espace", "title": "Bienvenue sur Aakd", "subtitle": "Votre organisation est prête. Commencez par un contrat, puis ajoutez l’IA lorsque vous avez besoin d’aide pour l’extraction ou la révision.",
+    "firstContract": { "title": "Commencez par votre premier contrat", "description": "Importez un contrat et commencez immédiatement sa révision. La configuration de l’IA est facultative et peut être effectuée plus tard dans les paramètres.", "formats": "Les fichiers PDF et DOCX sont pris en charge." },
+    "ai": { "title": "Configurer l’assistance IA", "optional": "Facultatif", "description": "Connectez un fournisseur aux outils d’extraction et de révision existants. Vous pouvez ignorer cette étape et y revenir à tout moment.", "features": { "extraction": "Extraction de contrats et questions-réponses", "risk": "Évaluation des risques (FAIBLE / MOYEN / ÉLEVÉ)", "obligations": "Détection des obligations" } },
+    "provider": { "legend": "Fournisseur d’IA", "anthropic": { "subtitle": "Modèles Claude" }, "openai": { "subtitle": "Modèles GPT" }, "ollama": { "subtitle": "Local / auto-hébergé" } },
+    "fields": { "model": "Modèle", "selectModel": "Sélectionner un modèle", "apiKey": "Clé API", "ollamaUrl": "URL de base Ollama", "ollamaUrlHelp": "La valeur par défaut est http://localhost:11434. Modifiez-la si Ollama s’exécute sur un autre hôte ou port.", "ollamaModel": "Nom du modèle", "ollamaModelHelp": "Saisissez un modèle récupéré localement avec" },
+    "models": { "anthropic": { "haiku": "Claude Haiku (le plus rapide)", "sonnet": "Claude Sonnet (équilibré)", "opus": "Claude Opus (le plus performant)" }, "openai": { "mini": "GPT-4o Mini (le plus rapide)", "standard": "GPT-4o (équilibré)", "turbo": "GPT-4 Turbo (puissant)" } },
+    "actions": { "upload": "Importer un contrat", "skip": "Ignorer pour le moment", "test": "Tester la connexion", "save": "Enregistrer et continuer", "testing": "Test en cours...", "saving": "Enregistrement...", "showKey": "Afficher la clé", "hideKey": "Masquer la clé" },
+    "feedback": { "success": "Connexion réussie", "failed": "Échec du test de connexion", "testNetworkError": "Erreur réseau — impossible d’atteindre le point de validation", "saveFailed": "Échec de l’enregistrement de la configuration", "saveNetworkError": "Erreur réseau — impossible d’enregistrer la configuration" },
+    "security": { "ollama": "Votre URL Ollama est chiffrée au repos. Aucune donnée ne quitte votre serveur.", "cloud": "Votre clé est chiffrée au repos et n’est jamais enregistrée dans les journaux.", "changePrefix": "Vous pouvez la modifier à tout moment dans", "settingsLink": "Paramètres → Organisation", "suffix": "." },
+    "modal": { "steps": { "welcome": { "title": "Bienvenue sur Aakd", "description": "Configurons votre espace de travail. Cela ne prend qu’une minute." }, "contract": { "title": "Créez votre premier contrat", "description": "Partez de zéro, utilisez un modèle ou créez avec l’assistance de l’IA." }, "tools": { "title": "Connectez vos outils", "description": "Reliez votre CRM, votre signature électronique et vos services de stockage." }, "team": { "title": "Invitez votre équipe", "description": "Ajoutez des membres et attribuez des rôles pour collaborer efficacement." } }, "progress": "Étape {current} sur {total}", "actions": { "skip": "Ignorer", "next": "Suivant", "getStarted": "Commencer" } }
+  },
   "errors": {
     "unauthorized": "Vous n'avez pas l'autorisation d'effectuer cette action",
     "notFound": "Introuvable",
@@ -496,7 +543,7 @@
       "eyebrow": "Open Source · Gratuit · Auto-hébergeable",
       "headline1": "La plateforme",
       "headline2": "de contrats.",
-      "subtitle": "Rédigez, négociez, signez et gérez vos contrats avec une IA qui s'adapte à vos règles. Auto-hébergez pour une souveraineté totale, ou laissez-nous gérer."
+      "subtitle": "Importez vos contrats, vérifiez les extractions IA citées et suivez les obligations et approbations. Auto-hébergez le cœur open source sur votre infrastructure."
     },
     "features": {
       "eyebrow": "Fonctionnalités",
@@ -538,7 +585,7 @@
       "2desc": "Construit par des développeurs et des équipes juridiques du monde entier. Chaque demande de fonctionnalité, correction de bug et amélioration est transparente."
     },
     "security": {
-      "heading": "Sécurité de niveau entreprise",
+      "heading": "Fondations de sécurité",
       "s0": "Accès basé sur les rôles",
       "s1": "Contrôles de confidentialité",
       "s2": "Chiffrement AES-256",
@@ -560,7 +607,7 @@
       "q3": "Aaked convient-il aux entreprises ?",
       "a3": "Aaked inclut les rôles d'organisation, les contrôles d'accès et les journaux d'audit. SSO/SAML, certifications formelles et support entreprise hébergé ne sont pas actuellement inclus.",
       "q4": "Comment migrer depuis DocuSign ou d'autres outils ?",
-      "a4": "Nous fournissons des outils d'import pour DocuSign, PandaDoc et les migrations CSV. Notre équipe peut aider lors de la période d'accès anticipé.",
+      "a4": "Aaked inclut des outils d'import pour DocuSign, PandaDoc et les migrations CSV. Les migrations complexes nécessitent votre propre revue et votre planification opérationnelle.",
       "q5": "Quelles langues Aaked supporte-t-il ?",
       "a5": "L'interface supporte l'anglais, l'arabe (avec RTL complet), le français, l'allemand et l'espagnol. Vous pouvez rédiger des contrats dans n'importe quelle langue."
     },

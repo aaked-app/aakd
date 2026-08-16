@@ -111,14 +111,49 @@
       "authoring": "Redacción",
       "crm": "CRM"
     },
-    "actions": {
+  "actions": {
       "new": "Nuevo contrato",
       "archive": "Archivar",
       "restore": "Restaurar",
       "sign": "Enviar para firma",
       "extract": "Ejecutar extracción con IA",
-      "upload": "Subir documento"
-    }
+    "upload": "Subir documento"
+  },
+  "workspace": {
+    "breadcrumb": "Navegación del contrato",
+    "actions": "Acciones del contrato",
+    "tabs": "Espacio de trabajo del contrato",
+    "changeStatus": "Cambiar estado",
+    "moveTo": "Mover a",
+    "sendForApproval": "Enviar para aprobación",
+    "sendForSigning": "Enviar para firma",
+    "archive": "Archivar",
+    "overview": "Resumen",
+    "files": "Archivos",
+    "aiExtractions": "Extracciones de IA",
+    "approvals": "Aprobaciones",
+    "signing": "Firma",
+    "obligations": "Obligaciones",
+    "risk": "Riesgo",
+    "editor": "Editor",
+    "details": "Detalles del contrato",
+    "editContract": "Editar contrato",
+    "activity": "Actividad",
+    "noActivity": "Aún no hay actividad",
+    "counterparty": "Contraparte",
+    "contractValue": "Valor del contrato",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de finalización",
+    "owner": "Responsable",
+    "type": "Tipo",
+    "governingLaw": "Legislación aplicable",
+    "noticePeriod": "Plazo de preaviso",
+    "days": "días",
+    "folder": "Carpeta",
+    "removeTag": "Eliminar {tag}",
+    "addTag": "Añadir etiqueta",
+    "sourcePage": "Página de origen {page}"
+  }
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -474,6 +509,18 @@
     "APPROVAL_CANCELLED": "Cancelled approval request",
     "noActivity": "No activity yet."
   },
+  "onboarding": {
+    "eyebrow": "Configuración del espacio", "title": "Le damos la bienvenida a Aakd", "subtitle": "Su organización está lista. Empiece con un contrato y añada IA cuando necesite ayuda con la extracción o la revisión.",
+    "firstContract": { "title": "Empiece con su primer contrato", "description": "Suba un contrato y empiece a revisarlo de inmediato. La configuración de IA es opcional y puede completarse más tarde en Ajustes.", "formats": "Se admiten archivos PDF y DOCX." },
+    "ai": { "title": "Configurar la asistencia de IA", "optional": "Opcional", "description": "Conecte un proveedor a las herramientas de extracción y revisión existentes. Puede omitir este paso y volver en cualquier momento.", "features": { "extraction": "Extracción de contratos y preguntas", "risk": "Puntuación de riesgo (BAJO / MEDIO / ALTO)", "obligations": "Detección de obligaciones" } },
+    "provider": { "legend": "Proveedor de IA", "anthropic": { "subtitle": "Modelos Claude" }, "openai": { "subtitle": "Modelos GPT" }, "ollama": { "subtitle": "Local / autoalojado" } },
+    "fields": { "model": "Modelo", "selectModel": "Seleccionar un modelo", "apiKey": "Clave API", "ollamaUrl": "URL base de Ollama", "ollamaUrlHelp": "El valor predeterminado es http://localhost:11434. Cámbielo si Ollama se ejecuta en otro host o puerto.", "ollamaModel": "Nombre del modelo", "ollamaModelHelp": "Introduzca cualquier modelo que haya descargado localmente con" },
+    "models": { "anthropic": { "haiku": "Claude Haiku (más rápido)", "sonnet": "Claude Sonnet (equilibrado)", "opus": "Claude Opus (más capaz)" }, "openai": { "mini": "GPT-4o Mini (más rápido)", "standard": "GPT-4o (equilibrado)", "turbo": "GPT-4 Turbo (potente)" } },
+    "actions": { "upload": "Subir un contrato", "skip": "Omitir por ahora", "test": "Probar conexión", "save": "Guardar y continuar", "testing": "Probando...", "saving": "Guardando...", "showKey": "Mostrar clave", "hideKey": "Ocultar clave" },
+    "feedback": { "success": "Conexión correcta", "failed": "La prueba de conexión ha fallado", "testNetworkError": "Error de red — no se pudo acceder al punto de validación", "saveFailed": "No se pudo guardar la configuración", "saveNetworkError": "Error de red — no se pudo guardar la configuración" },
+    "security": { "ollama": "Su URL de Ollama se cifra en reposo. Ningún dato sale de su servidor.", "cloud": "Su clave se cifra en reposo y nunca se registra.", "changePrefix": "Puede cambiarla en cualquier momento en", "settingsLink": "Ajustes → Organización", "suffix": "." },
+    "modal": { "steps": { "welcome": { "title": "Le damos la bienvenida a Aakd", "description": "Configuremos su espacio de trabajo. Solo tardará un minuto." }, "contract": { "title": "Cree su primer contrato", "description": "Empiece desde cero, use una plantilla o cree con asistencia de IA." }, "tools": { "title": "Conecte sus herramientas", "description": "Vincule su CRM, firma electrónica y proveedores de almacenamiento." }, "team": { "title": "Invite a su equipo", "description": "Añada miembros y asigne roles para colaborar eficazmente." } }, "progress": "Paso {current} de {total}", "actions": { "skip": "Omitir", "next": "Siguiente", "getStarted": "Empezar" } }
+  },
   "errors": {
     "unauthorized": "No tiene permiso para realizar esta acción",
     "notFound": "No encontrado",
@@ -496,7 +543,7 @@
       "eyebrow": "Código abierto · Gratis · Auto-alojable",
       "headline1": "La plataforma",
       "headline2": "de contratos.",
-      "subtitle": "Redacte, negocie, firme y gestione contratos con IA que funciona en sus términos. Auto-aloje para soberanía total de datos, o déjenos gestionarlo."
+      "subtitle": "Suba contratos, revise extracciones de IA con citas y haga seguimiento de obligaciones y aprobaciones. Aloje el núcleo de código abierto en su infraestructura."
     },
     "features": {
       "eyebrow": "Funciones",
@@ -538,7 +585,7 @@
       "2desc": "Desarrollado por desarrolladores y equipos legales de todo el mundo. Cada solicitud de función, corrección de error y mejora es transparente."
     },
     "security": {
-      "heading": "Seguridad de nivel empresarial",
+      "heading": "Fundamentos de seguridad",
       "s0": "Acceso basado en roles",
       "s1": "Controles de privacidad",
       "s2": "Cifrado AES-256",

@@ -702,41 +702,6 @@ function ProductMockup() {
               )}
             </div>
           ))}
-          <div
-            style={{
-              marginTop: 14,
-              paddingTop: 10,
-              borderTop: `1px solid ${BORDER}`,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: MUTED,
-                padding: "0 10px 6px",
-                fontFamily: "var(--font-sora)",
-              }}
-            >
-              AI
-            </div>
-            {["AI Agents", "Create with AI"].map((l) => (
-              <div
-                key={l}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 5,
-                  fontSize: 12,
-                  color: MUTED,
-                  fontFamily: "var(--font-sora)",
-                }}
-              >
-                {l}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Main content */}
@@ -937,8 +902,10 @@ function FeaturesSection() {
   const t = useTranslations("landing")
   const ref = useReveal()
 
-  const FEATURES = FEATURE_ICONS.map((icon, i) => ({
-    icon,
+  // Phase 0 exposes only workflows that are implemented and supportable today.
+  // Drafting, templates, and autonomous agents remain hidden until they are ready.
+  const FEATURES = [3, 4, 5].map((i) => ({
+    icon: FEATURE_ICONS[i],
     title: t(`features.i${i}title` as Parameters<typeof t>[0]),
     desc: t(`features.i${i}desc` as Parameters<typeof t>[0]),
   }))
@@ -2245,7 +2212,8 @@ export default function LandingPage() {
       <LPNav />
       <HeroSection />
       <FeaturesSection />
-      <DeepDivesSection />
+      {/* Drafting/editor/agent marketing remains hidden until those surfaces are release-ready. */}
+      {false && <DeepDivesSection />}
       <OpenSourceSection />
       <SecuritySection />
       <IntegrationsSection />

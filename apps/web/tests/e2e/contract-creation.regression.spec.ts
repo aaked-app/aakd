@@ -31,7 +31,7 @@ test("new users can create and open a contract", async ({ page }) => {
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.4\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\ntrailer\\n<<>>\\n%%EOF\\n"),
   })
-  await page.getByRole("button", { name: /analyze with ai/i }).click()
+  await page.getByRole("button", { name: /continue to review/i }).click()
   await page.getByLabel(/contract title/i).waitFor()
   await page.getByLabel(/contract title/i).fill("E2E Service Agreement")
   await page.getByRole("button", { name: "Create Contract", exact: true }).click()

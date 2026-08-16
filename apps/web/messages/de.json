@@ -111,14 +111,49 @@
       "authoring": "Erstellung",
       "crm": "CRM"
     },
-    "actions": {
+  "actions": {
       "new": "Neuer Vertrag",
       "archive": "Archivieren",
       "restore": "Wiederherstellen",
       "sign": "Zur Unterschrift senden",
       "extract": "KI-Extraktion ausführen",
-      "upload": "Dokument hochladen"
-    }
+    "upload": "Dokument hochladen"
+  },
+  "workspace": {
+    "breadcrumb": "Vertragsnavigation",
+    "actions": "Vertragsaktionen",
+    "tabs": "Vertragsarbeitsbereich",
+    "changeStatus": "Status ändern",
+    "moveTo": "Verschieben nach",
+    "sendForApproval": "Zur Genehmigung senden",
+    "sendForSigning": "Zur Unterzeichnung senden",
+    "archive": "Archivieren",
+    "overview": "Übersicht",
+    "files": "Dateien",
+    "aiExtractions": "KI-Extraktionen",
+    "approvals": "Genehmigungen",
+    "signing": "Unterzeichnung",
+    "obligations": "Verpflichtungen",
+    "risk": "Risiko",
+    "editor": "Editor",
+    "details": "Vertragsdetails",
+    "editContract": "Vertrag bearbeiten",
+    "activity": "Aktivität",
+    "noActivity": "Noch keine Aktivität",
+    "counterparty": "Vertragspartei",
+    "contractValue": "Vertragswert",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "owner": "Verantwortlich",
+    "type": "Typ",
+    "governingLaw": "Anwendbares Recht",
+    "noticePeriod": "Kündigungsfrist",
+    "days": "Tage",
+    "folder": "Ordner",
+    "removeTag": "{tag} entfernen",
+    "addTag": "Tag hinzufügen",
+    "sourcePage": "Quellseite {page}"
+  }
   },
   "auth": {
     "login": "Anmelden",
@@ -474,6 +509,18 @@
     "APPROVAL_CANCELLED": "Cancelled approval request",
     "noActivity": "No activity yet."
   },
+  "onboarding": {
+    "eyebrow": "Arbeitsbereich einrichten", "title": "Willkommen bei Aakd", "subtitle": "Ihre Organisation ist bereit. Beginnen Sie mit einem Vertrag und fügen Sie KI hinzu, wenn Sie Unterstützung bei Extraktion oder Prüfung benötigen.",
+    "firstContract": { "title": "Beginnen Sie mit Ihrem ersten Vertrag", "description": "Laden Sie einen Vertrag hoch und beginnen Sie sofort mit der Prüfung. Die KI-Einrichtung ist optional und kann später in den Einstellungen abgeschlossen werden.", "formats": "PDF- und DOCX-Dateien werden unterstützt." },
+    "ai": { "title": "KI-Unterstützung konfigurieren", "optional": "Optional", "description": "Verbinden Sie einen Anbieter mit den vorhandenen Extraktions- und Prüfwerkzeugen. Sie können diesen Schritt überspringen und jederzeit zurückkehren.", "features": { "extraction": "Vertragsextraktion und Fragen", "risk": "Risikobewertung (NIEDRIG / MITTEL / HOCH)", "obligations": "Erkennung von Verpflichtungen" } },
+    "provider": { "legend": "KI-Anbieter", "anthropic": { "subtitle": "Claude-Modelle" }, "openai": { "subtitle": "GPT-Modelle" }, "ollama": { "subtitle": "Lokal / selbst gehostet" } },
+    "fields": { "model": "Modell", "selectModel": "Modell auswählen", "apiKey": "API-Schlüssel", "ollamaUrl": "Ollama-Basis-URL", "ollamaUrlHelp": "Der Standardwert ist http://localhost:11434. Ändern Sie ihn, wenn Ollama auf einem anderen Host oder Port läuft.", "ollamaModel": "Modellname", "ollamaModelHelp": "Geben Sie ein lokal heruntergeladenes Modell ein mit" },
+    "models": { "anthropic": { "haiku": "Claude Haiku (am schnellsten)", "sonnet": "Claude Sonnet (ausgewogen)", "opus": "Claude Opus (am leistungsfähigsten)" }, "openai": { "mini": "GPT-4o Mini (am schnellsten)", "standard": "GPT-4o (ausgewogen)", "turbo": "GPT-4 Turbo (leistungsstark)" } },
+    "actions": { "upload": "Vertrag hochladen", "skip": "Vorerst überspringen", "test": "Verbindung testen", "save": "Speichern und fortfahren", "testing": "Test läuft...", "saving": "Wird gespeichert...", "showKey": "Schlüssel anzeigen", "hideKey": "Schlüssel ausblenden" },
+    "feedback": { "success": "Verbindung erfolgreich", "failed": "Verbindungstest fehlgeschlagen", "testNetworkError": "Netzwerkfehler — Validierungsendpunkt nicht erreichbar", "saveFailed": "Konfiguration konnte nicht gespeichert werden", "saveNetworkError": "Netzwerkfehler — Konfiguration konnte nicht gespeichert werden" },
+    "security": { "ollama": "Ihre Ollama-URL wird verschlüsselt gespeichert. Keine Daten verlassen Ihren Server.", "cloud": "Ihr Schlüssel wird verschlüsselt gespeichert und niemals protokolliert.", "changePrefix": "Sie können ihn jederzeit ändern unter", "settingsLink": "Einstellungen → Organisation", "suffix": "." },
+    "modal": { "steps": { "welcome": { "title": "Willkommen bei Aakd", "description": "Richten wir Ihren Arbeitsbereich ein. Das dauert nur eine Minute." }, "contract": { "title": "Erstellen Sie Ihren ersten Vertrag", "description": "Beginnen Sie neu, verwenden Sie eine Vorlage oder erstellen Sie mit KI-Unterstützung." }, "tools": { "title": "Verbinden Sie Ihre Tools", "description": "Verbinden Sie CRM, elektronische Signatur und Speicheranbieter." }, "team": { "title": "Laden Sie Ihr Team ein", "description": "Fügen Sie Teammitglieder hinzu und weisen Sie Rollen für eine effektive Zusammenarbeit zu." } }, "progress": "Schritt {current} von {total}", "actions": { "skip": "Überspringen", "next": "Weiter", "getStarted": "Loslegen" } }
+  },
   "errors": {
     "unauthorized": "Sie sind nicht berechtigt, diese Aktion durchzuführen",
     "notFound": "Nicht gefunden",
@@ -496,7 +543,7 @@
       "eyebrow": "Open Source · Kostenlos · Selbst-hostbar",
       "headline1": "Die Vertrags-",
       "headline2": "plattform.",
-      "subtitle": "Entwerfen, verhandeln, unterzeichnen und verwalten Sie Verträge mit KI nach Ihren Bedingungen. Selbst-hosten für vollständige Datensouveränität oder überlassen Sie uns die Verwaltung."
+      "subtitle": "Laden Sie Verträge hoch, prüfen Sie zitierte KI-Extraktionen und verfolgen Sie Verpflichtungen und Freigaben. Hosten Sie den Open-Source-Kern auf Ihrer Infrastruktur."
     },
     "features": {
       "eyebrow": "Funktionen",
@@ -538,7 +585,7 @@
       "2desc": "Entwickelt von Entwicklern und Rechtsteams weltweit. Jede Funktionsanfrage, Fehlerbehebung und Verbesserung ist transparent."
     },
     "security": {
-      "heading": "Sicherheit auf Unternehmensebene",
+      "heading": "Sicherheitsgrundlagen",
       "s0": "Rollenbasierter Zugriff",
       "s1": "Datenschutzkontrollen",
       "s2": "AES-256-Verschlüsselung",

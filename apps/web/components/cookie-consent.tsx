@@ -1,17 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import posthog from "posthog-js"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export function CookieConsent() {
+  const pathname = usePathname()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
+    if (pathname !== "/") {
+      setVisible(false)
+      return
+    }
     const consent = localStorage.getItem("cookie_consent")
     if (!consent) setVisible(true)
-  }, [])
+  }, [pathname])
 
   function accept() {
     localStorage.setItem("cookie_consent", "accepted")
@@ -25,7 +31,9 @@ export function CookieConsent() {
     setVisible(false)
   }
 
-  if (!visible) return null
+  // Analytics consent belongs to the public site. Never block authenticated
+  // workflows such as onboarding, uploads, approvals, or signing.
+  if (!visible || pathname !== "/") return null
 
   return (
     <div

@@ -111,14 +111,49 @@
       "authoring": "Authoring",
       "crm": "CRM"
     },
-    "actions": {
+  "actions": {
       "new": "New contract",
       "archive": "Archive",
       "restore": "Restore",
       "sign": "Send for signature",
       "extract": "Run AI extraction",
-      "upload": "Upload document"
-    }
+    "upload": "Upload document"
+  },
+  "workspace": {
+    "breadcrumb": "Contract navigation",
+    "actions": "Contract actions",
+    "tabs": "Contract workspace",
+    "changeStatus": "Change status",
+    "moveTo": "Move to",
+    "sendForApproval": "Send for approval",
+    "sendForSigning": "Send for signing",
+    "archive": "Archive",
+    "overview": "Overview",
+    "files": "Files",
+    "aiExtractions": "AI extractions",
+    "approvals": "Approvals",
+    "signing": "Signing",
+    "obligations": "Obligations",
+    "risk": "Risk",
+    "editor": "Editor",
+    "details": "Contract details",
+    "editContract": "Edit contract",
+    "activity": "Activity",
+    "noActivity": "No activity yet",
+    "counterparty": "Counterparty",
+    "contractValue": "Contract value",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "owner": "Owner",
+    "type": "Type",
+    "governingLaw": "Governing law",
+    "noticePeriod": "Notice period",
+    "days": "days",
+    "folder": "Folder",
+    "removeTag": "Remove {tag}",
+    "addTag": "Add tag",
+    "sourcePage": "Source page {page}"
+  }
   },
   "auth": {
     "login": "Sign in",
@@ -474,6 +509,18 @@
     "APPROVAL_CANCELLED": "Cancelled approval request",
     "noActivity": "No activity yet."
   },
+  "onboarding": {
+    "eyebrow": "Workspace setup", "title": "Welcome to Aakd", "subtitle": "Your organisation is ready. Start with a contract, then add AI when you need extraction or review assistance.",
+    "firstContract": { "title": "Start with your first contract", "description": "Upload a contract and begin reviewing it right away. AI setup is optional and can be completed later in Settings.", "formats": "PDF and DOCX files are supported." },
+    "ai": { "title": "Configure AI assistance", "optional": "Optional", "description": "Connect a provider for the existing extraction and review tools. You can skip this and return at any time.", "features": { "extraction": "Contract extraction and Q&A", "risk": "Risk scoring (LOW / MEDIUM / HIGH)", "obligations": "Obligation detection" } },
+    "provider": { "legend": "AI provider", "anthropic": { "subtitle": "Claude models" }, "openai": { "subtitle": "GPT models" }, "ollama": { "subtitle": "Local / self-hosted" } },
+    "fields": { "model": "Model", "selectModel": "Select a model", "apiKey": "API key", "ollamaUrl": "Ollama base URL", "ollamaUrlHelp": "The default is http://localhost:11434. Change it if Ollama runs on a different host or port.", "ollamaModel": "Model name", "ollamaModelHelp": "Enter any model you have pulled locally with" },
+    "models": { "anthropic": { "haiku": "Claude Haiku (fastest)", "sonnet": "Claude Sonnet (balanced)", "opus": "Claude Opus (most capable)" }, "openai": { "mini": "GPT-4o Mini (fastest)", "standard": "GPT-4o (balanced)", "turbo": "GPT-4 Turbo (powerful)" } },
+    "actions": { "upload": "Upload a contract", "skip": "Skip for now", "test": "Test connection", "save": "Save & continue", "testing": "Testing...", "saving": "Saving...", "showKey": "Show key", "hideKey": "Hide key" },
+    "feedback": { "success": "Connection successful", "failed": "Connection test failed", "testNetworkError": "Network error — could not reach the validation endpoint", "saveFailed": "Failed to save configuration", "saveNetworkError": "Network error — could not save configuration" },
+    "security": { "ollama": "Your Ollama URL is encrypted at rest. No data leaves your server.", "cloud": "Your key is encrypted at rest and never logged.", "changePrefix": "You can change it anytime in", "settingsLink": "Settings → Organisation", "suffix": "." },
+    "modal": { "steps": { "welcome": { "title": "Welcome to Aakd", "description": "Let's set up your workspace. This only takes a minute." }, "contract": { "title": "Create your first contract", "description": "Start from scratch, use a template, or create with AI assistance." }, "tools": { "title": "Connect your tools", "description": "Link your CRM, e-signature, and storage providers." }, "team": { "title": "Invite your team", "description": "Add team members and assign roles to collaborate effectively." } }, "progress": "Step {current} of {total}", "actions": { "skip": "Skip", "next": "Next", "getStarted": "Get started" } }
+  },
   "errors": {
     "unauthorized": "You don't have permission to do this",
     "notFound": "Not found",
@@ -496,7 +543,7 @@
       "eyebrow": "Open Source · Free · Self-Hostable",
       "headline1": "The contract",
       "headline2": "platform.",
-      "subtitle": "Draft, negotiate, sign, and manage contracts with AI that runs on your terms. Self-host for complete data sovereignty, or let us handle it."
+      "subtitle": "Upload agreements, review cited AI extractions, and track obligations and approvals. Self-host the open-source core on infrastructure you control."
     },
     "features": {
       "eyebrow": "Features",
@@ -535,10 +582,10 @@
       "1title": "Bring Your Own AI",
       "1desc": "Connect local LLMs or use OpenAI, Anthropic, or another provider with your own keys. Data handling follows the provider and deployment you choose.",
       "2title": "Community Driven",
-      "2desc": "Built by developers and legal teams worldwide. Every feature request, bug fix, and improvement is transparent."
+      "2desc": "Developed in public with transparent feature requests, bug fixes and improvements."
     },
     "security": {
-      "heading": "Enterprise-grade security",
+      "heading": "Security foundations",
       "s0": "Role-based access",
       "s1": "Privacy controls",
       "s2": "AES-256 Encryption",
@@ -560,7 +607,7 @@
       "q3": "Is Aakd suitable for enterprise use?",
       "a3": "Aakd includes organization roles, access controls, and audit logging. SSO/SAML, formal compliance certifications, and hosted enterprise support are not currently included.",
       "q4": "How do I migrate from DocuSign or other tools?",
-      "a4": "We provide import tools for DocuSign, PandaDoc, and CSV-based migration. Our team can assist with complex migrations during the early access period.",
+      "a4": "Aakd includes import tools for DocuSign, PandaDoc and CSV-based migration. Complex migrations require your own review and operational planning.",
       "q5": "What languages does Aakd support?",
       "a5": "The interface supports English, Arabic (with full RTL), French, German, and Spanish. You can draft contracts in any language, and the AI features work across all supported languages."
     },

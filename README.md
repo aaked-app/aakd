@@ -11,14 +11,18 @@ Open-source contract management for teams that want to run their own stack.
 
 ## What it does
 
-1. **Upload** a PDF or DOCX contract (even scanned images — OCR built in)
-2. **AI extracts** parties, dates, value, auto-renewal clauses, obligations, and risk level automatically
-3. **Ask questions** in plain language — get answers with exact contract citations
-4. **Track renewals** — see every auto-renewing contract sorted by notice deadline
-5. **Collaborate** — approvals, comments, e-signatures, track changes, all in one place
-6. **Automate** — Slack/Teams alerts, webhooks, API, MCP server for AI agents
+1. **Upload** a PDF or DOCX contract (including scanned PDFs when OCR is enabled)
+2. **Review** extracted fields with source text and page citations before writing them to the contract record
+3. **Ask questions** in plain language when an AI provider is configured
+4. **Track obligations and renewals** with owners, due dates, reminders, and completion status
+5. **Collaborate** through approvals, comments, and optional DocuSeal signing
+6. **Automate** through scoped API and MCP access, webhooks, and notifications
 
 When self-hosted, your contracts stay on infrastructure you control. AI providers are optional: use Ollama locally or bring your own provider key.
+
+### Phase 0 release scope
+
+The supported first-run path is intentionally narrow: upload a real PDF or DOCX, review the extracted fields and citations, then create and complete obligations. Templates, contract authoring, autonomous agents, billing, and hosted service features remain hidden or paused until they have their own release evidence. The underlying code is retained for later phases, but it is not part of the Phase 0 promise.
 
 ---
 
@@ -95,7 +99,7 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 |---|---|
 | PDF & DOCX upload (magic-byte validated, 50 MB max) | ✅ |
 | OCR for scanned / image-only PDFs | ✅ |
-| AI metadata extraction (parties, dates, value, governing law, auto-renewal) | ✅ |
+| AI metadata extraction (parties, dates, value, governing law, auto-renewal) | ✅ optional |
 | Soft-delete with full audit trail | ✅ |
 | Folders, tags, full-text + semantic search | ✅ |
 | Contract versions & document snapshots | ✅ |
@@ -103,9 +107,9 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 ### AI Layer
 | Feature | Status |
 |---|---|
-| Contract Q&A with exact citations | ✅ |
-| AI risk scoring — LOW / MEDIUM / HIGH + 6-category breakdown | ✅ |
-| Obligation extraction (auto-detected from contract text) | ✅ |
+| Contract Q&A with exact citations | ✅ optional |
+| AI risk scoring — LOW / MEDIUM / HIGH + 6-category breakdown | ✅ optional |
+| Obligation suggestions (review required before creation) | ✅ optional |
 | BYOK — bring your own Anthropic or OpenAI key | ✅ |
 | Ollama support for fully local AI | ✅ |
 
@@ -121,12 +125,12 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 ### Authoring
 | Feature | Status |
 |---|---|
-| Rich document editor (TipTap) with track changes | ✅ |
-| Template studio with variable fill wizard | ✅ |
+| Rich document editor (TipTap) with track changes | Paused after Phase 0 |
+| Template studio with variable fill wizard | Paused after Phase 0 |
 | Built-in clause snippet library (13 standard legal clauses) | ✅ |
 | Word import + DOCX/PDF export | ✅ |
 | Contract snapshots & version history | ✅ |
-| AI Companion tab — contract Q&A inline in editor | ✅ |
+| AI Companion tab — contract Q&A inline in editor | Paused after Phase 0 |
 
 ### Renewals & Obligations
 | Feature | Status |

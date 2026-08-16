@@ -123,13 +123,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 //   { action: "accept",     extractionId: string }           — mark accepted + write to contract
 //   { action: "reject",     extractionId: string }           — mark rejected
 //   { action: "edit",       extractionId: string, newValue } — update rawValue then accept
-//   { action: "accept_all" }                                 — bulk accept all pending extractions
 
 const PatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("accept"),     extractionId: z.string().min(1) }),
   z.object({ action: z.literal("reject"),     extractionId: z.string().min(1) }),
   z.object({ action: z.literal("edit"),       extractionId: z.string().min(1), newValue: z.string().min(1) }),
-  z.object({ action: z.literal("accept_all") }),
 ])
 
 // Map of extraction field name → canonical Contract column + type coercion
@@ -180,77 +178,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body = PatchSchema.parse(await req.json())
     } catch (err) {
       return Response.json({ error: "Invalid request body", detail: err }, { status: 400 })
-    }
-
-    // ── accept_all ────────────────────────────────────────────────────────────
-    if (body.action === "accept_all") {
-      // Snapshot + writes run inside a single interactive transaction to close
-      // the TOCTOU window where new pending extractions could slip between the
-      // findMany and the updateMany, ending up accepted=true but not written.
-      let accepted: number | { count: number; updatedFields: string[] }
-      try {
-        accepted = await prisma.$transaction(async (tx) => {
-        const pending = await tx.aIExtraction.findMany({
-          where: { contractId: params.id, status: "pending" },
-          select: { id: true, field: true, rawValue: true },
-        })
-
-        if (pending.length === 0) return 0
-
-        const contractUpdates: Record<string, unknown> = {}
-        const invalidFields: string[] = []
-        for (const ex of pending) {
-          const mapping = FIELD_MAP[ex.field]
-          if (mapping && ex.rawValue !== null) {
-            const coerced = mapping.coerce(ex.rawValue)
-            if (isCoercedValueValid(coerced)) {
-              contractUpdates[mapping.column] = coerced
-            } else {
-              invalidFields.push(ex.field)
-            }
-          }
-        }
-
-        if (invalidFields.length > 0) {
-          throw Object.assign(new Error("coercion_failed"), { fields: invalidFields })
-        }
-
-        await tx.aIExtraction.updateMany({
-          where: { contractId: params.id, status: "pending" },
-          data: { status: "accepted" },
-        })
-        if (Object.keys(contractUpdates).length > 0) {
-          await tx.contract.update({ where: { id: params.id }, data: contractUpdates })
-        }
-        return { count: pending.length, updatedFields: Object.keys(contractUpdates) }
-        })
-      } catch (err) {
-        const e = err as Error & { fields?: string[] }
-        if (e.message === "coercion_failed") {
-          return Response.json(
-            { error: "One or more AI-extracted values failed type coercion", fields: e.fields },
-            { status: 422 },
-          )
-        }
-        throw err
-      }
-
-      if (accepted === 0) {
-        return Response.json({ accepted: 0 })
-      }
-
-      const { count, updatedFields } = accepted as { count: number; updatedFields: string[] }
-
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "METADATA_UPDATED",
-        `Accepted all ${count} AI extraction fields`,
-      )
-
-      await regenerateAlertsIfTouched(params.id, updatedFields)
-
-      return Response.json({ accepted: count })
     }
 
     // ── single-field actions (accept / reject / edit) ─────────────────────────

@@ -409,6 +409,34 @@ describe("POST /api/mcp — tools/call list_contracts", () => {
     expect(data.page).toBe(1)
   })
 
+  it("does not expose extracted contract text or tenant identifiers", async () => {
+    vi.mocked(prisma.contract.findMany).mockResolvedValue([
+      {
+        id: "c1",
+        title: "NDA",
+        status: "ACTIVE",
+        organizationId: "org-1",
+        extractedText: "CONFIDENTIAL FULL CONTRACT BODY",
+        owner: null,
+        tags: [],
+      },
+    ] as any)
+    vi.mocked(prisma.contract.count as any).mockResolvedValue(1)
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", { name: "list_contracts", arguments: { limit: 20, page: 1 } }),
+    )
+    await res.json()
+
+    const query = vi.mocked(prisma.contract.findMany).mock.calls.at(-1)?.[0] as {
+      select?: Record<string, unknown>
+    }
+    expect(query.select).toBeDefined()
+    expect(query.select).not.toHaveProperty("extractedText")
+    expect(query.select).not.toHaveProperty("organizationId")
+  })
+
   it("applies status filter when provided", async () => {
     vi.mocked(prisma.contract.findMany).mockResolvedValue([])
     vi.mocked(prisma.contract.count as any).mockResolvedValue(0)
