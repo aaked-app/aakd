@@ -4,6 +4,15 @@ All notable changes to Aakd are documented in this file.
 
 ---
 
+## [1.2.1] — 2026-08-16
+
+### Fixed
+
+- **Auth** — a fresh session (new device, cleared cookies, session renewal past the 7-day expiry) showed a dead-end "No organization yet" screen for a user who already belonged to one. Better Auth only sets `activeOrganizationId` when the client explicitly calls `setActive()` (org creation, invite accept); the app now mirrors the server's existing first-membership fallback on the client instead of taking a null active-org at face value.
+- **CI** — `prisma.config.ts` imports `@next/env` to load `.env`/`.env.local` for the standalone Prisma CLI; it wasn't declared as a dependency and only resolved locally via pnpm hoisting, breaking a clean CI install.
+
+---
+
 ## [1.2.0] — 2026-08-16
 
 ### Open Source Launch
