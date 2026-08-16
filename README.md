@@ -28,7 +28,7 @@ When self-hosted, your contracts stay on infrastructure you control. AI provider
 # 1. Clone and configure
 git clone https://github.com/aaked-app/aakd.git
 cd aakd
-cp .env.example .env.local   # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
+cp .env.example .env       # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
 
 # 2. Start everything
 docker compose up
@@ -38,6 +38,28 @@ open http://localhost:3000
 ```
 
 First signup creates your account and organization. The repository, uploads, manual metadata, approvals, obligations, and signing screens work without an AI key. Configure an AI provider in Settings only when you want extraction, Q&A, risk scoring, or AI-assisted obligation suggestions.
+
+### Production deployment
+
+For a public deployment on an Ubuntu VM, use the production installer. It creates strong secrets, validates the Compose configuration, builds the web app and worker, starts PostgreSQL, Redis, MinIO, DocuSeal, Caddy and backups, then waits for the health endpoint.
+
+```bash
+git clone https://github.com/aaked-app/aakd.git ~/aakd
+cd ~/aakd
+chmod +x scripts/*.sh
+bash scripts/deploy.sh
+```
+
+Before running it, point your domain's DNS records to the server and allow inbound TCP ports 80 and 443 in the cloud firewall. The installer does not change host firewall rules by default. Set `CONFIGURE_FIREWALL=true` only when you want it to add those iptables rules. Email and AI are optional; configure them later in `.env.prod` if needed.
+
+To update an existing installation:
+
+```bash
+cd ~/aakd
+bash scripts/update.sh
+```
+
+For the full production checklist, backups, TLS, storage, email and troubleshooting, see [the self-hosting guide](docs/self-hosting.md) and [the Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md).
 
 ---
 
@@ -148,7 +170,7 @@ This project is open source and self-hostable. It is not currently a hosted serv
 
 The default compose stack runs the web app, BullMQ worker, PostgreSQL, Redis, and MinIO. You need a database URL, Better Auth secret, Redis URL, and S3-compatible storage credentials. AI credentials are optional for local/manual workflows and required only for AI-assisted features.
 
-See [docker-compose.yml](./docker-compose.yml) for the full stack.
+See [docker-compose.yml](./docker-compose.yml) for local development and [docker-compose.prod.yml](./docker-compose.prod.yml) for production deployment. The development Compose file includes Mailpit and default MinIO credentials and must not be exposed to the internet.
 
 Minimum environment variables:
 ```env

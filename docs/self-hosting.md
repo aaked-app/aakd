@@ -17,8 +17,8 @@ Aakd is self-hostable. This guide covers deploying the complete stack on your ow
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/clauseflow.git
-cd clauseflow
+git clone https://github.com/aaked-app/aakd.git ~/aakd
+cd ~/aakd
 ```
 
 ### 2. Configure environment variables
@@ -72,6 +72,30 @@ docker compose exec app npx prisma migrate deploy
 ### 5. Open the app
 
 Navigate to `http://localhost:3000` (or your configured URL). Create your first account — the first registered user becomes the org admin.
+
+## Production install in one command
+
+For a public Ubuntu VM, use the checked-in installer. It generates the required secrets, validates the production Compose file, builds the app and worker, starts the complete stack, and waits for `/api/health` before reporting success.
+
+```bash
+cd ~/aakd
+chmod +x scripts/*.sh
+bash scripts/deploy.sh
+```
+
+Before running it:
+
+1. Point your domain's DNS record to the VM.
+2. Allow inbound TCP ports 80 and 443 in the cloud firewall/security list.
+3. Leave `CONFIGURE_FIREWALL=false` unless you explicitly want the installer to modify host iptables rules.
+
+The installer can run without AI, email, or DocuSeal API credentials. Add those values to `.env.prod` and restart the relevant services when you need those features. Keep `.env.prod` private and backed up separately from the repository.
+
+To update an existing deployment:
+
+```bash
+bash scripts/update.sh
+```
 
 ---
 
@@ -280,7 +304,7 @@ Set `REDIS_PASSWORD` in `.env` for production deployments. Do not expose Redis p
 
 ### DocuSeal webhook secret
 
-Always set `DOCUSEAL_WEBHOOK_SECRET` in production. Without it, the webhook handler accepts all incoming requests.
+Always set `DOCUSEAL_WEBHOOK_SECRET` in production. Without it, the webhook handler rejects incoming requests and signing status updates will not be processed.
 
 ---
 

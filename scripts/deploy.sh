@@ -1,9 +1,9 @@
 #!/bin/bash
-# ClauseFlow — One-command production deploy script
+# Aakd — One-command production deploy script
 # Run this on a fresh Ubuntu 22.04 VM (Oracle Cloud ARM recommended)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_ORG/clauseflow/main/scripts/deploy.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/aaked-app/aakd/main/scripts/deploy.sh | bash
 # Or after cloning the repo:
 #   bash scripts/deploy.sh
 
@@ -17,14 +17,14 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-log()    { echo -e "${BLUE}[ClauseFlow]${NC} $1"; }
+log()    { echo -e "${BLUE}[Aakd]${NC} $1"; }
 success(){ echo -e "${GREEN}[✓]${NC} $1"; }
 warn()   { echo -e "${YELLOW}[!]${NC} $1"; }
 error()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
 echo ""
 echo -e "${BOLD}╔════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║     ClauseFlow Production Deploy       ║${NC}"
+echo -e "${BOLD}║        Aakd Production Deploy          ║${NC}"
 echo -e "${BOLD}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -60,15 +60,15 @@ if ! command -v git &> /dev/null; then
 fi
 
 # ── 5. Clone or update repo ───────────────────────────────────────────────────
-REPO_DIR="${HOME}/clauseflow"
-REPO_URL="${CLAUSEFLOW_REPO_URL:-https://github.com/YOUR_ORG/clauseflow.git}"
+REPO_DIR="${AAKD_REPO_DIR:-${CLAUSEFLOW_REPO_DIR:-${HOME}/aakd}}"
+REPO_URL="${AAKD_REPO_URL:-${CLAUSEFLOW_REPO_URL:-https://github.com/aaked-app/aakd.git}}"
 
 if [ -d "$REPO_DIR/.git" ]; then
   log "Pulling latest changes..."
   git -C "$REPO_DIR" pull origin main
   success "Repo updated"
 else
-  log "Cloning ClauseFlow..."
+  log "Cloning Aakd..."
   git clone "$REPO_URL" "$REPO_DIR"
   success "Repo cloned to $REPO_DIR"
 fi
@@ -85,16 +85,31 @@ if [ -f ".env.prod" ]; then
   warn "Delete .env.prod and re-run to reconfigure."
   source .env.prod 2>/dev/null || true
 else
-  # Domain
-  read -rp "$(echo -e "${BOLD}Your domain name${NC} (e.g. app.clauseflow.com): ")" DOMAIN
-  DOMAIN="${DOMAIN:-app.clauseflow.com}"
+  # Domain. Set AAKD_DOMAIN for a non-interactive deploy.
+  if [ -n "${AAKD_DOMAIN:-}" ]; then
+    DOMAIN="$AAKD_DOMAIN"
+  else
+    read -rp "$(echo -e "${BOLD}Your domain name${NC} (e.g. clm.example.com): ")" DOMAIN
+    DOMAIN="${DOMAIN:-clm.example.com}"
+  fi
+  if [[ ! "$DOMAIN" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+    error "DOMAIN must be a hostname such as clm.example.com"
+  fi
 
-  # Email
-  read -rp "$(echo -e "${BOLD}Resend API key${NC} (get free at resend.com): ")" RESEND_API_KEY
-  read -rp "$(echo -e "${BOLD}From email address${NC} (e.g. noreply@${DOMAIN}): ")" SMTP_FROM
+  # Email is optional. Configure SMTP later if renewal and invitation emails are needed.
+  RESEND_API_KEY="${RESEND_API_KEY:-}"
+  if [ -z "$RESEND_API_KEY" ] && [ -t 0 ]; then
+    read -rp "$(echo -e "${BOLD}Resend API key${NC} (optional, press Enter to skip): ")" RESEND_API_KEY
+  fi
+  if [ -t 0 ]; then
+    read -rp "$(echo -e "${BOLD}From email address${NC} (optional, default noreply@${DOMAIN}): ")" SMTP_FROM
+  fi
   SMTP_FROM="${SMTP_FROM:-noreply@${DOMAIN}}"
 
-  read -rp "$(echo -e "${BOLD}Your email address${NC} (for renewal alerts): ")" ALERT_EMAIL_TO
+  if [ -z "${ALERT_EMAIL_TO:-}" ] && [ -t 0 ]; then
+    read -rp "$(echo -e "${BOLD}Your email address${NC} (optional renewal alerts): ")" ALERT_EMAIL_TO
+  fi
+  ALERT_EMAIL_TO="${ALERT_EMAIL_TO:-}"
 
   # Auto-generate secrets
   log "Generating secrets..."
@@ -148,8 +163,9 @@ EOF
   success ".env.prod created and locked (chmod 600)"
 fi
 
-# ── 7. Configure Oracle Cloud firewall ───────────────────────────────────────
-log "Configuring host firewall (iptables)..."
+# ── 7. Configure host firewall when explicitly requested ─────────────────────
+if [ "${CONFIGURE_FIREWALL:-false}" = "true" ]; then
+  log "Configuring host firewall (iptables)..."
 if command -v iptables &> /dev/null; then
   # Oracle Cloud blocks all ports by default via iptables rules.
   # These rules allow HTTP and HTTPS traffic.
@@ -160,16 +176,20 @@ if command -v iptables &> /dev/null; then
   if command -v netfilter-persistent &> /dev/null; then
     sudo netfilter-persistent save 2>/dev/null || true
   elif command -v iptables-save &> /dev/null; then
-    sudo iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+    iptables-save | sudo tee /etc/iptables/rules.v4 >/dev/null 2>&1 || true
   fi
   success "Firewall ports 80 and 443 opened"
 else
   warn "iptables not found — make sure ports 80 and 443 are open in your VM's security list"
 fi
+else
+  log "Skipping host firewall changes. Open ports 80 and 443 in your cloud firewall/security list."
+fi
 
 # ── 8. Build and start ───────────────────────────────────────────────────────
 echo ""
 log "Building Docker images (first build takes ~5 min)..."
+docker compose -f docker-compose.prod.yml --env-file .env.prod config --quiet
 docker compose -f docker-compose.prod.yml --env-file .env.prod build --parallel
 
 log "Starting all services..."
@@ -182,8 +202,7 @@ MAX_ATTEMPTS=30
 until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app wget -q --spider http://localhost:3000/api/health 2>/dev/null; do
   ATTEMPTS=$((ATTEMPTS + 1))
   if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
-    warn "App health check timed out — check logs with: docker compose -f docker-compose.prod.yml logs app"
-    break
+    error "App health check timed out. Inspect: docker compose -f docker-compose.prod --env-file .env.prod logs app"
   fi
   sleep 5
 done

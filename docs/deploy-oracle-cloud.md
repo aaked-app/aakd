@@ -30,7 +30,7 @@ Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and fr
 
 1. In Oracle Cloud Console → **Compute → Instances → Create instance**
 2. Configure:
-   - **Name:** `clauseflow`
+   - **Name:** `aakd`
    - **Image:** Ubuntu 22.04 (click "Change Image" → Ubuntu → 22.04 Minimal)
    - **Shape:** Click "Change Shape" → Ampere → `VM.Standard.A1.Flex`
      - OCPUs: **4**
@@ -93,8 +93,8 @@ On the VM, run:
 sudo apt-get update && sudo apt-get install -y git
 
 # Clone Aakd
-git clone https://github.com/YOUR_ORG/clauseflow.git ~/clauseflow
-cd ~/clauseflow
+git clone https://github.com/aaked-app/aakd.git ~/aakd
+cd ~/aakd
 
 # Make scripts executable
 chmod +x scripts/*.sh
@@ -105,11 +105,11 @@ bash scripts/deploy.sh
 
 The script will:
 - Install Docker automatically
-- Ask you 4 questions (domain, Resend key, from email, your email)
+- Ask for a domain and optional email settings
 - Auto-generate all passwords and secrets
 - Build Docker images (~5 min first time)
 - Start all services
-- Open ports 80 + 443
+- Validate the stack and wait for the app health endpoint
 
 ---
 
@@ -129,7 +129,7 @@ The script will:
 3. Go to **Settings → API** → copy the API key
 4. Back on your VM, run:
    ```bash
-   bash ~/clauseflow/scripts/set-docuseal-key.sh YOUR_DOCUSEAL_API_KEY
+     bash ~/aakd/scripts/set-docuseal-key.sh YOUR_DOCUSEAL_API_KEY
    ```
 
 E-signatures now work.
@@ -139,11 +139,11 @@ E-signatures now work.
 ## Updating Aakd
 
 ```bash
-cd ~/clauseflow
+cd ~/aakd
 bash scripts/update.sh
 ```
 
-That's it. Zero downtime, pulls latest code, rebuilds images, restarts services.
+The update pulls the latest code, rebuilds images, and restarts services. Expect a brief restart while the new containers come online.
 
 ---
 
@@ -201,7 +201,7 @@ scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/claus
 
 ## Oracle Cloud VCN Security List
 
-Oracle Cloud has a second firewall layer called "Security List" in the VCN. The deploy script opens ports via iptables, but you must also open them in the Oracle Cloud console:
+Oracle Cloud has a second firewall layer called "Security List" in the VCN. Open ports 80 and 443 in the Oracle Cloud console. The installer does not modify host iptables by default; set `CONFIGURE_FIREWALL=true` only if you explicitly want that behavior:
 
 1. In Oracle Cloud → **Networking → Virtual Cloud Networks → your VCN**
 2. Click **Security Lists → Default Security List**

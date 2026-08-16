@@ -195,17 +195,27 @@ export default function ContractsPage() {
 
   const totalPages = Math.ceil(total / pageSize)
   const allSelected = contracts.length > 0 && selectedIds.size === contracts.length
+  const tableColumns = [
+    { label: t("tableContract"), className: "" },
+    { label: t("tableCounterparty"), className: "hidden lg:table-cell" },
+    { label: t("tableStatus"), className: "" },
+    { label: "Risk", className: "" },
+    { label: t("tableValue"), className: "hidden xl:table-cell" },
+    { label: t("tableEndDate"), className: "hidden xl:table-cell" },
+    { label: t("tableOwner"), className: "hidden xl:table-cell" },
+    { label: "", className: "w-10" },
+  ]
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full flex-col overflow-auto">
+    <div className="flex min-h-full min-w-0 flex-col">
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between border-b border-border px-7 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-6 lg:px-7 lg:py-5">
         <div>
-          <h1 className="text-[18px] font-bold text-foreground">{t("title")}</h1>
-          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-            {total} contract{total !== 1 ? "s" : ""} in your repository
+          <h1 className="text-lg font-bold text-foreground">{t("title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("subtitle", { count: total, plural: total !== 1 ? "s" : "" })}
           </p>
         </div>
         <Link href="/contracts/new" className={buttonVariants({ size: "sm" })}>
@@ -214,13 +224,13 @@ export default function ContractsPage() {
         </Link>
       </div>
 
-      <div className="flex flex-col gap-3.5 p-7">
+      <div className="flex min-w-0 flex-col gap-4 p-4 sm:p-6 lg:p-7">
 
         {/* ── Filters bar ───────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
           {/* Search input */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full lg:w-auto">
+            <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("searchPlaceholder")}
               value={search}
@@ -228,18 +238,32 @@ export default function ContractsPage() {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              className="h-8 w-60 pl-8 text-[12.5px]"
+              className="h-9 w-full ps-9 text-sm lg:w-64"
             />
           </div>
 
           {/* Status pill filters */}
-          <div className="flex gap-1">
+          <select
+            value={activeFilter}
+            onChange={(event) => {
+              setActiveFilter(event.target.value as ContractStatus | "ALL")
+              setPage(1)
+            }}
+            aria-label={t("tableStatus")}
+            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:hidden"
+          >
+            {FILTERS.map((filter) => (
+              <option key={filter.status} value={filter.status}>{filter.label}</option>
+            ))}
+          </select>
+          <div className="hidden min-w-0 gap-1 overflow-x-auto pb-1 sm:flex lg:pb-0">
             {FILTERS.map((f) => (
               <button
+                type="button"
                 key={f.label}
                 onClick={() => { setActiveFilter(f.status); setPage(1) }}
                 className={cn(
-                  "rounded-full px-2.5 py-[3px] text-[11.5px] font-medium transition-colors",
+                  "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                   activeFilter === f.status
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-foreground/80 hover:bg-muted-foreground/[0.12] hover:text-foreground",
@@ -252,11 +276,11 @@ export default function ContractsPage() {
 
           {/* Bulk actions — visible when at least one row is selected */}
           {selectedIds.size > 0 && (
-            <div className="ml-auto flex items-center gap-1.5">
-              <span className="text-[12px] text-muted-foreground">
-                {selectedIds.size} selected
+            <div className="flex w-full flex-wrap items-center gap-2 lg:ms-auto lg:w-auto lg:flex-nowrap">
+              <span className="me-auto text-sm text-muted-foreground lg:me-0">
+                {t("selected", { count: selectedIds.size })}
               </span>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-[12px]">
+              <Button variant="outline" size="sm">
                 <Download className="size-3.5" />
                 {t("export")}
               </Button>
@@ -264,7 +288,6 @@ export default function ContractsPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="h-7 gap-1.5 text-[12px]"
                   onClick={archiveSelected}
                 >
                   <Archive className="size-3.5" />
@@ -278,36 +301,46 @@ export default function ContractsPage() {
         {/* ── Table ─────────────────────────────────────────────────────── */}
         {loading ? (
           /* Skeleton */
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-9 bg-muted" />
-                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), "Risk", t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
-                    (h) => (
+          <>
+            <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-9 bg-muted" />
+                    {tableColumns.map((column, index) => (
                       <TableHead
-                        key={h}
-                        className="h-9 bg-muted text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+                        key={`${column.label}-${index}`}
+                        className={cn("h-10 bg-muted text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground", column.className)}
                       >
-                        {h}
+                        {column.label}
                       </TableHead>
-                    ),
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <TableCell key={j} className="py-2.5">
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="py-3"><Skeleton className="size-4" /></TableCell>
+                      {tableColumns.map((column, j) => (
+                        <TableCell key={j} className={cn("py-3", column.className)}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-2 md:hidden">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-lg border border-border bg-card p-4">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="mt-2 h-4 w-1/3" />
+                  <div className="mt-4 flex gap-2"><Skeleton className="h-6 w-20" /><Skeleton className="h-6 w-16" /></div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : contracts.length === 0 ? (
           /* Empty state */
           <EmptyState
@@ -327,7 +360,8 @@ export default function ContractsPage() {
           />
         ) : (
           /* Data table */
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
+          <>
+          <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -340,16 +374,14 @@ export default function ContractsPage() {
                       className="size-3.5 cursor-pointer rounded border-border accent-primary"
                     />
                   </TableHead>
-                  {[t("tableContract"), t("tableCounterparty"), t("tableStatus"), "Risk", t("tableValue"), t("tableEndDate"), t("tableOwner"), ""].map(
-                    (h) => (
+                  {tableColumns.map((column, index) => (
                       <TableHead
-                        key={h}
-                        className="h-9 border-b border-border bg-muted text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+                        key={`${column.label}-${index}`}
+                        className={cn("h-10 border-b border-border bg-muted text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground", column.className)}
                       >
-                        {h}
+                        {column.label}
                       </TableHead>
-                    ),
-                  )}
+                    ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -377,11 +409,11 @@ export default function ContractsPage() {
                     </TableCell>
 
                     {/* ── Contract name + optional CRM badge ────────────── */}
-                    <TableCell className="py-2 text-[12.5px] font-medium">
+                    <TableCell className="py-3 text-sm font-medium">
                       <div className="flex items-center gap-1.5">
                         <span>{c.title}</span>
                         {c.crmLinks && c.crmLinks.length > 0 && (
-                          <span className="rounded-[3px] bg-muted px-[5px] py-[1px] text-[9px] font-semibold uppercase text-muted-foreground">
+                          <span className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase text-muted-foreground">
                             {c.crmLinks[0].provider.toLowerCase()}
                           </span>
                         )}
@@ -389,7 +421,7 @@ export default function ContractsPage() {
                     </TableCell>
 
                     {/* ── Counterparty ───────────────────────────────────── */}
-                    <TableCell className="py-2 text-[12.5px] text-muted-foreground">
+                    <TableCell className="hidden py-3 text-sm text-muted-foreground lg:table-cell">
                       {c.counterpartyName ?? "—"}
                     </TableCell>
 
@@ -404,14 +436,14 @@ export default function ContractsPage() {
                     </TableCell>
 
                     {/* ── Value ──────────────────────────────────────────── */}
-                    <TableCell className="py-2 text-[12.5px] tabular-nums text-muted-foreground">
+                    <TableCell className="hidden py-3 text-sm tabular-nums text-muted-foreground xl:table-cell">
                       {c.value != null
                         ? formatCurrency(c.value, c.currency ?? "USD")
                         : "—"}
                     </TableCell>
 
                     {/* ── End date ───────────────────────────────────────── */}
-                    <TableCell className="py-2 text-[12px] text-muted-foreground">
+                    <TableCell className="hidden py-3 text-sm text-muted-foreground xl:table-cell">
                       {c.endDate
                         ? new Date(c.endDate).toLocaleDateString("en-US", {
                             month: "short",
@@ -422,7 +454,7 @@ export default function ContractsPage() {
                     </TableCell>
 
                     {/* ── Owner avatar ───────────────────────────────────── */}
-                    <TableCell className="py-2">
+                    <TableCell className="hidden py-3 xl:table-cell">
                       {c.owner?.image ? (
                         <img
                           src={c.owner.image}
@@ -435,7 +467,7 @@ export default function ContractsPage() {
                         <div
                           title={c.owner?.name ?? c.ownerId}
                           className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
-                          style={{ fontSize: 9, fontWeight: 700 }}
+                          style={{ fontSize: 11, fontWeight: 700 }}
                         >
                           {ownerInitials(c.owner?.name)}
                         </div>
@@ -448,7 +480,7 @@ export default function ContractsPage() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <DropdownMenuTrigger aria-label={`${t("view")}: ${c.title}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
                           <MoreHorizontal className="size-[15px]" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -475,13 +507,99 @@ export default function ContractsPage() {
               </TableBody>
             </Table>
           </div>
+          <div className="md:hidden">
+            <div className="mb-2 flex items-center justify-between px-1 text-sm text-muted-foreground">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="size-4 cursor-pointer rounded border-border accent-primary"
+                />
+                <span>{t("title")}</span>
+              </label>
+              <span>{total}</span>
+            </div>
+            <ul className="space-y-2" aria-label={t("title")}>
+              {contracts.map((contract) => (
+                <li key={contract.id} className={cn(
+                  "rounded-lg border border-border bg-card p-4 transition-colors",
+                  selectedIds.has(contract.id) && "border-primary/30 bg-primary/[0.03]",
+                )}>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(contract.id)}
+                      onChange={() => toggleSelect(contract.id)}
+                      aria-label={contract.title}
+                      className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-primary"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/contracts/${contract.id}`} className="block truncate text-sm font-semibold text-foreground hover:text-primary">
+                        {contract.title}
+                      </Link>
+                      <p className="mt-1 truncate text-sm text-muted-foreground">
+                        <span className="sr-only">{t("tableCounterparty")}: </span>
+                        {contract.counterpartyName ?? "—"}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger aria-label={`${t("view")}: ${contract.title}`} className="-me-1 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <MoreHorizontal className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/contracts/${contract.id}`)}>
+                          <Eye className="size-4" />
+                          {t("view")}
+                        </DropdownMenuItem>
+                        {canManage && (
+                          <DropdownMenuItem onClick={() => archiveContract(contract.id)} variant="destructive">
+                            <Archive className="size-4" />
+                            {t("archiveAction")}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <StatusBadge status={contract.status} />
+                    <RiskBadge level={(contract as { riskScore?: string | null }).riskScore} size="sm" />
+                    {contract.crmLinks && contract.crmLinks.length > 0 && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase text-muted-foreground">
+                        {contract.crmLinks[0].provider.toLowerCase()}
+                      </span>
+                    )}
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-3 text-sm">
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">{t("tableValue")}</dt>
+                      <dd className="mt-0.5 truncate font-medium tabular-nums text-foreground">
+                        {contract.value != null ? formatCurrency(contract.value, contract.currency ?? "USD") : "—"}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">{t("tableEndDate")}</dt>
+                      <dd className="mt-0.5 truncate font-medium text-foreground">
+                        {contract.endDate
+                          ? new Date(contract.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                          : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          </div>
+          </>
         )}
 
         {/* ── Pagination ────────────────────────────────────────────────── */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-[12.5px] text-muted-foreground">
-              {total} contract{total !== 1 ? "s" : ""}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {t("subtitle", { count: total, plural: total !== 1 ? "s" : "" })}
             </p>
             <div className="flex items-center gap-1">
               <Button
@@ -493,7 +611,7 @@ export default function ContractsPage() {
               >
                 <ChevronLeft className="size-4" />
               </Button>
-              <span className="px-2 text-[12.5px] text-foreground/70">
+              <span className="px-2 text-sm text-foreground/70">
                 {page} / {totalPages}
               </span>
               <Button

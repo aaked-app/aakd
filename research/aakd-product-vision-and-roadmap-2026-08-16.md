@@ -420,7 +420,7 @@ Evidence may reorder journeys, recipes, integrations and GTM. It does not halt a
 
 **Quality gate:** on at least 100 documents spanning at least three selected contract types, measure citation validity and precision/recall separately for critical, high and routine actions. No silent critical error is permitted; low-confidence critical results must stop and request review. At least 70% of eligible contracts must yield one accepted action, median first-action time must be under ten minutes, two organizations must repeat the workflow, and two qualified organizations must prefer and fund managed operation.
 
-**Kill condition:** more than 4.8 founder/support minutes per processed contract or more than two total onboarding/correction/infrastructure/customer-communication hours per activated organization per 25-contract cycle, incumbent adequacy or weak repeat use kills the cited-action **entry hypothesis**. The product lane continues only on primitives reused by another validated journey.
+**Kill condition:** after the first completed 25-contract cycle, more than 4.8 marginal correction/support minutes per processed contract or more than two marginal support/customer-communication hours per activated organization per subsequent 25-contract cycle, incumbent adequacy or weak repeat use kills the cited-action **entry hypothesis**. Track one-time onboarding and infrastructure setup separately; they inform Cloud economics but do not reject the wedge during private-beta setup. The product lane continues only on primitives reused by another validated journey.
 
 ### Phase 2 — Agreement intelligence foundation (months 2–6)
 

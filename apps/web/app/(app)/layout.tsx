@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import {
@@ -14,6 +14,7 @@ import {
   Search,
   ChevronDown,
   RefreshCw,
+  Menu,
 } from "lucide-react"
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
@@ -22,10 +23,16 @@ import { CmdK } from "@/components/cmd-k"
 import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { GlobalProviders } from "@/components/global-providers"
 import { AakdLogoMark } from "@/components/aakd-logo"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,7 +76,17 @@ function SoonBadge() {
 
 // ─── NavItemRow ──────────────────────────────────────────────────────────────
 
-function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavItemRow({
+  item,
+  pathname,
+  compactAtTablet,
+  onNavigate,
+}: {
+  item: NavItem
+  pathname: string
+  compactAtTablet: boolean
+  onNavigate?: () => void
+}) {
   const Icon = item.icon
   const activePrefix = item.matchPrefix ?? item.href
   const isActive = item.exact
@@ -79,12 +96,15 @@ function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
   if (item.disabled) {
     return (
       <div
-        className="flex items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] opacity-40 cursor-not-allowed select-none"
-        style={{ fontSize: "13px" }}
+        className={cn(
+          "flex min-h-9 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] opacity-40 cursor-not-allowed select-none",
+          compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
+        )}
+        title={item.label}
       >
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-        <span>{item.label}</span>
-        <SoonBadge />
+        <span className={cn(compactAtTablet && "md:hidden xl:inline")}>{item.label}</span>
+        <span className={cn("ml-auto", compactAtTablet && "md:hidden xl:inline-flex")}><SoonBadge /></span>
       </div>
     )
   }
@@ -92,19 +112,22 @@ function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
+      aria-current={isActive ? "page" : undefined}
+      title={item.label}
       className={cn(
-        "flex items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] transition-colors",
+        "flex min-h-9 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] transition-colors",
+        compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
         isActive
           ? "bg-primary/10 text-primary font-semibold"
           : "text-foreground/80 hover:bg-muted-foreground/[0.08] hover:text-foreground"
       )}
-      style={{ fontSize: "13px" }}
     >
       <Icon
         className="h-4 w-4 shrink-0"
         strokeWidth={isActive ? 2.2 : 1.8}
       />
-      <span>{item.label}</span>
+      <span className={cn(compactAtTablet && "md:hidden xl:inline")}>{item.label}</span>
     </Link>
   )
 }
@@ -121,6 +144,9 @@ function Sidebar({
   navSections,
   searchLabel,
   themeLabel,
+  compactAtTablet = false,
+  className,
+  onNavigate,
 }: {
   pathname: string
   userName: string
@@ -131,34 +157,47 @@ function Sidebar({
   navSections: NavSection[]
   searchLabel: string
   themeLabel: string
+  compactAtTablet?: boolean
+  className?: string
+  onNavigate?: () => void
 }) {
   return (
-    <aside className="flex flex-col h-full w-[232px] shrink-0 bg-muted border-r border-border">
+    <aside className={cn(
+      "flex h-full w-[232px] shrink-0 flex-col border-r border-border bg-muted rtl:border-l rtl:border-r-0",
+      compactAtTablet && "md:w-16 xl:w-[232px]",
+      className,
+    )}>
       {/* Logo row */}
-      <div className="flex items-center gap-2.5 px-3 py-3 border-b border-border">
+      <div className={cn(
+        "flex min-h-14 items-center gap-2.5 border-b border-border px-3 py-3",
+        compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3",
+      )}>
         <AakdLogoMark size={26} />
-        <span className="font-extrabold text-sm flex-1 min-w-0 truncate" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
+        <span className={cn("font-extrabold text-sm flex-1 min-w-0 truncate", compactAtTablet && "md:hidden xl:block")} style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
           Aakd
         </span>
-        <NotificationBell />
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className={cn(compactAtTablet && "md:hidden xl:inline-flex")}><NotificationBell /></span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground shrink-0", compactAtTablet && "md:hidden xl:block")} />
       </div>
 
       {/* Search bar */}
       <div className="px-2 pt-2 pb-1">
         <button
           type="button"
-          className="flex items-center gap-2 w-full rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] bg-background border border-border text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
-          style={{ fontSize: "13px" }}
+          className={cn(
+            "flex min-h-9 w-full items-center gap-2 rounded-[calc(var(--radius)-1px)] border border-border bg-background px-[10px] py-2 text-[13px] text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground",
+            compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
+          )}
           onClick={() => {
+            onNavigate?.()
             document.dispatchEvent(
               new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
             )
           }}
         >
           <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
-          <span className="flex-1 text-left">{searchLabel}</span>
-          <kbd className="font-mono text-[10px] bg-muted border border-border rounded px-1 py-0.5 text-muted-foreground leading-none">
+          <span className={cn("flex-1 text-start", compactAtTablet && "md:hidden xl:block")}>{searchLabel}</span>
+          <kbd className={cn("font-mono text-[11px] bg-muted border border-border rounded px-1 py-0.5 text-muted-foreground leading-none", compactAtTablet && "md:hidden xl:inline")}>
             ⌘K
           </kbd>
         </button>
@@ -168,11 +207,11 @@ function Sidebar({
       <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
         {navSections.map((section) => (
           <div key={section.title}>
-            <p className="px-[10px] pt-[14px] pb-1 text-[10px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
+            <p className={cn("px-[10px] pt-[14px] pb-1 text-xs font-semibold tracking-[0.07em] text-muted-foreground uppercase", compactAtTablet && "md:sr-only xl:not-sr-only")}>
               {section.title}
             </p>
             {section.items.map((item) => (
-              <NavItemRow key={item.href} item={item} pathname={pathname} />
+              <NavItemRow key={item.href} item={item} pathname={pathname} compactAtTablet={compactAtTablet} onNavigate={onNavigate} />
             ))}
           </div>
         ))}
@@ -181,14 +220,14 @@ function Sidebar({
       {/* Spacer is handled by flex-1 on nav above */}
 
       {/* Theme toggle row */}
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
+      <div className={cn("flex items-center gap-2 px-3 py-2 border-t border-border", compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3")}>
         <ThemeToggle />
-        <span className="text-xs text-muted-foreground">{themeLabel}</span>
+        <span className={cn("text-xs text-muted-foreground", compactAtTablet && "md:hidden xl:inline")}>{themeLabel}</span>
       </div>
 
       {/* User card */}
       <div className="px-2 pb-2">
-        <div className="bg-background border border-border rounded-md p-2 flex items-center gap-2">
+        <div className={cn("bg-background border border-border rounded-md p-2 flex items-center gap-2", compactAtTablet && "md:flex-col md:border-0 md:bg-transparent md:p-0 xl:flex-row xl:border xl:bg-background xl:p-2")}>
           {/* Avatar */}
           {userImage ? (
             <img src={userImage} className="h-7 w-7 rounded-full object-cover shrink-0" alt="avatar" />
@@ -200,11 +239,11 @@ function Sidebar({
             </div>
           )}
           {/* Info */}
-          <div className="flex-1 min-w-0">
+          <div className={cn("flex-1 min-w-0", compactAtTablet && "md:hidden xl:block")}>
             <p className="font-semibold text-xs truncate leading-tight">
               {userName || userEmail}
             </p>
-            <p className="text-[10px] text-muted-foreground truncate leading-tight">
+            <p className="text-xs text-muted-foreground truncate leading-tight">
               {orgName}
             </p>
           </div>
@@ -233,7 +272,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
   const { data: orgs, isPending: orgsListPending } = useListOrganizations()
   const t = useTranslations("nav")
+  const locale = useLocale()
   const ph = usePostHog()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const NAV_SECTIONS: NavSection[] = [
     {
@@ -336,7 +377,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const orgName = activeOrg?.name ?? ""
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background md:flex-row">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted px-3 md:hidden">
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetTrigger
+            render={<Button variant="ghost" size="icon" className="-ms-1" />}
+          >
+            <Menu className="size-5" />
+            <span className="sr-only">Aakd</span>
+          </SheetTrigger>
+          <SheetContent
+            side={locale === "ar" ? "right" : "left"}
+            className="w-[min(19rem,88vw)] gap-0 border-border bg-muted p-0 text-foreground"
+          >
+            <SheetTitle className="sr-only">Aakd</SheetTitle>
+            <Sidebar
+              pathname={pathname}
+              userName={userName}
+              userEmail={userEmail}
+              userImage={userImage}
+              orgName={orgName}
+              onSignOut={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
+              navSections={NAV_SECTIONS}
+              searchLabel={t("search")}
+              themeLabel={t("theme")}
+              className="w-full border-r-0"
+              onNavigate={() => setMobileNavOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <AakdLogoMark size={24} />
+          <span className="text-sm font-extrabold" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif" }}>Aakd</span>
+        </Link>
+        <NotificationBell />
+      </header>
+
       <Sidebar
         pathname={pathname}
         userName={userName}
@@ -349,10 +425,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         navSections={NAV_SECTIONS}
         searchLabel={t("search")}
         themeLabel={t("theme")}
+        compactAtTablet
+        className="hidden md:flex"
       />
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </main>
 
