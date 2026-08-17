@@ -28,6 +28,10 @@ export async function GET(req: Request) {
   if (!hasRole(ctx.role, "admin")) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+  // Starting OAuth creates server-side state and grants access to the org's
+  // Drive corpus, so read-only API keys must not be able to initiate it.
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
   if (!process.env.GOOGLE_CLIENT_ID) {
     return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
   }
