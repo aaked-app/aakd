@@ -318,6 +318,93 @@ describe("POST /api/mcp — tools/call get_contract", () => {
   })
 })
 
+describe("POST /api/mcp — text access boundary", () => {
+  it("rejects contract Q&A for an API key without the text_read scope", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({
+      ...mockCtx,
+      source: "api_key" as const,
+      scopes: ["read"],
+    })
+    vi.mocked(prisma.contract.findUnique).mockClear()
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", {
+        name: "ask_contract",
+        arguments: { contractId: "c1", question: "What is the notice period?" },
+      }),
+    )
+
+    const body = await res.json()
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toMatch(/text_read/i)
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
+  })
+
+  it("does not leak tenant or private fields from obligation reads", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({ id: "c1", organizationId: "org-1" } as any)
+    vi.mocked(prisma.contractObligation.findMany).mockResolvedValue([
+      {
+        id: "obl-1",
+        contractId: "c1",
+        organizationId: "org-1",
+        title: "Send report",
+        description: "Internal details",
+        clauseReference: "4.2",
+        priority: "HIGH",
+        status: "PENDING",
+        dueDate: new Date("2025-12-31"),
+        assignee: { id: "user-2", name: "Bob", email: "bob@example.com" },
+        createdBy: { id: "user-1", name: "Alice", email: "alice@example.com" },
+        subTasks: [],
+      },
+    ] as any)
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", { name: "list_obligations", arguments: { contractId: "c1" } }),
+    )
+    const text = (await res.json()).result.content[0].text as string
+    expect(text).toContain('"title": "Send report"')
+    expect(text).not.toContain('"organizationId"')
+    expect(text).not.toContain("bob@example.com")
+    expect(text).not.toContain("alice@example.com")
+  })
+
+  it("does not expose import storage keys or mappings", async () => {
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValue({
+      id: "job-1",
+      organizationId: "org-1",
+      source: "CSV",
+      status: "COMPLETED",
+      storageKey: "private/source.csv",
+      driveFileIds: "private-drive-id",
+      mappingJson: "{\"title\":\"A\"}",
+      errorReportKey: "private/errors.csv",
+      totalRows: 1,
+      succeededRows: 1,
+      failedRows: 0,
+      startedAt: new Date("2025-03-01"),
+      completedAt: new Date("2025-03-01"),
+      createdAt: new Date("2025-03-01"),
+      createdBy: { id: "user-1", name: "Alice", email: "alice@example.com" },
+    } as any)
+    vi.mocked(prisma.importRow.findMany).mockResolvedValue([])
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", { name: "get_import_job", arguments: { jobId: "job-1" } }),
+    )
+    const text = (await res.json()).result.content[0].text as string
+    expect(text).toContain('"id": "job-1"')
+    expect(text).not.toContain("private/source.csv")
+    expect(text).not.toContain("private-drive-id")
+    expect(text).not.toContain("mappingJson")
+    expect(text).not.toContain("organizationId")
+    expect(text).not.toContain("alice@example.com")
+  })
+})
+
 describe("POST /api/mcp — tools/call create_contract", () => {
   it("creates a contract and returns id, title, status", async () => {
     const mockContract = {

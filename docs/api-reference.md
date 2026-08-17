@@ -14,7 +14,10 @@ Authenticate via the web UI. Session cookies are set automatically.
 Authorization: Bearer cf_live_<your-api-key>
 ```
 
-API keys are created in **Settings → API Keys**. Keys are scoped to an org and support `read` or `read_write` scopes. Mutation endpoints (POST, PATCH, DELETE) require `read_write` scope.
+API keys are created in **Settings → API Keys**. Keys are scoped to an org and
+use a `scopes` array. `read` is metadata-only, `text_read` permits contract
+text access for MCP Q&A, and `write` permits mutations when the key creator's
+organization role is member or higher. `write` does not imply `text_read`.
 
 ---
 
@@ -496,16 +499,22 @@ Returns key metadata only — raw key values are never returned after creation.
 ```
 POST /api/org/api-keys
 ```
-Admin only. Body: `{ "name": "CI Pipeline", "scope": "read" | "read_write" }`
+Admin only. Body: `{ "name": "CI Pipeline", "scopes": ["read"] }`.
+Allowed scope values are `read`, `text_read`, and `write`.
 
 **Response 201:**
 ```json
 {
   "id": "key_1",
   "name": "CI Pipeline",
-  "key": "cf_live_abc123...",
-  "scope": "read_write",
-  "createdAt": "2026-01-01T00:00:00.000Z"
+  "apiKey": {
+    "id": "key_1",
+    "name": "CI Pipeline",
+    "prefix": "cf_live_abc123...",
+    "scopes": ["read"],
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "rawKey": "cf_live_abc123..."
 }
 ```
 

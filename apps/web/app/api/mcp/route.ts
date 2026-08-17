@@ -29,6 +29,11 @@ function canWriteMcp(ctx: { role: string; source: "session" | "api_key"; scopes?
   return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("write") === true)
 }
 
+/** Contract text is a separate capability from metadata reads. */
+function canReadContractText(ctx: { role: string; source: "session" | "api_key"; scopes?: string[] }) {
+  return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("text_read") === true)
+}
+
 function jsonRpcResult(id: string | number, result: unknown) {
   return Response.json({ jsonrpc: "2.0", id, result })
 }
@@ -836,7 +841,49 @@ async function toolListObligations(
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   })
 
-  return toolSuccess(id, { obligations, count: obligations.length })
+  return toolSuccess(id, { obligations: obligations.map(toSafeObligation), count: obligations.length })
+}
+
+function toSafeObligation(obligation: {
+  id: string
+  contractId: string
+  title: string
+  description?: string | null
+  clauseReference?: string | null
+  priority: string
+  status: string
+  dueDate: Date | string
+  assignee?: { id: string; name: string | null } | null
+  subTasks?: Array<{
+    id: string
+    title: string
+    isCompleted: boolean
+    completedAt: Date | string | null
+    createdAt: Date | string
+    updatedAt: Date | string
+  }>
+}) {
+  return {
+    id: obligation.id,
+    contractId: obligation.contractId,
+    title: obligation.title,
+    description: obligation.description ?? null,
+    clauseReference: obligation.clauseReference ?? null,
+    priority: obligation.priority,
+    status: obligation.status,
+    dueDate: obligation.dueDate,
+    assignee: obligation.assignee
+      ? { id: obligation.assignee.id, name: obligation.assignee.name }
+      : null,
+    subTasks: (obligation.subTasks ?? []).map((subTask) => ({
+      id: subTask.id,
+      title: subTask.title,
+      isCompleted: subTask.isCompleted,
+      completedAt: subTask.completedAt,
+      createdAt: subTask.createdAt,
+      updatedAt: subTask.updatedAt,
+    })),
+  }
 }
 
 async function toolCreateObligation(
@@ -917,7 +964,7 @@ async function toolCreateObligation(
     obligationId: obligation.id,
   })
 
-  return toolSuccess(id, obligation)
+  return toolSuccess(id, toSafeObligation(obligation))
 }
 
 async function toolUpdateObligation(
@@ -971,7 +1018,7 @@ async function toolUpdateObligation(
     obligationId: obligation.id,
   })
 
-  return toolSuccess(id, obligation)
+  return toolSuccess(id, toSafeObligation(obligation))
 }
 
 // ── M8 Analytics ─────────────────────────────────────────────────────────
@@ -1177,7 +1224,22 @@ async function toolListImportJobs(
     prisma.importJob.count({ where }),
   ])
 
-  return toolSuccess(id, { jobs, total, page, limit })
+  return toolSuccess(id, {
+    jobs: jobs.map((job) => ({
+      id: job.id,
+      source: job.source,
+      status: job.status,
+      totalRows: job.totalRows,
+      succeededRows: job.succeededRows,
+      failedRows: job.failedRows,
+      createdAt: job.createdAt,
+      completedAt: job.completedAt,
+      createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
+    })),
+    total,
+    page,
+    limit,
+  })
 }
 
 async function toolGetImportJob(
@@ -1218,7 +1280,22 @@ async function toolGetImportJob(
     },
   })
 
-  return toolSuccess(id, { job, rows, rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null })
+  return toolSuccess(id, {
+    job: {
+      id: job.id,
+      source: job.source,
+      status: job.status,
+      totalRows: job.totalRows,
+      succeededRows: job.succeededRows,
+      failedRows: job.failedRows,
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
+    },
+    rows,
+    rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1323,6 +1400,9 @@ export async function POST(req: Request) {
         case "semantic_search":
           return toolSemanticSearch(toolArgs, ctx.organizationId, id)
         case "ask_contract":
+          if (!canReadContractText(ctx)) {
+            return toolError(id, "Error: Contract text access requires a member role and the text_read scope")
+          }
           return toolAskContract(toolArgs, ctx.organizationId, id)
         // M7 Obligations
         case "list_obligations":

@@ -176,7 +176,7 @@ It lacks or has not proven:
 - enterprise identity, retention, legal hold and independent control evidence;
 - a repeat contributor and extension ecosystem.
 
-**Resolved engineering finding (2026-08-17):** the Phase 0 hardening pass added explicit MCP member/write-scope checks for mutations, minimized contract list/detail fields, and regression tests for viewer writes, tenant isolation and raw-text leakage. Agent readiness remains limited to the tested MCP surface until replay, stale-state and external-client compatibility evidence is collected.
+**Resolved engineering finding (2026-08-17):** the Phase 0 hardening pass added explicit MCP member/write-scope checks for mutations, a separate `text_read` capability for API-key contract Q&A, minimized contract/obligation/import projections, and regression tests for viewer writes, tenant isolation and raw-text/storage-key leakage. Agent readiness remains limited to the tested MCP surface until replay, stale-state and external-client compatibility evidence is collected.
 
 Phase 0 must classify every existing module as **maintain**, **security-only**, **experimental** or **retire-candidate** and publish the matrix. Until then, shipped code does not automatically receive further investment.
 

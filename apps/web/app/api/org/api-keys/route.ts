@@ -8,7 +8,7 @@ import { z } from "zod"
 
 const CreateApiKeySchema = z.object({
   name: z.string().min(1).max(100),
-  scopes: z.array(z.enum(["read", "write"])).default(["read"]),
+  scopes: z.array(z.enum(["read", "text_read", "write"])).default(["read"]),
   expiresAt: z.string().datetime().optional(),
 })
 

@@ -14,12 +14,16 @@ approval bypass, and external side effects remain outside this release.
 | Cross-organization contract ID | Not found / no data | MCP and isolation tests |
 | `get_contract` request | Safe metadata and cited fields only; no raw extracted text or tenant ID | MCP response-shape tests |
 | `list_contracts` request | Safe list projection only; no raw extracted text or tenant ID | MCP query projection tests |
+| `ask_contract` with API key lacking `text_read` | Tool error before contract lookup or provider call | MCP text-access regression |
+| `ask_contract` with session member or API key carrying `text_read` | Contract text may be sent only for the requested contract; provider remains optional and no mutation occurs | MCP text-access boundary and AI tests |
+| `list_obligations` request | Safe obligation projection; no organization identifier, creator/assignee email or hidden fields | MCP projection regression |
+| `get_import_job` request | Safe job/row projection; no storage keys, drive IDs, mappings, error-report keys or organization identifier | MCP projection regression |
 | Malformed JSON-RPC envelope | JSON-RPC invalid-request error | MCP protocol tests |
 | Unknown tool or method | JSON-RPC/tool error; no side effect | MCP protocol tests |
 | Individual obligation mutation | Member/write-scope check, organization scope, activity record | Obligation route and MCP tests |
 | MCP/API mutation attribution | Activity metadata records request source and request ID alongside the acting user | Activity attribution unit tests and MCP mutation tests |
 | Approval request | Legal-or-higher role, write scope, separation of duties, auditable approval state | Approval route tests |
-| Raw contract question | Provider receives only the authorized contract context; response is not exposed through list/detail tools | AI and MCP tests |
+| Raw contract question | Provider receives only the authorized contract context; response is not exposed through list/detail tools; API keys require explicit `text_read` | AI and MCP tests |
 
 ## Public endpoint inventory
 
@@ -43,6 +47,8 @@ integration, and must never echo tenant or contract data in their responses.
 
 - No autonomous agent may send messages, sign, approve, or mutate a contract
   without a future approval/idempotency policy.
+- API-key `read` is metadata-only. Contract text access is a separately granted
+  `text_read` capability and is never implied by `write`.
 - No analytics event contains contract IDs, organization IDs, extracted values,
   document contents, or file sizes.
 - This matrix does not claim external Claude or Codex client certification. The
