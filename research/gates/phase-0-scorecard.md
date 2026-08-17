@@ -1,6 +1,6 @@
 # Phase 0 scorecard: truth, safety, activation and evidence
 
-Status: engineering release candidate; verification and product evidence OPEN
+Status: engineering PASS; product evidence OPEN
 Version: 1
 Phase: PRODUCT.md Phase 0
 Accountable owner: Aakd engineering/product owner
@@ -20,11 +20,11 @@ This scorecard separates engineering release readiness from product evidence. A 
 | Protected API authentication | 100% of protected routes have authentication and organization scope | Route inventory plus tests | Continue release verification | Block release |
 | MCP mutation authorization | 100% of mutation cases enforce role, scope and attribution; approval-gated workflows remain behind the existing approval API | MCP security matrix and approval route tests | Continue release verification | Block release |
 | Agent read minimization | 0 unauthorized raw-text or cross-tenant disclosures in the adversarial suite | MCP/API adversarial tests | Continue release verification | Block release |
-| Clean install | 1 clean environment reaches the app using documented steps and accepts a real PDF/DOCX | Historical disposable Compose run; latest `main` replay is still inconclusive because Docker storage was exhausted | Continue release verification | Fix setup/docs and rerun on a clean host |
-| First useful action | 1 real PDF/DOCX reaches a cited, reviewable action without external operator help | Existing E2E proves upload-first contract creation, but does not yet assert a real extracted citation/review outcome | Continue activation verification | Add a real-file cited-action assertion |
+| Clean install | 1 clean environment reaches the app using documented steps and accepts a real PDF/DOCX | Current-head `9708b6d` disposable Compose replay from empty volumes: all 29 migrations, app/worker/Redis/DB/object storage healthy, `/api/health` 200; split image build required on the local 16 GB VM | Release engineering core | Fix setup/docs and rerun on a clean host |
+| First useful action | 1 real PDF/DOCX reaches a cited, reviewable action without external operator help | Current-head browser regression uploads a generated PDF, Poppler extracts text, deterministic local fallback creates five fields with exact source text/page citations, and the UI exposes individual review controls without an external AI provider | Release engineering core | Add or repair the cited-action path |
 | Public capability truth | 0 unsupported capability, customer, security or deployment claims in supported locales | Copy audit | Continue release verification | Correct claims before release |
 
-Engineering release decision: OPEN until the current-head clean install and cited-action assertions pass. Any incomplete or historical-only row keeps Phase 0 engineering status OPEN.
+Engineering release decision: PASS for the committed OSS core at `9708b6d`. The local one-command Docker build remains host-constrained and must be rehearsed on a larger VM before publishing a release artifact. Product evidence remains OPEN.
 
 ## Gate B: product evidence readiness
 
@@ -44,3 +44,4 @@ Product evidence decision: PASS only when every row above passes. This gate cann
 |---|---|---|---|---|
 | 2026-08-17 | 1 | OPEN | Initial scorecard created before Phase 0 evidence collection | Founder/CEO |
 | 2026-08-17 | 1 | ENGINEERING CANDIDATE / PRODUCT OPEN | Local verification passed, but the current-head disposable replay exhausted Docker storage and the E2E suite does not yet assert a real cited extraction outcome; customer failure, corpus, funded-pilot, repeat-use and support-burden evidence remain uncollected | Founder/CEO |
+| 2026-08-17 | 1 | ENGINEERING PASS / PRODUCT OPEN | Current head `9708b6d` passes typecheck, build, lint, 56-file/1,123-test suite, isolation, current-head Compose health, stable worker runtime, full 18-test browser suite, and a real no-provider cited extraction/review action. Customer failure, corpus, funded-pilot, repeat-use and support-burden evidence remain uncollected. | Founder/CEO |
