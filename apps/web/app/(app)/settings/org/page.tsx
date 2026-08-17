@@ -7,7 +7,7 @@ import { ImageIcon, Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useActiveOrganization, organization } from "@/lib/auth/client"
+import { useActiveOrganization, useSession, organization } from "@/lib/auth/client"
 import { useTranslations } from "next-intl"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -49,12 +49,18 @@ const INDUSTRIES = [
 
 export default function OrgSettingsPage() {
   const { data: activeOrg } = useActiveOrganization()
+  const { data: session } = useSession()
   const t = useTranslations("org")
+  const currentRole = activeOrg?.members?.find((member) => member.userId === session?.user?.id)?.role
+  const canManageOrg = currentRole === "owner" || currentRole === "admin"
+  const canManageAi = canManageOrg || String(currentRole) === "legal"
+  const canTestAi = canManageOrg
   const [name, setName] = useState("")
   const [domain, setDomain] = useState("")
   const [timezone, setTimezone] = useState("UTC")
   const [industry, setIndustry] = useState("")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [persistedLogoUrl, setPersistedLogoUrl] = useState<string | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
@@ -81,7 +87,9 @@ export default function OrgSettingsPage() {
         if (data.meta?.domain) setDomain(data.meta.domain as string)
         if (data.meta?.timezone) setTimezone(data.meta.timezone as string)
         if (data.meta?.industry) setIndustry(data.meta.industry as string)
-        if (data.logo) setLogoUrl(data.logo)
+        const persistedLogo = data.logo ?? null
+        setLogoUrl(persistedLogo)
+        setPersistedLogoUrl(persistedLogo)
       })
       .catch(() => {})
   }, [])
@@ -125,6 +133,7 @@ export default function OrgSettingsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!canManageOrg) return
     setSaving(true)
     try {
       const res = await fetch("/api/org", {
@@ -133,11 +142,13 @@ export default function OrgSettingsPage() {
         body: JSON.stringify({ name, domain, timezone, industry, logo: logoUrl }),
       })
       if (!res.ok) throw new Error("Failed to update")
+      setPersistedLogoUrl(logoUrl)
       toast.success(t("orgUpdated"))
       if (activeOrg?.id) {
         await organization.setActive({ organizationId: activeOrg.id }).catch(() => {})
       }
     } catch {
+      setLogoUrl(persistedLogoUrl)
       toast.error(t("failedToUpdate"))
     } finally {
       setSaving(false)
@@ -155,7 +166,7 @@ export default function OrgSettingsPage() {
       <div className="rounded-[var(--radius)] border border-border bg-card p-6">
         <h2 className="text-sm font-semibold text-foreground mb-4">{t("generalInfo")}</h2>
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="orgName" className="text-sm font-medium text-foreground">
                 {t("orgName")}
@@ -164,6 +175,7 @@ export default function OrgSettingsPage() {
                 id="orgName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!canManageOrg}
                 required
               />
             </div>
@@ -176,6 +188,7 @@ export default function OrgSettingsPage() {
                 placeholder="yourcompany.com"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
+                disabled={!canManageOrg}
               />
             </div>
             <div className="space-y-1.5">
@@ -186,6 +199,7 @@ export default function OrgSettingsPage() {
                 id="orgTimezone"
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
+                disabled={!canManageOrg}
                 className="flex h-9 w-full rounded-[var(--radius)] border border-border bg-background px-3 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {TIMEZONES.map((tz) => (
@@ -201,6 +215,7 @@ export default function OrgSettingsPage() {
                 id="orgIndustry"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
+                disabled={!canManageOrg}
                 className="flex h-9 w-full rounded-[var(--radius)] border border-border bg-background px-3 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="">{t("selectIndustry")}</option>
@@ -220,11 +235,11 @@ export default function OrgSettingsPage() {
             </div>
           )}
 
-          <div className="border-t border-border pt-4 flex justify-end">
+          {canManageOrg && <div className="border-t border-border pt-4 flex justify-end">
             <Button type="submit" disabled={saving}>
               {saving ? t("saving") : t("saveChanges")}
             </Button>
-          </div>
+          </div>}
         </form>
       </div>
 
@@ -239,15 +254,17 @@ export default function OrgSettingsPage() {
               alt="Organization logo"
               className="h-16 w-16 rounded-[var(--radius)] object-cover border border-border"
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLogoUrl(null)}
-            >
-              {t("remove")}
-            </Button>
+            {canManageOrg && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLogoUrl(null)}
+              >
+                {t("remove")}
+              </Button>
+            )}
           </div>
-        ) : (
+        ) : canManageOrg ? (
           <div
             className={`border-2 border-dashed border-border rounded-[var(--radius)] p-8 flex flex-col items-center justify-center gap-2 transition-colors ${logoUploading ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
             onClick={() => !logoUploading && fileInputRef.current?.click()}
@@ -270,6 +287,11 @@ export default function OrgSettingsPage() {
               }}
             />
           </div>
+        ) : (
+          <div className="rounded-[var(--radius)] border border-border bg-muted/30 p-8 text-center">
+            <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">{t("logoReadOnly")}</p>
+          </div>
         )}
       </div>
 
@@ -287,7 +309,7 @@ export default function OrgSettingsPage() {
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
                 {PROVIDER_LABELS[aiStatus.provider ?? ""] ?? aiStatus.provider}
-                <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Server default</span>
+                <span className="ms-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Server default</span>
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -301,7 +323,7 @@ export default function OrgSettingsPage() {
             <p className="text-xs text-muted-foreground pt-1">
               Using server-level AI credentials. You can override with your own key below.
             </p>
-            {!showAiForm && (
+            {canManageAi && !showAiForm && (
               <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>
                 Set org key
               </Button>
@@ -315,7 +337,7 @@ export default function OrgSettingsPage() {
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
                 {PROVIDER_LABELS[aiStatus.provider ?? ""] ?? aiStatus.provider}
-                <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Connected</span>
+                <span className="ms-1 text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Connected</span>
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -326,7 +348,7 @@ export default function OrgSettingsPage() {
                 <span className="text-sm text-muted-foreground">—</span>
               )}
             </div>
-            {!showAiForm && !showRemoveConfirm && (
+            {canManageAi && !showAiForm && !showRemoveConfirm && (
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>Change</Button>
                 <Button
@@ -339,17 +361,22 @@ export default function OrgSettingsPage() {
                 </Button>
               </div>
             )}
-            {showRemoveConfirm && (
+            {canManageAi && showRemoveConfirm && (
               <div className="flex items-center gap-3 pt-1">
                 <p className="text-sm text-muted-foreground">Remove your org AI key?</p>
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={async () => {
-                    await fetch("/api/org/ai-config", { method: "DELETE" })
-                    setShowRemoveConfirm(false)
-                    setAiStatus({ provider: null, model: null, hasKey: false, source: null })
-                    toast.success("AI key removed")
+                    try {
+                      const res = await fetch("/api/org/ai-config", { method: "DELETE" })
+                      if (!res.ok) throw new Error("Failed to remove AI key")
+                      setShowRemoveConfirm(false)
+                      setAiStatus({ provider: null, model: null, hasKey: false, source: null })
+                      toast.success("AI key removed")
+                    } catch {
+                      toast.error(t("aiRemoveFailed"))
+                    }
                   }}
                 >
                   Confirm
@@ -372,12 +399,13 @@ export default function OrgSettingsPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               No AI key configured — AI features are disabled.{" "}
-              <Link href="/onboarding" className="underline underline-offset-4 hover:text-foreground transition-colors">
-                Set up AI
-              </Link>
-              .
+              {canManageAi && <>
+                {" "}<Link href="/onboarding" className="underline underline-offset-4 hover:text-foreground transition-colors">
+                  Set up AI
+                </Link>.
+              </>}
             </p>
-            {!showAiForm && (
+            {canManageAi && !showAiForm && (
               <Button variant="outline" size="sm" onClick={() => setShowAiForm(true)}>
                 Set up AI
               </Button>
@@ -386,7 +414,7 @@ export default function OrgSettingsPage() {
         )}
 
         {/* Inline form — shared by Change / Set up */}
-        {showAiForm && (
+        {canManageAi && showAiForm && (
           <div className="mt-5 pt-5 border-t border-border space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Provider</Label>
@@ -424,13 +452,13 @@ export default function OrgSettingsPage() {
                       setAiConfigError("")
                     }
                   }}
-                  className="pr-10 font-mono text-sm"
+                  className="pe-10 font-mono text-sm"
                   autoComplete="off"
                   spellCheck={false}
                 />
                 <button
                   type="button"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setShowAiKey((v) => !v)}
                 >
                   {showAiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -450,7 +478,7 @@ export default function OrgSettingsPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
+              {canTestAi && <Button
                 type="button"
                 variant="outline"
                 size="sm"
@@ -474,9 +502,9 @@ export default function OrgSettingsPage() {
                 }}
               >
                 {aiConfigStatus === "testing" ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Testing...</>
+                  <><Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> Testing...</>
                 ) : "Test"}
-              </Button>
+              </Button>}
               <Button
                 type="button"
                 size="sm"
@@ -503,7 +531,7 @@ export default function OrgSettingsPage() {
                 }}
               >
                 {aiConfigStatus === "saving" ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving...</>
+                  <><Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> Saving...</>
                 ) : "Save"}
               </Button>
               <Button

@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@/lib/db/client"
 import { createHash } from "crypto"
 import bcrypt from "bcryptjs"
+import { requireWriteScope, resolveAuth } from "@/lib/auth/middleware"
+import { captureServerEvent } from "@/lib/posthog-server"
+
+vi.mock("@/lib/posthog-server", () => ({ captureServerEvent: vi.fn() }))
 
 // We mock the session path to always return null so only the Bearer path is tested
 vi.mock("@/lib/auth/config", () => ({
@@ -27,7 +31,10 @@ vi.mock("@/lib/auth/middleware", () => ({
 describe("API key GET response — no raw material leaked", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.resetModules()
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "user-1", organizationId: "org-1", role: "admin", source: "session", requestId: "request-1",
+    })
+    vi.mocked(requireWriteScope).mockReturnValue(null)
   })
 
   it("GET /api/org/api-keys never returns keyHash or lookupHash", async () => {
@@ -82,6 +89,51 @@ describe("API key GET response — no raw material leaked", () => {
     expect(body.apiKey).not.toHaveProperty("lookupHash")
     expect(body.rawKey).toMatch(/^cf_live_/)
   })
+
+  it("rejects a read-only bearer before body, DB, generator, or analytics", async () => {
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write required" }, { status: 403 }))
+    const json = vi.fn()
+    const { POST } = await import("@/app/api/org/api-keys/route")
+    const res = await POST({ json } as unknown as Request)
+    expect(res.status).toBe(403)
+    expect(json).not.toHaveBeenCalled()
+    expect(prisma.apiKey.count).not.toHaveBeenCalled()
+    expect(prisma.apiKey.create).not.toHaveBeenCalled()
+    expect(captureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it("rejects API-key scope escalation after validation with no side effects", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({
+      userId: "user-1", organizationId: "org-1", role: "admin", source: "api_key",
+      scopes: ["read", "write"], requestId: "request-2",
+    })
+    const { POST } = await import("@/app/api/org/api-keys/route")
+    const res = await POST(new Request("http://localhost/api/org/api-keys", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Escalated", scopes: ["text_read"] }),
+    }))
+    expect(res.status).toBe(403)
+    expect(prisma.apiKey.count).not.toHaveBeenCalled()
+    expect(prisma.apiKey.create).not.toHaveBeenCalled()
+    expect(captureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it("allows API-key subset/equal delegation and leaves session creation unchanged", async () => {
+    vi.mocked(prisma.apiKey.count).mockResolvedValue(0)
+    vi.mocked(prisma.apiKey.create).mockResolvedValue({ id: "key-2", name: "Delegated", prefix: "cf_live_delegate", scopes: ["read", "text_read"], expiresAt: null, createdAt: new Date() } as any)
+    const { POST } = await import("@/app/api/org/api-keys/route")
+    for (const context of [
+      { source: "api_key" as const, scopes: ["read", "text_read", "write"] },
+      { source: "session" as const },
+    ]) {
+      vi.mocked(resolveAuth).mockResolvedValueOnce({ userId: "user-1", organizationId: "org-1", role: "admin", requestId: "request-3", ...context })
+      const res = await POST(new Request("http://localhost/api/org/api-keys", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Delegated", scopes: ["read", "text_read"] }),
+      }))
+      expect(res.status).toBe(201)
+    }
+  })
 })
 
 describe("resolveAuth — API key path (Bearer token validation)", () => {
@@ -105,7 +157,7 @@ describe("resolveAuth — API key path (Bearer token validation)", () => {
     } as any)
 
     // Import real resolveAuth (config mock prevents session path from succeeding)
-    const { resolveAuth } = await import("@/lib/auth/middleware")
+    await import("@/lib/auth/middleware")
 
     // The middleware is still mocked at this point from the top-level mock.
     // To test the real implementation, we need to use the actual module.

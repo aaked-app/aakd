@@ -1,182 +1,79 @@
 "use client"
 
-import { useState } from "react"
-import { MonthlyVolumeWidget } from "./monthly-volume-widget"
-import { StatusDonutWidget } from "./status-donut-widget"
-import { ValueByTypeWidget } from "./value-by-type-widget"
+import type { ReactNode } from "react"
+import { useLocale, useTranslations } from "next-intl"
+import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
 import { ApprovalFunnelWidget } from "./approval-funnel-widget"
 import { ExpiringSoonWidget } from "./expiring-soon-widget"
+import { MonthlyVolumeWidget } from "./monthly-volume-widget"
 import { ObligationSummaryWidget } from "./obligation-summary-widget"
-import { cn } from "@/lib/utils"
-import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
-import { useTranslations } from "next-intl"
+import { StatusDonutWidget } from "./status-donut-widget"
+import { ValueByTypeWidget } from "./value-by-type-widget"
 
-// ─── Types ─────────────────────────────────────────────────────────────────
-
-type DateRange = "30 Days" | "90 Days" | "12 Months" | "YTD"
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-function formatTotalValue(byType: AnalyticsSummary["valueByType"]): string {
-  const total = byType.reduce((s, d) => s + (d.totalValue ?? 0), 0)
-  if (total === 0) return "$0"
-  if (total >= 1_000_000) return `$${(total / 1_000_000).toFixed(1)}M`
-  if (total >= 1_000) return `$${(total / 1_000).toFixed(0)}K`
-  return `$${total}`
+export function formatApprovalDecisionRate(approved: number, rejected: number, locale: string): string {
+  const decisions = approved + rejected
+  if (decisions === 0) return "—"
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(approved / decisions)
 }
 
-function computeApprovalRate(funnel: AnalyticsSummary["approvalFunnel"]): string {
-  const denom = funnel.approved + funnel.rejected
-  if (denom === 0) return "—"
-  return `${Math.round((funnel.approved / denom) * 100)}%`
-}
-
-function getTotalContracts(byStatus: AnalyticsSummary["byStatus"]): number {
-  return byStatus.reduce((s, d) => s + d.count, 0)
-}
-
-// ─── KPI Stat Card ────────────────────────────────────────────────────────
-
-function KpiCard({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string
-  value: string | number
-  subtitle?: string
-}) {
+function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-1">
-        {title}
-      </p>
-      <p className="text-[28px] font-extrabold leading-none tabular-nums text-foreground">
-        {value}
-      </p>
-      {subtitle && (
-        <p className="text-[11.5px] text-muted-foreground mt-1.5">{subtitle}</p>
-      )}
+    <section aria-label={title} className="rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function KpiCard({ title, value, subtitle }: { title: string; value: string; subtitle: string }) {
+  return (
+    <div className="min-w-0 rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+      <p className="text-xs font-medium text-muted-foreground">{title}</p>
+      <p className="mt-2 text-3xl font-semibold tabular-nums text-foreground">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{subtitle}</p>
     </div>
   )
 }
 
-// ─── AnalyticsClient ──────────────────────────────────────────────────────
-
 export function AnalyticsClient({ data }: { data: AnalyticsSummary }) {
   const t = useTranslations("analytics")
-  const DATE_RANGES: DateRange[] = ["30 Days", "90 Days", "12 Months", "YTD"]
-  const [dateRange, setDateRange] = useState<DateRange>("12 Months")
-
-  const totalContracts = getTotalContracts(data.byStatus)
-  const approvalRate = computeApprovalRate(data.approvalFunnel)
-  const totalValue = formatTotalValue(data.valueByType)
-  const expiringSoon30 = data.expiringSoon.next30
+  const locale = useLocale()
+  const number = new Intl.NumberFormat(locale)
+  const decisions = data.approvalFunnel.approved + data.approvalFunnel.rejected
+  const totalContracts = data.byStatus.reduce((sum, item) => sum + item.count, 0)
 
   return (
-    <div className="flex flex-col h-full">
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
-        <div>
-          <h1 className="text-xl font-semibold">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t("subtitle")}
-          </p>
+    <div className="flex h-full min-w-0 flex-col">
+      <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:px-8">
+        <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{t("subtitle")}</p>
+      </header>
+      <main className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard title={t("activeExpiringKpi")} value={number.format(data.expiringSoon.next30)} subtitle={t("activeExpiringScope")} />
+          <KpiCard title={t("overdueObligationsKpi")} value={data.obligations === null ? t("unavailable") : number.format(data.obligations.overdue)} subtitle={data.obligations === null ? t("obligationsUnavailableShort") : t("overdueObligationsScope")} />
+          <KpiCard title={t("approvalDecisionRate")} value={formatApprovalDecisionRate(data.approvalFunnel.approved, data.approvalFunnel.rejected, locale)} subtitle={decisions === 0 ? t("noApprovalDecisionsShort") : t("approvalDecisionSummary", { approved: number.format(data.approvalFunnel.approved), decided: number.format(decisions) })} />
+          <KpiCard title={t("portfolioContractsKpi")} value={number.format(totalContracts)} subtitle={t("portfolioContractsScope")} />
         </div>
-        {/* Date range pills */}
-        <div className="flex items-center gap-1">
-          {DATE_RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setDateRange(r)}
-              className={cn(
-                "rounded-[var(--radius)] px-3 py-1.5 text-xs font-medium transition-colors",
-                dateRange === r
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border text-muted-foreground hover:text-foreground hover:bg-muted",
-              )}
-            >
-              {r}
-            </button>
-          ))}
+        <Section title={t("expiringSection")} description={t("expiringScope")}><ExpiringSoonWidget data={data.expiringSoon} /></Section>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Section title={t("obligationsSection")} description={t("obligationsScope")}>
+            {data.obligations === null ? <div className="rounded-[var(--radius)] border border-dashed border-border px-4 py-8 text-center"><p className="font-medium text-foreground">{t("unavailable")}</p><p className="mt-1 text-sm text-muted-foreground">{t("obligationsUnavailable")}</p></div> : <ObligationSummaryWidget data={data.obligations} />}
+          </Section>
+          <Section title={t("approvalSection")} description={t("approvalScope")}><ApprovalFunnelWidget data={data.approvalFunnel} /></Section>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-7 py-5 space-y-5">
-        {/* ── Row 1: KPI cards ──────────────────────────────────────── */}
-        <div className="grid grid-cols-4 gap-3">
-          <KpiCard
-            title={t("totalContractsKpi")}
-            value={totalContracts}
-          />
-          <KpiCard
-            title={t("expiringSoonKpi")}
-            value={expiringSoon30}
-            subtitle={t("next30Days")}
-          />
-          <KpiCard
-            title={t("approvalRate")}
-            value={approvalRate}
-            subtitle={
-              data.approvalFunnel.totalRequested > 0
-                ? `${data.approvalFunnel.approved} of ${data.approvalFunnel.totalRequested} approved`
-                : undefined
-            }
-          />
-          <KpiCard
-            title={t("totalValue")}
-            value={totalValue}
-            subtitle={
-              data.valueByType.length > 0
-                ? `across ${data.valueByType.reduce((s, d) => s + d.count, 0)} contracts`
-                : undefined
-            }
-          />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Section title={t("statusSection")} description={t("statusScope")}><StatusDonutWidget data={data.byStatus} /></Section>
+          <Section title={t("monthlySection")} description={t("monthlyScope")}><MonthlyVolumeWidget data={data.monthlyVolume} /></Section>
         </div>
-
-        {/* ── Row 2: Status donut + Monthly volume ──────────────────── */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-            <h3 className="text-[13px] font-semibold mb-4">{t("contractsByStatus")}</h3>
-            <StatusDonutWidget data={data.byStatus} />
-          </div>
-          <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-            <h3 className="text-[13px] font-semibold mb-4">{t("monthlyVolume")}</h3>
-            <MonthlyVolumeWidget data={data.monthlyVolume} />
-          </div>
-        </div>
-
-        {/* ── Row 3: Value by type + Approval funnel ────────────────── */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-            <h3 className="text-[13px] font-semibold mb-4">
-              {t("valueByType")}
-            </h3>
-            <ValueByTypeWidget data={data.valueByType} />
-          </div>
-          <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-            <h3 className="text-[13px] font-semibold mb-4">
-              {t("approvalFunnel")}
-            </h3>
-            <ApprovalFunnelWidget data={data.approvalFunnel} />
-          </div>
-        </div>
-
-        {/* ── Row 4: Expiring soon ───────────────────────────────────── */}
-        <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-          <h3 className="text-[13px] font-semibold mb-4">{t("expiringContracts2")}</h3>
-          <ExpiringSoonWidget data={data.expiringSoon} />
-        </div>
-
-        {/* ── Row 5: Obligations (graceful — hidden if unavailable) ──── */}
-        {data.obligations !== null && (
-          <div className="rounded-[var(--radius)] border border-border bg-card p-5">
-            <h3 className="text-[13px] font-semibold mb-4">{t("obligations")}</h3>
-            <ObligationSummaryWidget data={data.obligations} />
-          </div>
-        )}
-      </div>
+        <Section title={t("recordedValuesSection")} description={t("recordedValuesScope")}>
+          <p className="mb-4 rounded-[var(--radius)] bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">{t("recordedValuesCaveat")}</p>
+          <ValueByTypeWidget data={data.valueByType} />
+        </Section>
+      </main>
     </div>
   )
 }

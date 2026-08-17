@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 import { AnalyticsClient } from "@/components/analytics/analytics-client"
+import { AnalyticsError } from "@/components/analytics/analytics-error"
 import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
 import { getTranslations } from "next-intl/server"
 
@@ -24,7 +25,7 @@ export default async function AnalyticsPage() {
   if (!data) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
+        <div className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-xl font-semibold">{t("title")}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -32,13 +33,7 @@ export default async function AnalyticsPage() {
             </p>
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="rounded-[var(--radius)] border border-dashed border-border bg-card p-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("failedToLoad")}
-            </p>
-          </div>
-        </div>
+        <AnalyticsError />
       </div>
     )
   }

@@ -12,7 +12,7 @@ import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
-import { createImportedContract } from "../create-contract"
+import { createImportedContractForRow, recordImportRowFailure } from "../create-contract"
 import {
   parseImportDate,
   parseBoolean,
@@ -37,14 +37,6 @@ const VALID_STATUSES = new Set([
   "DRAFT", "INTERNAL_REVIEW", "PENDING_APPROVAL", "AWAITING_SIGNATURE",
   "ACTIVE", "EXPIRED", "TERMINATED", "ARCHIVED",
 ])
-
-interface RowOutcome {
-  rowIndex: number
-  sourceRef: string
-  status: "success" | "failed"
-  errorMessage?: string
-  contractId?: string
-}
 
 export async function runCsvHandler(
   job: ImportJob,
@@ -106,7 +98,6 @@ export async function runCsvHandler(
     data: { totalRows: records.length },
   })
 
-  const outcomes: RowOutcome[] = []
   let succeeded = 0
   let failed = 0
 
@@ -127,26 +118,20 @@ export async function runCsvHandler(
 
     try {
       const data = mapRow(row, mapping)
-      const contractId = await createImportedContract(data, {
-        organizationId: ctx.organizationId,
-        ownerId: ctx.createdById,
-      })
-      outcomes.push({ rowIndex, sourceRef, status: "success", contractId })
+      await createImportedContractForRow(
+        data,
+        { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef },
+      )
       succeeded += 1
     } catch (err) {
       const message = (err as Error)?.message || "unknown_error"
-      outcomes.push({
-        rowIndex,
-        sourceRef,
-        status: "failed",
-        errorMessage: message,
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef }, message)
       failed += 1
     }
 
-    // Flush every 50 rows so the UI's polling sees live progress.
-    if (outcomes.length >= 50) {
-      await flushOutcomes(job.id, outcomes.splice(0, outcomes.length))
+    // Stream progress every 50 rows so the UI's polling sees live progress.
+    if ((succeeded + failed) % 50 === 0) {
       await db.importJob.update({
         where: { id: job.id },
         data: { succeededRows: succeeded, failedRows: failed },
@@ -154,43 +139,10 @@ export async function runCsvHandler(
     }
   }
 
-  if (outcomes.length > 0) {
-    await flushOutcomes(job.id, outcomes)
-  }
-
   await db.importJob.update({
     where: { id: job.id },
     data: { succeededRows: succeeded, failedRows: failed, totalRows: records.length },
   })
-}
-
-async function flushOutcomes(jobId: string, batch: RowOutcome[]): Promise<void> {
-  if (batch.length === 0) return
-  const db = getWorkerPrisma()
-  // Upsert on (jobId, rowIndex) instead of createMany — a retry re-processes
-  // the same rowIndex, and a blind createMany would either violate the
-  // unique(jobId, rowIndex) constraint or (with skipDuplicates) silently
-  // leave the row stuck at its old "failed" status instead of recording the
-  // retry's outcome.
-  for (const o of batch) {
-    await db.importRow.upsert({
-      where: { jobId_rowIndex: { jobId, rowIndex: o.rowIndex } },
-      create: {
-        jobId,
-        rowIndex: o.rowIndex,
-        sourceRef: o.sourceRef,
-        status: o.status,
-        errorMessage: o.errorMessage,
-        contractId: o.contractId ?? null,
-      },
-      update: {
-        sourceRef: o.sourceRef,
-        status: o.status,
-        errorMessage: o.errorMessage ?? null,
-        contractId: o.contractId ?? null,
-      },
-    })
-  }
 }
 
 function mapRow(row: Record<string, string>, mapping: Mapping) {
@@ -292,5 +244,39 @@ function mapRow(row: Record<string, string>, mapping: Mapping) {
   return data as { title: string } & Record<string, unknown>
 }
 
+/** Persist a batch of row outcomes using the retry-safe unique key. */
+export async function flushOutcomes(
+  jobId: string,
+  outcomes: Array<{
+    rowIndex: number
+    sourceRef: string
+    status: "success" | "failed"
+    errorMessage?: string
+    contractId?: string
+  }>,
+): Promise<void> {
+  if (outcomes.length === 0) return
+  const db = getWorkerPrisma()
+  for (const outcome of outcomes) {
+    await db.importRow.upsert({
+      where: { jobId_rowIndex: { jobId, rowIndex: outcome.rowIndex } },
+      create: {
+        jobId,
+        rowIndex: outcome.rowIndex,
+        sourceRef: outcome.sourceRef,
+        status: outcome.status,
+        errorMessage: outcome.errorMessage,
+        contractId: outcome.contractId ?? null,
+      },
+      update: {
+        sourceRef: outcome.sourceRef,
+        status: outcome.status,
+        errorMessage: outcome.errorMessage ?? null,
+        contractId: outcome.contractId ?? null,
+      },
+    })
+  }
+}
+
 // Re-export for tests.
-export { IMPORT_FIELDS, flushOutcomes }
+export { IMPORT_FIELDS }

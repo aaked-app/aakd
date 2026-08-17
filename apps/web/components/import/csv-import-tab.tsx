@@ -14,6 +14,7 @@ import {
 import { Dropzone } from "./dropzone"
 import { ImportProgressView } from "./import-progress-view"
 import { FIELD_OPTIONS } from "./types"
+import { useTranslations } from "next-intl"
 
 interface PreviewResponse {
   previewId: string
@@ -27,6 +28,7 @@ interface PreviewResponse {
 type Step = "upload" | "map" | "progress"
 
 export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
+  const t = useTranslations("import.csv")
   const [step, setStep] = useState<Step>("upload")
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -44,14 +46,14 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
       const res = await fetch("/api/import/csv/preview", { method: "POST", body: fd })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error ?? `Upload failed (${res.status})`)
+        throw new Error(errBody.error ?? t("uploadStatusError", { status: res.status }))
       }
       const data = (await res.json()) as PreviewResponse
       setPreview(data)
       setMapping(data.suggestedMapping ?? {})
       setStep("map")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to upload CSV")
+      toast.error(e instanceof Error ? e.message : t("uploadFailed"))
     } finally {
       setUploading(false)
     }
@@ -72,13 +74,13 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error ?? `Import failed (${res.status})`)
+        throw new Error(errBody.error ?? t("importStatusError", { status: res.status }))
       }
       const data = await res.json()
       setJobId(data.jobId)
       setStep("progress")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to start import")
+      toast.error(e instanceof Error ? e.message : t("startFailed"))
     } finally {
       setSubmitting(false)
     }
@@ -102,7 +104,7 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
     return preview.headers.map((h) => {
       const f = mapping[h]
       if (!f) return h
-      const label = FIELD_OPTIONS.find((o) => o.value === f)?.label ?? f
+      const label = t(`fields.${f}`)
       return `${h} → ${label}`
     })
   }, [preview, mapping])
@@ -111,18 +113,17 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
     return (
       <div className="space-y-4">
         <div className="text-sm text-zinc-600">
-          Upload a CSV exported from a spreadsheet. The first row should be a header
-          row. Up to 1,000 rows, max 10 MB.
+          {t("description")}
         </div>
         <Dropzone
           accept=".csv,text/csv"
           onFiles={handleFile}
-          hint="CSV file, up to 10 MB"
+          hint={t("hint")}
         />
         {uploading && (
           <div className="flex items-center gap-2 text-sm text-zinc-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Reading CSV preview...
+            {t("reading")}
           </div>
         )}
       </div>
@@ -134,13 +135,13 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900">Map columns</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">{t("mapColumns")}</h3>
             <p className="text-xs text-zinc-500">
-              {preview.totalRows} rows detected. Map at least the title column to continue.
+              {t("rowsDetected", { count: preview.totalRows })}
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={reset}>
-            Start over
+            {t("startOver")}
           </Button>
         </div>
 
@@ -148,8 +149,8 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-xs text-zinc-500">
               <tr>
-                <th className="px-4 py-2 text-left font-medium">Your column</th>
-                <th className="px-4 py-2 text-left font-medium">Aakd field</th>
+                <th className="px-4 py-2 text-start font-medium">{t("yourColumn")}</th>
+                <th className="px-4 py-2 text-start font-medium">{t("aakdField")}</th>
               </tr>
             </thead>
             <tbody>
@@ -164,12 +165,12 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
                       }
                     >
                       <SelectTrigger className="w-full max-w-xs">
-                        <SelectValue placeholder="(ignore)" />
+                        <SelectValue placeholder={t("fields.ignore")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {FIELD_OPTIONS.map((o) => (
-                          <SelectItem key={o.value || "ignore"} value={o.value}>
-                            {o.label}
+                        {FIELD_OPTIONS.map((value) => (
+                          <SelectItem key={value || "ignore"} value={value}>
+                            {t(`fields.${value || "ignore"}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -183,13 +184,13 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
 
         {preview.previewRows.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase text-zinc-500">Preview</h4>
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-x-auto">
+            <h4 className="text-xs font-medium uppercase text-zinc-500">{t("preview")}</h4>
+            <div className="max-w-full rounded-lg border border-zinc-200 bg-white overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50 text-xs text-zinc-500">
                   <tr>
                     {previewLabels.map((label, i) => (
-                      <th key={i} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                      <th key={i} className="px-3 py-2 text-start font-medium whitespace-nowrap">
                         {label}
                       </th>
                     ))}
@@ -200,7 +201,7 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
                     <tr key={ri} className="border-t border-zinc-100">
                       {row.map((cell, ci) => (
                         <td key={ci} className="px-3 py-2 text-zinc-700 whitespace-nowrap">
-                          {cell || <span className="text-zinc-400">—</span>}
+                          {cell ? <bdi>{cell}</bdi> : <span className="text-zinc-400">—</span>}
                         </td>
                       ))}
                     </tr>
@@ -214,11 +215,11 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
         <div className="flex items-center justify-end gap-2">
           {!titleMapped && (
             <p className="text-xs text-amber-600">
-              Map a column to &quot;Contract title&quot; to continue.
+              {t("titleRequired")}
             </p>
           )}
           <Button onClick={startImport} disabled={!titleMapped || submitting}>
-            {submitting ? "Starting..." : `Import ${preview.totalRows} rows`}
+            {submitting ? t("starting") : t("importRows", { count: preview.totalRows })}
           </Button>
         </div>
       </div>

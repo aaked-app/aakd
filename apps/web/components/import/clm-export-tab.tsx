@@ -6,10 +6,12 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dropzone } from "./dropzone"
 import { ImportProgressView } from "./import-progress-view"
+import { useTranslations } from "next-intl"
 
 type ClmFormat = "auto" | "contractbook" | "docusign"
 
 export function ClmExportTab({ onJobCreated }: { onJobCreated?: () => void }) {
+  const t = useTranslations("import.clm")
   const [file, setFile] = useState<File | null>(null)
   const [format, setFormat] = useState<ClmFormat>("auto")
   const [uploading, setUploading] = useState(false)
@@ -25,12 +27,12 @@ export function ClmExportTab({ onJobCreated }: { onJobCreated?: () => void }) {
       const res = await fetch("/api/import/clm-export", { method: "POST", body: fd })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error ?? `Upload failed (${res.status})`)
+        throw new Error(errBody.error ?? t("uploadStatusError", { status: res.status }))
       }
       const data = await res.json()
       setJobId(data.jobId)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to start CLM import")
+      toast.error(e instanceof Error ? e.message : t("startFailed"))
     } finally {
       setUploading(false)
     }
@@ -49,10 +51,7 @@ export function ClmExportTab({ onJobCreated }: { onJobCreated?: () => void }) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-        <p>
-          Supported formats: <span className="font-medium">ContractBook</span> export ZIP and{" "}
-          <span className="font-medium">DocuSign CLM</span> export ZIP. For other tools, use the Batch Files tab.
-        </p>
+        <p>{t("description")}</p>
       </div>
 
       <Dropzone
@@ -60,16 +59,16 @@ export function ClmExportTab({ onJobCreated }: { onJobCreated?: () => void }) {
         selected={file ? [file] : null}
         onClear={() => setFile(null)}
         onFiles={(files) => setFile(files[0] ?? null)}
-        hint="ContractBook or DocuSign CLM export ZIP, up to 500 MB"
+        hint={t("hint")}
       />
 
       <div className="space-y-2">
-        <p className="text-xs font-medium uppercase text-zinc-500">Format</p>
+        <p className="text-xs font-medium uppercase text-zinc-500">{t("format")}</p>
         <div className="flex flex-col gap-2">
           {[
-            { value: "auto" as const, label: "Auto-detect (recommended)" },
-            { value: "contractbook" as const, label: "ContractBook" },
-            { value: "docusign" as const, label: "DocuSign CLM" },
+            { value: "auto" as const, label: t("formats.auto") },
+            { value: "contractbook" as const, label: t("formats.contractbook") },
+            { value: "docusign" as const, label: t("formats.docusign") },
           ].map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer">
               <input
@@ -91,10 +90,10 @@ export function ClmExportTab({ onJobCreated }: { onJobCreated?: () => void }) {
           <Button onClick={startImport} disabled={uploading}>
             {uploading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Uploading...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("uploading")}
               </>
             ) : (
-              "Upload and Import"
+              t("upload")
             )}
           </Button>
         </div>

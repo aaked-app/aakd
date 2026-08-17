@@ -6,7 +6,7 @@ import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
-import { createImportedContract, sanitizeFilename } from "../create-contract"
+import { createImportedContractForRow, recordImportRowFailure, sanitizeFilename } from "../create-contract"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { downloadDriveFile } from "../gdrive-client"
 import { safeUnzipSync, ZipBombError } from "../zip-safety"
@@ -43,6 +43,51 @@ interface FileLike {
   sourceRef: string
 }
 
+interface NormalizedManifestEntry {
+  filename: string
+  storageKey: string
+  sizeBytes: number
+}
+
+export function normalizeBatchManifest(
+  value: unknown,
+  context: { organizationId: string; jobId: string },
+): NormalizedManifestEntry[] {
+  const entries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object" && Array.isArray((value as { files?: unknown }).files)
+      ? (value as { files: unknown[] }).files
+      : null
+  if (!entries) throw new Error("manifest_invalid")
+  if (entries.length === 0 || entries.length > MAX_FILES) throw new Error("manifest_invalid")
+
+  const expectedPrefix = `imports/${context.organizationId}/${context.jobId}/files/`
+  const seenKeys = new Set<string>()
+
+  return entries.map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("manifest_invalid")
+    const candidate = entry as { filename?: unknown; storageKey?: unknown; key?: unknown; sizeBytes?: unknown }
+    const filename = candidate.filename
+    const storageKey = candidate.storageKey ?? candidate.key
+    const sizeBytes = candidate.sizeBytes
+    if (
+      typeof filename !== "string" ||
+      !filename.trim() ||
+      typeof storageKey !== "string" ||
+      !storageKey.startsWith(expectedPrefix) ||
+      seenKeys.has(storageKey) ||
+      typeof sizeBytes !== "number" ||
+      !Number.isInteger(sizeBytes) ||
+      sizeBytes < 0 ||
+      sizeBytes > MAX_FILE_BYTES
+    ) {
+      throw new Error("manifest_invalid")
+    }
+    seenKeys.add(storageKey)
+    return { filename, storageKey, sizeBytes }
+  })
+}
+
 async function processFiles(
   job: ImportJob,
   ctx: ImportProcessContext,
@@ -62,6 +107,14 @@ async function processFiles(
   for (let i = 0; i < head.length; i++) {
     const rowIndex = i + 1
     const f = head[i]
+    const existing = await db.importRow.findFirst({
+      where: { jobId: job.id, rowIndex, status: "success" },
+      select: { id: true },
+    })
+    if (existing) {
+      succeeded += 1
+      continue
+    }
     try {
       if (f.buffer.length > MAX_FILE_BYTES) {
         throw new Error("file_too_large")
@@ -72,7 +125,7 @@ async function processFiles(
       }
       const titleBase = stripExtension(f.filename).replace(/[_\-]+/g, " ").trim() || "Untitled"
 
-      const contractId = await createImportedContract(
+      await createImportedContractForRow(
         {
           title: titleBase.slice(0, 500),
           file: {
@@ -83,23 +136,12 @@ async function processFiles(
           },
         },
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef: f.sourceRef },
       )
-
-      // Upsert on (jobId, rowIndex) — a retry re-processes the same
-      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: f.sourceRef, status: "success", contractId },
-        update: { sourceRef: f.sourceRef, status: "success", contractId, errorMessage: null },
-      })
       succeeded += 1
     } catch (err) {
       const errorMessage = (err as Error).message || "unknown_error"
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: f.sourceRef, status: "failed", errorMessage },
-        update: { sourceRef: f.sourceRef, status: "failed", errorMessage, contractId: null },
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef: f.sourceRef }, errorMessage)
       failed += 1
     }
 
@@ -214,15 +256,14 @@ async function handleManifest(job: ImportJob, ctx: ImportProcessContext): Promis
   if (!res.ok) {
     throw new Error(`Failed to download manifest from storage: ${res.status}`)
   }
-  const manifest = (await res.json()) as Array<{ key: string; filename: string }>
-  if (!Array.isArray(manifest)) {
-    throw new Error("manifest_invalid")
-  }
+  const manifest = normalizeBatchManifest(await res.json(), {
+    organizationId: ctx.organizationId,
+    jobId: job.id,
+  })
 
   const files: FileLike[] = []
   for (const entry of manifest) {
-    if (!entry?.key || !entry?.filename) continue
-    const dlUrl = await storage.getSignedDownloadUrl(entry.key, 600)
+    const dlUrl = await storage.getSignedDownloadUrl(entry.storageKey, 600)
     const dlRes = await fetch(dlUrl)
     if (!dlRes.ok) {
       // Tag this entry as failed without aborting the run — manifest entries
@@ -230,12 +271,12 @@ async function handleManifest(job: ImportJob, ctx: ImportProcessContext): Promis
       files.push({
         buffer: Buffer.alloc(0),
         filename: entry.filename,
-        sourceRef: entry.key,
+        sourceRef: entry.storageKey,
       })
       continue
     }
     const buffer = Buffer.from(await dlRes.arrayBuffer())
-    files.push({ buffer, filename: entry.filename, sourceRef: entry.key })
+    files.push({ buffer, filename: entry.filename, sourceRef: entry.storageKey })
   }
 
   if (files.length === 0) {

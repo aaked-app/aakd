@@ -2,6 +2,10 @@
 
 Read this file before changing code. It is shared guidance for Claude Code, Codex, and human contributors. `AGENTS.md` contains the repository's additional operating rules; when both apply, follow the more specific instruction.
 
+Read `PRODUCT.md` for the canonical product vision, ICP, roadmap, feature boundaries, agent/security principles and cross-team decision rules. Every material change should map to one of its phases and gates.
+
+“Material change” means a user-visible capability, schema/domain primitive, authorization or data boundary, edition placement, public product claim, or roadmap priority. Routine fixes and maintenance do not need an invented roadmap justification.
+
 ## Product and current state
 
 Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management (CLM) platform. The public repository is [aaked-app/aakd](https://github.com/aaked-app/aakd); the current release is v1.2.1.

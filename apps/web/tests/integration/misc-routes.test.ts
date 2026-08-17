@@ -1153,9 +1153,25 @@ describe("POST /api/import/gdrive/import", () => {
     delete process.env.GOOGLE_CLIENT_ID
   })
 
-  it("returns 503 when GOOGLE_CLIENT_ID is not configured", async () => {
+  it("does not disclose missing Google configuration before authentication", async () => {
     delete process.env.GOOGLE_CLIENT_ID
-    // Do NOT mock resolveAuth — route returns 503 before auth check
+    vi.mocked(resolveAuth).mockResolvedValueOnce(null)
+    const { POST } = await import("@/app/api/import/gdrive/import/route")
+    const res = await POST(
+      new Request("http://localhost/api/import/gdrive/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: ["file-1"] }),
+      }),
+    )
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.error).toBe("Unauthorized")
+  })
+
+  it("returns 503 to an authorized member when GOOGLE_CLIENT_ID is not configured", async () => {
+    delete process.env.GOOGLE_CLIENT_ID
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { POST } = await import("@/app/api/import/gdrive/import/route")
     const res = await POST(
       new Request("http://localhost/api/import/gdrive/import", {

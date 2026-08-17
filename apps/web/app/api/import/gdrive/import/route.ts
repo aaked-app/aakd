@@ -4,6 +4,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { logger } from "@/lib/logger"
+import { compensateFailedImportStart } from "@/lib/import/start-compensation"
 import { z } from "zod"
 
 const ImportSchema = z.object({
@@ -11,16 +12,15 @@ const ImportSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  if (!process.env.GOOGLE_CLIENT_ID) {
-    return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
-  }
-
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const roleError = requireRole(ctx.role, "member")
   if (roleError) return roleError
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
+  }
 
   let body: unknown
   try {
@@ -57,6 +57,8 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       logger.error({ err, importJobId: job.id }, "[import.gdrive] enqueue failed")
+      await compensateFailedImportStart(job.id, [], "import.gdrive")
+      return Response.json({ error: "queue_unavailable" }, { status: 503 })
     }
 
     return Response.json({ jobId: job.id, totalRows: job.totalRows }, { status: 201 })

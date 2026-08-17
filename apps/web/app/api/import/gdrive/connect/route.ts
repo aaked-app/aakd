@@ -1,5 +1,5 @@
 import crypto from "node:crypto"
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
@@ -22,15 +22,14 @@ function clearStateCookie(): string {
 }
 
 export async function GET(req: Request) {
-  if (!process.env.GOOGLE_CLIENT_ID) {
-    return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
-  }
-
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   if (!hasRole(ctx.role, "admin")) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
+  }
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
   }
 
   const state = crypto.randomBytes(16).toString("hex")
@@ -71,6 +70,8 @@ export async function DELETE(req: Request) {
   if (!hasRole(ctx.role, "admin")) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

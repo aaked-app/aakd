@@ -64,6 +64,10 @@ import { storage } from "@/lib/storage"
 import { parseCsv, isZipBuffer } from "@/lib/types/import-helpers"
 import { listDriveFiles } from "@/lib/import/gdrive-client"
 
+if (!prisma.importJob.updateMany) {
+  ;(prisma.importJob as any).updateMany = vi.fn()
+}
+
 function resetMockQueues() {
   vi.mocked(resolveAuth).mockReset()
   vi.mocked(requireWriteScope).mockReturnValue(null)
@@ -71,6 +75,7 @@ function resetMockQueues() {
   vi.mocked(storage.upload).mockResolvedValue("imports/org-1/job/source.zip")
   vi.mocked(storage.getSignedDownloadUrl).mockResolvedValue("https://s3.example.com/errors.csv")
   vi.mocked(listDriveFiles).mockReset()
+  vi.mocked(prisma.importJob.updateMany).mockResolvedValue({ count: 1 } as any)
 }
 
 const adminCtx = {
@@ -84,6 +89,7 @@ const adminCtx = {
 const memberCtx = { ...adminCtx, role: "member" }
 const viewerCtx = { ...adminCtx, role: "viewer" }
 const legalCtx = { ...adminCtx, role: "legal" }
+const readKeyCtx = { ...memberCtx, source: "api_key" as const, scopes: ["read"] }
 
 /** Build a minimal valid CSV File object for testing. */
 function makeCsvFile(content = "Title,Counterparty\nAcme NDA,Acme Corp", name = "test.csv"): File {
@@ -133,6 +139,40 @@ describe("POST /api/import/csv/preview", () => {
     fd.append("file", makeCsvFile())
     const res = await POST(makeFormRequest("http://localhost/api/import/csv/preview", fd))
     expect(res.status).toBe(401)
+  })
+
+  it("denies read-only API keys before reading Drive configuration or integration data", async () => {
+    process.env.GOOGLE_CLIENT_ID = "test-client"
+    vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const { GET } = await import("@/app/api/import/gdrive/files/route")
+    const res = await GET(new Request("http://localhost/api/import/gdrive/files"))
+    expect(res.status).toBe(403)
+    expect(prisma.googleDriveIntegration.findUnique).not.toHaveBeenCalled()
+    expect(listDriveFiles).not.toHaveBeenCalled()
+  })
+
+  it("denies viewers before reading the body or touching storage", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
+    const { POST } = await import("@/app/api/import/csv/preview/route")
+    const req = new Request("http://localhost/api/import/csv/preview", { method: "POST" })
+    const formData = vi.spyOn(req, "formData")
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    expect(formData).not.toHaveBeenCalled()
+    expect(storage.upload).not.toHaveBeenCalled()
+  })
+
+  it("denies read-only API keys before reading the body or touching storage", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const { POST } = await import("@/app/api/import/csv/preview/route")
+    const req = new Request("http://localhost/api/import/csv/preview", { method: "POST" })
+    const formData = vi.spyOn(req, "formData")
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    expect(formData).not.toHaveBeenCalled()
+    expect(storage.upload).not.toHaveBeenCalled()
   })
 
   it("returns 400 when no file is attached", async () => {
@@ -298,7 +338,7 @@ describe("POST /api/import/pandadoc", () => {
     )
   })
 
-  it("still returns 201 when queue enqueue fails", async () => {
+  it("returns 503 and compensates the job and uploaded source when queue enqueue fails", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     vi.mocked(isZipBuffer).mockReturnValueOnce(true)
     vi.mocked(storage.upload).mockResolvedValueOnce("imports/org-1/job-pd2/source.zip")
@@ -308,7 +348,10 @@ describe("POST /api/import/pandadoc", () => {
     const fd = new FormData()
     fd.append("file", makeZipFile())
     const res = await POST(makeFormRequest("http://localhost/api/import/pandadoc", fd))
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "queue_unavailable" })
+    expect(prisma.importJob.delete).toHaveBeenCalledWith({ where: { id: "job-pd2" } })
+    expect(storage.delete).toHaveBeenCalled()
   })
 })
 
@@ -427,13 +470,22 @@ describe("GET /api/import/gdrive/files", () => {
     else process.env.GOOGLE_CLIENT_ID = origGoogleClientId
   })
 
-  it("returns 503 when GOOGLE_CLIENT_ID is not configured", async () => {
+  it("returns 503 to an authorized member when GOOGLE_CLIENT_ID is not configured", async () => {
     delete process.env.GOOGLE_CLIENT_ID
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { GET } = await import("@/app/api/import/gdrive/files/route")
     const res = await GET(new Request("http://localhost/api/import/gdrive/files"))
     expect(res.status).toBe(503)
     const body = await res.json()
     expect(body.error).toBe("google_drive_not_configured")
+  })
+
+  it("authenticates and authorizes before disclosing configuration", async () => {
+    delete process.env.GOOGLE_CLIENT_ID
+    vi.mocked(resolveAuth).mockResolvedValueOnce(null)
+    const { GET } = await import("@/app/api/import/gdrive/files/route")
+    const res = await GET(new Request("http://localhost/api/import/gdrive/files"))
+    expect(res.status).toBe(401)
   })
 
   it("returns 401 when unauthenticated", async () => {
@@ -510,6 +562,7 @@ describe("GET /api/import/gdrive/callback", () => {
   it("redirects to settings with not_configured error when env vars are missing", async () => {
     delete process.env.GOOGLE_CLIENT_ID
     delete process.env.GOOGLE_CLIENT_SECRET
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { GET } = await import("@/app/api/import/gdrive/callback/route")
     const res = await GET(new Request("http://localhost/api/import/gdrive/callback?code=abc&state=xyz"))
     expect(res.status).toBe(302)
@@ -537,6 +590,22 @@ describe("GET /api/import/gdrive/callback", () => {
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
     expect(location).toContain("forbidden")
+  })
+
+  it("denies a read-only admin API key before token exchange, encryption, persistence, or cookies", async () => {
+    process.env.GOOGLE_CLIENT_ID = "client-id"
+    process.env.GOOGLE_CLIENT_SECRET = "client-secret"
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...adminCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const { GET } = await import("@/app/api/import/gdrive/callback/route")
+    const res = await GET(new Request("http://localhost/api/import/gdrive/callback?code=secret&state=state", {
+      headers: { cookie: "gdrive_oauth_state=state" },
+    }))
+    expect(res.status).toBe(403)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(prisma.googleDriveIntegration.upsert).not.toHaveBeenCalled()
+    expect(res.headers.get("Set-Cookie")).toBeNull()
   })
 
   it("redirects with missing_params error when code or state is absent", async () => {
@@ -579,6 +648,15 @@ describe("GET /api/import/[jobId]", () => {
       { params: { jobId: "job-abc" } },
     )
     expect(res.status).toBe(401)
+  })
+
+  it("requires text_read for API-key access before reading the job", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
+    const { GET } = await import("@/app/api/import/[jobId]/route")
+    const res = await GET(new Request("http://localhost/api/import/job-abc"), { params: { jobId: "job-abc" } })
+    expect(res.status).toBe(403)
+    expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
+    expect(prisma.importRow.findMany).not.toHaveBeenCalled()
   })
 
   it("returns 404 when job does not exist", async () => {
@@ -674,6 +752,45 @@ describe("POST /api/import/[jobId]/retry", () => {
     expect(res.status).toBe(401)
   })
 
+  it("denies viewers before reading the job or enqueuing", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
+    const { POST } = await import("@/app/api/import/[jobId]/retry/route")
+    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: { jobId: "job-abc" } })
+    expect(res.status).toBe(403)
+    expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
+    expect(enqueueImportProcess).not.toHaveBeenCalled()
+  })
+
+  it("denies read-only API keys before reading or mutating the retry job", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const { POST } = await import("@/app/api/import/[jobId]/retry/route")
+    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: { jobId: "job-abc" } })
+    expect(res.status).toBe(403)
+    expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
+    expect(prisma.importJob.updateMany).not.toHaveBeenCalled()
+    expect(enqueueImportProcess).not.toHaveBeenCalled()
+  })
+
+  it("rejects a terminal job with no failed rows", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-ok", organizationId: "org-1", status: "COMPLETED", failedRows: 0 } as any)
+    const { POST } = await import("@/app/api/import/[jobId]/retry/route")
+    const res = await POST(new Request("http://localhost/api/import/job-ok/retry", { method: "POST" }), { params: { jobId: "job-ok" } })
+    expect(res.status).toBe(422)
+    expect(enqueueImportProcess).not.toHaveBeenCalled()
+  })
+
+  it("claims a terminal failed job atomically so concurrent retries cannot enqueue twice", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-failed", organizationId: "org-1", status: "FAILED", failedRows: 2 } as any)
+    vi.mocked(prisma.importJob.updateMany).mockResolvedValueOnce({ count: 0 } as any)
+    const { POST } = await import("@/app/api/import/[jobId]/retry/route")
+    const res = await POST(new Request("http://localhost/api/import/job-failed/retry", { method: "POST" }), { params: { jobId: "job-failed" } })
+    expect(res.status).toBe(409)
+    expect(enqueueImportProcess).not.toHaveBeenCalled()
+  })
+
   it("returns 404 when job does not exist", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce(null)
@@ -732,15 +849,16 @@ describe("POST /api/import/[jobId]/retry", () => {
     expect(res.status).toBe(422)
   })
 
-  it("returns 202 and resets job + failed rows on success", async () => {
+  it("returns 202, atomically claims the job, and preserves failed-row evidence", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-failed",
       organizationId: "org-1",
       status: "FAILED",
+      failedRows: 3,
+      completedAt: new Date("2026-01-01T00:00:00Z"),
     } as any)
-    vi.mocked(prisma.importJob.update).mockResolvedValueOnce({} as any)
-    vi.mocked(prisma.importRow.updateMany).mockResolvedValueOnce({ count: 3 } as any)
+    vi.mocked(prisma.importJob.updateMany).mockResolvedValueOnce({ count: 1 } as any)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-failed/retry", { method: "POST" }),
@@ -749,39 +867,44 @@ describe("POST /api/import/[jobId]/retry", () => {
     expect(res.status).toBe(202)
     const body = await res.json()
     expect(body.jobId).toBe("job-failed")
-    expect(prisma.importJob.update).toHaveBeenCalledWith(
+    expect(prisma.importJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "job-failed" },
+        where: expect.objectContaining({ id: "job-failed", failedRows: { gt: 0 } }),
         data: expect.objectContaining({ status: "PENDING" }),
       }),
     )
-    expect(prisma.importRow.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { jobId: "job-failed", status: "failed" },
-        data: expect.objectContaining({ status: "pending", errorMessage: null }),
-      }),
-    )
+    expect(prisma.importRow.updateMany).not.toHaveBeenCalled()
     expect(enqueueImportProcess).toHaveBeenCalledWith(
       expect.objectContaining({ importJobId: "job-failed" }),
     )
   })
 
-  it("returns 202 even when enqueue fails (best-effort)", async () => {
+  it("returns 503 and restores the terminal state when enqueue fails", async () => {
+    const completedAt = new Date("2026-01-01T00:00:00Z")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-completed",
       organizationId: "org-1",
       status: "COMPLETED",
+      failedRows: 1,
+      completedAt,
     } as any)
-    vi.mocked(prisma.importJob.update).mockResolvedValueOnce({} as any)
-    vi.mocked(prisma.importRow.updateMany).mockResolvedValueOnce({ count: 0 } as any)
+    vi.mocked(prisma.importJob.updateMany)
+      .mockResolvedValueOnce({ count: 1 } as any)
+      .mockResolvedValueOnce({ count: 1 } as any)
     vi.mocked(enqueueImportProcess).mockRejectedValueOnce(new Error("Redis down"))
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-completed/retry", { method: "POST" }),
       { params: { jobId: "job-completed" } },
     )
-    expect(res.status).toBe(202)
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "queue_unavailable" })
+    expect(prisma.importJob.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "job-completed", organizationId: "org-1", status: "PENDING" },
+      data: { status: "COMPLETED", completedAt },
+    })
+    expect(prisma.importRow.updateMany).not.toHaveBeenCalled()
   })
 })
 
@@ -798,6 +921,15 @@ describe("GET /api/import/[jobId]/error-report", () => {
       { params: { jobId: "job-abc" } },
     )
     expect(res.status).toBe(401)
+  })
+
+  it("requires text_read for API-key access before reading or signing the report", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
+    const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
+    const res = await GET(new Request("http://localhost/api/import/job-abc/error-report"), { params: { jobId: "job-abc" } })
+    expect(res.status).toBe(403)
+    expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
   })
 
   it("returns 404 when job does not exist", async () => {

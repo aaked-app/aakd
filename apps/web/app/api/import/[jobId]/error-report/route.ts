@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
@@ -7,6 +8,11 @@ import { logger } from "@/lib/logger"
 export async function GET(req: Request, { params }: { params: { jobId: string } }) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const roleError = requireRole(ctx.role, "member")
+  if (roleError) return roleError
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) {
+    return Response.json({ error: "text_read scope required" }, { status: 403 })
+  }
 
   return requestContext.run(ctx, async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -7,6 +7,7 @@ import { storage } from "@/lib/storage"
 import { isZipBuffer } from "@/lib/types/import-helpers"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { logger } from "@/lib/logger"
+import { compensateFailedImportStart } from "@/lib/import/start-compensation"
 
 const MAX_ZIP_BYTES = 500 * 1024 * 1024
 
@@ -75,6 +76,8 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       logger.error({ err, importJobId: job.id }, "[import.pandadoc] enqueue failed")
+      await compensateFailedImportStart(job.id, [storageKey], "import.pandadoc")
+      return Response.json({ error: "queue_unavailable" }, { status: 503 })
     }
 
     return Response.json({ jobId: job.id, totalRows: job.totalRows }, { status: 201 })

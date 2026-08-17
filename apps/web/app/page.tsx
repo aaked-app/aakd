@@ -1,5 +1,9 @@
 "use client"
 
+// The landing page reads the locale cookie in the browser. Keep it dynamic so
+// production builds do not try to serialize the client-only translation tree.
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState, type ChangeEvent, type ReactNode } from "react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"

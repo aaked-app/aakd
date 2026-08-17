@@ -58,7 +58,6 @@ const adminCtx = {
 }
 
 const legalCtx = { ...adminCtx, role: "legal" }
-const memberCtx = { ...adminCtx, role: "member" }
 const viewerCtx = { ...adminCtx, role: "viewer" }
 
 // ─── POST /api/import/csv ─────────────────────────────────────────────────────
@@ -185,7 +184,7 @@ describe("POST /api/import/csv", () => {
     )
   })
 
-  it("still returns 201 even when the queue enqueue fails (job stays in PENDING for retry)", async () => {
+  it("returns 503 and compensates the new job and preview when enqueue fails", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.create).mockResolvedValueOnce({
       id: "job-xyz",
@@ -204,10 +203,9 @@ describe("POST /api/import/csv", () => {
         headers: { "Content-Type": "application/json" },
       }),
     )
-    // Must still return 201 — the job is recorded and can be retried from the UI
-    expect(res.status).toBe(201)
-    const body = await res.json()
-    expect(body.jobId).toBe("job-xyz")
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "queue_unavailable" })
+    expect(prisma.importJob.delete).toHaveBeenCalledWith({ where: { id: "job-xyz" } })
   })
 
   it("persists the column mapping as JSON in the ImportJob row", async () => {
@@ -253,10 +251,19 @@ describe("GET /api/import/gdrive/connect", () => {
     }
   })
 
-  it("returns 503 when GOOGLE_CLIENT_ID is not configured", async () => {
+  it("does not disclose missing Google configuration before authentication", async () => {
     delete process.env.GOOGLE_CLIENT_ID
-    // Do NOT mock resolveAuth here — the route returns 503 before calling it,
-    // so queuing a mock would leave it unconsumed and bleed into the next test.
+    vi.mocked(resolveAuth).mockResolvedValueOnce(null)
+    const { GET } = await import("@/app/api/import/gdrive/connect/route")
+    const res = await GET(new Request("http://localhost/api/import/gdrive/connect"))
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.error).toBe("Unauthorized")
+  })
+
+  it("returns 503 to an authorized admin when GOOGLE_CLIENT_ID is not configured", async () => {
+    delete process.env.GOOGLE_CLIENT_ID
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { GET } = await import("@/app/api/import/gdrive/connect/route")
     const res = await GET(new Request("http://localhost/api/import/gdrive/connect"))
     expect(res.status).toBe(503)
@@ -326,6 +333,17 @@ describe("DELETE /api/import/gdrive/connect", () => {
       new Request("http://localhost/api/import/gdrive/connect", { method: "DELETE" }),
     )
     expect(res.status).toBe(403)
+  })
+
+  it("denies a read-only admin API key before integration or cookie effects", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...adminCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const { DELETE } = await import("@/app/api/import/gdrive/connect/route")
+    const res = await DELETE(new Request("http://localhost/api/import/gdrive/connect", { method: "DELETE" }))
+    expect(res.status).toBe(403)
+    expect(prisma.googleDriveIntegration.findUnique).not.toHaveBeenCalled()
+    expect(prisma.googleDriveIntegration.delete).not.toHaveBeenCalled()
+    expect(res.headers.get("Set-Cookie")).toBeNull()
   })
 
   it("returns 404 when no Google Drive integration is connected for this org", async () => {

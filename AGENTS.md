@@ -2,6 +2,10 @@
 
 Read this file and `CLAUDE.md` before changing code. They deliberately share the same project facts. If they ever conflict, stop and reconcile the guides before relying on either one.
 
+Read `PRODUCT.md` for the canonical product vision, ICP, roadmap, feature boundaries, agent/security principles and cross-team decision rules. Every material change should map to one of its phases and gates.
+
+“Material change” means a user-visible capability, schema/domain primitive, authorization or data boundary, edition placement, public product claim, or roadmap priority. Routine fixes and maintenance do not need an invented roadmap justification.
+
 ## Project
 
 Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management platform. It is publicly hosted at `aaked-app/aakd` and is currently released as v1.2.1.

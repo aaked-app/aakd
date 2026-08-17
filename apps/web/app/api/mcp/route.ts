@@ -1246,6 +1246,7 @@ async function toolGetImportJob(
   args: unknown,
   orgId: string,
   id: string | number,
+  includeSensitiveRows: boolean,
 ): Promise<Response> {
   const parsed = GetImportJobSchema.safeParse(args)
   if (!parsed.success) {
@@ -1293,7 +1294,14 @@ async function toolGetImportJob(
       completedAt: job.completedAt,
       createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
     },
-    rows,
+    rows: rows.map((row) => ({
+      id: row.id,
+      rowIndex: row.rowIndex,
+      status: row.status,
+      contractId: row.contractId,
+      sourceRef: includeSensitiveRows ? row.sourceRef : null,
+      errorMessage: includeSensitiveRows ? row.errorMessage : null,
+    })),
     rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null,
   })
 }
@@ -1425,9 +1433,15 @@ export async function POST(req: Request) {
           return toolListCrmLinks(toolArgs, ctx.organizationId, id)
         // M10 Import
         case "list_import_jobs":
+          if (!hasRole(ctx.role, "member")) {
+            return toolError(id, "Error: Import access requires a member role")
+          }
           return toolListImportJobs(toolArgs, ctx.organizationId, id)
         case "get_import_job":
-          return toolGetImportJob(toolArgs, ctx.organizationId, id)
+          if (!hasRole(ctx.role, "member")) {
+            return toolError(id, "Error: Import access requires a member role")
+          }
+          return toolGetImportJob(toolArgs, ctx.organizationId, id, canReadContractText(ctx))
         default:
           return toolError(id, `Error: Unknown tool "${toolName}"`)
       }

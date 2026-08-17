@@ -27,10 +27,18 @@ export interface ImportProcessContext {
 export async function processImportJob(ctx: ImportProcessContext): Promise<void> {
   const db = getWorkerPrisma()
 
-  await db.importJob.update({
-    where: { id: ctx.importJobId },
+  const claimed = await db.importJob.updateMany({
+    where: {
+      id: ctx.importJobId,
+      organizationId: ctx.organizationId,
+      status: "PENDING",
+    },
     data: { status: "PROCESSING", startedAt: new Date() },
   })
+  if (claimed.count !== 1) {
+    logger.info({ importJobId: ctx.importJobId }, "[import] job was not pending — skipping duplicate delivery")
+    return
+  }
 
   const job = await db.importJob.findUnique({ where: { id: ctx.importJobId } })
   if (!job) {

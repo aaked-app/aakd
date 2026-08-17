@@ -30,6 +30,7 @@ function mcpRequest(method: string, params?: unknown) {
 
 // Restore resolveAuth to default authenticated context before each test
 beforeEach(() => {
+  vi.clearAllMocks()
   vi.mocked(resolveAuth).mockResolvedValue(mockCtx)
 })
 
@@ -1011,6 +1012,15 @@ describe("POST /api/mcp — tools/call list_crm_links", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/mcp — tools/call list_import_jobs", () => {
+  it("rejects viewers before querying import jobs", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...mockCtx, role: "viewer" })
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(mcpRequest("tools/call", { name: "list_import_jobs", arguments: {} }))
+    const body = await res.json()
+    expect(body.result.isError).toBe(true)
+    expect(prisma.importJob.findMany).not.toHaveBeenCalled()
+  })
+
   it("returns import jobs with pagination metadata", async () => {
     const mockJobs = [
       {
@@ -1044,6 +1054,32 @@ describe("POST /api/mcp — tools/call list_import_jobs", () => {
 })
 
 describe("POST /api/mcp — tools/call get_import_job", () => {
+  it("returns summary rows but redacts source references and errors without text_read", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...mockCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
+      id: "job-1", organizationId: "org-1", source: "CSV", status: "COMPLETED", totalRows: 1,
+      succeededRows: 0, failedRows: 1, createdAt: new Date("2025-03-01"), completedAt: new Date("2025-03-01"), createdBy: null,
+    } as any)
+    vi.mocked(prisma.importRow.findMany).mockResolvedValueOnce([
+      { id: "row-1", rowIndex: 1, sourceRef: "CONFIDENTIAL SOURCE", status: "failed", errorMessage: "SECRET ERROR", contractId: null },
+    ] as any)
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(mcpRequest("tools/call", { name: "get_import_job", arguments: { jobId: "job-1" } }))
+    const text = (await res.json()).result.content[0].text as string
+    expect(text).toContain('"status": "failed"')
+    expect(text).not.toContain("CONFIDENTIAL SOURCE")
+    expect(text).not.toContain("SECRET ERROR")
+  })
+
+  it("rejects viewers before querying import details", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...mockCtx, role: "viewer" })
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(mcpRequest("tools/call", { name: "get_import_job", arguments: { jobId: "job-1" } }))
+    const body = await res.json()
+    expect(body.result.isError).toBe(true)
+    expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
+  })
+
   it("returns job details and rows", async () => {
     const mockJob = {
       id: "job-1",
