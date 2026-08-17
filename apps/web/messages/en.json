@@ -698,30 +698,30 @@
     "features": {
       "eyebrow": "Features",
       "heading": "Everything you need to manage contracts",
-      "subtitle": "From first draft to final signature — and every obligation that follows.",
-      "i0title": "AI-Powered Drafting",
-      "i0desc": "Generate contracts in seconds with local models or your own AI provider keys. Keep control of your data and infrastructure.",
-      "i1title": "Template Library",
-      "i1desc": "Pre-built templates for NDAs, SaaS agreements, employment contracts, and more. Customize with smart variables.",
-      "i2title": "Built-In E-Signatures",
-      "i2desc": "Send for signing, track status, collect executed copies. A complete signing workflow without third-party costs.",
+      "subtitle": "Upload agreements, review the source, and turn commitments into owned follow-up.",
+      "i0title": "Cited extraction review",
+      "i0desc": "Extract supported contract fields with optional AI, then review the exact source text and page before saving them.",
+      "i1title": "Contract repository",
+      "i1desc": "Keep PDF and DOCX agreements, versions, folders, tags, and searchable contract content in one self-hosted workspace.",
+      "i2title": "Approvals and optional signing",
+      "i2desc": "Coordinate review and approval, with optional DocuSeal signing when you configure that integration.",
       "i3title": "Obligation Tracking",
-      "i3desc": "Never miss a renewal, milestone, or compliance date. Automated alerts keep your team ahead of every deadline.",
-      "i4title": "Analytics & Insights",
-      "i4desc": "Real-time dashboards for contract value, cycle time, risk exposure, and team productivity.",
-      "i5title": "Multi-Language & RTL",
-      "i5desc": "Full Arabic, French, German, and Spanish support with native RTL layout. Draft contracts in any language."
+      "i3desc": "Assign owners, due dates, reminders, subtasks, and completion status to obligations and renewal follow-up.",
+      "i4title": "Search and activity",
+      "i4desc": "Find agreement content and review an auditable history of contract and obligation changes.",
+      "i5title": "Multilingual interface",
+      "i5desc": "Use the interface in English, Arabic with RTL, French, German, or Spanish."
     },
     "dd": {
-      "0eyebrow": "AI Agents",
-      "0title": "AI that understands your contracts",
-      "0desc": "Specialized AI agents for drafting, review, risk analysis, and extraction — powered by models you control. Connect local LLMs or bring your own API keys. No data leaves your infrastructure unless you choose.",
-      "1eyebrow": "Contract Editor",
-      "1title": "From draft to signed in minutes",
-      "1desc": "A rich contract editor with real-time collaboration, clause suggestions, smart variables, and approval workflows. Send for e-signature when ready — no switching tools.",
-      "2eyebrow": "Analytics",
-      "2title": "Complete visibility across your portfolio",
-      "2desc": "Track every contract's lifecycle stage, value, risk score, and upcoming obligations. Exportable reports and customizable dashboards give your team the insights they need."
+      "0eyebrow": "Reviewable intelligence",
+      "0title": "Keep the source beside the answer",
+      "0desc": "Optional AI extraction and Q&A retain citations and review status so people remain in control of trusted contract facts.",
+      "1eyebrow": "Approval workflow",
+      "1title": "Make review and ownership visible",
+      "1desc": "Use comments, approvals, roles, and activity records to move agreement work forward without losing accountability.",
+      "2eyebrow": "Obligations",
+      "2title": "Turn commitments into follow-up",
+      "2desc": "Assign owners, deadlines, reminders, and completion evidence for the work that continues after signature."
     },
     "os": {
       "eyebrow": "Open Source",
@@ -732,7 +732,7 @@
       "1title": "Bring Your Own AI",
       "1desc": "Connect local LLMs or use OpenAI, Anthropic, or another provider with your own keys. Data handling follows the provider and deployment you choose.",
       "2title": "Community Driven",
-      "2desc": "Developed in public with transparent feature requests, bug fixes and improvements."
+      "2desc": "Developed in public with inspectable source, transparent issues, and contribution-friendly documentation."
     },
     "security": {
       "heading": "Security foundations",
@@ -753,13 +753,13 @@
       "q1": "How does self-hosting work?",
       "a1": "Deploy with Docker using the services described in our self-hosting guide. We provide documentation and community support. Your data stays on infrastructure you control.",
       "q2": "Can I use my own AI models?",
-      "a2": "Absolutely. Aakd supports local LLMs (via Ollama, vLLM, etc.), OpenAI, Anthropic, Azure, and any OpenAI-compatible API. Bring your own API keys — we never proxy your AI requests.",
+      "a2": "Aakd currently supports documented Anthropic, OpenAI, and Ollama configurations. Bring your own provider key or run a local Ollama server; verify each provider before relying on an AI workflow.",
       "q3": "Is Aakd suitable for enterprise use?",
       "a3": "Aakd includes organization roles, access controls, and audit logging. SSO/SAML, formal compliance certifications, and hosted enterprise support are not currently included.",
       "q4": "How do I migrate from DocuSign or other tools?",
       "a4": "Aakd includes import tools for DocuSign, PandaDoc and CSV-based migration. Complex migrations require your own review and operational planning.",
       "q5": "What languages does Aakd support?",
-      "a5": "The interface supports English, Arabic (with full RTL), French, German, and Spanish. You can draft contracts in any language, and the AI features work across all supported languages."
+      "a5": "The interface supports English, Arabic with RTL, French, German, and Spanish. Authoring and drafting are later-phase surfaces in the Phase 0 release."
     },
     "contact": {
       "eyebrow": "Contact",

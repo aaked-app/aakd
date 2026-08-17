@@ -690,30 +690,30 @@
     "features": {
       "eyebrow": "Funciones",
       "heading": "Todo lo que necesita para gestionar contratos",
-      "subtitle": "Desde el primer borrador hasta la firma final — y cada obligación que sigue.",
-      "i0title": "Redacción con IA",
-      "i0desc": "Genere contratos en segundos con modelos locales o sus propias claves API. Mantenga el control de sus datos y su infraestructura.",
-      "i1title": "Biblioteca de plantillas",
-      "i1desc": "Plantillas predefinidas para NDA, acuerdos SaaS, contratos de trabajo y más. Personalice con variables inteligentes.",
-      "i2title": "Firmas electrónicas integradas",
-      "i2desc": "Envíe para firmar, rastree el estado, recoja copias ejecutadas. Un flujo de firma completo sin costes de terceros.",
+      "subtitle": "Suba acuerdos, revise la fuente y convierta los compromisos en seguimiento con responsables.",
+      "i0title": "Revisión de extracción con citas",
+      "i0desc": "Extraiga campos contractuales compatibles con IA opcional y revise el texto y la página de origen antes de guardarlos.",
+      "i1title": "Repositorio de contratos",
+      "i1desc": "Conserve acuerdos PDF y DOCX, versiones, carpetas, etiquetas y contenido buscable en su propia infraestructura.",
+      "i2title": "Aprobaciones y firma opcional",
+      "i2desc": "Coordine la revisión y aprobación; la firma con DocuSeal es opcional y requiere configuración.",
       "i3title": "Seguimiento de obligaciones",
-      "i3desc": "Nunca pierda una renovación, hito o fecha de cumplimiento. Las alertas automáticas mantienen a su equipo al día.",
-      "i4title": "Análisis e información",
-      "i4desc": "Paneles en tiempo real para el valor de contratos, tiempo de ciclo, exposición al riesgo y productividad del equipo.",
-      "i5title": "Multilingüe y RTL",
-      "i5desc": "Soporte completo para árabe, francés, alemán y español con diseño RTL nativo. Redacte contratos en cualquier idioma."
+      "i3desc": "Asigne responsables, fechas, recordatorios, subtareas y estado de cumplimiento a las obligaciones.",
+      "i4title": "Búsqueda y actividad",
+      "i4desc": "Encuentre contenido de acuerdos y revise un historial auditable de cambios contractuales.",
+      "i5title": "Interfaz multilingüe",
+      "i5desc": "Use la interfaz en inglés, árabe con RTL, francés, alemán o español."
     },
     "dd": {
-      "0eyebrow": "Agentes IA",
-      "0title": "IA que entiende sus contratos",
-      "0desc": "Agentes IA especializados para redacción, revisión, análisis de riesgos y extracción — impulsados por modelos que usted controla. Conecte LLMs locales o use sus propias claves API.",
-      "1eyebrow": "Editor de contratos",
-      "1title": "Del borrador a la firma en minutos",
-      "1desc": "Un potente editor de contratos con colaboración en tiempo real, sugerencias de cláusulas, variables inteligentes y flujos de aprobación.",
-      "2eyebrow": "Análisis",
-      "2title": "Visibilidad completa de su cartera",
-      "2desc": "Rastree la etapa del ciclo de vida, el valor, la puntuación de riesgo y las obligaciones próximas de cada contrato."
+      "0eyebrow": "Inteligencia revisable",
+      "0title": "Mantenga la fuente junto a la respuesta",
+      "0desc": "La extracción y las preguntas con IA opcional conservan citas y estado de revisión para mantener el control humano.",
+      "1eyebrow": "Flujo de aprobación",
+      "1title": "Haga visible la revisión y la responsabilidad",
+      "1desc": "Use comentarios, aprobaciones, roles y actividad para avanzar sin perder trazabilidad.",
+      "2eyebrow": "Obligaciones",
+      "2title": "Convierta compromisos en seguimiento",
+      "2desc": "Asigne responsables, fechas, recordatorios y evidencia de cumplimiento para el trabajo posterior a la firma."
     },
     "os": {
       "eyebrow": "Código abierto",
@@ -724,7 +724,7 @@
       "1title": "Use su propia IA",
       "1desc": "Conecte LLMs locales o use OpenAI, Anthropic u otro proveedor con sus propias claves. El tratamiento de datos depende del proveedor y del despliegue elegido.",
       "2title": "Impulsado por la comunidad",
-      "2desc": "Desarrollado por desarrolladores y equipos legales de todo el mundo. Cada solicitud de función, corrección de error y mejora es transparente."
+      "2desc": "Desarrollado públicamente con código inspeccionable, incidencias transparentes y documentación para contribuciones."
     },
     "security": {
       "heading": "Fundamentos de seguridad",
@@ -745,13 +745,13 @@
       "q1": "¿Cómo funciona el auto-alojamiento?",
       "a1": "Despliegue con Docker siguiendo los servicios indicados en nuestra guía de autoalojamiento. Sus datos permanecen en una infraestructura que controla.",
       "q2": "¿Puedo usar mis propios modelos de IA?",
-      "a2": "Absolutamente. Aaked soporta LLMs locales (vía Ollama, vLLM, etc.), OpenAI, Anthropic, Azure y cualquier API compatible con OpenAI. Use sus propias claves API.",
+      "a2": "Aakd admite actualmente configuraciones documentadas de Anthropic, OpenAI y Ollama. Use su propia clave o un servidor Ollama local y verifique cada proveedor antes de depender de un flujo de IA.",
       "q3": "¿Aaked es adecuado para uso empresarial?",
       "a3": "Aaked incluye roles de organización, controles de acceso y registros de auditoría. SSO/SAML, certificaciones formales y soporte empresarial alojado no están incluidos actualmente.",
       "q4": "¿Cómo migro desde DocuSign u otras herramientas?",
       "a4": "Proporcionamos herramientas de importación para DocuSign, PandaDoc y migración basada en CSV. Nuestro equipo puede ayudar con migraciones complejas durante el período de acceso anticipado.",
       "q5": "¿Qué idiomas admite Aaked?",
-      "a5": "La interfaz admite inglés, árabe (con RTL completo), francés, alemán y español. Puede redactar contratos en cualquier idioma."
+      "a5": "La interfaz admite inglés, árabe con RTL, francés, alemán y español. La creación y redacción son superficies de fases posteriores en el lanzamiento de la Fase 0."
     },
     "contact": {
       "eyebrow": "Contacto",

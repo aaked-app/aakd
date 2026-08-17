@@ -36,6 +36,9 @@ describe("LandingPage", () => {
     expect(screen.getByText("Review required")).toBeInTheDocument()
     expect(screen.getByText("Commercial operations")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Useful to agents. Governed by people." })).toBeInTheDocument()
+    expect(getMessage(en as Record<string, unknown>, "features.i0title")).toBe("Cited extraction review")
+    expect(getMessage(en as Record<string, unknown>, "features.i1title")).toBe("Contract repository")
+    expect(getMessage(en as Record<string, unknown>, "dd.0eyebrow")).toBe("Reviewable intelligence")
   })
 
   it("uses working destinations for every public call to action", () => {
