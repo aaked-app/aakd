@@ -10,6 +10,7 @@ RUN pnpm install --frozen-lockfile \
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 workerjs && adduser --system --uid 1001 --ingroup workerjs workerjs
 # LibreOffice is used by the document.convert worker to convert PDF→DOCX before
 # parsing with mammoth, which preserves tables, headings, and structure.
 RUN apk add --no-cache libreoffice poppler-utils
@@ -37,4 +38,7 @@ COPY worker/ ./worker/
 WORKDIR /app/apps/web
 RUN prisma generate --schema=./prisma/schema.prisma
 
+RUN chown -R workerjs:workerjs /app
+USER workerjs
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "process.kill(1, 0)"
 CMD ["node_modules/.bin/tsx", "--tsconfig", "tsconfig.worker.json", "worker.ts"]

@@ -29,6 +29,7 @@ claim.
 | SSRF and webhooks | Outbound webhook URLs are validated at delivery time; DocuSeal/CRM callbacks require signatures and scope | webhook/SSRF tests and endpoint inventory | PASS |
 | Secrets | Production Compose requires auth, database, Redis, storage, notification, and DocuSeal secrets; no credentials are committed | Compose interpolation validation and `.env.example` | PASS |
 | Production startup | Node web processes fail fast when required secrets/URLs are absent, weak, or not HTTPS | `lib/security/production-config.ts`, production-config tests | PASS |
+| Container runtime | Web and worker images run as non-root users and expose health checks | Dockerfiles, Trivy config scan, container-hardening test | PASS |
 | Telemetry privacy | Activation events exclude contract text, IDs, extracted values, credentials, tokens, file names, and file size; client capture respects consent | activation event contract and tests | PASS |
 | Error handling | Storage, queue, provider, webhook, and database failures return safe errors and do not leak tenant or secret material | failure-path tests | PASS |
 | Recovery | Backup, restore, update, doctor, and health scripts are documented and shell-validated | self-hosting validation and release verifier | PASS |
