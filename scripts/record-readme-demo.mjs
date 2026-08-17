@@ -42,6 +42,10 @@ try {
   })
   const page = await context.newPage()
 
+  // Start from the dashboard so the recording communicates the complete
+  // journey rather than opening directly on the upload screen.
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: "networkidle" })
+  await page.waitForTimeout(900)
   await page.goto(`${baseUrl}/contracts/new`, { waitUntil: "networkidle" })
   await page.waitForTimeout(800)
   await page.locator('input[type="file"]').setInputFiles(
@@ -53,7 +57,13 @@ try {
   await page.waitForTimeout(1_200)
   await page.getByRole("button", { name: "Create Contract", exact: true }).click()
   await page.waitForURL(/\/contracts\/[a-z0-9]+$/, { timeout: 30_000 })
-  await page.waitForTimeout(2_200)
+
+  // Show the reviewable AI result and then the post-signature work surface.
+  await page.getByRole("tab", { name: /AI Extractions/i }).click()
+  await page.getByText(/Source page/i).first().waitFor({ state: "visible", timeout: 90_000 })
+  await page.waitForTimeout(1_500)
+  await page.getByRole("tab", { name: /Obligations/i }).click()
+  await page.waitForTimeout(2_000)
   await page.screenshot({ path: path.join(outputDir, "aakd-demo-final.png") })
   console.log(`Recorded disposable demo account: ${email}`)
   const video = page.video()
