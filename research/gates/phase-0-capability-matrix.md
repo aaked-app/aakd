@@ -12,6 +12,10 @@ The versioned synthetic/adversarial corpus and expected outcomes are recorded in
 covered by `phase-0-synthetic-corpus.test.ts`. It is a regression fixture only,
 not customer evidence.
 
+Investment posture for every product subsystem is recorded in
+[`phase-0-module-classification.md`](phase-0-module-classification.md). The
+classification is a freeze boundary, not a deletion plan.
+
 | Capability | Phase 0 status | Release boundary | Evidence / owner |
 | --- | --- | --- | --- |
 | PDF/DOCX upload | Available | Real-file upload with type and size validation; processing is queued | `apps/web/app/api/contracts/[id]/upload/route.ts`; release evidence |

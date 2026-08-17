@@ -178,7 +178,11 @@ It lacks or has not proven:
 
 **Resolved engineering finding (2026-08-17):** the Phase 0 hardening pass added explicit MCP member/write-scope checks for mutations, a separate `text_read` capability for API-key contract Q&A, minimized contract/obligation/import projections, and regression tests for viewer writes, tenant isolation and raw-text/storage-key leakage. Agent readiness remains limited to the tested MCP surface until replay, stale-state and external-client compatibility evidence is collected.
 
-Phase 0 must classify every existing module as **maintain**, **security-only**, **experimental** or **retire-candidate** and publish the matrix. Until then, shipped code does not automatically receive further investment.
+Phase 0 classifies every product subsystem as **maintain**, **security-only**,
+**experimental** or **retire-candidate** in
+`research/gates/phase-0-module-classification.md`. Until customer evidence
+reopens a frozen row, shipped code does not automatically receive further
+investment.
 
 ## 4. Selected validation ICP
 
