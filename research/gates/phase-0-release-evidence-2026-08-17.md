@@ -34,6 +34,7 @@ evidence is being claimed by this release record.
 | Containerized end-to-end suite | PASS | `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm --filter web exec playwright test --retries=0` against the disposable Compose app: 18 tests passed |
 | Exact `origin/main` replay | PASS (historical) | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite. The latest main commit is recorded separately below because it has not had a disposable Compose replay. |
 | Clean Compose replay at `e693e2f` | PASS (health) | A clean archive of commit `e693e2f` was built without the dirty worktree, booted with empty database/object-storage volumes, applied the migrations, started app/worker/Redis/DB/object storage, and returned HTTP 200 from `/api/health` with DB and Redis green. The subsequent search/localization commits were verified by build and tests; this disposable replay was not rerun for those commits. |
+| Latest `main` Compose replay attempt (`16782d3`) | INCONCLUSIVE (host capacity) | A fresh project build reached the current app/worker image export, then Docker reported `no space left on device` while unpacking the worker image. The disposable project was removed; no application assertion failed. A current-head Compose replay remains required on a host with sufficient Docker storage. |
 | Fresh VM/container boot | PASS (container) | Docker Compose boot was verified from empty named volumes on 2026-08-17. A separate cloud VM has not been used; the VM-specific path remains a deployment follow-up |
 
 ## Known non-blocking warnings
@@ -41,6 +42,7 @@ evidence is being claimed by this release record.
 - Next/Sentry deprecation warnings are emitted during lint/build.
 - Existing tests intentionally log simulated Redis, storage, CRM, webhook, and provider failures while asserting graceful handling.
 - A clean cloud VM install and real customer evidence are still required before claiming operational or product-market readiness.
+- The latest current-head disposable replay could not complete because the local Docker VM exhausted storage during image export; this is an environment limitation, not a passing replay.
 - The disposable Compose run initially exposed two startup defects: the development Redis URL did not follow its configured password, and the minimal app image omitted Prisma's `@next/env` loader. Both are fixed and the exact `origin/main` replay passed.
 - GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
 - The integrated E2E run used local PostgreSQL and MinIO services rather than Docker; the subsequent disposable Compose run closed the container portion of the clean-install gate. A separate cloud VM and the external customer-evidence gates remain open.
