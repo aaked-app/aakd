@@ -18,6 +18,7 @@ Read this document with `AGENTS.md` and `CLAUDE.md`. This file owns product dire
 | Version | Decision |
 |---|---|
 | 1.0 | Consolidated the full OSS CLM vision, US/UK posture, validation ICP, gate-based roadmap, governed Agent Gateway, privacy/redaction, OSS/Cloud constitution and cross-discipline rules. |
+| 1.1 | Added a continuous community-evidence loop, startup challenger cohorts, handoff/workaround capture, and a rule-based community launch gate. These improve discovery discipline without expanding product scope. |
 
 ## Executive snapshot
 
@@ -231,6 +232,16 @@ The buyer becomes validated only after an economic owner funds the same repeatab
 
 Self-hosters, developers, legal-tech builders, local-AI users and privacy-sensitive teams are the community audience. They can drive adoption, feedback, contribution and technical introductions. They are not automatically Cloud prospects.
 
+### Startup challenger cohort
+
+Startups are a challenger cohort for discovery, not a replacement for the
+provisional 50–500 employee validation ICP. Research must keep these bands
+separate: 1–10, 11–50, 51–200 and 201–500 employees. For each band, record
+contract volume or complexity, the operational owner, trigger frequency,
+current workaround, consequence and budget path. A startup cohort may change
+the ICP only after the same workflow is observed across independent
+organizations and passes the payment and repeat-use gates.
+
 ## 5. Geography
 
 - Serve the US and UK from day one with one English product, documentation set and offer.
@@ -405,6 +416,24 @@ Before work governed by a qualitative gate begins, its owner records immutable n
 **Outcome:** a truthful, safe, understandable and measurable product.
 
 **Features:** capability matrix, contract-first onboarding, real-file activation fixtures, activation instrumentation, security checklist, adversarial corpus, paid diagnostic, MCP role enforcement, minimized agent reads, agent attribution, safe errors and real Claude/Codex compatibility tests.
+
+**Discovery controls:** maintain a continuous, source-linked community evidence
+loop. Each observation records the community, date, operator context, exact
+workflow, failure episode, consequence, current workaround, why it fails,
+requested outcome, affiliation risk and follow-up question. Cluster findings
+by startup cohort and the core ICP rather than pooling them. Map every episode
+to the handoff where work failed and record the competing spreadsheet,
+calendar, CRM, ticketing, repository or human-labor workaround. Community
+evidence generates interview targets and hypotheses; it cannot substitute for
+representative corpora, buyer payment or repeat organizational use.
+
+Before public community launch, verify that the repository is runnable from a
+clean environment, deployment and security documentation are current, AI
+involvement is disclosed, capability claims are truthful, one working journey
+is demonstrable and the destination community's current rules were checked.
+Research replies and launch posts must be helpful, specific and affiliation-
+transparent; they must not promise roadmap access, imply legal advice or use
+unsupported compliance claims.
 
 **Differentiation:** fast self-hosted activation, transparency and inspectable trust. This is execution quality, not novel feature coverage.
 
@@ -631,6 +660,11 @@ Every report states unit, denominator, window, exclusions and source. Gate thres
 - **Active installation:** an opted-in supported installation performs the core workflow during the measurement window; CI and demos are excluded.
 - **Substantive contribution:** an external change or maintained extension that improves a user or developer outcome; typo-only changes are excluded.
 - **Qualified commercial lead:** a qualified organization with identified owner, workflow, timing and plausible budget.
+- **Community evidence record:** a dated, link-preserved observation from an operator-led discussion with enough context to identify the workflow, failure, workaround and consequence; vendor, affiliate and founder-led claims are labeled and cannot count as independent organization evidence.
+- **Handoff episode:** a recent failure at a named transfer of responsibility between people, systems or agreement stages, with the receiving owner, missing information and consequence recorded.
+- **Workaround record:** the actual spreadsheet, calendar, CRM, ticket, repository or human-labor process used instead of Aakd, including its cost, frequency and failure mode where known.
+- **Startup challenger cohort:** a startup employee band tracked separately from the provisional ICP; it cannot be pooled into ICP evidence or change the roadmap without payment and repeat-use proof.
+- **Community launch-ready:** the clean-install, documentation, truthful-claims, AI-disclosure, working-journey and current-rules checks all pass before a public community post.
 - **Agent:** an attributable software principal acting through a delegated capability and policy, never an anonymous model process.
 
 ## 14. Main risks and invalidation
