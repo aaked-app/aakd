@@ -87,8 +87,9 @@ bash scripts/verify-phase-0.sh
 ```
 
 This validates Compose configuration, typecheck, lint, the complete test suite,
-and the production build. It does not claim customer adoption or replace the
-documented disposable Compose and MCP HTTP replays.
+the mandatory tenant-isolation suite, and the production build. It does not
+claim customer adoption or replace the documented disposable Compose and MCP
+HTTP replays.
 
 ---
 

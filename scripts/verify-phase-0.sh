@@ -22,6 +22,9 @@ pnpm --filter web lint
 echo "[phase-0] running the complete test suite"
 pnpm --filter web test
 
+echo "[phase-0] running the mandatory tenant-isolation suite"
+pnpm --filter web test:isolation
+
 echo "[phase-0] building the production application"
 pnpm build
 
