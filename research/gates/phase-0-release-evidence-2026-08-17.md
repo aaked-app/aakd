@@ -9,9 +9,11 @@ The evidence contract and current empty state are recorded in
 `research/gates/phase-0-customer-evidence-ledger.md`; no external customer
 evidence is being claimed by this release record.
 
-**Current release pointer:** runtime evidence is verified through `d2fccc9`
-(the HTTP MCP replay commit). The latest source verifier run covers the current
-application and documentation boundary. Historical rows below retain the
+**Current release pointer:** current-head runtime evidence is verified through
+`c904771` (clean-volume Compose health, stable worker and 18-test browser
+replay). The HTTP MCP replay remains verified through `d2fccc9`; the latest
+source verifier run covers the current application and documentation boundary.
+Historical rows below retain the
 commit at which each check was run; they are not claims that a later
 documentation-only commit reran the application.
 
@@ -45,6 +47,7 @@ documentation-only commit reran the application.
 | Exact `origin/main` replay | PASS (historical) | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite. Current head is covered by the separate `9708b6d` replay below. |
 | Clean Compose replay at `e693e2f` | PASS (health) | A clean archive of commit `e693e2f` was built without the dirty worktree, booted with empty database/object-storage volumes, applied the migrations, started app/worker/Redis/DB/object storage, and returned HTTP 200 from `/api/health` with DB and Redis green. The subsequent search/localization commits were verified by build and tests; this disposable replay was not rerun for those commits. |
 | Current-head Compose replay at `d2fccc9` | PASS | An isolated project from empty volumes built both current app/worker images, applied migrations, started DB/Redis/MinIO/DocuSeal/app/worker, kept the worker running, and returned `200` from `/api/health` with DB and Redis green on Docker Engine 29.5.2. |
+| Current-head Compose replay at `c904771` | PASS | An isolated project from empty volumes built the pushed app/worker images, applied migrations, started DB/Redis/MinIO/DocuSeal/app/worker, kept the worker running, returned `200` from `/api/health` with DB and Redis green, and passed the 18-test browser suite. |
 | Fresh VM/container boot | PASS (container) | Current-head Docker Compose boot was verified from empty named volumes on 2026-08-17. A separate cloud VM has not been used; VM-specific diversity remains a deployment follow-up. |
 
 ## Known non-blocking warnings
@@ -59,4 +62,4 @@ documentation-only commit reran the application.
 
 ## Release interpretation
 
-The Phase 0 engineering checks are PASS at verified runtime boundary `d2fccc9` and the latest source verifier boundary: the disposable clean-volume stack is healthy, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,080-test suite, focused MCP/security tests, a real HTTP MCP compatibility replay, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The evidence-intake and security checklists make the customer and release gates operational without claiming any customer evidence. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
+The Phase 0 engineering checks are PASS at current-head runtime boundary `c904771` and the latest source verifier boundary: the disposable clean-volume stack is healthy, the worker remains stable, and the 18-test browser suite reaches the contract-first path without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,080-test suite, focused MCP/security tests, the HTTP MCP compatibility replay at `d2fccc9`, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The evidence-intake and security checklists make the customer and release gates operational without claiming any customer evidence. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.

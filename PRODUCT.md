@@ -37,7 +37,7 @@ US and UK B2B service, software and technical companies with meaningful recurrin
 
 ### Current position
 
-The repository is **Phase 0 in progress with later-phase feature islands**. Engineering Gate A is release-ready at verified boundary `d2fccc9`; the activation, customer, quality, repeat-use and managed-Cloud gates are not implied by that result and remain open until their evidence exists. The synthetic regression corpus and evidence-intake checklist are versioned under `research/gates/`; they make validation executable but do not count as customer evidence.
+The repository is **Phase 0 in progress with later-phase feature islands**. Engineering Gate A is release-ready at current-head boundary `c904771`; the activation, customer, quality, repeat-use and managed-Cloud gates are not implied by that result and remain open until their evidence exists. The synthetic regression corpus and evidence-intake checklist are versioned under `research/gates/`; they make validation executable but do not count as customer evidence.
 
 ### What is differentiated
 
