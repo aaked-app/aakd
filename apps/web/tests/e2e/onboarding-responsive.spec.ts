@@ -26,7 +26,7 @@ test("onboarding stays usable at mobile, desktop, and Arabic RTL widths", async 
 
   await page.goto("/register")
   await page.getByLabel("Name").fill("E2E Onboarding Owner")
-  await page.getByLabel("Email").fill(`onboarding-owner-${suffix}@example.test`)
+  await page.getByLabel("Email").fill(`onboarding-owner-${suffix}@example.com`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
   await page.getByRole("button", { name: "Create account" }).click()
   await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
