@@ -16,7 +16,7 @@ RUN addgroup --system --gid 1001 workerjs && adduser --system --uid 1001 --ingro
 RUN apk add --no-cache libreoffice poppler-utils
 # Prisma CLI is needed only while building the generated worker client; keeping
 # it global avoids shipping the full development dependency tree.
-RUN npm install -g prisma
+RUN npm install -g prisma@7.8.0
 
 # Use a portable production-only dependency tree instead of copying the entire
 # workspace store and development dependencies into the worker image.

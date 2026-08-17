@@ -28,7 +28,7 @@ FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f60937229
 WORKDIR /app
 ENV NODE_ENV=production
 # prisma CLI needed for migrate deploy at container start
-RUN npm install -g prisma
+RUN npm install -g prisma@7.8.0
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma

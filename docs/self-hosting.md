@@ -265,16 +265,9 @@ To run AI features entirely on your own hardware with no external API calls:
 To update to a new version:
 
 ```bash
-# Fetch and check out one reviewed release commit
-git fetch --prune origin
-git checkout --detach <reviewed-40-character-commit-sha>
-
-# Rebuild and restart containers
-docker compose pull
-docker compose up -d --build
-
-# Run any new migrations
-docker compose exec app npx prisma migrate deploy
+# Run one reviewed release commit. Automatic updates refuse migrations until a
+# pre-update recovery point and restore procedure have been verified.
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
 ```
 
 ---

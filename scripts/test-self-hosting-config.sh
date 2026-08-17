@@ -26,6 +26,10 @@ if ! grep -q 'mv .* || return 1' "$ROOT_DIR/docker-compose.prod.yml"; then
   echo "Expected the production backup job to fail when finalizing a dump fails." >&2
   exit 1
 fi
+if ! grep -q 'set -eu;' "$ROOT_DIR/docker-compose.prod.yml" || ! grep -q 'mc stat local/clauseflow' "$ROOT_DIR/docker-compose.prod.yml"; then
+  echo "Expected bucket initialization to fail closed and verify the storage bucket." >&2
+  exit 1
+fi
 
 if ! grep -q 'flock -n' "$ROOT_DIR/scripts/update.sh" || ! grep -q 'git rev-parse --git-path aakd-update.lock' "$ROOT_DIR/scripts/update.sh"; then
   echo "Expected updates to take an exclusive deployment lock." >&2

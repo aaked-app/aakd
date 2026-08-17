@@ -89,6 +89,10 @@ until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app
   fi
   sleep 5
 done
+if ! bash scripts/verify-production.sh; then
+  echo "Updated infrastructure did not pass verification; restoring the previous release." >&2
+  false
+fi
 trap - ERR
 
 echo ""

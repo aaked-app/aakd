@@ -141,10 +141,10 @@ E-signatures now work.
 
 ```bash
 cd ~/aakd
-bash scripts/update.sh
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
 ```
 
-The update pulls the latest code, rebuilds images, and restarts services. Expect a brief restart while the new containers come online.
+The update deploys only the exact reviewed commit you provide, rebuilds images, and restarts services. It refuses automatic updates that contain database migrations until recovery is verified. Expect a brief restart while the new containers come online.
 
 ---
 

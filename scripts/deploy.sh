@@ -40,7 +40,7 @@ if ! command -v docker &> /dev/null; then
   log "Installing Docker..."
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker "$USER"
-  success "Docker installed"
+  error "Docker installed. Start a new login session so the docker group takes effect, then re-run this script with the same AAKD_REF."
 else
   success "Docker already installed ($(docker --version | cut -d' ' -f3 | tr -d ','))"
 fi

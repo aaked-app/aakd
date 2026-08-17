@@ -31,7 +31,7 @@ done
 "${COMPOSE[@]}" exec -T db pg_isready -U postgres -d clauseflow >/dev/null
 "${COMPOSE[@]}" exec -T redis redis-cli -a "$(awk -F= '$1 == "REDIS_PASSWORD" { print substr($0, index($0, "=") + 1); exit }' .env.prod)" ping | grep -qx PONG
 "${COMPOSE[@]}" run --rm --no-deps createbuckets >/dev/null
-"${COMPOSE[@]}" exec -T minio sh -c 'test -d /data'
+"${COMPOSE[@]}" logs --tail=200 worker | grep -Fq '[worker] ClauseFlow BullMQ worker started'
 
 for hostname in "$DOMAIN" "sign.$DOMAIN"; do
   curl --fail --silent --show-error --max-time 15 "https://$hostname/" >/dev/null
