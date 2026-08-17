@@ -1,6 +1,6 @@
 # Phase 0 scorecard: truth, safety, activation and evidence
 
-Status: open
+Status: engineering PASS; product evidence OPEN
 Version: 1
 Phase: PRODUCT.md Phase 0
 Accountable owner: Aakd engineering/product owner
@@ -43,3 +43,4 @@ Product evidence decision: PASS only when every row above passes. This gate cann
 | Date | Version | Decision | Reason | Authority |
 |---|---|---|---|---|
 | 2026-08-17 | 1 | OPEN | Initial scorecard created before Phase 0 evidence collection | Founder/CEO |
+| 2026-08-17 | 1 | ENGINEERING PASS / PRODUCT OPEN | Local verification and disposable Compose install passed; customer failure, corpus, funded-pilot, repeat-use and support-burden evidence remain uncollected | Founder/CEO |
