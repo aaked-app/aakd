@@ -9,13 +9,19 @@ The evidence contract and current empty state are recorded in
 `research/gates/phase-0-customer-evidence-ledger.md`; no external customer
 evidence is being claimed by this release record.
 
+**Current release pointer:** engineering evidence is verified through
+`d2fccc9` (the HTTP MCP replay commit). The documentation-only evidence-intake
+follow-up is `4d3a034`. Historical rows below retain the commit at which each
+check was run; they are not claims that a later documentation commit reran the
+application.
+
 ## Verification record
 
 | Gate | Result | Evidence |
 |---|---|---|
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
-| Production build | PASS | `pnpm build` completed successfully at release head `c4d17ef` |
+| Production build | PASS | `pnpm build` completed successfully at the verified engineering boundary; see the current release pointer above |
 | Unit/integration tests | PASS | 52 committed test files, 1,068 tests passed on clean commit `cd0a15b`; release head `3d57e06` has the same route/test surface, including MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
@@ -35,7 +41,7 @@ evidence is being claimed by this release record.
 | Containerized end-to-end suite | PASS | `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm --filter web exec playwright test --retries=0` against the disposable Compose app: 18 tests passed |
 | Exact `origin/main` replay | PASS (historical) | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite. Current head is covered by the separate `9708b6d` replay below. |
 | Clean Compose replay at `e693e2f` | PASS (health) | A clean archive of commit `e693e2f` was built without the dirty worktree, booted with empty database/object-storage volumes, applied the migrations, started app/worker/Redis/DB/object storage, and returned HTTP 200 from `/api/health` with DB and Redis green. The subsequent search/localization commits were verified by build and tests; this disposable replay was not rerun for those commits. |
-| Current-head Compose replay at `c4d17ef` | PASS | An isolated project from empty volumes built both current app/worker images, applied migrations, started DB/Redis/MinIO/DocuSeal/app/worker, kept the worker running, and returned `200` from `/api/health` with DB and Redis green on Docker Engine 29.5.2. |
+| Current-head Compose replay at `d2fccc9` | PASS | An isolated project from empty volumes built both current app/worker images, applied migrations, started DB/Redis/MinIO/DocuSeal/app/worker, kept the worker running, and returned `200` from `/api/health` with DB and Redis green on Docker Engine 29.5.2. |
 | Fresh VM/container boot | PASS (container) | Current-head Docker Compose boot was verified from empty named volumes on 2026-08-17. A separate cloud VM has not been used; VM-specific diversity remains a deployment follow-up. |
 
 ## Known non-blocking warnings
@@ -50,4 +56,4 @@ evidence is being claimed by this release record.
 
 ## Release interpretation
 
-The Phase 0 engineering checks are PASS at release head `c4d17ef`: the current-head disposable clean-volume stack is healthy, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,068-test suite, focused MCP/security tests, a real HTTP MCP compatibility replay, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
+The Phase 0 engineering checks are PASS at verified engineering boundary `d2fccc9`: the current-head disposable clean-volume stack is healthy, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,068-test suite, focused MCP/security tests, a real HTTP MCP compatibility replay, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The evidence-intake checklist at `research/gates/phase-0-evidence-intake-checklist.md` makes the customer gate operational without claiming any customer evidence. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
