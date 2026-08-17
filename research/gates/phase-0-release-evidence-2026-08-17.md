@@ -9,11 +9,11 @@ The evidence contract and current empty state are recorded in
 `research/gates/phase-0-customer-evidence-ledger.md`; no external customer
 evidence is being claimed by this release record.
 
-**Current release pointer:** engineering evidence is verified through
-`d2fccc9` (the HTTP MCP replay commit). The documentation-only evidence-intake
-follow-up is `4d3a034`. Historical rows below retain the commit at which each
-check was run; they are not claims that a later documentation commit reran the
-application.
+**Current release pointer:** runtime evidence is verified through `d2fccc9`
+(the HTTP MCP replay commit). The latest source verifier run covers the current
+application and documentation boundary. Historical rows below retain the
+commit at which each check was run; they are not claims that a later
+documentation-only commit reran the application.
 
 ## Verification record
 
@@ -59,4 +59,4 @@ application.
 
 ## Release interpretation
 
-The Phase 0 engineering checks are PASS at verified runtime boundary `d2fccc9` and current source documentation boundary `234f08a`: the disposable clean-volume stack is healthy, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,076-test suite, focused MCP/security tests, a real HTTP MCP compatibility replay, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The evidence-intake and security checklists make the customer and release gates operational without claiming any customer evidence. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
+The Phase 0 engineering checks are PASS at verified runtime boundary `d2fccc9` and the latest source verifier boundary: the disposable clean-volume stack is healthy, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening is covered by clean typecheck, 1,076-test suite, focused MCP/security tests, a real HTTP MCP compatibility replay, and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The evidence-intake and security checklists make the customer and release gates operational without claiming any customer evidence. Client-specific Claude/Codex replay and customer evidence remain open; do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
