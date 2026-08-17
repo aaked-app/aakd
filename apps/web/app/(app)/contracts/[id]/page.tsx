@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
-import dynamic from "next/dynamic"
 import { useSession } from "@/lib/auth/client"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -79,18 +78,10 @@ import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
+import { EditorTab } from "@/components/editor/editor-tab"
 import { ContractCrmSection } from "@/components/crm/contract-crm-section"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-// The editor remains available for existing deep links, but it is not part of
-// the Phase 0 first-value path. Keep its large TipTap bundle out of the initial
-// contract workspace payload and load it only when the hidden editor tab is
-// explicitly opened.
-const EditorTab = dynamic(
-  () => import("@/components/editor/editor-tab").then((module) => module.EditorTab),
-  { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor…</div> },
-)
 
 interface AIExtraction {
   id: string
