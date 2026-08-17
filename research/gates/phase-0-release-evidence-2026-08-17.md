@@ -26,6 +26,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 | Local integrated runtime | PASS | The application served the full no-retry E2E suite with PostgreSQL and MinIO running as separate local services; this verifies authenticated upload/onboarding behavior with real database and object-storage boundaries |
 | Clean Compose install | PASS | A disposable project with empty PostgreSQL, MinIO and DocuSeal volumes built both application images, applied all 29 migrations, started app/worker/Redis/DB/object storage, and returned `200` from `/api/health` with DB and Redis checks green |
 | Containerized end-to-end suite | PASS | `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm --filter web exec playwright test --retries=0` against the disposable Compose app: 18 tests passed |
+| Exact `origin/main` replay | PASS | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite |
 | Fresh VM/container boot | PASS (container) | Docker Compose boot was verified from empty named volumes on 2026-08-17. A separate cloud VM has not been used; the VM-specific path remains a deployment follow-up |
 
 ## Known non-blocking warnings
@@ -33,7 +34,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 - Next/Sentry deprecation warnings are emitted during lint/build.
 - Existing tests intentionally log simulated Redis, storage, CRM, webhook, and provider failures while asserting graceful handling.
 - A clean cloud VM install and real customer evidence are still required before claiming operational or product-market readiness.
-- The disposable Compose run initially exposed two startup defects: the development Redis URL did not follow its configured password, and the minimal app image omitted Prisma's `@next/env` loader. Both are fixed and the clean rerun passed.
+- The disposable Compose run initially exposed two startup defects: the development Redis URL did not follow its configured password, and the minimal app image omitted Prisma's `@next/env` loader. Both are fixed and the exact `origin/main` replay passed.
 - GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
 - The integrated E2E run used local PostgreSQL and MinIO services rather than Docker; the subsequent disposable Compose run closed the container portion of the clean-install gate. A separate cloud VM and the external customer-evidence gates remain open.
 - The current worktree contains additional uncommitted dashboard tests and UI changes. A supplementary run reached 50 files and 1,057 tests, but those changes are intentionally excluded from the release commit and are not used as release evidence.
