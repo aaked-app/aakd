@@ -1,6 +1,7 @@
-# Aakd
+# Aakd — Open-source, self-hosted contract lifecycle management
 
-Stop paying $1,500 to find out your MSA is fine.
+Aakd is an AI-native contract lifecycle management (CLM) platform for teams
+that want to manage contract operations on infrastructure they control.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](./docker-compose.yml)
