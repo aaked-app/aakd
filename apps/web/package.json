@@ -115,6 +115,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "fast-check": "3.23.2",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.23",
     "prisma": "^7.8.0",

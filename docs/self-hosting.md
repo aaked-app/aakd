@@ -93,12 +93,12 @@ Navigate to `http://localhost:3000` (or your configured URL). Create your first 
 
 ## Production install in one command
 
-For a public Ubuntu VM, use the checked-in installer. It generates the required secrets, validates the production Compose file, builds the app and worker, starts the complete stack, and waits for `/api/health` before reporting success.
+For a public Ubuntu VM, use the checked-in installer. It generates the required secrets, validates the production Compose file, builds the app and worker, starts the complete stack, and waits for `/api/health` before reporting success. It requires a reviewed, exact 40-character Git commit SHA so that it never deploys a floating branch.
 
 ```bash
 cd ~/aakd
 chmod +x scripts/*.sh
-bash scripts/deploy.sh
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/deploy.sh
 ```
 
 Before running it:
@@ -109,10 +109,10 @@ Before running it:
 
 The installer can run without AI, email, or DocuSeal API credentials. Add those values to `.env.prod` and restart the relevant services when you need those features. Keep `.env.prod` private and backed up separately from the repository.
 
-To update an existing deployment:
+To update an existing deployment, use a new reviewed commit SHA:
 
 ```bash
-bash scripts/update.sh
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
 ```
 
 To check service health and create a downloadable database backup:
@@ -121,6 +121,11 @@ To check service health and create a downloadable database backup:
 bash scripts/doctor.sh
 bash scripts/backup.sh
 ```
+
+The bundled scheduled backup retains PostgreSQL dumps on the same host for
+seven days. It does not cover MinIO contract files, DocuSeal data, or
+`.env.prod`; configure encrypted off-host copies and complete a restore drill
+before describing recovery as verified.
 
 Restore requires both an explicit flag and typing `RESTORE` because it replaces the current database schema:
 
@@ -260,8 +265,9 @@ To run AI features entirely on your own hardware with no external API calls:
 To update to a new version:
 
 ```bash
-# Pull the latest code
-git pull origin main
+# Fetch and check out one reviewed release commit
+git fetch --prune origin
+git checkout --detach <reviewed-40-character-commit-sha>
 
 # Rebuild and restart containers
 docker compose pull
@@ -336,6 +342,13 @@ Set `REDIS_PASSWORD` in `.env` for production deployments. Do not expose Redis p
 ### DocuSeal webhook secret
 
 Always set `DOCUSEAL_WEBHOOK_SECRET` in production. Without it, the webhook handler rejects incoming requests and signing status updates will not be processed.
+
+### OpenTelemetry
+
+The production Compose stack does not include an OpenTelemetry collector. Keep
+`OTEL_ENABLED=false` unless you provide an OTLP endpoint reachable from both
+the app and worker containers. The default service names are `clauseflow-app`
+and `clauseflow-worker`.
 
 ---
 

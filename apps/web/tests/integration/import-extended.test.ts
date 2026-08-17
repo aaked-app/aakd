@@ -865,6 +865,7 @@ describe("POST /api/import/[jobId]/retry", () => {
       { params: { jobId: "job-failed" } },
     )
     expect(res.status).toBe(202)
+    expect(prisma.$transaction).toHaveBeenCalledOnce()
     const body = await res.json()
     expect(body.jobId).toBe("job-failed")
     expect(prisma.importJob.updateMany).toHaveBeenCalledWith(

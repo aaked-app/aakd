@@ -743,9 +743,27 @@ export default function ContractDetailPage() {
         toast.error(body?.error ?? "Failed to analyze risk")
         return
       }
-      const rd = await res.json()
-      setRiskData(rd)
-      toast.success("Risk analysis complete")
+      const queued = await res.json()
+      if (res.status !== 202 || !queued.jobId) {
+        setRiskData(queued)
+        toast.success("Risk analysis complete")
+        return
+      }
+
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const poll = await fetch(`/api/contracts/${id}/risk-score?jobId=${encodeURIComponent(queued.jobId)}`)
+        const result = await poll.json().catch(() => ({}))
+        if (result.state === "completed") {
+          setRiskData(result)
+          toast.success("Risk analysis complete")
+          return
+        }
+        if (result.state === "failed" || result.state === "not_found") {
+          throw new Error(result.reason ?? "Risk analysis failed")
+        }
+      }
+      throw new Error("Risk analysis timed out")
     } catch {
       toast.error("Failed to analyze risk")
     } finally {
@@ -793,6 +811,7 @@ export default function ContractDetailPage() {
     APPROVAL_REQUESTABLE_STATUSES.includes(contract.status)
   const isAdminOrOwner = currentMember?.role === "admin" || currentMember?.role === "owner"
   const canManage = currentMember?.role === "admin" || currentMember?.role === "legal" || currentMember?.role === "owner"
+  const canAnalyzeRisk = canManage
   const requestedTab = searchParams.get("tab")
   const initialTab =
     isContractTabValue(requestedTab) && (requestedTab !== "signing" || signingEnabled)
@@ -1867,22 +1886,20 @@ export default function ContractDetailPage() {
                     Analyze this contract to get a full risk breakdown across 6 categories.
                   </p>
                 </div>
-                <Button
-                  onClick={analyzeRisk}
-                  disabled={analyzingRisk || !contract.hasExtractedText}
-                >
-                  {analyzingRisk ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Analyzing…
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="size-4" />
-                      Analyze Risk
-                    </>
-                  )}
-                </Button>
+                {canAnalyzeRisk ? (
+                  <Button
+                    onClick={analyzeRisk}
+                    disabled={analyzingRisk || !contract.hasExtractedText}
+                  >
+                    {analyzingRisk ? (
+                      <><Loader2 className="size-4 animate-spin" />Analyzing…</>
+                    ) : (
+                      <><Shield className="size-4" />Analyze Risk</>
+                    )}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Only legal, admin, or owner members can run risk analysis.</p>
+                )}
                 {!contract.hasExtractedText && (
                   <p className="text-xs text-muted-foreground">Upload a document first to enable risk analysis.</p>
                 )}
@@ -1941,7 +1958,7 @@ export default function ContractDetailPage() {
                       )}
                     </div>
                     <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-                      <Button
+                      {canAnalyzeRisk && <Button
                         size="sm"
                         variant="outline"
                         onClick={analyzeRisk}
@@ -1952,7 +1969,7 @@ export default function ContractDetailPage() {
                         ) : (
                           <><RefreshCw className="size-3.5" /> Re-analyze</>
                         )}
-                      </Button>
+                      </Button>}
                     </div>
                   </div>
 

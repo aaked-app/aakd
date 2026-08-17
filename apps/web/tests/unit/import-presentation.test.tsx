@@ -43,6 +43,24 @@ describe("Import presentation contracts", () => {
     expect(history).toContain("downloadErrorReport")
   })
 
+  it("localizes every import source and progress surface and labels Drive file selection", () => {
+    const files = [
+      "csv-import-tab.tsx",
+      "batch-import-tab.tsx",
+      "pandadoc-tab.tsx",
+      "clm-export-tab.tsx",
+      "import-progress-view.tsx",
+      "dropzone.tsx",
+    ]
+    for (const file of files) {
+      expect(source(`components/import/${file}`), file).toContain("useTranslations")
+    }
+    const drive = source("components/import/gdrive-tab.tsx")
+    expect(drive).toContain('aria-label={t("selectFile", { name: f.name })}')
+    expect(drive).toContain('htmlFor={`drive-file-${f.id}`}')
+    expect(drive).not.toMatch(/text-(left|right)/)
+  })
+
   it("keeps the Import namespace in five-locale parity", () => {
     const catalogs = { en, fr, de, es, ar } as const
     const expected = leafKeys(en.import).sort()

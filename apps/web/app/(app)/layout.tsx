@@ -64,10 +64,10 @@ function getInitials(name: string): string {
 
 // ─── SoonBadge ───────────────────────────────────────────────────────────────
 
-function SoonBadge() {
+function SoonBadge({ label }: { label: string }) {
   return (
-    <span className="ml-auto text-[9px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-      Soon
+    <span className="ms-auto rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+      {label}
     </span>
   )
 }
@@ -78,11 +78,13 @@ function NavItemRow({
   item,
   pathname,
   compactAtTablet,
+  soonLabel,
   onNavigate,
 }: {
   item: NavItem
   pathname: string
   compactAtTablet: boolean
+  soonLabel: string
   onNavigate?: () => void
 }) {
   const Icon = item.icon
@@ -95,14 +97,14 @@ function NavItemRow({
     return (
       <div
         className={cn(
-          "flex min-h-9 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] opacity-40 cursor-not-allowed select-none",
+          "flex min-h-11 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] opacity-40 cursor-not-allowed select-none",
           compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
         )}
         title={item.label}
       >
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
         <span className={cn(compactAtTablet && "md:hidden xl:inline")}>{item.label}</span>
-        <span className={cn("ml-auto", compactAtTablet && "md:hidden xl:inline-flex")}><SoonBadge /></span>
+        <span className={cn("ms-auto", compactAtTablet && "md:hidden xl:inline-flex")}><SoonBadge label={soonLabel} /></span>
       </div>
     )
   }
@@ -114,7 +116,7 @@ function NavItemRow({
       aria-current={isActive ? "page" : undefined}
       title={item.label}
       className={cn(
-        "flex min-h-9 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] transition-colors",
+        "flex min-h-11 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] transition-colors",
         compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
         isActive
           ? "bg-primary/10 text-primary font-semibold"
@@ -140,8 +142,12 @@ function Sidebar({
   orgName,
   onSignOut,
   navSections,
+  navigationLabel,
   searchLabel,
+  signOutLabel,
+  soonLabel,
   themeLabel,
+  userAvatarLabel,
   compactAtTablet = false,
   className,
   onNavigate,
@@ -153,15 +159,19 @@ function Sidebar({
   orgName: string
   onSignOut: () => void
   navSections: NavSection[]
+  navigationLabel: string
   searchLabel: string
+  signOutLabel: string
+  soonLabel: string
   themeLabel: string
+  userAvatarLabel: string
   compactAtTablet?: boolean
   className?: string
   onNavigate?: () => void
 }) {
   return (
     <aside className={cn(
-      "flex h-full w-[232px] shrink-0 flex-col border-r border-border bg-muted rtl:border-l rtl:border-r-0",
+      "flex h-full w-[232px] shrink-0 flex-col border-e border-border bg-muted",
       compactAtTablet && "md:w-16 xl:w-[232px]",
       className,
     )}>
@@ -183,7 +193,7 @@ function Sidebar({
         <button
           type="button"
           className={cn(
-            "flex min-h-9 w-full items-center gap-2 rounded-[calc(var(--radius)-1px)] border border-border bg-background px-[10px] py-2 text-[13px] text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground",
+            "flex min-h-11 w-full items-center gap-2 rounded-[calc(var(--radius)-1px)] border border-border bg-background px-[10px] py-2 text-[13px] text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground",
             compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
           )}
           onClick={() => {
@@ -202,14 +212,14 @@ function Sidebar({
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
+      <nav aria-label={navigationLabel} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
         {navSections.map((section) => (
           <div key={section.title}>
             <p className={cn("px-[10px] pt-[14px] pb-1 text-xs font-semibold tracking-[0.07em] text-muted-foreground uppercase", compactAtTablet && "md:sr-only xl:not-sr-only")}>
               {section.title}
             </p>
             {section.items.map((item) => (
-              <NavItemRow key={item.href} item={item} pathname={pathname} compactAtTablet={compactAtTablet} onNavigate={onNavigate} />
+              <NavItemRow key={item.href} item={item} pathname={pathname} compactAtTablet={compactAtTablet} soonLabel={soonLabel} onNavigate={onNavigate} />
             ))}
           </div>
         ))}
@@ -219,7 +229,7 @@ function Sidebar({
 
       {/* Theme toggle row */}
       <div className={cn("flex items-center gap-2 px-3 py-2 border-t border-border", compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3")}>
-        <ThemeToggle />
+        <ThemeToggle label={themeLabel} />
         <span className={cn("text-xs text-muted-foreground", compactAtTablet && "md:hidden xl:inline")}>{themeLabel}</span>
       </div>
 
@@ -228,7 +238,7 @@ function Sidebar({
         <div className={cn("bg-background border border-border rounded-md p-2 flex items-center gap-2", compactAtTablet && "md:flex-col md:border-0 md:bg-transparent md:p-0 xl:flex-row xl:border xl:bg-background xl:p-2")}>
           {/* Avatar */}
           {userImage ? (
-            <img src={userImage} className="h-7 w-7 rounded-full object-cover shrink-0" alt="avatar" />
+            <img src={userImage} className="h-7 w-7 rounded-full object-cover shrink-0" alt={userAvatarLabel} />
           ) : (
             <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
               <span className="text-[10px] font-bold text-primary">
@@ -249,9 +259,10 @@ function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+            className="size-11 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={onSignOut}
-            title="Sign out"
+            aria-label={signOutLabel}
+            title={signOutLabel}
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
@@ -267,12 +278,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, isPending } = useSession()
-  const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
-  const { data: orgs, isPending: orgsListPending } = useListOrganizations()
+  const {
+    data: activeOrg,
+    error: activeOrgError,
+    isPending: orgPending,
+    refetch: refetchActiveOrganization,
+  } = useActiveOrganization()
+  const {
+    data: orgs,
+    error: orgsListError,
+    isPending: orgsListPending,
+    refetch: refetchOrganizations,
+  } = useListOrganizations()
   const t = useTranslations("nav")
   const locale = useLocale()
   const ph = usePostHog()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [activationFailure, setActivationFailure] = useState<{
+    organizationId: string
+    userId: string
+  } | null>(null)
+  const firstOrganizationId = orgs?.[0]?.id
+  const sessionUserId = session?.user?.id
 
   const NAV_SECTIONS: NavSection[] = [
     {
@@ -308,9 +335,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // lib/auth/middleware.ts); mirror that here instead of showing a dead-end
   // "no organization" screen to someone who actually has one.
   useEffect(() => {
-    if (orgPending || orgsListPending || activeOrg || !orgs?.length) return
-    organization.setActive({ organizationId: orgs[0].id }).catch(() => {})
-  }, [orgPending, orgsListPending, activeOrg, orgs])
+    if (
+      isPending ||
+      !sessionUserId ||
+      orgPending ||
+      activeOrgError ||
+      orgsListPending ||
+      orgsListError ||
+      activeOrg ||
+      !firstOrganizationId ||
+      (
+        activationFailure?.organizationId === firstOrganizationId &&
+        activationFailure.userId === sessionUserId
+      )
+    ) return
+
+    let cancelled = false
+    organization.setActive({ organizationId: firstOrganizationId })
+      .then((result) => {
+        if (!cancelled && result?.error) {
+          setActivationFailure({ organizationId: firstOrganizationId, userId: sessionUserId })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivationFailure({ organizationId: firstOrganizationId, userId: sessionUserId })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isPending,
+    sessionUserId,
+    orgPending,
+    activeOrgError,
+    orgsListPending,
+    orgsListError,
+    activeOrg,
+    firstOrganizationId,
+    activationFailure,
+  ])
 
   // Identify authenticated user in PostHog so events are tied to real people
   useEffect(() => {
@@ -326,7 +392,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // While activeOrg is null but the org list hasn't resolved yet (or has, and
   // the auto-activate effect above just fired), keep showing the skeleton
   // rather than flashing the "no organization" screen.
-  const resolvingOrg = !activeOrg && (orgsListPending || Boolean(orgs?.length))
+  const activationError = !activeOrg &&
+    activationFailure?.organizationId === firstOrganizationId &&
+    activationFailure?.userId === sessionUserId
+  const organizationResolutionError = !activeOrg && Boolean(
+    activeOrgError || orgsListError || activationError
+  )
+  const resolvingOrg = !activeOrg && !organizationResolutionError && (
+    orgsListPending || Boolean(orgs?.length)
+  )
+
+  const retryOrganizationResolution = () => {
+    setActivationFailure(null)
+    void refetchActiveOrganization()
+    void refetchOrganizations()
+  }
+
+  if (!isPending && session?.user && organizationResolutionError) {
+    return (
+      <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
+        <AakdLogoMark size={36} />
+        <div className="space-y-1.5 text-center">
+          <h1 className="text-lg font-semibold text-foreground">{t("organizationLoadErrorTitle")}</h1>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            {t("organizationLoadErrorDescription")}
+          </p>
+        </div>
+        <Button variant="outline" onClick={retryOrganizationResolution}>
+          {t("retryOrganization")}
+        </Button>
+      </main>
+    )
+  }
 
   if (isPending || orgPending || resolvingOrg) {
     return (
@@ -348,23 +445,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // accept-invitation can resolve naturally.
   if (!activeOrg) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 gap-6">
+      <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
         <AakdLogoMark size={36} />
         <div className="text-center space-y-1.5">
-          <h1 className="text-lg font-semibold text-foreground">No organization yet</h1>
+          <h1 className="text-lg font-semibold text-foreground">{t("noOrganizationTitle")}</h1>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Create a new organization or accept an email invitation from your team.
+            {t("noOrganizationDescription")}
           </p>
         </div>
         <div className="flex flex-col items-center gap-3 w-full max-w-xs">
           <Button className="w-full" onClick={() => router.push("/create-org")}>
-            Create organization
+            {t("createOrganization")}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Waiting for an invite? Check your email and click the invitation link.
+            {t("invitationHint")}
           </p>
         </div>
-      </div>
+      </main>
     )
   }
 
@@ -378,13 +475,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted px-3 md:hidden">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger
-            render={<Button variant="ghost" size="icon" className="-ms-1" />}
+            render={<Button variant="ghost" size="icon" className="-ms-1 size-11" aria-label={t("openNavigation")} />}
           >
             <Menu className="size-5" />
-            <span className="sr-only">Aakd</span>
+            <span className="sr-only">{t("openNavigation")}</span>
           </SheetTrigger>
           <SheetContent
             side={locale === "ar" ? "right" : "left"}
+            closeLabel={t("closeNavigation")}
             className="w-[min(19rem,88vw)] gap-0 border-border bg-muted p-0 text-foreground"
           >
             <SheetTitle className="sr-only">Aakd</SheetTitle>
@@ -396,9 +494,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               orgName={orgName}
               onSignOut={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
               navSections={NAV_SECTIONS}
+              navigationLabel={t("mobileNavigation")}
               searchLabel={t("search")}
+              signOutLabel={t("signOut")}
+              soonLabel={t("soon")}
               themeLabel={t("theme")}
-              className="w-full border-r-0"
+              userAvatarLabel={t("userAvatar")}
+              className="w-full border-e-0"
               onNavigate={() => setMobileNavOpen(false)}
             />
           </SheetContent>
@@ -420,8 +522,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
         }
         navSections={NAV_SECTIONS}
+        navigationLabel={t("primaryNavigation")}
         searchLabel={t("search")}
+        signOutLabel={t("signOut")}
+        soonLabel={t("soon")}
         themeLabel={t("theme")}
+        userAvatarLabel={t("userAvatar")}
         compactAtTablet
         className="hidden md:flex"
       />

@@ -107,7 +107,7 @@ export function CsvImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
       const label = t(`fields.${f}`)
       return `${h} → ${label}`
     })
-  }, [preview, mapping])
+  }, [preview, mapping, t])
 
   if (step === "upload") {
     return (

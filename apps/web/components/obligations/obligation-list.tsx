@@ -14,11 +14,14 @@ import type { Obligation, ObligationStatus } from "./types"
 import type { OrgMember } from "@/lib/types"
 
 interface AISuggestion {
+  id?: string
   title: string
   description?: string
   clauseReference?: string
+  sourceText?: string | null
+  sourcePage?: number | null
   priority: "HIGH" | "MEDIUM" | "LOW"
-  suggestedDueDays: number
+  suggestedDueDays: number | null
   confidence: number
 }
 
@@ -80,6 +83,7 @@ export function ObligationList({
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
   const [reviewingIdx, setReviewingIdx] = useState<number | null>(null)
   const extractionRequestRef = useRef(false)
+  const autoExtractionAttemptedRef = useRef(false)
   const [jobId, setJobId] = useState<string | null>(() => {
     // Hydrate from localStorage on mount — survives navigation
     if (typeof window === "undefined") return null
@@ -206,6 +210,23 @@ export function ObligationList({
     }
   }
 
+  // Once the uploaded file has been converted to text, proactively prepare
+  // obligation suggestions. Suggestions remain review-only: nothing is
+  // written to the obligation ledger until the user reviews and saves one.
+  useEffect(() => {
+    if (
+      autoExtractionAttemptedRef.current ||
+      !hasExtractedText ||
+      !hasContractFile ||
+      obligations.length > 0 ||
+      jobId
+    ) {
+      return
+    }
+    autoExtractionAttemptedRef.current = true
+    void extractWithAI()
+  }, [hasExtractedText, hasContractFile, obligations.length, jobId])
+
   function openEdit(ob: Obligation) {
     setEditing(ob)
     setSheetOpen(true)
@@ -222,14 +243,17 @@ export function ObligationList({
   const reviewInitialValues = useMemo(() => {
     if (reviewingIdx === null || !suggestions[reviewingIdx]) return undefined
     const suggestion = suggestions[reviewingIdx]
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + Math.max(suggestion.suggestedDueDays ?? 30, 1))
+    const suggestedDueDays = suggestion.suggestedDueDays
+    const dueDate = suggestedDueDays === null ? null : new Date()
+    if (dueDate && suggestedDueDays !== null) dueDate.setDate(dueDate.getDate() + Math.max(suggestedDueDays, 1))
     return {
       title: suggestion.title,
       description: suggestion.description ?? "",
       clauseReference: suggestion.clauseReference ?? "",
       priority: suggestion.priority,
-      dueDate: dueDate.toISOString().slice(0, 10),
+      // An inferred date is never silently invented. The reviewer must choose
+      // one when the contract does not provide a usable deadline.
+      dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : "",
       reminderDays: 7,
     }
   }, [reviewingIdx, suggestions])
@@ -411,14 +435,20 @@ export function ObligationList({
             {suggestions.map((s, idx) => {
               const dismissed = dismissedIds.has(idx)
               if (dismissed) return null
-              const dueDate = new Date()
-              dueDate.setDate(dueDate.getDate() + Math.max(s.suggestedDueDays ?? 30, 1))
+              const suggestedDueDays = s.suggestedDueDays
+              const dueDate = suggestedDueDays === null ? null : new Date()
+              if (dueDate && suggestedDueDays !== null) dueDate.setDate(dueDate.getDate() + Math.max(suggestedDueDays, 1))
               return (
                 <div key={idx} className="rounded-[var(--radius)] border border-border bg-card p-3 flex items-start gap-3">
                   <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", PRIORITY_DOT[s.priority])} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{s.title}</p>
                     {s.description && <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>}
+                    {s.sourceText && (
+                      <p className="mt-1 line-clamp-2 border-s-2 border-primary/30 ps-2 text-[11px] italic text-muted-foreground">
+                        “{s.sourceText}”{s.sourcePage ? ` · p. ${s.sourcePage}` : ""}
+                      </p>
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
                       {s.clauseReference && <span>{s.clauseReference}</span>}
                       <span
@@ -433,7 +463,7 @@ export function ObligationList({
                       >
                         {Math.round(s.confidence * 100)}% confidence
                       </span>
-                      <span>Due ~{format(dueDate, "MMM d, yyyy")}</span>
+                      <span>{dueDate ? `Due ~${format(dueDate, "MMM d, yyyy")}` : "Date needs review"}</span>
                       <span className="capitalize">{s.priority.toLowerCase()} priority</span>
                     </div>
                   </div>
@@ -625,6 +655,7 @@ export function ObligationList({
         contractId={contractId}
         members={members}
         obligation={editing}
+        suggestionId={reviewingIdx !== null ? suggestions[reviewingIdx]?.id : undefined}
         initialValues={reviewInitialValues}
         onSaved={(saved) => {
           applyChange(saved)

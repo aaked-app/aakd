@@ -14,40 +14,39 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const importJobModel = prisma.importJob
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!importJobModel) {
-      return Response.json({ error: "Not Found" }, { status: 404 })
-    }
+    const claim = await prisma.$transaction(async (tx) => {
+      const job = await tx.importJob.findUnique({
+        where: { id: params.jobId },
+        select: { id: true, organizationId: true, status: true, failedRows: true, completedAt: true },
+      })
+      if (!job || job.organizationId !== ctx.organizationId) {
+        return { error: "Not Found" as const, status: 404 as const }
+      }
+      if (job.status !== "COMPLETED" && job.status !== "FAILED") {
+        return { error: "job_not_finished" as const, status: 422 as const }
+      }
+      if (job.failedRows < 1) {
+        return { error: "no_failed_rows" as const, status: 422 as const }
+      }
 
-    const job = await importJobModel.findUnique({
-      where: { id: params.jobId },
-      select: { id: true, organizationId: true, status: true, failedRows: true, completedAt: true },
+      const claimed = await tx.importJob.updateMany({
+        where: {
+          id: job.id,
+          organizationId: ctx.organizationId,
+          status: { in: ["COMPLETED", "FAILED"] },
+          failedRows: { gt: 0 },
+        },
+        data: { status: "PENDING", startedAt: null, completedAt: null },
+      })
+      if (claimed.count !== 1) {
+        return { error: "retry_already_queued" as const, status: 409 as const }
+      }
+      return { job }
     })
-    if (!job || job.organizationId !== ctx.organizationId) {
-      return Response.json({ error: "Not Found" }, { status: 404 })
+    if ("error" in claim) {
+      return Response.json({ error: claim.error }, { status: claim.status })
     }
-
-    if (job.status !== "COMPLETED" && job.status !== "FAILED") {
-      return Response.json({ error: "job_not_finished" }, { status: 422 })
-    }
-    if (job.failedRows < 1) {
-      return Response.json({ error: "no_failed_rows" }, { status: 422 })
-    }
-
-    const claimed = await importJobModel.updateMany({
-      where: {
-        id: job.id,
-        organizationId: ctx.organizationId,
-        status: { in: ["COMPLETED", "FAILED"] },
-        failedRows: { gt: 0 },
-      },
-      data: { status: "PENDING", startedAt: null, completedAt: null },
-    })
-    if (claimed.count !== 1) {
-      return Response.json({ error: "retry_already_queued" }, { status: 409 })
-    }
+    const { job } = claim
 
     try {
       await enqueueImportProcess({
@@ -57,7 +56,7 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
       })
     } catch (err) {
       logger.error({ err, importJobId: job.id }, "[import.retry] enqueue failed")
-      await importJobModel.updateMany({
+      await prisma.importJob.updateMany({
         where: { id: job.id, organizationId: ctx.organizationId, status: "PENDING" },
         data: { status: job.status, completedAt: job.completedAt },
       })

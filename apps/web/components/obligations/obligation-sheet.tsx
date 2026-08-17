@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { toast } from "sonner"
 import {
   X,
@@ -11,14 +11,12 @@ import {
   Bell,
   AlignLeft,
   Type,
-  Check,
-  ChevronDown,
   Bookmark,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import type { Obligation, ObligationPriority } from "./types"
 import type { OrgMember } from "@/lib/types"
@@ -26,11 +24,11 @@ import type { OrgMember } from "@/lib/types"
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const REMINDER_OPTIONS = [
-  { value: 1,  label: "1d" },
-  { value: 3,  label: "3d" },
-  { value: 7,  label: "7d" },
-  { value: 14, label: "14d" },
-  { value: 30, label: "30d" },
+  1,
+  3,
+  7,
+  14,
+  30,
 ] as const
 
 const UNASSIGNED = "__none__"
@@ -90,41 +88,20 @@ function SectionLabel({
   icon: Icon,
   label,
   required,
+  htmlFor,
 }: {
   icon: React.ElementType
   label: string
   required?: boolean
+  htmlFor?: string
 }) {
   return (
     <div className="flex items-center gap-1.5 mb-2">
       <Icon className="h-3.5 w-3.5 text-muted-foreground/50" />
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+      <label htmlFor={htmlFor} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
         {label}
-        {required && <span className="ml-0.5 text-rose-400">*</span>}
-      </span>
-    </div>
-  )
-}
-
-function memberInitials(m: OrgMember): string {
-  const name = m.user.name ?? m.user.email
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
-}
-
-function MemberAvatar({ initials, size = "md" }: { initials: string; size?: "sm" | "md" }) {
-  return (
-    <div
-      className={cn(
-        "shrink-0 flex items-center justify-center rounded-full bg-primary/10 font-semibold text-primary",
-        size === "sm" ? "h-5 w-5 text-[9px]" : "h-7 w-7 text-[11px]",
-      )}
-    >
-      {initials}
+        {required && <span className="ms-0.5 text-rose-400" aria-hidden="true">*</span>}
+      </label>
     </div>
   )
 }
@@ -140,115 +117,18 @@ function AssigneePicker({
   members: OrgMember[]
   onChange: (id: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const selected = members.find((m) => m.userId === value) ?? null
-
-  useEffect(() => {
-    if (!open) return
-    function onPointer(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("pointerdown", onPointer)
-    return () => document.removeEventListener("pointerdown", onPointer)
-  }, [open])
-
-  return (
-    <div className="relative" ref={ref}>
-      {/* Trigger */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "w-full flex items-center gap-2.5 rounded-lg border bg-background px-3 py-2.5 text-sm transition-all",
-          open
-            ? "border-primary ring-2 ring-primary/20"
-            : "border-input hover:border-muted-foreground/40",
-        )}
-      >
-        {selected ? (
-          <>
-            <MemberAvatar initials={memberInitials(selected)} />
-            <span className="flex-1 text-left font-medium">
-              {selected.user.name ?? selected.user.email}
-            </span>
-            {selected.user.name && (
-              <span className="text-xs text-muted-foreground hidden sm:block">
-                {selected.user.email}
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/30">
-              <User className="h-3.5 w-3.5 text-muted-foreground/40" />
-            </div>
-            <span className="flex-1 text-left text-muted-foreground">Unassigned</span>
-          </>
-        )}
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-20 bg-background border border-border rounded-lg shadow-lg overflow-hidden">
-          {/* Unassigned row */}
-          <button
-            type="button"
-            onClick={() => {
-              onChange(UNASSIGNED)
-              setOpen(false)
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-muted/60 transition-colors"
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/30">
-              <User className="h-3.5 w-3.5 text-muted-foreground/40" />
-            </div>
-            <span className="flex-1 text-left text-muted-foreground">Unassigned</span>
-            {value === UNASSIGNED && (
-              <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-            )}
-          </button>
-
-          {members.length > 0 && (
-            <div className="mx-3 border-t border-border" />
-          )}
-
-          <div className="max-h-48 overflow-y-auto">
-            {members.map((m) => (
-              <button
-                key={m.userId}
-                type="button"
-                onClick={() => {
-                  onChange(m.userId)
-                  setOpen(false)
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-muted/60 transition-colors"
-              >
-                <MemberAvatar initials={memberInitials(m)} />
-                <div className="flex-1 text-left min-w-0">
-                  <p className="font-medium truncate">{m.user.name ?? m.user.email}</p>
-                  {m.user.name && (
-                    <p className="text-xs text-muted-foreground truncate">{m.user.email}</p>
-                  )}
-                </div>
-                {value === m.userId && (
-                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  const t = useTranslations("obligationDetail")
+  return <select
+    id="obligation-assignee"
+    value={value}
+    onChange={(event) => onChange(event.target.value)}
+    className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
+  >
+    <option value={UNASSIGNED}>{t("unassigned")}</option>
+    {members.map((member) => <option key={member.userId} value={member.userId}>
+      {member.user.name ?? member.user.email}{member.user.name ? ` — ${member.user.email}` : ""}
+    </option>)}
+  </select>
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -258,7 +138,9 @@ interface Props {
   onOpenChange: (open: boolean) => void
   contractId: string
   obligation: Obligation | null
+  suggestionId?: string
   members: OrgMember[]
+  onSaveStart?: () => void
   onSaved: (obligation: Obligation) => void
   initialValues?: Partial<FormState>
 }
@@ -268,11 +150,14 @@ export function ObligationSheet({
   onOpenChange,
   contractId,
   obligation,
+  suggestionId,
   members,
+  onSaveStart,
   onSaved,
   initialValues,
 }: Props) {
-  const t = useTranslations("obligations")
+  const t = useTranslations("obligationDetail")
+  const locale = useLocale()
   const PRIORITY_OPTIONS: { value: ObligationPriority; label: string; dot: string; pill: string }[] = [
     { value: "LOW",    label: t("priority.LOW"),    ...PRIORITY_STYLE.LOW },
     { value: "MEDIUM", label: t("priority.MEDIUM"), ...PRIORITY_STYLE.MEDIUM },
@@ -298,11 +183,11 @@ export function ObligationSheet({
     // create duplicate obligations.
     if (saveRequestRef.current) return
     if (!form.title.trim()) {
-      toast.error("Title is required")
+      toast.error(t("titleRequired"))
       return
     }
     if (!form.dueDate) {
-      toast.error("Due date is required")
+      toast.error(t("dueDateRequired"))
       return
     }
 
@@ -317,6 +202,7 @@ export function ObligationSheet({
         dueDate: new Date(`${form.dueDate}T00:00:00.000Z`).toISOString(),
         reminderDays: form.reminderDays,
         assigneeId: form.assigneeId === UNASSIGNED ? undefined : form.assigneeId,
+        suggestionId,
       }
 
       const url = obligation
@@ -326,6 +212,7 @@ export function ObligationSheet({
 
       if (obligation && form.assigneeId === UNASSIGNED) body.assigneeId = null
 
+      onSaveStart?.()
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -335,21 +222,23 @@ export function ObligationSheet({
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         if (err?.error === "obligation_limit_reached") {
-          toast.error("Maximum 100 active obligations per contract")
+          toast.error(t("obligationLimitError"))
         } else if (err?.error === "contract_archived") {
-          toast.error("Cannot add obligations to an archived contract")
+          toast.error(t("archivedContractError"))
         } else if (err?.error === "invalid_assignee") {
-          toast.error("Selected assignee is not a member of this organization")
+          toast.error(t("invalidAssigneeError"))
         } else {
-          toast.error(obligation ? "Failed to update obligation" : "Failed to create obligation")
+          toast.error(t(obligation ? "updateError" : "createError"))
         }
         return
       }
 
       const saved = await res.json()
       onSaved(saved)
-      toast.success(obligation ? "Obligation updated" : "Obligation created")
+      toast.success(t(obligation ? "updateSuccess" : "createSuccess"))
       onOpenChange(false)
+    } catch {
+      toast.error(t(obligation ? "updateError" : "createError"))
     } finally {
       saveRequestRef.current = false
       setSaving(false)
@@ -360,24 +249,25 @@ export function ObligationSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col w-full gap-0 p-0 sm:max-w-lg">
+      <SheetContent showCloseButton={false} className="flex flex-col w-full gap-0 p-0 sm:max-w-lg">
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
           <div>
-            <p className="text-[15px] font-semibold text-foreground">
-              {isEditing ? "Edit Obligation" : "New Obligation"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <SheetTitle className="text-[15px] font-semibold text-foreground">
+              {t(isEditing ? "editTitle" : "newTitle")}
+            </SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground mt-0.5">
               {isEditing
-                ? "Update the details below and save."
-                : "Track a commitment or deliverable from this contract."}
-            </p>
+                ? t("editSubtitle")
+                : t("newSubtitle")}
+            </SheetDescription>
           </div>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
             onClick={() => onOpenChange(false)}
+            aria-label={t("closeEditor")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -388,47 +278,57 @@ export function ObligationSheet({
 
           {/* Title */}
           <div>
-            <SectionLabel icon={Type} label="Title" required />
+            <SectionLabel icon={Type} label={t("titleField")} htmlFor="obligation-title" required />
             <Input
+              id="obligation-title"
+              aria-label={t("titleField")}
+              required
               value={form.title}
               maxLength={300}
               onChange={(e) => update("title", e.target.value)}
-              placeholder="e.g. Submit quarterly compliance report"
-              className="h-10 text-sm"
+              placeholder={t("titlePlaceholder")}
+              className="min-h-11 text-sm"
             />
           </div>
 
           {/* Description */}
           <div>
-            <SectionLabel icon={AlignLeft} label="Description" />
+            <SectionLabel icon={AlignLeft} label={t("description")} htmlFor="obligation-description" />
             <Textarea
+              id="obligation-description"
               rows={3}
               value={form.description}
               maxLength={2000}
               onChange={(e) => update("description", e.target.value)}
-              placeholder="Optional context for whoever owns this obligation…"
+              placeholder={t("descriptionPlaceholder")}
               className="text-sm resize-none"
             />
           </div>
 
           {/* Priority */}
           <div>
-            <SectionLabel icon={Tag} label="Priority" />
-            <div className="flex gap-2">
+            <SectionLabel icon={Tag} label={t("priority")} />
+            <div className="flex gap-2" role="radiogroup" aria-label={t("priority")}>
               {PRIORITY_OPTIONS.map((opt) => (
-                <button
+                <label
                   key={opt.value}
-                  type="button"
                   data-active={form.priority === opt.value}
-                  onClick={() => update("priority", opt.value)}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 rounded-lg border py-2.5 text-xs font-semibold transition-all",
+                    "flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2.5 text-xs font-semibold transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1",
                     opt.pill,
                   )}
                 >
+                  <input
+                    type="radio"
+                    name="obligation-priority"
+                    value={opt.value}
+                    checked={form.priority === opt.value}
+                    onChange={() => update("priority", opt.value)}
+                    className="sr-only"
+                  />
                   <span className={cn("h-1.5 w-1.5 rounded-full", opt.dot)} />
                   {opt.label}
-                </button>
+                </label>
               ))}
             </div>
           </div>
@@ -436,39 +336,47 @@ export function ObligationSheet({
           <div className="border-t border-border/60" />
 
           {/* Due date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <SectionLabel icon={CalendarDays} label="Due Date" required />
+              <SectionLabel icon={CalendarDays} label={t("dueDate")} htmlFor="obligation-due-date" required />
               <Input
+                id="obligation-due-date"
+                aria-label={t("dueDate")}
                 type="date"
+                required
                 value={form.dueDate}
                 onChange={(e) => update("dueDate", e.target.value)}
-                className="h-10 text-sm"
+                className="min-h-11 text-sm"
               />
             </div>
             <div>
-              <SectionLabel icon={Bell} label="Remind me" />
-              <div className="flex gap-1.5">
-                {REMINDER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => update("reminderDays", opt.value)}
+              <SectionLabel icon={Bell} label={t("reminder")} />
+              <div className="flex gap-1.5" role="radiogroup" aria-label={t("reminder")}>
+                {REMINDER_OPTIONS.map((days) => (
+                  <label
+                    key={days}
                     className={cn(
-                      "flex-1 rounded-lg border py-2 text-xs font-medium transition-all",
-                      form.reminderDays === opt.value
+                      "flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border py-2 text-xs font-medium transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1",
+                      form.reminderDays === days
                         ? "border-primary bg-primary/5 text-primary shadow-sm"
                         : "border-input bg-background text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground",
                     )}
                   >
-                    {opt.label}
-                  </button>
+                    <input
+                      type="radio"
+                      name="obligation-reminder"
+                      value={days}
+                      checked={form.reminderDays === days}
+                      onChange={() => update("reminderDays", days)}
+                      className="sr-only"
+                    />
+                    {t(days === 1 ? "reminderOptionOne" : "reminderOptionMany", { count: days })}
+                  </label>
                 ))}
               </div>
               {obligation?.reminderSentAt && (
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Reminder sent{" "}
-                  {new Date(obligation.reminderSentAt).toLocaleDateString("en-US", {
+                  {t("reminderSent")} {new Date(obligation.reminderSentAt).toLocaleDateString(locale, {
                     month: "short",
                     day: "numeric",
                   })}
@@ -481,7 +389,7 @@ export function ObligationSheet({
 
           {/* Assignee */}
           <div>
-            <SectionLabel icon={User} label="Assignee" />
+            <SectionLabel icon={User} label={t("assignee")} htmlFor="obligation-assignee" />
             <AssigneePicker
               value={form.assigneeId}
               members={members}
@@ -491,13 +399,14 @@ export function ObligationSheet({
 
           {/* Clause reference */}
           <div>
-            <SectionLabel icon={Bookmark} label="Clause Reference" />
+            <SectionLabel icon={Bookmark} label={t("clauseReference")} htmlFor="obligation-clause-reference" />
             <Input
+              id="obligation-clause-reference"
               value={form.clauseReference}
               maxLength={200}
               onChange={(e) => update("clauseReference", e.target.value)}
-              placeholder="e.g. Section 4.2"
-              className="h-10 text-sm"
+              placeholder={t("clauseReferencePlaceholder")}
+              className="min-h-11 text-sm"
             />
           </div>
 
@@ -510,17 +419,17 @@ export function ObligationSheet({
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={saving}
-            className="min-w-[80px]"
+            className="min-h-11 min-w-[80px]"
           >
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             size="sm"
             onClick={save}
             disabled={saving}
-            className="min-w-[120px]"
+            className="min-h-11 min-w-[120px]"
           >
-            {saving ? "Saving…" : isEditing ? "Save Changes" : "Create Obligation"}
+            {saving ? t("saving") : isEditing ? t("saveChanges") : t("createObligation")}
           </Button>
         </div>
 

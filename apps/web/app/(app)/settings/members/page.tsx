@@ -115,11 +115,11 @@ export default function MembersPage() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         const msg: Record<string, string> = {
-          already_member: "This person is already a member.",
-          already_invited: "An active invitation already exists for this email.",
-          cannot_invite_higher_role: "You can't invite someone to a higher role than your own.",
+          already_member: t("alreadyMember"),
+          already_invited: t("alreadyInvited"),
+          cannot_invite_higher_role: t("cannotInviteHigherRole"),
         }
-        toast.error(msg[body?.error] ?? body?.error ?? "Failed to send invitation")
+        toast.error(msg[body?.error] ?? t("failedToInvite"))
         return
       }
       toast.success(t("inviteSent", { email: inviteEmail }))
@@ -143,11 +143,11 @@ export default function MembersPage() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         const msg: Record<string, string> = {
-          cannot_demote_last_admin: "Can't change — this is the last admin",
-          cannot_demote_last_owner: "Can't change — this is the last owner",
-          Forbidden: "Only an owner can change another owner's role",
+          cannot_demote_last_admin: t("cannotDemoteLastAdmin"),
+          cannot_demote_last_owner: t("cannotDemoteLastOwner"),
+          Forbidden: t("ownerRoleRequired"),
         }
-        toast.error(msg[body?.error] ?? body?.error ?? t("failedToChangeRole"))
+        toast.error(msg[body?.error] ?? t("failedToChangeRole"))
         return
       }
       toast.success(t("roleUpdated"))
@@ -166,8 +166,7 @@ export default function MembersPage() {
     try {
       const res = await fetch(`/api/org/members/${memberId}`, { method: "DELETE" })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        toast.error(body?.error ?? t("failedToRemove"))
+        toast.error(t("failedToRemove"))
         return
       }
       toast.success(t("removed", { name: memberName }))
@@ -182,8 +181,7 @@ export default function MembersPage() {
     try {
       const res = await fetch(`/api/org/invitations/${invitationId}`, { method: "POST" })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        toast.error(body?.error ?? t("failedToResend"))
+        toast.error(t("failedToResend"))
         return
       }
       toast.success(t("inviteResent", { email }))
@@ -226,7 +224,7 @@ export default function MembersPage() {
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         {canManageMembers && (
-          <Button onClick={() => setShowInviteModal(true)}>
+          <Button className="min-h-11" onClick={() => setShowInviteModal(true)}>
             <UserPlus className="h-4 w-4 me-2" />
             {t("inviteMember")}
           </Button>
@@ -278,7 +276,7 @@ export default function MembersPage() {
                         value={m.role}
                         onValueChange={(v) => v != null && changeRole(m.id, v)}
                       >
-                        <SelectTrigger aria-label={t("actions.changeRole")} className="h-7 w-28 text-xs">
+                        <SelectTrigger aria-label={t("actions.changeRole")} className="min-h-11 w-28 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -305,8 +303,8 @@ export default function MembersPage() {
                         aria-label={t("actions.removeMember")}
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                        title="Remove member"
+                        className="min-h-11 min-w-11 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                        title={t("actions.removeMember")}
                         onClick={() => removeMember(m.id, m.user.name)}
                       >
                         <UserMinus className="h-4 w-4" />
@@ -380,8 +378,8 @@ export default function MembersPage() {
                           aria-label={t("actions.resendInvitation")}
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-primary"
-                          title="Resend invitation"
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-primary"
+                          title={t("actions.resendInvitation")}
                           disabled={resendingId === inv.id}
                           onClick={() => resendInvitation(inv.id, inv.email)}
                         >
@@ -391,8 +389,8 @@ export default function MembersPage() {
                           aria-label={t("actions.cancelInvitation")}
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                          title="Cancel invitation"
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          title={t("actions.cancelInvitation")}
                           onClick={() => cancelInvitation(inv.id, inv.email)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -464,7 +462,8 @@ export default function MembersPage() {
               <Input
                 id="inviteEmail"
                 type="email"
-                placeholder="colleague@example.com"
+                placeholder={t("emailPlaceholder")}
+                className="min-h-11"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 required
@@ -475,7 +474,7 @@ export default function MembersPage() {
                 {t("role")}
               </Label>
               <Select value={inviteRole} onValueChange={(v) => v != null && setInviteRole(v)}>
-                <SelectTrigger id="inviteRole">
+                <SelectTrigger id="inviteRole" className="min-h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

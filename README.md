@@ -10,7 +10,7 @@ obligations, deadlines, approvals, and completion evidence.
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-[Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md)
+[Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md) · [Discord community](https://discord.gg/23hntCVty)
 
 > Aakd is an early open-source release. Customer validation is in progress.
 > It is not a hosted service, legal-advice product, compliance certification,
@@ -88,8 +88,8 @@ for deployment and API documentation.
 ### Start the complete stack
 
 ```bash
-git clone https://github.com/wassimbensalem/aakd-internal.git
-cd aakd-internal
+git clone https://github.com/aaked-app/aakd.git
+cd aakd
 cp .env.example .env
 
 # Generate values and put them in .env
@@ -116,10 +116,10 @@ For a single Ubuntu VM, the production installer configures the web app, worker,
 PostgreSQL, Redis, S3-compatible storage, DocuSeal, Caddy, and backups:
 
 ```bash
-git clone https://github.com/wassimbensalem/aakd-internal.git ~/aakd
+git clone https://github.com/aaked-app/aakd.git ~/aakd
 cd ~/aakd
 chmod +x scripts/*.sh
-bash scripts/deploy.sh
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/deploy.sh
 ```
 
 Point DNS to the server and allow ports 80 and 443 before running the installer.
@@ -127,7 +127,7 @@ Email and AI providers are optional. Do not expose the development Compose
 stack or its default MinIO/Mailpit credentials to the internet.
 
 ```bash
-bash scripts/update.sh                       # update an installation
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh  # update an installation
 bash scripts/doctor.sh                        # diagnose an installation
 bash scripts/backup.sh                        # create a database backup
 bash scripts/restore.sh backups/file.sql.gz --yes-really-restore
@@ -185,6 +185,10 @@ Start with an issue or discussion describing the user problem, the affected
 workflow, and how it can be verified. Keep changes focused and preserve the
 source-linked, human-reviewable contract model. See the repository's issue and
 pull-request templates for project-specific guidance.
+
+For setup questions, implementation discussions, and contributor coordination,
+join the [Aakd Discord community](https://discord.gg/23hntCVty). Please avoid
+sharing real contract data or other confidential information in public channels.
 
 For security vulnerabilities, use the private reporting process in
 [`SECURITY.md`](SECURITY.md) rather than publishing exploit details in an issue.

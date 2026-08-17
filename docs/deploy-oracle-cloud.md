@@ -7,10 +7,10 @@ Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and fr
 ## What you'll get
 
 - Aakd at `https://app.yourdomain.com`
-- DocuSeal (e-signatures) at `https://sign.yourdomain.com`
+- DocuSeal (e-signatures) at `https://sign.app.yourdomain.com`
 - Auto-SSL via Let's Encrypt (Caddy)
-- Daily PostgreSQL backups
-- 4 ARM cores + 24 GB RAM — plenty of headroom
+- Daily PostgreSQL backups retained locally for seven days
+- Up to 2 ARM OCPUs + 12 GB RAM on the current Always Free allocation
 
 ---
 
@@ -33,8 +33,8 @@ Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and fr
    - **Name:** `aakd`
    - **Image:** Ubuntu 22.04 (click "Change Image" → Ubuntu → 22.04 Minimal)
    - **Shape:** Click "Change Shape" → Ampere → `VM.Standard.A1.Flex`
-     - OCPUs: **4**
-     - Memory: **24 GB**
+     - OCPUs: **2**
+     - Memory: **12 GB**
      - *(This is the Always Free allocation)*
 3. **Add SSH key:** Click "Generate a key pair for me" → **Download both keys** → save them somewhere safe
 4. Click **Create**
@@ -54,7 +54,7 @@ Add these DNS records:
 | Type | Name | Value | Proxy |
 |---|---|---|---|
 | A | `app` | `YOUR_VM_IP` | DNS only (gray cloud) |
-| A | `sign` | `YOUR_VM_IP` | DNS only (gray cloud) |
+| A | `sign.app` | `YOUR_VM_IP` | DNS only (gray cloud) |
 
 > ⚠️ Use "DNS only" (not proxied) for the first setup so Caddy can get SSL certificates directly.
 
@@ -99,13 +99,14 @@ cd ~/aakd
 # Make scripts executable
 chmod +x scripts/*.sh
 
-# Run the deploy script
-bash scripts/deploy.sh
+# Run the deploy script with one reviewed immutable release commit
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/deploy.sh
 ```
 
 The script will:
 - Install Docker automatically
 - Ask for a domain and optional email settings
+- Refuse floating branches and deploy only the supplied exact Git commit
 - Auto-generate all passwords and secrets
 - Build Docker images (~5 min first time)
 - Start all services
@@ -124,7 +125,7 @@ The script will:
 
 ## Step 8 — Set up DocuSeal for e-signatures (3 min)
 
-1. Open `https://sign.yourdomain.com`
+1. Open `https://sign.app.yourdomain.com`
 2. Create an admin account
 3. Go to **Settings → API** → copy the API key
 4. Back on your VM, run:
@@ -177,15 +178,18 @@ docker compose -f docker-compose.prod.yml exec db psql -U postgres clauseflow
 
 ## Backups
 
-Backups run automatically every 24 hours. They're stored in a Docker volume.
+Backups run automatically every 24 hours and retain PostgreSQL dumps for seven
+days in a Docker volume on the same host. They do **not** back up MinIO contract
+files, DocuSeal data, or `.env.prod`; copy those to encrypted off-host storage
+and complete a restore drill before relying on this deployment for recovery.
 
 To download a backup:
 ```bash
 # List backups
 docker compose -f docker-compose.prod.yml exec backup ls /backups
 
-# Copy latest backup to your local machine (run from your local machine)
-scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/clauseflow_backups/_data/latest.sql.gz .
+# Copy a timestamped backup shown above to your local machine
+scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/clauseflow_backups/_data/clauseflow-YYYYMMDD-HHMMSS.sql.gz .
 ```
 
 ---
@@ -194,7 +198,7 @@ scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/claus
 
 | Service | Cost |
 |---|---|
-| Oracle Cloud ARM VM (4 CPU, 24 GB) | **$0/month (Always Free)** |
+| Oracle Cloud ARM VM (2 OCPU, 12 GB) | **$0/month (Always Free)** |
 | Oracle Cloud block storage (50 GB) | **$0/month (Always Free)** |
 | Cloudflare (DNS + proxy) | **$0/month** |
 | Email provider (optional) | **$0+ / month** |

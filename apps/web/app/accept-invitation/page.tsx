@@ -7,6 +7,7 @@ import { Shield, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { organization, useSession } from "@/lib/auth/client"
+import { useTranslations } from "next-intl"
 
 type State = "loading" | "accepting" | "success" | "no_id" | "error"
 
@@ -14,6 +15,7 @@ function AcceptInvitationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, isPending: sessionLoading } = useSession()
+  const t = useTranslations("auth.invitation")
   const [state, setState] = useState<State>("loading")
   const [errorMsg, setErrorMsg] = useState<string>("")
   const [orgName, setOrgName] = useState<string>("")
@@ -51,11 +53,11 @@ function AcceptInvitationContent() {
 
         if (!res.ok) {
           const friendlyMessages: Record<string, string> = {
-            already_accepted: "This invitation has already been accepted.",
-            expired: "This invitation link has expired. Ask your admin to send a new one.",
-            email_mismatch: body.message ?? "This invitation was sent to a different email address.",
+            already_accepted: t("alreadyAccepted"),
+            expired: t("expired"),
+            email_mismatch: t("emailMismatch"),
           }
-          setErrorMsg(friendlyMessages[body?.error] ?? body?.error ?? "Failed to accept invitation")
+          setErrorMsg(friendlyMessages[body?.error] ?? t("failed"))
           setState("error")
           return
         }
@@ -78,7 +80,7 @@ function AcceptInvitationContent() {
         setTimeout(() => router.replace("/dashboard"), 1800)
       })
       .catch(() => {
-        setErrorMsg("An unexpected error occurred")
+        setErrorMsg(t("failed"))
         setState("error")
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,52 +96,57 @@ function AcceptInvitationContent() {
           <span className="text-xl font-semibold tracking-tight text-zinc-900">Aakd</span>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-8 shadow-sm text-center">
+        <div
+          aria-busy={state === "loading" || state === "accepting"}
+          className="rounded-lg border border-zinc-200 bg-white p-6 text-center shadow-sm sm:p-8"
+        >
           {(state === "loading" || state === "accepting") && (
-            <>
+            <div role="status" aria-live="polite">
               <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-indigo-500" />
               <h1 className="text-base font-semibold text-zinc-900">
-                {state === "loading" ? "Checking session…" : "Accepting invitation…"}
+                {state === "loading" ? t("checkingSession") : t("accepting")}
               </h1>
-              <p className="mt-1 text-sm text-zinc-500">Just a moment</p>
-            </>
+              <p className="mt-1 text-sm text-zinc-500">{t("justMoment")}</p>
+            </div>
           )}
 
           {state === "success" && (
             <>
               <CheckCircle className="mx-auto mb-4 h-8 w-8 text-green-500" />
-              <h1 className="text-base font-semibold text-zinc-900">You&apos;re in!</h1>
+              <h1 className="text-base font-semibold text-zinc-900">{t("acceptedTitle")}</h1>
               <p className="mt-1 text-sm text-zinc-500">
-                {orgName ? `Welcome to ${orgName}. Redirecting…` : "Invitation accepted. Redirecting to dashboard…"}
+                {orgName ? t("welcome", { organization: orgName }) : t("acceptedRedirect")}
               </p>
             </>
           )}
 
           {state === "error" && (
-            <>
+            <div>
               <XCircle className="mx-auto mb-4 h-8 w-8 text-red-500" />
-              <h1 className="text-base font-semibold text-zinc-900">Couldn&apos;t accept invitation</h1>
-              <p className="mt-1 text-sm text-zinc-500">{errorMsg}</p>
+              <h1 className="text-base font-semibold text-zinc-900">{t("errorTitle")}</h1>
+              <p role="alert" aria-live="assertive" className="mt-1 text-sm text-zinc-500">
+                {errorMsg}
+              </p>
               <div className="mt-6 flex flex-col gap-2">
-                <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-center")}>
-                  Go to dashboard
+                <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }), "min-h-11 w-full justify-center")}>
+                  {t("dashboard")}
                 </Link>
-                <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-full justify-center")}>
-                  Sign in with a different account
+                <Link href="/login" className={cn(buttonVariants({ variant: "ghost" }), "min-h-11 w-full justify-center")}>
+                  {t("differentAccount")}
                 </Link>
               </div>
-            </>
+            </div>
           )}
 
           {state === "no_id" && (
             <>
               <XCircle className="mx-auto mb-4 h-8 w-8 text-zinc-400" />
-              <h1 className="text-base font-semibold text-zinc-900">Invalid invitation link</h1>
+              <h1 className="text-base font-semibold text-zinc-900">{t("invalidTitle")}</h1>
               <p className="mt-1 text-sm text-zinc-500">
-                This link is missing the invitation token. Please use the link from your email.
+                {t("invalidDescription")}
               </p>
-              <Link href="/login" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-6 w-full justify-center")}>
-                Go to sign in
+              <Link href="/login" className={cn(buttonVariants({ variant: "outline" }), "mt-6 min-h-11 w-full justify-center")}>
+                {t("signIn")}
               </Link>
             </>
           )}

@@ -60,6 +60,7 @@ vi.mock("@/lib/notifications/unsubscribe-token", () => ({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { decrypt } from "@/lib/notifications/crypto"
 import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
 import { verifyUnsubscribeToken } from "@/lib/notifications/unsubscribe-token"
 
@@ -456,6 +457,52 @@ describe("GET /api/org/webhooks", () => {
     // Must not expose the full encrypted URL
     expect(w).not.toHaveProperty("url")
   })
+
+  it("returns only the URL origin and never exposes credentials, path, query, or fragment", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(prisma.outboundWebhook.findMany).mockResolvedValueOnce([
+      {
+        id: "webhook-1",
+        url: "enc:https://user:password@hooks.example.com:8443/private/customer?token=secret#fragment",
+        label: "Private hook",
+        enabled: true,
+        createdAt: new Date("2026-01-01"),
+      },
+    ] as any)
+    const { GET } = await import("@/app/api/org/webhooks/route")
+    const res = await GET(new Request("http://localhost/api/org/webhooks"))
+    const body = await res.json()
+
+    expect(body.webhooks[0].urlPreview).toBe("https://hooks.example.com:8443")
+    expect(JSON.stringify(body)).not.toMatch(/user|password|private|customer|token|secret|fragment/)
+  })
+
+  it("uses a fixed unavailable preview when a decrypted URL cannot be parsed", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(prisma.outboundWebhook.findMany).mockResolvedValueOnce([
+      { ...mockWebhook, url: "enc:not a URL" },
+    ] as any)
+    const { GET } = await import("@/app/api/org/webhooks/route")
+    const res = await GET(new Request("http://localhost/api/org/webhooks"))
+    const body = await res.json()
+
+    expect(body.webhooks[0].urlPreview).toBe("(unavailable)")
+  })
+
+  it("uses the fixed unavailable preview when decryption fails without exposing stored ciphertext", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(decrypt).mockImplementationOnce(() => { throw new Error("decrypt failed") })
+    vi.mocked(prisma.outboundWebhook.findMany).mockResolvedValueOnce([
+      { ...mockWebhook, url: "encrypted-private-destination" },
+    ] as Awaited<ReturnType<typeof prisma.outboundWebhook.findMany>>)
+    const { GET } = await import("@/app/api/org/webhooks/route")
+    const res = await GET(new Request("http://localhost/api/org/webhooks"))
+    const body = await res.json()
+
+    expect(body.webhooks[0].urlPreview).toBe("(unavailable)")
+    expect(body.webhooks[0]).not.toHaveProperty("url")
+    expect(JSON.stringify(body)).not.toContain("encrypted-private-destination")
+  })
 })
 
 // ─── POST /api/org/webhooks ───────────────────────────────────────────────────
@@ -762,6 +809,28 @@ describe("PUT /api/user/notification-preferences", () => {
     expect(res.status).toBe(401)
   })
 
+  it.each(["read", "text_read"])("rejects a %s API key before parsing or writing", async (scope) => {
+    const apiKeyCtx = { ...adminCtx, source: "api_key" as const, scopes: [scope] }
+    vi.mocked(resolveAuth).mockResolvedValueOnce(apiKeyCtx)
+    vi.mocked(requireWriteScope).mockReturnValueOnce(
+      Response.json({ error: "Insufficient scope" }, { status: 403 }),
+    )
+    const { PUT } = await import("@/app/api/user/notification-preferences/route")
+    const res = await PUT(
+      new Request("http://localhost/api/user/notification-preferences", {
+        method: "PUT",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    expect(res.status).toBe(403)
+    expect(requireWriteScope).toHaveBeenCalledWith(apiKeyCtx)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.userNotificationPreference.deleteMany).not.toHaveBeenCalled()
+    expect(prisma.userNotificationPreference.createMany).not.toHaveBeenCalled()
+  })
+
   it("returns 400 when request body is not valid JSON", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { PUT } = await import("@/app/api/user/notification-preferences/route")
@@ -937,7 +1006,7 @@ describe("GET /api/notifications", () => {
     const { GET } = await import("@/app/api/notifications/route")
     const res = await GET(new Request("http://localhost/api/notifications"))
     expect(res.status).toBe(200)
-    const body = await res.json()
+    await res.json()
     // The OR pattern must query both org-scoped and org.invited events
     expect(prisma.notification.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

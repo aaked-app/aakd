@@ -56,4 +56,21 @@ describe("writeActivity request attribution", () => {
       requestId: "req-ui-1",
     })
   })
+
+  it("writes through the supplied transaction client", async () => {
+    const transactionCreate = vi.fn().mockResolvedValue({ id: "activity-tx" })
+    const transactionClient = { activity: { create: transactionCreate } }
+
+    await writeActivity(
+      "contract-1",
+      "user-1",
+      "OBLIGATION_UPDATED",
+      "Sub-task updated",
+      { obligationId: "obl-1" },
+      transactionClient as Parameters<typeof writeActivity>[5],
+    )
+
+    expect(transactionCreate).toHaveBeenCalledOnce()
+    expect(createActivity).not.toHaveBeenCalled()
+  })
 })

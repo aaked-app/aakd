@@ -15,8 +15,11 @@ const CreateWebhookSchema = z.object({
 })
 
 function buildPreview(plaintextUrl: string): string {
-  if (plaintextUrl.length <= 30) return plaintextUrl
-  return `${plaintextUrl.slice(0, 30)}...`
+  try {
+    return new URL(plaintextUrl).origin
+  } catch {
+    return "(unavailable)"
+  }
 }
 
 export async function GET(req: Request) {
@@ -37,12 +40,10 @@ export async function GET(req: Request) {
     })
 
     const webhooks = rows.map((row) => {
-      let urlPreview = ""
+      let urlPreview = "(unavailable)"
       try {
         urlPreview = buildPreview(decrypt(row.url))
-      } catch {
-        urlPreview = "(decryption error)"
-      }
+      } catch {}
       return {
         id: row.id,
         label: row.label,

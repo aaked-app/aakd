@@ -287,6 +287,16 @@ describe("GET /api/import/gdrive/connect", () => {
     expect(res.status).toBe(403)
   })
 
+  it("denies a read-only admin API key before generating OAuth state or cookies", async () => {
+    process.env.GOOGLE_CLIENT_ID = "test-client-id"
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...adminCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
+    const { GET } = await import("@/app/api/import/gdrive/connect/route")
+    const res = await GET(new Request("http://localhost/api/import/gdrive/connect"))
+    expect(res.status).toBe(403)
+    expect(res.headers.get("Set-Cookie")).toBeNull()
+  })
+
   it("returns 302 redirect to Google OAuth with drive.readonly scope", async () => {
     process.env.GOOGLE_CLIENT_ID = "google-client-123"
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)

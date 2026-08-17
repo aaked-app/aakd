@@ -57,16 +57,18 @@ function AvatarDisplay({
   imageUrl,
   initials,
   isPending,
+  alt,
 }: {
   imageUrl: string | null | undefined
   initials: string
   isPending: boolean
+  alt: string
 }) {
   if (!isPending && imageUrl) {
     return (
       <img
         src={imageUrl}
-        alt="Avatar"
+        alt={alt}
         className="w-20 h-20 rounded-full object-cover"
       />
     )
@@ -112,14 +114,14 @@ function AvatarPickerDialog({
       form.append("file", file)
       const res = await fetch("/api/user/avatar", { method: "POST", body: form })
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string }
-        toast.error(data.error ?? "Upload failed")
+      await res.json().catch(() => ({}))
+        toast.error(t("uploadFailed"))
         return
       }
       const data = (await res.json()) as { url: string }
       setPendingImage(data.url)
     } catch {
-      toast.error("Upload failed")
+      toast.error(t("uploadFailed"))
     } finally {
       setUploading(false)
       // Reset so the same file can be re-selected if needed
@@ -157,14 +159,15 @@ function AvatarPickerDialog({
                   key={seed}
                   type="button"
                   onClick={() => setPendingImage(url)}
-                  className={`w-10 h-10 rounded-full overflow-hidden border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  aria-label={t("presetAvatar", { number: DICEBEAR_SEEDS.indexOf(seed) + 1 })}
+                  aria-pressed={isSelected}
+                  className={`min-h-11 min-w-11 rounded-full overflow-hidden border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     isSelected
                       ? "ring-2 ring-primary border-primary"
                       : "border-transparent hover:border-muted-foreground/30"
                   }`}
-                  title={seed}
                 >
-                  <img src={url} alt={seed} className="w-full h-full" />
+                  <img src={url} alt="" className="w-full h-full" />
                 </button>
               )
             })}
@@ -186,17 +189,17 @@ function AvatarPickerDialog({
             size="sm"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="gap-2"
+            className="min-h-11 gap-2"
           >
             <Upload className="h-3.5 w-3.5" />
             {uploading ? t("uploading") : t("chooseFile")}
           </Button>
-          <p className="text-[11px] text-muted-foreground">JPEG, PNG, WebP, GIF — max 5 MB</p>
+          <p className="text-[11px] text-muted-foreground">{t("uploadGuidance")}</p>
           {pendingImage && !DICEBEAR_SEEDS.map(dicebearUrl).includes(pendingImage) && (
             <div className="flex items-center gap-2 mt-1">
               <img
                 src={pendingImage}
-                alt="Preview"
+                alt={t("previewAlt")}
                 className="w-10 h-10 rounded-full object-cover ring-2 ring-primary"
               />
               <span className="text-xs text-muted-foreground">{t("customUpload")}</span>
@@ -207,6 +210,7 @@ function AvatarPickerDialog({
         <DialogFooter>
           <Button
             size="sm"
+            className="min-h-11"
             disabled={!pendingImage || applying}
             onClick={handleApply}
           >
@@ -242,7 +246,7 @@ export default function ProfilePage() {
     try {
       const result = await authClient.updateUser({ name })
       if (result.error) {
-        toast.error(result.error.message ?? t("saveFailed"))
+        toast.error(t("saveFailed"))
       } else {
         toast.success(t("saved"))
       }
@@ -256,9 +260,9 @@ export default function ProfilePage() {
   async function handleApplyAvatar(imageUrl: string) {
     const result = await authClient.updateUser({ image: imageUrl })
     if (result.error) {
-      toast.error(result.error.message ?? "Failed to update avatar")
+      toast.error(t("avatarUpdateFailed"))
     } else {
-      toast.success("Avatar updated")
+      toast.success(t("avatarUpdated"))
     }
   }
 
@@ -287,12 +291,13 @@ export default function ProfilePage() {
               imageUrl={currentImage}
               initials={isPending ? "?" : initials}
               isPending={isPending}
+              alt={t("avatarAlt")}
             />
             <div className="mt-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs"
+                className="min-h-11 text-xs"
                 onClick={() => setAvatarPickerOpen(true)}
               >
                 {t("changeAvatar")}
@@ -316,6 +321,7 @@ export default function ProfilePage() {
                  onChange={(e) => setName(e.target.value)}
                  placeholder={t("namePlaceholder")}
                  disabled={isPending}
+                 className="min-h-11"
               />
             </div>
             <div className="space-y-1.5">
@@ -326,12 +332,12 @@ export default function ProfilePage() {
                 value={email}
                 disabled
                 readOnly
-                className="opacity-70"
+                className="min-h-11 opacity-70"
               />
             </div>
           </div>
           <div className="flex justify-end mt-5">
-             <Button onClick={handleSave} size="sm" disabled={isPending || saving || !name.trim()}>
+             <Button onClick={handleSave} size="sm" className="min-h-11" disabled={isPending || saving || !name.trim()}>
               {saving ? t("saving") : t("saveChanges")}
             </Button>
           </div>

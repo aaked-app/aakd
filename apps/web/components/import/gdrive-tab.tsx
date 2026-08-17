@@ -220,6 +220,8 @@ export function GoogleDriveTab({
         <div className="text-sm text-zinc-600">
           {canManageConnection ? t("connectHelp") : t("adminConnectRequired")}
         </div>
+        {/* This API route starts a full-page OAuth redirect; client routing is not appropriate. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         {canManageConnection && <a href="/api/import/gdrive/connect"><Button>{t("connect")}</Button></a>}
       </div>
     )
@@ -322,7 +324,7 @@ export function GoogleDriveTab({
                   {isFolder ? (
                     <button
                       type="button"
-                      className="flex items-center gap-2 flex-1 min-w-0 text-left text-sm text-zinc-900 hover:text-indigo-600"
+                      className="flex items-center gap-2 flex-1 min-w-0 text-start text-sm text-zinc-900 hover:text-indigo-600"
                       onClick={() => navigateInto(f)}
                     >
                       <Folder className="h-4 w-4 text-amber-500 shrink-0" />

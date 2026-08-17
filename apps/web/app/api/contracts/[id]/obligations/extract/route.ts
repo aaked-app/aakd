@@ -1,3 +1,4 @@
+import crypto from "node:crypto"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
@@ -54,7 +55,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           storageKey: latestFile.storageKey,
           preserveUserFields: true,
         },
-        { jobId: `contract-text:${latestFile.id}` },
+        { jobId: `contract-text-${latestFile.id}` },
       )
       return Response.json({ error: "text_processing", queued: true }, { status: 202 })
     }
@@ -80,6 +81,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       organizationId: ctx.organizationId,
       extractedText: contract.extractedText.slice(0, 100_000),
       requestedById: ctx.userId,
+      sourceHash: crypto.createHash("sha256").update(contract.extractedText).digest("hex"),
     })
 
     return Response.json({ jobId: job.id })
@@ -110,7 +112,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const job = await queue.getJob(jobId)
 
     if (!job) {
-      return Response.json({ state: "not_found" })
+      const suggestions = await prisma.contractObligationSuggestion.findMany({
+        where: { contractId: params.id, organizationId: ctx.organizationId, status: "pending" },
+        orderBy: { createdAt: "asc" },
+      }) ?? []
+      return suggestions.length > 0
+        ? Response.json({ state: "completed", suggestions })
+        : Response.json({ state: "not_found" })
     }
 
     // BullMQ job IDs are global to the queue. Bind the poll to the same

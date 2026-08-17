@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/client"
+import type { PrismaClient } from "@prisma/client"
 import { writeActivity } from "@/lib/db/activity"
 import { ContractAlertWithContract } from "@/lib/email"
 import { emailQueue } from "@/lib/jobs/queues"
@@ -24,7 +24,13 @@ const ALERT_DETAIL: Record<string, string> = {
  * Next.js cron route. Safe to call multiple times — already-fired alerts
  * are skipped by the firedAt: null filter.
  */
-export async function checkAndFireAlerts(): Promise<{ fired: number; errors: number }> {
+async function getDefaultAlertClient(): Promise<PrismaClient> {
+  const { prisma } = await import("@/lib/db/client")
+  return prisma
+}
+
+export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: number; errors: number }> {
+  const prisma = db ?? await getDefaultAlertClient()
   const due = await prisma.contractAlert.findMany({
     where: {
       firedAt: null,
@@ -103,12 +109,13 @@ export async function checkAndFireAlerts(): Promise<{ fired: number; errors: num
           "STATUS_CHANGED",
           "Contract expired — status automatically set to EXPIRED",
           { from: alert.contract.status, to: "EXPIRED" },
+          prisma,
         )
       }
 
       // Write immutable audit entry
       const detail = ALERT_DETAIL[alert.alertType] ?? `Alert fired: ${alert.alertType}`
-      await writeActivity(alert.contractId, null, "ALERT_FIRED", detail)
+      await writeActivity(alert.contractId, null, "ALERT_FIRED", detail, undefined, prisma)
 
       firedIds.push(alert.id)
     } catch (err) {

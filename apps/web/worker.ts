@@ -32,13 +32,13 @@ import OpenAI from "openai"
 
 import { logger } from "@/lib/logger"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
-import { prisma as appPrisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
 import { extractLocalFields } from "@/lib/ai/local-extract"
+import { analyzeContractRisk } from "@/lib/ai/risk"
 import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
@@ -67,6 +67,7 @@ import type {
   ObligationsCheckJobData,
   ImportProcessJobData,
   ObligationExtractJobData,
+  ContractRiskScoreJobData,
 } from "@/lib/jobs/queues"
 import {
   contractExtractQueue,
@@ -84,6 +85,7 @@ import {
   importProcessQueue,
   getObligationExtractQueue,
   obligationExtractQueue,
+  contractRiskScoreQueue,
 } from "@/lib/jobs/queues"
 import type { SalesforcePollJobData } from "@/lib/jobs/queues"
 import { processImportJob } from "@/lib/import/processor"
@@ -295,7 +297,7 @@ function getTextLimitForProvider(): number {
 const extractWorker = new Worker<ContractExtractJobData>(
   "contract.extract",
   async (job: Job<ContractExtractJobData>) => {
-    const { contractId, fileId, storageKey, preserveUserFields } = job.data
+    const { contractId, fileId, storageKey, preserveUserFields, skipAiExtraction } = job.data
 
     logger.info({ jobId: job.id, contractId, fileId }, "[extract] processing job")
 
@@ -304,9 +306,19 @@ const extractWorker = new Worker<ContractExtractJobData>(
     // contract.embed. Re-enqueue embed only if no embedding exists yet.
     const existingContract = await getWorkerPrisma().contract.findUnique({
       where: { id: contractId },
-      select: { extractedText: true },
+      select: {
+        extractedText: true,
+        files: {
+          where: { isLatest: true },
+          select: { id: true },
+          take: 1,
+        },
+      },
     })
-    if (existingContract?.extractedText) {
+    // Text belongs to a specific uploaded file. Do not let an older
+    // extraction suppress processing of a newly uploaded version.
+    const latestFileId = existingContract?.files[0]?.id
+    if (existingContract?.extractedText && latestFileId === fileId) {
       logger.info({ contractId }, "[extract] contract already has extracted text — skipping")
       return
     }
@@ -408,7 +420,12 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
       // embed worker chains ai_extract once embeddings land so semantic search
       // is always populated even when the LLM extractor fails or is missing.
-      await contractEmbedQueue.add("embed", { contractId, extractedText, preserveUserFields })
+      await contractEmbedQueue.add("embed", {
+        contractId,
+        extractedText,
+        preserveUserFields,
+        ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
+      })
       logger.info({ contractId }, "[extract] enqueued embed job")
     } else {
       // Silent failures (typically scanned/image PDFs) used to disappear into
@@ -521,7 +538,7 @@ function localExtractionJson(text: string): string {
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
   "contract.ai_extract",
   async (job: Job<ContractAiExtractJobData>) => {
-    const { contractId, extractedText, preserveUserFields } = job.data
+    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
 
     logger.info({ jobId: job.id, contractId }, "[ai_extract] processing job")
 
@@ -586,6 +603,51 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
         },
       })
       return
+    }
+
+    // Models occasionally omit a highly regular renewal clause even when it
+    // is plainly present in the source. Recover only deterministic, verbatim
+    // facts here; these remain pending AI extractions and still require human
+    // acceptance before they update the canonical Contract fields.
+    const renewalClause = extractedText.match(
+      /[^.\n]{0,180}(?:automatically\s+renews?|auto[- ]renews?)[^.\n]{0,220}/i,
+    )
+    const autoRenewalResult = extracted.autoRenewal
+    const hasAutoRenewalValue =
+      autoRenewalResult !== null &&
+      typeof autoRenewalResult === "object" &&
+      !Array.isArray(autoRenewalResult) &&
+      "value" in autoRenewalResult &&
+      (autoRenewalResult as { value?: unknown }).value != null
+    if (renewalClause && !hasAutoRenewalValue) {
+      extracted.autoRenewal = {
+        value: true,
+        confidence: 0.9,
+        sourceText: renewalClause[0].trim(),
+        sourcePage: null,
+      }
+    }
+
+    const noticeClause = extractedText.match(
+      /[^.\n]{0,180}(?:\b(\d{1,3})\s+days?\s+(?:written\s+)?notice|notice\s+of\s+(\d{1,3})\s+days?)[^.\n]{0,180}/i,
+    )
+    const noticeResult = extracted.noticePeriodDays
+    const hasNoticeValue =
+      noticeResult !== null &&
+      typeof noticeResult === "object" &&
+      !Array.isArray(noticeResult) &&
+      "value" in noticeResult &&
+      (noticeResult as { value?: unknown }).value != null
+    if (noticeClause && !hasNoticeValue) {
+      const days = Number(noticeClause[1] ?? noticeClause[2])
+      if (Number.isInteger(days)) {
+        extracted.noticePeriodDays = {
+          value: days,
+          confidence: 0.9,
+          sourceText: noticeClause[0].trim(),
+          sourcePage: null,
+        }
+      }
     }
 
     type FieldExtraction = {
@@ -670,7 +732,12 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       persistedFieldData = fieldData.filter(({ field }) =>
         seededFields.has(field) ||
         contractValues?.[field] === null ||
-        contractValues?.[field] === undefined,
+        contractValues?.[field] === undefined ||
+        // Prisma's default false is not evidence that a user reviewed the
+        // field. A seeded extraction row is the durable signal for an
+        // explicit user choice, so allow an AI renewal fact to fill this
+        // default when the upload review did not provide one.
+        (field === "autoRenewal" && contractValues?.[field] === false),
       )
     }
 
@@ -732,12 +799,54 @@ aiExtractWorker.on("failed", (job, err) =>
   logger.error({ err, jobId: job?.id }, "[ai_extract] job failed"),
 )
 
+// ─── Worker: contract.risk_score ────────────────────────────────────────────
+
+const riskScoreWorker = new Worker<ContractRiskScoreJobData>(
+  "contract.risk_score",
+  async (job: Job<ContractRiskScoreJobData>) => {
+    const { contractId, organizationId, requestedById, extractedText, sourceHash } = job.data
+    logger.info({ jobId: job.id, contractId }, "[risk-score] processing job")
+
+    const details = await analyzeContractRisk(extractedText, organizationId)
+    if (!details) throw new Error("invalid_or_unconfigured_ai_result")
+
+    const riskScoredAt = new Date()
+    const updated = await getWorkerPrisma().contract.updateMany({
+      // Do not write a result calculated against an older upload.
+      where: { id: contractId, organizationId, extractedText },
+      data: {
+        riskScore: details.overall,
+        riskScoredAt,
+        riskDetails: { ...details, sourceHash },
+      },
+    })
+    if (updated.count !== 1) throw new Error("risk_result_stale_document")
+
+    await getWorkerPrisma().activity.create({
+      data: {
+        contractId,
+        userId: requestedById,
+        actorLabel: "AI",
+        action: "METADATA_UPDATED",
+        detail: `Risk score computed: ${details.overall}`,
+        metadata: { sourceHash },
+      },
+    })
+
+    return { riskScore: details.overall, riskScoredAt, riskDetails: { ...details, sourceHash } }
+  },
+  { connection, defaultJobOptions: { attempts: 2, backoff: { type: "exponential", delay: 5000 }, removeOnComplete: 100, removeOnFail: 200 } },
+)
+
+riskScoreWorker.on("completed", (job) => logger.info({ jobId: job.id }, "[risk-score] job completed"))
+riskScoreWorker.on("failed", (job, err) => logger.error({ err, jobId: job?.id }, "[risk-score] job failed"))
+
 // ─── Worker: contract.embed ───────────────────────────────────────────────────
 
 const embedWorker = new Worker<ContractEmbedJobData>(
   "contract.embed",
   async (job: Job<ContractEmbedJobData>) => {
-    const { contractId, extractedText, preserveUserFields } = job.data
+    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
 
     logger.info({ jobId: job.id, contractId }, "[embed] processing job")
 
@@ -753,6 +862,10 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     // and the chunk-embedding swap only replaces rows inside a transaction —
     // re-running this handler from the top is idempotent.
     const chainAiExtract = async () => {
+      if (skipAiExtraction) {
+        logger.info({ contractId }, "[embed] skipping duplicate AI extraction; preview result is authoritative")
+        return
+      }
       try {
         await contractAiExtractQueue.add("ai_extract", { contractId, extractedText, preserveUserFields })
       } catch (err) {
@@ -864,7 +977,7 @@ const alertsWorker = new Worker<AlertsCheckJobData>(
   "alerts.check",
   async (job: Job<AlertsCheckJobData>) => {
     logger.info({ jobId: job.id, triggeredAt: job.data.triggeredAt }, "[alerts] running check job")
-    const { fired, errors } = await checkAndFireAlerts()
+    const { fired, errors } = await checkAndFireAlerts(getWorkerPrisma())
     logger.info({ fired, errors }, "[alerts] check job complete")
   },
   { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
@@ -1032,6 +1145,8 @@ Return ONLY a valid JSON array. Each item must have this exact shape:
   "title": <short obligation title, max 100 chars>,
   "description": <1-2 sentence description of the obligation>,
   "clauseReference": <clause/section reference e.g. "Section 4.2" or null>,
+  "sourceText": <verbatim quote supporting the obligation, max 500 chars, or null>,
+  "sourcePage": <1-based PDF page number if explicitly identifiable, otherwise null>,
   "priority": <"HIGH" | "MEDIUM" | "LOW" — HIGH for payment/penalty/termination obligations>,
   "suggestedDueDays": <number of days from today to suggest as due date, integer 1-365, use 30 if unclear>,
   "confidence": <number between 0 and 1 — how confident you are this is a genuine contractual obligation: 1.0 = explicit obligation with clear deadline, 0.5 = inferred commitment, 0.2 = vague or general statement>
@@ -1105,7 +1220,7 @@ async function callObligationLLM(text: string): Promise<string | null> {
 const obligationExtractWorker = new Worker<ObligationExtractJobData>(
   "obligations.ai_extract",
   async (job: Job<ObligationExtractJobData>) => {
-    const { contractId, extractedText } = job.data
+    const { contractId, organizationId, extractedText, sourceHash, requestedById } = job.data
     logger.info({ jobId: job.id, contractId }, "[obligations.extract] processing job")
 
     const raw = await callObligationLLM(extractedText)
@@ -1118,8 +1233,90 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
       throw new Error("parse_error: " + raw.slice(0, 200))
     }
 
-    // Return value is stored by BullMQ in Redis and available via job.returnvalue
-    return suggestions
+    // Validate and normalize model output before it reaches the browser. A
+    // malformed suggestion must never become a writable obligation silently.
+    if (!Array.isArray(suggestions)) throw new Error("invalid_shape: expected array")
+
+    const normalized = suggestions.slice(0, 20).flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return []
+      const value = item as Record<string, unknown>
+      const title = typeof value.title === "string" ? value.title.trim().slice(0, 100) : ""
+      const description = typeof value.description === "string" ? value.description.trim().slice(0, 2000) : ""
+      if (!title || !description) return []
+      const priority = value.priority === "HIGH" || value.priority === "LOW" ? value.priority : "MEDIUM"
+      const suggestedDueDays = typeof value.suggestedDueDays === "number" && Number.isInteger(value.suggestedDueDays)
+        ? Math.min(3650, Math.max(0, value.suggestedDueDays))
+        : null
+      const confidence = typeof value.confidence === "number"
+        ? Math.min(1, Math.max(0, value.confidence))
+        : 0
+      const clauseReference = typeof value.clauseReference === "string"
+        ? value.clauseReference.trim().slice(0, 200)
+        : null
+      const sourceText = typeof value.sourceText === "string"
+        ? value.sourceText.trim().slice(0, 500)
+        : null
+      const sourcePage = typeof value.sourcePage === "number" && Number.isInteger(value.sourcePage) && value.sourcePage > 0
+        ? value.sourcePage
+        : null
+      return [{ title, description, clauseReference, sourceText, sourcePage, priority, suggestedDueDays, confidence }]
+    })
+
+    const db = getWorkerPrisma()
+    // Persist candidates outside the ledger. Upsert makes retries and repeated
+    // polling idempotent while the unique key prevents duplicate suggestions.
+    const persistedSuggestions = []
+    for (const suggestion of normalized) {
+      const persisted = await db.contractObligationSuggestion.upsert({
+        where: {
+          contractId_sourceHash_title: {
+            contractId,
+            sourceHash,
+            title: suggestion.title,
+          },
+        },
+        create: {
+          contractId,
+          organizationId,
+          sourceHash,
+          jobId: String(job.id),
+          title: suggestion.title,
+          description: suggestion.description,
+          clauseReference: suggestion.clauseReference,
+          sourceText: suggestion.sourceText,
+          sourcePage: suggestion.sourcePage,
+          priority: suggestion.priority,
+          suggestedDueDays: suggestion.suggestedDueDays,
+          confidence: suggestion.confidence,
+        },
+        update: {
+          jobId: String(job.id),
+          description: suggestion.description,
+          clauseReference: suggestion.clauseReference,
+          sourceText: suggestion.sourceText,
+          sourcePage: suggestion.sourcePage,
+          priority: suggestion.priority,
+          suggestedDueDays: suggestion.suggestedDueDays,
+          confidence: suggestion.confidence,
+        },
+      })
+      persistedSuggestions.push(persisted)
+    }
+
+    // Record who requested the analysis without creating a ledger obligation.
+    await db.activity.create({
+      data: {
+        contractId,
+        userId: requestedById,
+        actorLabel: "AI",
+        action: "METADATA_EXTRACTED",
+        detail: `AI found ${normalized.length} obligation suggestions`,
+        metadata: { sourceHash, suggestionCount: normalized.length },
+      },
+    })
+
+    // Return value is retained for fast polling; the database is the durable fallback.
+    return persistedSuggestions
   },
   {
     connection,
@@ -1153,7 +1350,7 @@ const emailWorker = new Worker<EmailJobData>(
     const data = job.data
     try {
       if (data.kind === "alert") {
-        await sendAlertEmailById(data.alertId)
+        await sendAlertEmailById(data.alertId, getWorkerPrisma())
         return
       }
       if (data.kind === "approval_request") {
@@ -2342,6 +2539,7 @@ const allWorkers: Worker[] = [
   salesforcePollWorker,
   importWorker,
   obligationExtractWorker,
+  riskScoreWorker,
 ]
 
 async function gracefulShutdown(signal: string) {
@@ -2376,13 +2574,11 @@ async function gracefulShutdown(signal: string) {
     salesforcePollQueue.close(),
     importProcessQueue.close(),
     obligationExtractQueue.close(),
+    contractRiskScoreQueue.close(),
   ])
 
-  // Disconnect Prisma pools. The app Prisma client is imported by some worker
-  // helpers (alerts/check, email senders) — disconnect it too to prevent a
-  // dangling pg pool on shutdown.
+  // The worker exclusively uses its standalone Prisma client.
   await getWorkerPrisma().$disconnect()
-  await appPrisma.$disconnect().catch(() => {})
 
   logger.info("[worker] Graceful shutdown complete")
   process.exit(0)

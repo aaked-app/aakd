@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -31,7 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { Contract, ContractStatus } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 // ── Filter configuration ───────────────────────────────────────────────────
 interface FilterConfig {
@@ -49,13 +49,35 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced
 }
 
-function formatCurrency(value: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
+function formatRecordedValue(value: number, currency: string | null | undefined, locale: string) {
+  const numberOptions: Intl.NumberFormatOptions = {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value)
+  }
+
+  if (!currency) return new Intl.NumberFormat(locale, numberOptions).format(value)
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      ...numberOptions,
+      style: "currency",
+      currency,
+    }).format(value)
+  } catch {
+    return `${new Intl.NumberFormat(locale, numberOptions).format(value)} ${currency}`
+  }
+}
+
+function formatEndDate(value: string | Date, locale: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date)
 }
 
 /** Returns two-letter initials from a full name (e.g. "Alex Johnson" → "AJ") */
@@ -72,6 +94,8 @@ export default function ContractsPage() {
   const searchParams = useSearchParams()
   const { data: session } = useSession()
   const t = useTranslations("contracts")
+  const locale = useLocale()
+  const isRtl = locale.toLowerCase().startsWith("ar")
 
   const FILTERS: FilterConfig[] = [
     { label: t("filterAll"),      status: "ALL"                },
@@ -85,6 +109,7 @@ export default function ContractsPage() {
 
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const pageSize = 20
@@ -95,6 +120,7 @@ export default function ContractsPage() {
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [role, setRole] = useState<string>("member")
+  const contractsRequestId = useRef(0)
   const debouncedSearch = useDebounce(search, 300)
 
   const canManage = role === "admin" || role === "legal" || role === "owner"
@@ -119,7 +145,9 @@ export default function ContractsPage() {
 
   const fetchContracts = useCallback(
     async (signal?: AbortSignal) => {
+      const requestId = ++contractsRequestId.current
       setLoading(true)
+      setLoadError(false)
       try {
         const params = new URLSearchParams()
         if (debouncedSearch) params.set("search", debouncedSearch)
@@ -130,16 +158,19 @@ export default function ContractsPage() {
         const res = await fetch(`/api/contracts?${params}`, { signal })
         if (!res.ok) throw new Error("Failed")
         const data = await res.json()
+        if (requestId !== contractsRequestId.current) return
         setContracts(data.contracts ?? data ?? [])
         setTotal(data.total ?? (data.contracts ?? data ?? []).length)
       } catch (e) {
         if ((e as Error).name === "AbortError") return
+        if (requestId !== contractsRequestId.current) return
+        setLoadError(true)
         toast.error(t("failedToLoad"))
       } finally {
-        setLoading(false)
+        if (requestId === contractsRequestId.current) setLoading(false)
       }
     },
-    [debouncedSearch, activeFilter, page],
+    [debouncedSearch, activeFilter, page, t],
   )
 
   useEffect(() => {
@@ -195,11 +226,21 @@ export default function ContractsPage() {
 
   const totalPages = Math.ceil(total / pageSize)
   const allSelected = contracts.length > 0 && selectedIds.size === contracts.length
+  const someSelected = selectedIds.size > 0 && !allSelected
+  const selectionLabel = allSelected ? t("deselectAll") : t("selectAll")
+  const riskLabel = (level: string | null | undefined) => {
+    switch (level?.toUpperCase()) {
+      case "LOW": return t("riskLow")
+      case "MEDIUM": return t("riskMedium")
+      case "HIGH": return t("riskHigh")
+      default: return level ? t("riskUnknown") : t("riskNotScored")
+    }
+  }
   const tableColumns = [
     { label: t("tableContract"), className: "" },
     { label: t("tableCounterparty"), className: "hidden lg:table-cell" },
     { label: t("tableStatus"), className: "" },
-    { label: "Risk", className: "" },
+    { label: t("tableRisk"), className: "" },
     { label: t("tableValue"), className: "hidden xl:table-cell" },
     { label: t("tableEndDate"), className: "hidden xl:table-cell" },
     { label: t("tableOwner"), className: "hidden xl:table-cell" },
@@ -218,7 +259,7 @@ export default function ContractsPage() {
             {t("subtitle", { count: total, plural: total !== 1 ? "s" : "" })}
           </p>
         </div>
-        <Link href="/contracts/new" className={buttonVariants({ size: "sm" })}>
+        <Link href="/contracts/new" className={cn(buttonVariants({ size: "sm" }), "min-h-11")}>
           <Plus className="size-4" />
           {t("newContract")}
         </Link>
@@ -234,11 +275,12 @@ export default function ContractsPage() {
             <Input
               placeholder={t("searchPlaceholder")}
               value={search}
+              aria-label={t("searchLabel")}
               onChange={(e) => {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              className="h-9 w-full ps-9 text-sm lg:w-64"
+              className="h-11 w-full ps-9 text-sm lg:w-64"
             />
           </div>
 
@@ -249,8 +291,8 @@ export default function ContractsPage() {
               setActiveFilter(event.target.value as ContractStatus | "ALL")
               setPage(1)
             }}
-            aria-label={t("tableStatus")}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:hidden"
+            aria-label={t("filterByStatus")}
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:hidden"
           >
             {FILTERS.map((filter) => (
               <option key={filter.status} value={filter.status}>{filter.label}</option>
@@ -260,10 +302,11 @@ export default function ContractsPage() {
             {FILTERS.map((f) => (
               <button
                 type="button"
+                aria-pressed={activeFilter === f.status}
                 key={f.label}
                 onClick={() => { setActiveFilter(f.status); setPage(1) }}
                 className={cn(
-                  "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  "min-h-11 shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                   activeFilter === f.status
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-foreground/80 hover:bg-muted-foreground/[0.12] hover:text-foreground",
@@ -280,7 +323,7 @@ export default function ContractsPage() {
               <span className="me-auto text-sm text-muted-foreground lg:me-0">
                 {t("selected", { count: selectedIds.size })}
               </span>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="min-h-11">
                 <Download className="size-3.5" />
                 {t("export")}
               </Button>
@@ -288,6 +331,7 @@ export default function ContractsPage() {
                 <Button
                   variant="destructive"
                   size="sm"
+                  className="min-h-11"
                   onClick={archiveSelected}
                 >
                   <Archive className="size-3.5" />
@@ -301,8 +345,14 @@ export default function ContractsPage() {
         {/* ── Table ─────────────────────────────────────────────────────── */}
         {loading ? (
           /* Skeleton */
-          <>
-            <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
+          <div
+            role="status"
+            aria-label={t("loading")}
+            aria-busy="true"
+            aria-live="polite"
+            className="space-y-2"
+          >
+            <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block [&_th]:text-start">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -340,7 +390,25 @@ export default function ContractsPage() {
                 </div>
               ))}
             </div>
-          </>
+          </div>
+        ) : loadError ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-4 rounded-[var(--radius)] border border-border bg-card px-5 py-16 text-center"
+          >
+            <div className="flex size-14 items-center justify-center rounded-xl bg-muted text-muted-foreground/60">
+              <FileText className="size-6" />
+            </div>
+            <p className="text-[15px] font-semibold">{t("failedToLoad")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => fetchContracts()}
+            >
+              {t("retry")}
+            </Button>
+          </div>
         ) : contracts.length === 0 ? (
           /* Empty state */
           <EmptyState
@@ -361,18 +429,24 @@ export default function ContractsPage() {
         ) : (
           /* Data table */
           <>
-          <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
+          <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block [&_th]:text-start">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   {/* Checkbox column */}
-                  <TableHead className="w-9 border-b border-border bg-muted pl-4">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAll}
-                      className="size-3.5 cursor-pointer rounded border-border accent-primary"
-                    />
+                  <TableHead className="w-12 border-b border-border bg-muted p-0 ps-1">
+                    <label className="inline-flex size-11 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-primary/30">
+                      <input
+                        ref={(element) => {
+                          if (element) element.indeterminate = someSelected
+                        }}
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="size-4 cursor-pointer rounded border-border accent-primary"
+                      />
+                      <span className="sr-only">{selectionLabel}</span>
+                    </label>
                   </TableHead>
                   {tableColumns.map((column, index) => (
                       <TableHead
@@ -397,21 +471,32 @@ export default function ContractsPage() {
                   >
                     {/* ── Checkbox ──────────────────────────────────────── */}
                     <TableCell
-                      className="w-9 py-2 pl-4"
+                      className="w-12 p-0 ps-1"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(c.id)}
-                        onChange={() => toggleSelect(c.id)}
-                        className="size-3.5 cursor-pointer rounded border-border accent-primary"
-                      />
+                      <label className="inline-flex size-11 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-primary/30">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                          className="size-4 cursor-pointer rounded border-border accent-primary"
+                        />
+                        <span className="sr-only">
+                          {t(selectedIds.has(c.id) ? "deselectContract" : "selectContract", { title: c.title })}
+                        </span>
+                      </label>
                     </TableCell>
 
                     {/* ── Contract name + optional CRM badge ────────────── */}
                     <TableCell className="py-3 text-sm font-medium">
                       <div className="flex items-center gap-1.5">
-                        <span>{c.title}</span>
+                        <Link
+                          href={`/contracts/${c.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex min-h-11 items-center rounded-sm outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                        >
+                          {c.title}
+                        </Link>
                         {c.crmLinks && c.crmLinks.length > 0 && (
                           <span className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase text-muted-foreground">
                             {c.crmLinks[0].provider.toLowerCase()}
@@ -432,24 +517,24 @@ export default function ContractsPage() {
 
                     {/* ── Risk badge ─────────────────────────────────────── */}
                     <TableCell className="py-2">
-                      <RiskBadge level={(c as { riskScore?: string | null }).riskScore} size="sm" />
+                      <RiskBadge
+                        level={(c as { riskScore?: string | null }).riskScore}
+                        size="sm"
+                        label={riskLabel((c as { riskScore?: string | null }).riskScore)}
+                      />
                     </TableCell>
 
                     {/* ── Value ──────────────────────────────────────────── */}
                     <TableCell className="hidden py-3 text-sm tabular-nums text-muted-foreground xl:table-cell">
                       {c.value != null
-                        ? formatCurrency(c.value, c.currency ?? "USD")
+                        ? formatRecordedValue(c.value, c.currency, locale)
                         : "—"}
                     </TableCell>
 
                     {/* ── End date ───────────────────────────────────────── */}
                     <TableCell className="hidden py-3 text-sm text-muted-foreground xl:table-cell">
                       {c.endDate
-                        ? new Date(c.endDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })
+                        ? formatEndDate(c.endDate, locale)
                         : "—"}
                     </TableCell>
 
@@ -480,7 +565,7 @@ export default function ContractsPage() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <DropdownMenu>
-                        <DropdownMenuTrigger aria-label={`${t("view")}: ${c.title}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <DropdownMenuTrigger aria-label={`${t("view")}: ${c.title}`} className="inline-flex size-11 items-center justify-center rounded outline-none text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30">
                           <MoreHorizontal className="size-[15px]" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -509,15 +594,21 @@ export default function ContractsPage() {
           </div>
           <div className="md:hidden">
             <div className="mb-2 flex items-center justify-between px-1 text-sm text-muted-foreground">
-              <label className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <label className="inline-flex size-11 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-primary/30">
                 <input
+                  ref={(element) => {
+                    if (element) element.indeterminate = someSelected
+                  }}
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleSelectAll}
                   className="size-4 cursor-pointer rounded border-border accent-primary"
                 />
+                  <span className="sr-only">{selectionLabel}</span>
+                </label>
                 <span>{t("title")}</span>
-              </label>
+              </div>
               <span>{total}</span>
             </div>
             <ul className="space-y-2" aria-label={t("title")}>
@@ -527,15 +618,19 @@ export default function ContractsPage() {
                   selectedIds.has(contract.id) && "border-primary/30 bg-primary/[0.03]",
                 )}>
                   <div className="flex min-w-0 items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(contract.id)}
-                      onChange={() => toggleSelect(contract.id)}
-                      aria-label={contract.title}
-                      className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-primary"
-                    />
+                    <label className="-ms-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-primary/30">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(contract.id)}
+                        onChange={() => toggleSelect(contract.id)}
+                        className="size-4 cursor-pointer rounded border-border accent-primary"
+                      />
+                      <span className="sr-only">
+                        {t(selectedIds.has(contract.id) ? "deselectContract" : "selectContract", { title: contract.title })}
+                      </span>
+                    </label>
                     <div className="min-w-0 flex-1">
-                      <Link href={`/contracts/${contract.id}`} className="block truncate text-sm font-semibold text-foreground hover:text-primary">
+                      <Link href={`/contracts/${contract.id}`} className="flex min-h-11 items-center truncate rounded-sm text-sm font-semibold text-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/30">
                         {contract.title}
                       </Link>
                       <p className="mt-1 truncate text-sm text-muted-foreground">
@@ -544,7 +639,7 @@ export default function ContractsPage() {
                       </p>
                     </div>
                     <DropdownMenu>
-                      <DropdownMenuTrigger aria-label={`${t("view")}: ${contract.title}`} className="-me-1 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                      <DropdownMenuTrigger aria-label={`${t("view")}: ${contract.title}`} className="-me-1 inline-flex size-11 items-center justify-center rounded outline-none text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30">
                         <MoreHorizontal className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -564,7 +659,11 @@ export default function ContractsPage() {
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <StatusBadge status={contract.status} />
-                    <RiskBadge level={(contract as { riskScore?: string | null }).riskScore} size="sm" />
+                    <RiskBadge
+                      level={(contract as { riskScore?: string | null }).riskScore}
+                      size="sm"
+                      label={riskLabel((contract as { riskScore?: string | null }).riskScore)}
+                    />
                     {contract.crmLinks && contract.crmLinks.length > 0 && (
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase text-muted-foreground">
                         {contract.crmLinks[0].provider.toLowerCase()}
@@ -576,14 +675,14 @@ export default function ContractsPage() {
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">{t("tableValue")}</dt>
                       <dd className="mt-0.5 truncate font-medium tabular-nums text-foreground">
-                        {contract.value != null ? formatCurrency(contract.value, contract.currency ?? "USD") : "—"}
+                        {contract.value != null ? formatRecordedValue(contract.value, contract.currency, locale) : "—"}
                       </dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">{t("tableEndDate")}</dt>
                       <dd className="mt-0.5 truncate font-medium text-foreground">
                         {contract.endDate
-                          ? new Date(contract.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                          ? formatEndDate(contract.endDate, locale)
                           : "—"}
                       </dd>
                     </div>
@@ -622,23 +721,25 @@ export default function ContractsPage() {
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-11"
+                aria-label={t("previousPage")}
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page === 1}
               >
-                <ChevronLeft className="size-4" />
+                {isRtl ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
               </Button>
-              <span className="px-2 text-sm text-foreground/70">
-                {page} / {totalPages}
+              <span className="px-2 text-sm text-foreground/70" aria-current="page">
+                {t("pageOf", { page, totalPages })}
               </span>
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+                className="size-11"
+                aria-label={t("nextPage")}
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page === totalPages}
               >
-                <ChevronRight className="size-4" />
+                {isRtl ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
               </Button>
             </div>
           </div>

@@ -114,6 +114,7 @@ import { getCrmProvider } from "@/lib/crm"
 import { ensureFreshToken } from "@/lib/crm/route-helpers"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { isZipBuffer } from "@/lib/types/import-helpers"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 
 function resetMockQueues() {
   vi.mocked(resolveAuth).mockReset()
@@ -266,6 +267,28 @@ describe("POST /api/contracts/[id]/risk-score", () => {
       { params: { id: "contract-1" } },
     )
     expect(res.status).toBe(503)
+  })
+
+  it("queues risk analysis instead of blocking the request", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(legalCtx)
+    vi.mocked(resolveAiConfig).mockResolvedValueOnce({
+      provider: "openai",
+      apiKey: "test-key",
+      model: "gpt-4o-mini",
+      source: "env",
+    })
+    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce({
+      id: "contract-1",
+      extractedText: "Some contract text",
+      organizationId: "org-1",
+    } as any)
+    const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
+      { params: { id: "contract-1" } },
+    )
+    expect(res.status).toBe(202)
+    expect((await res.json()).state).toBe("queued")
   })
 })
 

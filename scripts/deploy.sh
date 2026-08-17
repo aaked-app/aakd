@@ -22,6 +22,8 @@ success(){ echo -e "${GREEN}[✓]${NC} $1"; }
 warn()   { echo -e "${YELLOW}[!]${NC} $1"; }
 error()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
+DOCUSEAL_DEFAULT_IMAGE="docuseal/docuseal@sha256:063f9b89fa99816d0c2f90c33e4e176ecbbdf8cddd4958e40562643d0431dfbc"
+
 echo ""
 echo -e "${BOLD}╔════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║        Aakd Production Deploy          ║${NC}"
@@ -62,18 +64,33 @@ fi
 # ── 5. Clone or update repo ───────────────────────────────────────────────────
 REPO_DIR="${AAKD_REPO_DIR:-${CLAUSEFLOW_REPO_DIR:-${HOME}/aakd}}"
 REPO_URL="${AAKD_REPO_URL:-${CLAUSEFLOW_REPO_URL:-https://github.com/aaked-app/aakd.git}}"
+AAKD_REF="${AAKD_REF:-}"
+
+if ! [[ "$AAKD_REF" =~ ^[a-f0-9]{40}$ ]]; then
+  error "Set AAKD_REF to the exact 40-character commit SHA to deploy; floating branches and tags are not allowed."
+fi
 
 if [ -d "$REPO_DIR/.git" ]; then
-  log "Pulling latest changes..."
-  git -C "$REPO_DIR" pull origin main
-  success "Repo updated"
+  if [ -n "$(git -C "$REPO_DIR" status --porcelain)" ]; then
+    error "Refusing to deploy from a working tree with uncommitted changes: $REPO_DIR"
+  fi
+  log "Fetching the requested release commit..."
+  git -C "$REPO_DIR" fetch --prune origin
 else
   log "Cloning Aakd..."
-  git clone "$REPO_URL" "$REPO_DIR"
+  git clone --no-checkout "$REPO_URL" "$REPO_DIR"
   success "Repo cloned to $REPO_DIR"
 fi
 
+if ! git -C "$REPO_DIR" cat-file -e "$AAKD_REF^{commit}" 2>/dev/null; then
+  error "AAKD_REF was not found in $REPO_URL after fetch: $AAKD_REF"
+fi
+git -C "$REPO_DIR" checkout --detach "$AAKD_REF"
+
 cd "$REPO_DIR"
+
+# shellcheck source=lib/self-hosting-config.sh
+source "$REPO_DIR/scripts/lib/self-hosting-config.sh"
 
 # ── 6. Collect configuration ──────────────────────────────────────────────────
 echo ""
@@ -83,7 +100,6 @@ echo "────────────────────────�
 if [ -f ".env.prod" ]; then
   warn ".env.prod already exists. Using existing configuration."
   warn "Delete .env.prod and re-run to reconfigure."
-  source .env.prod 2>/dev/null || true
 else
   # Domain. Set AAKD_DOMAIN for a non-interactive deploy.
   if [ -n "${AAKD_DOMAIN:-}" ]; then
@@ -131,6 +147,9 @@ else
   BETTER_AUTH_SECRET=$(openssl rand -base64 32)
   NOTIFICATION_ENCRYPTION_KEY=$(openssl rand -hex 32)
   DOCUSEAL_SECRET_KEY_BASE=$(openssl rand -hex 64)
+  # Pin DocuSeal to the reviewed digest used by the production Compose example.
+  # Set DOCUSEAL_IMAGE before running this script to supply a reviewed digest instead.
+  DOCUSEAL_IMAGE="${DOCUSEAL_IMAGE:-$DOCUSEAL_DEFAULT_IMAGE}"
 
   # Write .env.prod
   cat > .env.prod << EOF
@@ -164,6 +183,7 @@ SMTP_FROM=${SMTP_FROM}
 ALERT_EMAIL_TO=${ALERT_EMAIL_TO}
 
 # DocuSeal
+DOCUSEAL_IMAGE=${DOCUSEAL_IMAGE}
 DOCUSEAL_SECRET_KEY_BASE=${DOCUSEAL_SECRET_KEY_BASE}
 DOCUSEAL_API_KEY=
 DOCUSEAL_WEBHOOK_SECRET=
@@ -178,6 +198,10 @@ OLLAMA_BASE_URL=
 EOF
   chmod 600 .env.prod
   success ".env.prod created and locked (chmod 600)"
+fi
+
+if ! ensure_docuseal_image ".env.prod" "$DOCUSEAL_DEFAULT_IMAGE"; then
+  error "Refusing a mutable or malformed DOCUSEAL_IMAGE in .env.prod"
 fi
 
 # ── 7. Configure host firewall when explicitly requested ─────────────────────
@@ -231,7 +255,7 @@ echo -e "${GREEN}${BOLD}║         Deploy Complete! 🚀             ║${NC}"
 echo -e "${GREEN}${BOLD}╚════════════════════════════════════════╝${NC}"
 echo ""
 
-source .env.prod 2>/dev/null || true
+DOMAIN="$(read_env_value .env.prod DOMAIN 2>/dev/null || true)"
 
 echo -e "  ${BOLD}App:${NC}      https://${DOMAIN:-your-domain.com}"
 echo -e "  ${BOLD}DocuSeal:${NC} https://sign.${DOMAIN:-your-domain.com}"
@@ -246,5 +270,5 @@ echo -e "${YELLOW}Useful commands:${NC}"
 echo "  Logs:    docker compose -f docker-compose.prod.yml logs -f"
 echo "  Status:  docker compose -f docker-compose.prod.yml ps"
 echo "  Restart: docker compose -f docker-compose.prod.yml restart"
-echo "  Update:  git pull && docker compose -f docker-compose.prod.yml up -d --build"
+echo "  Update:  AAKD_REF=<reviewed-commit-sha> bash scripts/update.sh"
 echo ""

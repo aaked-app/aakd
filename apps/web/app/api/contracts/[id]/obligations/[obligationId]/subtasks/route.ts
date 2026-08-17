@@ -1,13 +1,14 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { writeActivity } from "@/lib/db/activity"
 import { z } from "zod"
 
 const COMPLETED_BY_SELECT = { id: true, name: true } as const
 const ROLES_CAN_WRITE = new Set(["owner", "admin", "legal", "member"])
 
 const CreateSubTaskSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
 })
 
 export async function POST(
@@ -45,20 +46,41 @@ export async function POST(
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const subTaskCount = await prisma.obligationSubTask.count({
-      where: { obligationId: params.obligationId },
+    const subTask = await prisma.$transaction(async (tx) => {
+      // Serialize creates for one obligation so concurrent requests cannot
+      // both pass the existing 20-subtask cap.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('obligation-subtasks')::int, hashtext(${params.obligationId})::int)`
+      const subTaskCount = await tx.obligationSubTask.count({
+        where: { obligationId: params.obligationId },
+      })
+      if (subTaskCount >= 20) return null
+
+      const created = await tx.obligationSubTask.create({
+        data: {
+          obligationId: params.obligationId,
+          title: parsed.data.title,
+        },
+        include: { completedBy: { select: COMPLETED_BY_SELECT } },
+      })
+
+      await writeActivity(
+        params.id,
+        ctx.userId,
+        "OBLIGATION_UPDATED",
+        `Sub-task created: ${created.title}`,
+        {
+          obligationId: params.obligationId,
+          subtaskId: created.id,
+          subtaskOperation: "created",
+        },
+        tx,
+      )
+      return created
     })
-    if (subTaskCount >= 20) {
+
+    if (!subTask) {
       return Response.json({ error: "subtask_limit_reached" }, { status: 422 })
     }
-
-    const subTask = await prisma.obligationSubTask.create({
-      data: {
-        obligationId: params.obligationId,
-        title: parsed.data.title,
-      },
-      include: { completedBy: { select: COMPLETED_BY_SELECT } },
-    })
 
     return Response.json(subTask, { status: 201 })
   })

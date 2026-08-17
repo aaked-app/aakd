@@ -196,6 +196,7 @@ describe("SearchPage", () => {
     })
     const dialog = await screen.findByRole("dialog", { name: message("searchPage", "filters") })
     expect(dialog).toHaveAttribute("data-side", "left")
+    expect(within(dialog).getAllByRole("button", { name: message("searchPage", "closeFilters") })).toHaveLength(1)
   })
 
   it("formats created dates in the active locale against the UTC calendar", async () => {

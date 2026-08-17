@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,16 +15,42 @@ interface Props {
   obligation: Obligation
   canWrite: boolean
   onChange: (next: ObligationSubTask[]) => void
+  onMutationComplete?: () => void
 }
 
-export function SubTaskList({ contractId, obligation, canWrite, onChange }: Props) {
+export function SubTaskList({
+  contractId,
+  obligation,
+  canWrite,
+  onChange,
+  onMutationComplete,
+}: Props) {
+  const t = useTranslations("obligationDetail")
   const [newTitle, setNewTitle] = useState("")
   const [busy, setBusy] = useState(false)
+  const [addError, setAddError] = useState("")
+  const tasksRef = useRef(obligation.subTasks)
+  const pendingRef = useRef(new Set<string>())
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    tasksRef.current = obligation.subTasks
+  }, [obligation.subTasks])
+
+  function setPending(id: string, pending: boolean) {
+    if (pending) pendingRef.current.add(id)
+    else pendingRef.current.delete(id)
+    setPendingIds(new Set(pendingRef.current))
+  }
 
   async function toggle(sub: ObligationSubTask) {
-    const optimistic = obligation.subTasks.map((s) =>
+    if (pendingRef.current.has(sub.id)) return
+    setPending(sub.id, true)
+    const previous = tasksRef.current
+    const optimistic = previous.map((s) =>
       s.id === sub.id ? { ...s, isCompleted: !s.isCompleted } : s,
     )
+    tasksRef.current = optimistic
     onChange(optimistic)
     try {
       const res = await fetch(
@@ -36,31 +63,59 @@ export function SubTaskList({ contractId, obligation, canWrite, onChange }: Prop
       )
       if (!res.ok) throw new Error()
       const updated = await res.json()
-      onChange(obligation.subTasks.map((s) => (s.id === sub.id ? updated : s)))
+      const next = tasksRef.current.map((s) => (s.id === sub.id ? updated : s))
+      tasksRef.current = next
+      onChange(next)
+      onMutationComplete?.()
     } catch {
-      toast.error("Failed to update task")
-      onChange(obligation.subTasks)
+      toast.error(t("taskUpdateError"))
+      const original = previous.find((task) => task.id === sub.id)
+      const rollback = original
+        ? tasksRef.current.map((task) => task.id === sub.id ? original : task)
+        : tasksRef.current
+      tasksRef.current = rollback
+      onChange(rollback)
+    } finally {
+      setPending(sub.id, false)
     }
   }
 
   async function remove(sub: ObligationSubTask) {
-    const previous = obligation.subTasks
-    onChange(previous.filter((s) => s.id !== sub.id))
+    if (pendingRef.current.has(sub.id)) return
+    setPending(sub.id, true)
+    const previous = tasksRef.current
+    const optimistic = previous.filter((s) => s.id !== sub.id)
+    tasksRef.current = optimistic
+    onChange(optimistic)
     try {
       const res = await fetch(
         `/api/contracts/${contractId}/obligations/${obligation.id}/subtasks/${sub.id}`,
         { method: "DELETE" },
       )
       if (!res.ok) throw new Error()
+      // Confirm the optimistic deletion with a fresh parent revision. Filter
+      // again because an aggregate response may have restored a server-stale
+      // copy while DELETE was pending.
+      const confirmed = tasksRef.current.filter((task) => task.id !== sub.id)
+      tasksRef.current = confirmed
+      onChange(confirmed)
+      onMutationComplete?.()
     } catch {
-      toast.error("Failed to delete task")
-      onChange(previous)
+      toast.error(t("taskDeleteError"))
+      const rollback = tasksRef.current.filter((task) => task.id !== sub.id)
+      const previousIndex = previous.findIndex((task) => task.id === sub.id)
+      rollback.splice(Math.min(Math.max(previousIndex, 0), rollback.length), 0, sub)
+      tasksRef.current = rollback
+      onChange(rollback)
+    } finally {
+      setPending(sub.id, false)
     }
   }
 
   async function add() {
     const title = newTitle.trim()
     if (!title || busy) return
+    setAddError("")
     setBusy(true)
     try {
       const res = await fetch(
@@ -74,37 +129,52 @@ export function SubTaskList({ contractId, obligation, canWrite, onChange }: Prop
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         if (body?.error === "subtask_limit_reached") {
-          toast.error("Maximum 20 sub-tasks per obligation")
+          const message = t("taskLimitError")
+          setAddError(message)
+          toast.error(message)
         } else {
-          toast.error("Failed to add task")
+          const message = t("taskAddError")
+          setAddError(message)
+          toast.error(message)
         }
         return
       }
       const created = await res.json()
-      onChange([...obligation.subTasks, created])
+      const next = [...tasksRef.current, created]
+      tasksRef.current = next
+      onChange(next)
       setNewTitle("")
+      onMutationComplete?.()
+    } catch {
+      const message = t("taskAddError")
+      setAddError(message)
+      toast.error(message)
     } finally {
       setBusy(false)
     }
   }
 
-  if (obligation.subTasks.length === 0 && !canWrite) return null
-
   return (
-    <div className="mt-3 space-y-1.5">
+    <div className="mt-4 space-y-2" aria-live="polite">
+      {obligation.subTasks.length === 0 && (
+        <p className="py-3 text-sm text-muted-foreground">{t("emptyTasks")}</p>
+      )}
       {obligation.subTasks.map((sub) => (
-        <div key={sub.id} className="group flex items-center gap-2">
-          <Checkbox
-            checked={sub.isCompleted}
-            disabled={!canWrite}
-            onCheckedChange={() => {
-              if (canWrite) toggle(sub)
-            }}
-          />
+        <div key={sub.id} className="group flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-2 hover:bg-muted/50">
+          <label className="flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center">
+            <Checkbox
+              checked={sub.isCompleted}
+              disabled={!canWrite || pendingIds.has(sub.id)}
+              aria-label={t(sub.isCompleted ? "reopenTask" : "toggleTask", { title: sub.title })}
+              onCheckedChange={() => {
+                if (canWrite) toggle(sub)
+              }}
+            />
+          </label>
           <span
             className={cn(
-              "flex-1 text-sm text-zinc-700",
-              sub.isCompleted && "text-zinc-400 line-through",
+              "min-w-0 flex-1 break-words text-sm text-foreground [overflow-wrap:anywhere]",
+              sub.isCompleted && "text-muted-foreground line-through",
             )}
           >
             {sub.title}
@@ -113,8 +183,9 @@ export function SubTaskList({ contractId, obligation, canWrite, onChange }: Prop
             <button
               type="button"
               onClick={() => remove(sub)}
-              className="rounded p-1 text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 group-hover:opacity-100"
-              aria-label="Delete task"
+              disabled={pendingIds.has(sub.id)}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100"
+              aria-label={t("deleteTask", { title: sub.title })}
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -123,26 +194,35 @@ export function SubTaskList({ contractId, obligation, canWrite, onChange }: Prop
       ))}
 
       {canWrite && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Input
-            placeholder="Add task and press Enter"
+            aria-label={t("addTaskPlaceholder")}
+            placeholder={t("addTaskPlaceholder")}
             value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
+            onChange={(e) => {
+              setNewTitle(e.target.value)
+              if (addError) setAddError("")
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault()
                 add()
               }
             }}
-            className="h-7 flex-1 text-xs"
+            className="min-h-11 flex-1 text-sm"
             disabled={busy}
           />
           {newTitle.trim() && (
-            <Button size="sm" className="h-7 text-xs" onClick={add} disabled={busy}>
-              Add
+            <Button size="sm" className="min-h-11 w-full sm:w-auto" onClick={add} disabled={busy}>
+              {t("addTask")}
             </Button>
           )}
         </div>
+      )}
+      {addError && (
+        <p className="text-sm text-destructive" role="alert">
+          {addError}
+        </p>
       )}
     </div>
   )

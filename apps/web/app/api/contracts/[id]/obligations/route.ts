@@ -33,6 +33,7 @@ const CreateObligationSchema = z.object({
     }),
   assigneeId: z.string().optional(),
   reminderDays: z.number().int().min(1).max(30).default(7),
+  suggestionId: z.string().optional(),
 })
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -130,6 +131,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
       include: OBLIGATION_INCLUDE,
     })
+
+    if (data.suggestionId) {
+      await prisma.contractObligationSuggestion.updateMany({
+        where: {
+          id: data.suggestionId,
+          contractId: params.id,
+          organizationId: ctx.organizationId,
+          status: "pending",
+        },
+        data: { status: "accepted" },
+      })
+    }
 
     // Audit trail — must not be fire-and-forget
     await writeActivity(

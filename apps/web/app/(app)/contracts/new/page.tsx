@@ -37,6 +37,8 @@ interface FormData {
   currency: string
   paymentTerms: string
   autoRenewal: boolean
+  renewalDate: string
+  noticePeriodDays: string
   governingLaw: string
   description: string
 }
@@ -51,6 +53,8 @@ const defaultFormData: FormData = {
   currency: "USD",
   paymentTerms: "",
   autoRenewal: false,
+  renewalDate: "",
+  noticePeriodDays: "",
   governingLaw: "",
   description: "",
 }
@@ -66,6 +70,8 @@ interface ExtractionResult {
   paymentTerms?: string | null
   governingLaw?: string | null
   autoRenewal?: boolean
+  renewalDate?: string | null
+  noticePeriodDays?: number | null
   description?: string | null
   confidence?: Record<string, number>
   error?: string
@@ -547,6 +553,7 @@ export default function NewContractPage() {
   const [confidence, setConfidence] = useState<Record<string, number>>({})
   const [aiExtracting, setAiExtracting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [previewCompleted, setPreviewCompleted] = useState(false)
   const touchedFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const aiFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const extractionAbortRef = useRef<AbortController | null>(null)
@@ -589,6 +596,8 @@ export default function NewContractPage() {
         currency: extracted.currency ?? undefined,
         paymentTerms: extracted.paymentTerms ?? undefined,
         autoRenewal: extracted.autoRenewal,
+        renewalDate: extracted.renewalDate?.slice(0, 10) ?? undefined,
+        noticePeriodDays: extracted.noticePeriodDays != null ? String(extracted.noticePeriodDays) : undefined,
         governingLaw: extracted.governingLaw ?? undefined,
         description: extracted.description ?? undefined,
       }
@@ -611,14 +620,22 @@ export default function NewContractPage() {
       setConfidence(extracted.confidence ?? {})
 
       if (extracted.error) {
+        setPreviewCompleted(false)
         toast.warning(
           extracted.partial
             ? "AI extraction partially failed. You can fill in the remaining fields."
             : "AI extraction is unavailable. You can fill in the fields manually.",
         )
+      } else {
+        // Only skip the worker's authoritative extraction when the preview
+        // completed cleanly. Partial/error responses must fall back to the
+        // worker so a transient parser failure cannot leave the contract with
+        // only the user-entered seed values.
+        setPreviewCompleted(true)
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
+        setPreviewCompleted(false)
         toast.error("AI extraction is unavailable. You can continue manually.")
         setFormData((prev) =>
           prev.title ? prev : { ...prev, title: fallbackTitle },
@@ -637,6 +654,7 @@ export default function NewContractPage() {
     const fileNameWithoutExt = selectedFile.name.replace(/\.[^.]+$/, "")
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
+    setPreviewCompleted(false)
     setFormData({ ...defaultFormData, title: titleCaseFromFilename(fileNameWithoutExt) })
     setConfidence({})
     setPageState("review")
@@ -648,6 +666,7 @@ export default function NewContractPage() {
     extractionAbortRef.current = null
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
+    setPreviewCompleted(false)
     setFile(null)
     setFormData(defaultFormData)
     setConfidence({})
@@ -677,6 +696,8 @@ export default function NewContractPage() {
         currency: formData.currency === "OTHER" ? "USD" : (formData.currency || "USD"),
         startDate: formData.startDate ? isoDate(formData.startDate) : undefined,
         endDate: formData.endDate ? isoDate(formData.endDate) : undefined,
+        renewalDate: formData.renewalDate ? isoDate(formData.renewalDate) : undefined,
+        noticePeriodDays: formData.noticePeriodDays ? Number(formData.noticePeriodDays) : undefined,
         governingLaw: formData.governingLaw || undefined,
         autoRenewal: formData.autoRenewal,
         notes: formData.description || undefined,
@@ -709,6 +730,8 @@ export default function NewContractPage() {
           { field: "currency",         rawValue: formData.currency === "OTHER" ? "USD" : formData.currency },
           { field: "governingLaw",     rawValue: formData.governingLaw },
           { field: "autoRenewal",      rawValue: String(formData.autoRenewal) },
+          { field: "renewalDate",      rawValue: formData.renewalDate },
+          { field: "noticePeriodDays", rawValue: formData.noticePeriodDays },
         ]
         const seedPayload = buildExtractionSeedPayload(
           seedFields,
@@ -729,6 +752,9 @@ export default function NewContractPage() {
 
         const fd = new globalThis.FormData()
         fd.append("file", file)
+        if (previewCompleted) {
+          fd.append("previewCompleted", "true")
+        }
         const uploadRes = await fetch(`/api/contracts/${contract.id}/upload`, {
           method: "POST",
           body: fd,

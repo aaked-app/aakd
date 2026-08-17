@@ -1,4 +1,5 @@
 /** Transactional contract creation for import rows. */
+import { createHash, randomUUID } from "node:crypto"
 import type { ContractStatus, ContractType, Prisma } from "@prisma/client"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { contractExtractQueue } from "@/lib/jobs/queues"
@@ -42,6 +43,42 @@ interface ImportedRowIdentity {
 interface ImportContext {
   organizationId: string
   ownerId: string
+}
+
+function stagedImportStorageKey(
+  file: ImportedContractFile,
+  context: ImportContext,
+  row: ImportedRowIdentity,
+): string {
+  const digest = createHash("sha256").update(file.buffer).digest("hex")
+  const attemptId = randomUUID()
+  return `imports/${context.organizationId}/${row.jobId}/rows/${row.rowIndex}/${digest}/${attemptId}/${sanitizeFilename(file.filename)}`
+}
+
+async function cleanupStagedObjectIfUnreferenced(
+  db: ReturnType<typeof getWorkerPrisma>,
+  row: ImportedRowIdentity,
+  storageKey: string,
+): Promise<void> {
+  try {
+    const successfulRow = await db.importRow.findUnique({
+      where: { jobId_rowIndex: { jobId: row.jobId, rowIndex: row.rowIndex } },
+      select: { status: true, contractId: true },
+    })
+    if (successfulRow?.status === "success" && successfulRow.contractId) {
+      const referencedFile = await db.contractFile.findFirst({
+        where: { contractId: successfulRow.contractId, storageKey },
+        select: { id: true },
+      })
+      if (referencedFile) return
+    }
+    await storage.delete(storageKey)
+  } catch (cleanupErr) {
+    // A transaction can commit even if the client loses its acknowledgement.
+    // Retaining an object is safer than deleting one while its DB reference is
+    // unknown; operators can reconcile a possible orphan later.
+    logger.error({ err: cleanupErr, storageKey }, "[import] staged object retained after inconclusive cleanup")
+  }
 }
 
 export function sanitizeFilename(name: string): string {
@@ -158,10 +195,20 @@ export async function createImportedContractForRow(
   if (existing?.status === "success" && existing.contractId) return existing.contractId
 
   const normalized = normalizeInput(data)
-  let uploadedStorageKey: string | null = null
+  const stagedFile = data.file
+    ? { file: data.file, storageKey: stagedImportStorageKey(data.file, context, row) }
+    : null
   let result: { contractId: string; extraction: { fileId: string; storageKey: string } | null }
   try {
+    if (stagedFile) {
+      await storage.upload(stagedFile.storageKey, stagedFile.file.buffer, stagedFile.file.mimeType)
+    }
     result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+      // A delivery can be retried concurrently by BullMQ. Serialize work for
+      // this exact job row even before an ImportRow exists, then re-read via
+      // the upsert below. The transaction-scoped lock is released on commit
+      // or rollback and prevents two contracts for one source row.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${row.jobId})::int, ${row.rowIndex}::int)`
       const claimed = await tx.importRow.upsert({
         where: { jobId_rowIndex: { jobId: row.jobId, rowIndex: row.rowIndex } },
         create: { jobId: row.jobId, rowIndex: row.rowIndex, sourceRef: row.sourceRef, status: "pending" },
@@ -181,24 +228,21 @@ export async function createImportedContractForRow(
       })
 
       let extraction: { fileId: string; storageKey: string } | null = null
-      if (data.file) {
-        const safe = sanitizeFilename(data.file.filename)
+      if (stagedFile) {
+        const safe = sanitizeFilename(stagedFile.file.filename)
         const fileRecord = await tx.contractFile.create({
           data: {
             contractId: contract.id,
             filename: safe,
-            mimeType: data.file.mimeType,
-            sizeBytes: data.file.sizeBytes,
-            storageKey: "",
+            mimeType: stagedFile.file.mimeType,
+            sizeBytes: stagedFile.file.sizeBytes,
+            storageKey: stagedFile.storageKey,
             isLatest: true,
             uploadedById: context.ownerId,
           },
           select: { id: true },
         })
-        uploadedStorageKey = `contracts/${context.organizationId}/${contract.id}/files/${fileRecord.id}/${safe}`
-        await storage.upload(uploadedStorageKey, data.file.buffer, data.file.mimeType)
-        await tx.contractFile.update({ where: { id: fileRecord.id }, data: { storageKey: uploadedStorageKey } })
-        extraction = { fileId: fileRecord.id, storageKey: uploadedStorageKey }
+        extraction = { fileId: fileRecord.id, storageKey: stagedFile.storageKey }
       }
 
       await tx.importRow.update({
@@ -208,14 +252,14 @@ export async function createImportedContractForRow(
       return { contractId: contract.id, extraction }
     })
   } catch (err) {
-    if (uploadedStorageKey) {
-      try {
-        await storage.delete(uploadedStorageKey)
-      } catch (cleanupErr) {
-        logger.error({ err: cleanupErr, storageKey: uploadedStorageKey }, "[import] failed to clean rolled-back contract object")
-      }
+    if (stagedFile) {
+      await cleanupStagedObjectIfUnreferenced(db, row, stagedFile.storageKey)
     }
     throw err
+  }
+
+  if (stagedFile && !result.extraction) {
+    await cleanupStagedObjectIfUnreferenced(db, row, stagedFile.storageKey)
   }
 
   if (result.extraction) {
