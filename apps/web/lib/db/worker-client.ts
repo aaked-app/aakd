@@ -7,12 +7,16 @@
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
+import { getDatabasePoolSize } from "@/lib/security/production-config"
 
 let _client: PrismaClient | null = null
 
 export function getWorkerPrisma(): PrismaClient {
   if (!_client) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? "" })
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL ?? "",
+      max: getDatabasePoolSize(),
+    })
     const adapter = new PrismaPg(pool)
     _client = new PrismaClient({ adapter, log: ["error", "warn"] })
   }

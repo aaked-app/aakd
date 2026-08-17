@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { format, differenceInCalendarDays } from "date-fns"
 import { Check, CheckSquare, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react"
@@ -14,11 +14,14 @@ import type { Obligation, ObligationStatus } from "./types"
 import type { OrgMember } from "@/lib/types"
 
 interface AISuggestion {
+  id?: string
   title: string
   description?: string
   clauseReference?: string
+  sourceText?: string | null
+  sourcePage?: number | null
   priority: "HIGH" | "MEDIUM" | "LOW"
-  suggestedDueDays: number
+  suggestedDueDays: number | null
   confidence: number
 }
 
@@ -28,6 +31,8 @@ interface Props {
   members: OrgMember[]
   contractArchived: boolean
   role: string | undefined
+  hasContractFile: boolean
+  hasExtractedText: boolean
   onChange: (next: Obligation[]) => void
 }
 
@@ -57,6 +62,8 @@ export function ObligationList({
   members,
   contractArchived,
   role,
+  hasContractFile,
+  hasExtractedText,
   onChange,
 }: Props) {
   const t = useTranslations("obligations")
@@ -74,8 +81,9 @@ export function ObligationList({
   const [extracting, setExtracting] = useState(false)
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
-  const [acceptingIdx, setAcceptingIdx] = useState<number | null>(null)
-  const [acceptingAll, setAcceptingAll] = useState(false)
+  const [reviewingIdx, setReviewingIdx] = useState<number | null>(null)
+  const extractionRequestRef = useRef(false)
+  const autoExtractionAttemptedRef = useRef(false)
   const [jobId, setJobId] = useState<string | null>(() => {
     // Hydrate from localStorage on mount — survives navigation
     if (typeof window === "undefined") return null
@@ -119,6 +127,7 @@ export function ObligationList({
               setSuggestions(s)
             }
             setExtracting(false)
+            extractionRequestRef.current = false
             localStorage.removeItem(`obligation_extract_job_${contractId}`)
             setJobId(null)
           }
@@ -126,6 +135,7 @@ export function ObligationList({
           if (!cancelled) {
             toast.error("Obligation extraction failed. Please try again.")
             setExtracting(false)
+            extractionRequestRef.current = false
             localStorage.removeItem(`obligation_extract_job_${contractId}`)
             setJobId(null)
           }
@@ -135,6 +145,7 @@ export function ObligationList({
         if (!cancelled) {
           toast.error("Failed to check extraction status.")
           setExtracting(false)
+          extractionRequestRef.current = false
           localStorage.removeItem(`obligation_extract_job_${contractId}`)
           setJobId(null)
         }
@@ -151,121 +162,70 @@ export function ObligationList({
   }, [jobId, contractId])
 
   async function extractWithAI() {
+    // State updates are asynchronous. Keep a synchronous guard as well so a
+    // double click cannot enqueue two extraction jobs before `extracting`
+    // reaches the button.
+    if (extractionRequestRef.current) return
+    if (!hasContractFile) {
+      toast.error("Upload a PDF or DOCX first.")
+      return
+    }
+    extractionRequestRef.current = true
     setExtracting(true)
     setSuggestions([])
     setDismissedIds(new Set())
     try {
       const res = await fetch(`/api/contracts/${contractId}/obligations/extract`, { method: "POST" })
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 202 || body.error === "text_processing") {
+        toast.info("Your document is still being prepared. Try again in a moment.")
+        setExtracting(false)
+        extractionRequestRef.current = false
+        return
+      }
       if (res.status === 422) {
-        const body = await res.json()
         if (body.error === "no_extracted_text") {
-          toast.error("Contract text not yet extracted. Upload a PDF or DOCX first.")
+          toast.error("Upload a PDF or DOCX first.")
+        } else if (body.error === "text_processing") {
+          toast.info("Your document is still being prepared. Try again in a moment.")
         } else if (body.error === "no_ai_provider") {
           toast.error("No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.")
         } else {
           toast.error("Could not extract obligations.")
         }
         setExtracting(false)
+        extractionRequestRef.current = false
         return
       }
       if (!res.ok) throw new Error()
-      const { jobId: id } = await res.json()
+      const { jobId: id } = body
+      if (!id) throw new Error()
       localStorage.setItem(`obligation_extract_job_${contractId}`, id)
       setJobId(id)
       // polling effect takes it from here
     } catch {
       toast.error("Failed to extract obligations.")
       setExtracting(false)
+      extractionRequestRef.current = false
     }
   }
 
-  async function acceptSuggestion(idx: number, s: AISuggestion) {
-    setAcceptingIdx(idx)
-    try {
-      const dueDate = new Date()
-      // Ensure at least 1 day in the future to pass server validation
-      dueDate.setDate(dueDate.getDate() + Math.max(s.suggestedDueDays ?? 30, 1))
-      const res = await fetch(`/api/contracts/${contractId}/obligations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: s.title,
-          description: s.description,
-          clauseReference: s.clauseReference,
-          priority: s.priority,
-          dueDate: dueDate.toISOString(),
-          reminderDays: 7,
-        }),
-      })
-      if (!res.ok) throw new Error()
-      const created = await res.json()
-      onChange([...obligations, created])
-      setDismissedIds((prev) => new Set(prev).add(idx))
-      toast.success(`Obligation "${s.title}" created.`)
-    } catch {
-      toast.error("Failed to create obligation.")
-    } finally {
-      setAcceptingIdx(null)
+  // Once the uploaded file has been converted to text, proactively prepare
+  // obligation suggestions. Suggestions remain review-only: nothing is
+  // written to the obligation ledger until the user reviews and saves one.
+  useEffect(() => {
+    if (
+      autoExtractionAttemptedRef.current ||
+      !hasExtractedText ||
+      !hasContractFile ||
+      obligations.length > 0 ||
+      jobId
+    ) {
+      return
     }
-  }
-
-  async function acceptAll() {
-    setAcceptingAll(true)
-    const pending = suggestions
-      .map((s, idx) => ({ s, idx }))
-      .filter(({ idx }) => !dismissedIds.has(idx))
-
-    const created: Obligation[] = []
-    const newDismissed = new Set(dismissedIds)
-    let failCount = 0
-
-    for (const { s, idx } of pending) {
-      try {
-        const dueDate = new Date()
-        // Ensure at least 1 day in the future to pass server validation
-        const days = Math.max(s.suggestedDueDays ?? 30, 1)
-        dueDate.setDate(dueDate.getDate() + days)
-        const res = await fetch(`/api/contracts/${contractId}/obligations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: s.title,
-            description: s.description,
-            clauseReference: s.clauseReference,
-            priority: s.priority,
-            dueDate: dueDate.toISOString(),
-            reminderDays: 7,
-          }),
-        })
-        if (res.ok) {
-          const ob = await res.json()
-          created.push(ob)
-          newDismissed.add(idx)
-        } else {
-          failCount++
-        }
-      } catch {
-        failCount++
-      }
-    }
-
-    if (created.length > 0) {
-      onChange([...obligations, ...created])
-      setDismissedIds(newDismissed)
-      // Only clear the suggestions panel when at least some were saved.
-      // If everything succeeded, also clear localStorage.
-      if (failCount === 0) {
-        setSuggestions([])
-        localStorage.removeItem(`obligation_extract_job_${contractId}`)
-        setJobId(null)
-      }
-      toast.success(`${created.length} obligation${created.length !== 1 ? "s" : ""} created.${failCount > 0 ? ` ${failCount} failed — remaining suggestions kept.` : ""}`)
-    } else {
-      // Nothing was created — keep suggestions visible so the user can retry.
-      toast.error("Failed to create obligations. Please try again.")
-    }
-    setAcceptingAll(false)
-  }
+    autoExtractionAttemptedRef.current = true
+    void extractWithAI()
+  }, [hasExtractedText, hasContractFile, obligations.length, jobId])
 
   function openEdit(ob: Obligation) {
     setEditing(ob)
@@ -279,6 +239,24 @@ export function ObligationList({
         : [...obligations, updated],
     )
   }
+
+  const reviewInitialValues = useMemo(() => {
+    if (reviewingIdx === null || !suggestions[reviewingIdx]) return undefined
+    const suggestion = suggestions[reviewingIdx]
+    const suggestedDueDays = suggestion.suggestedDueDays
+    const dueDate = suggestedDueDays === null ? null : new Date()
+    if (dueDate && suggestedDueDays !== null) dueDate.setDate(dueDate.getDate() + Math.max(suggestedDueDays, 1))
+    return {
+      title: suggestion.title,
+      description: suggestion.description ?? "",
+      clauseReference: suggestion.clauseReference ?? "",
+      priority: suggestion.priority,
+      // An inferred date is never silently invented. The reviewer must choose
+      // one when the contract does not provide a usable deadline.
+      dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : "",
+      reminderDays: 7,
+    }
+  }, [reviewingIdx, suggestions])
 
   async function complete(ob: Obligation) {
     try {
@@ -322,9 +300,9 @@ export function ObligationList({
         </div>
         <div className="flex items-center gap-2">
           {canCreate && (
-            <Button size="sm" variant="outline" onClick={extractWithAI} disabled={extracting}>
+            <Button size="sm" variant="outline" onClick={extractWithAI} disabled={extracting || !hasContractFile}>
               {extracting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              {extracting ? "Extracting…" : "Extract with AI"}
+              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Prepare document" : "Extract with AI"}
             </Button>
           )}
           {canCreate && (
@@ -392,14 +370,14 @@ export function ObligationList({
               size="sm"
               variant="outline"
               onClick={extractWithAI}
-              disabled={extracting}
+              disabled={extracting || !hasContractFile}
             >
               {extracting ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Sparkles className="size-4" />
               )}
-              {extracting ? "Extracting…" : "Extract with AI"}
+              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Prepare document" : "Extract with AI"}
             </Button>
           )}
           {canCreate && (
@@ -436,18 +414,9 @@ export function ObligationList({
         <div className="rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
-              AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review and accept
+              AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review before creating
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                className="h-7 text-xs"
-                disabled={acceptingAll}
-                onClick={acceptAll}
-              >
-                {acceptingAll ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
-                {acceptingAll ? "Accepting…" : `Accept All (${suggestions.filter((_, i) => !dismissedIds.has(i)).length})`}
-              </Button>
               <button
                 type="button"
                 onClick={() => {
@@ -466,14 +435,20 @@ export function ObligationList({
             {suggestions.map((s, idx) => {
               const dismissed = dismissedIds.has(idx)
               if (dismissed) return null
-              const dueDate = new Date()
-              dueDate.setDate(dueDate.getDate() + Math.max(s.suggestedDueDays ?? 30, 1))
+              const suggestedDueDays = s.suggestedDueDays
+              const dueDate = suggestedDueDays === null ? null : new Date()
+              if (dueDate && suggestedDueDays !== null) dueDate.setDate(dueDate.getDate() + Math.max(suggestedDueDays, 1))
               return (
                 <div key={idx} className="rounded-[var(--radius)] border border-border bg-card p-3 flex items-start gap-3">
                   <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", PRIORITY_DOT[s.priority])} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{s.title}</p>
                     {s.description && <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>}
+                    {s.sourceText && (
+                      <p className="mt-1 line-clamp-2 border-s-2 border-primary/30 ps-2 text-[11px] italic text-muted-foreground">
+                        “{s.sourceText}”{s.sourcePage ? ` · p. ${s.sourcePage}` : ""}
+                      </p>
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
                       {s.clauseReference && <span>{s.clauseReference}</span>}
                       <span
@@ -488,7 +463,7 @@ export function ObligationList({
                       >
                         {Math.round(s.confidence * 100)}% confidence
                       </span>
-                      <span>Due ~{format(dueDate, "MMM d, yyyy")}</span>
+                      <span>{dueDate ? `Due ~${format(dueDate, "MMM d, yyyy")}` : "Date needs review"}</span>
                       <span className="capitalize">{s.priority.toLowerCase()} priority</span>
                     </div>
                   </div>
@@ -497,10 +472,14 @@ export function ObligationList({
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      disabled={acceptingIdx === idx || acceptingAll}
-                      onClick={() => acceptSuggestion(idx, s)}
+                      disabled={reviewingIdx !== null}
+                      onClick={() => {
+                        setReviewingIdx(idx)
+                        setEditing(null)
+                        setSheetOpen(true)
+                      }}
                     >
-                      {acceptingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Accept"}
+                      {reviewingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Review"}
                     </Button>
                     <button
                       type="button"
@@ -669,11 +648,22 @@ export function ObligationList({
 
       <ObligationSheet
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open)
+          if (!open) setReviewingIdx(null)
+        }}
         contractId={contractId}
         members={members}
         obligation={editing}
-        onSaved={applyChange}
+        suggestionId={reviewingIdx !== null ? suggestions[reviewingIdx]?.id : undefined}
+        initialValues={reviewInitialValues}
+        onSaved={(saved) => {
+          applyChange(saved)
+          if (reviewingIdx !== null) {
+            setDismissedIds((prev) => new Set(prev).add(reviewingIdx))
+            setReviewingIdx(null)
+          }
+        }}
       />
     </div>
   )

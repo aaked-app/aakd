@@ -98,7 +98,9 @@ export async function PATCH(
       let advancedTo: "AWAITING_SIGNATURE" | "INTERNAL_REVIEW" | null = null
       let activatedNext: { id: string; assignedToId: string; requestedBy: { id: string; name: string | null; email: string; image: string | null } } | null = null
 
-      if (body.decision === "approved" && contract.status === "PENDING_APPROVAL") {
+      // Optional approvals are out-of-band observations. They must never
+      // advance the required chain or activate a waiting reviewer.
+      if (body.decision === "approved" && approval.required && contract.status === "PENDING_APPROVAL") {
         // Activate the next step in the chain if it exists
         const nextWaiting = await tx.approval.findFirst({
           where: { contractId: params.id, status: "waiting" },

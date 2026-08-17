@@ -7,6 +7,7 @@
  */
 import { encrypt, decrypt } from "@/lib/notifications/crypto"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
+import { MAX_IMPORT_FILE_BYTES, readBoundedResponseBody } from "./bounded-response"
 
 export interface DriveFile {
   id: string
@@ -137,7 +138,13 @@ export async function downloadDriveFile(
     mimeType: string
     size?: string
   }
-  const sizeBytes = meta.size ? Number(meta.size) : 0
+  if (meta.size === undefined || meta.size === null || meta.size === "") {
+    throw new Error("file_size_unknown")
+  }
+  const sizeBytes = Number(meta.size)
+  if (!Number.isFinite(sizeBytes) || sizeBytes < 0 || sizeBytes > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("file_too_large")
+  }
 
   const dlRes = await fetch(
     `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`,
@@ -146,11 +153,11 @@ export async function downloadDriveFile(
   if (!dlRes.ok) {
     throw new Error(`google_drive_download_failed: ${dlRes.status}`)
   }
-  const arrayBuffer = await dlRes.arrayBuffer()
+  const buffer = await readBoundedResponseBody(dlRes)
   return {
-    buffer: Buffer.from(arrayBuffer),
+    buffer,
     name: meta.name,
     mimeType: meta.mimeType,
-    sizeBytes: sizeBytes || arrayBuffer.byteLength,
+    sizeBytes: buffer.byteLength,
   }
 }

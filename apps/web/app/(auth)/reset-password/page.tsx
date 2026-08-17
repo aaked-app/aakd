@@ -39,7 +39,7 @@ function ResetPasswordForm() {
     try {
       const result = await authClient.resetPassword({ newPassword: password, token })
       if (result.error) {
-        toast.error(result.error.message ?? t("resetFailed"))
+        toast.error(t("resetFailed"))
       } else {
         toast.success(t("passwordUpdated"))
         router.push("/login")
@@ -58,7 +58,7 @@ function ResetPasswordForm() {
           <h1 className="text-xl font-semibold text-zinc-900">{t("invalidLinkTitle")}</h1>
           <p className="text-sm text-zinc-500">{t("invalidLinkSubtitle")}</p>
         </div>
-        <Link href="/forgot-password" className="text-indigo-600 hover:underline text-sm">
+        <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm text-indigo-600 hover:underline">
           {t("requestNewLink")}
         </Link>
       </>
@@ -83,6 +83,7 @@ function ResetPasswordForm() {
             required
             minLength={8}
             autoComplete="new-password"
+            className="min-h-11"
           />
         </div>
         <div className="space-y-1.5">
@@ -95,9 +96,10 @@ function ResetPasswordForm() {
             onChange={(e) => setConfirm(e.target.value)}
             required
             autoComplete="new-password"
+            className="min-h-11"
           />
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="min-h-11 w-full" disabled={loading}>
           {loading ? t("updating") : t("setNewPassword")}
         </Button>
       </form>

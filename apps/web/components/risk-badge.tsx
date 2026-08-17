@@ -3,9 +3,10 @@ import { cn } from "@/lib/utils"
 interface RiskBadgeProps {
   level: "LOW" | "MEDIUM" | "HIGH" | string | null | undefined
   size?: "sm" | "md"
+  label?: string
 }
 
-export function RiskBadge({ level, size = "md" }: RiskBadgeProps) {
+export function RiskBadge({ level, size = "md", label }: RiskBadgeProps) {
   if (!level) {
     return (
       <span
@@ -16,7 +17,7 @@ export function RiskBadge({ level, size = "md" }: RiskBadgeProps) {
         )}
       >
         <span className="size-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-        Not scored
+        {label ?? "Not scored"}
       </span>
     )
   }
@@ -49,10 +50,7 @@ export function RiskBadge({ level, size = "md" }: RiskBadgeProps) {
           dotStyles[normalized] ?? "bg-muted-foreground/50",
         )}
       />
-      {normalized === "LOW" && "Low"}
-      {normalized === "MEDIUM" && "Medium"}
-      {normalized === "HIGH" && "High"}
-      {normalized !== "LOW" && normalized !== "MEDIUM" && normalized !== "HIGH" && normalized}
+      {label ?? (normalized === "LOW" ? "Low" : normalized === "MEDIUM" ? "Medium" : normalized === "HIGH" ? "High" : normalized)}
     </span>
   )
 }

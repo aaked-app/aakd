@@ -108,6 +108,7 @@ model Organization {
   templates               ContractTemplate[]
   snapshots               DocumentSnapshot[]
   obligations             ContractObligation[]
+  obligationSuggestions   ContractObligationSuggestion[]
   crmIntegrations         CrmIntegration[]
   importJobs              ImportJob[]
   googleDriveIntegration  GoogleDriveIntegration?
@@ -194,6 +195,7 @@ model Contract {
   snapshots             DocumentSnapshot[]
   comments              ContractComment[]
   obligations           ContractObligation[]
+  obligationSuggestions ContractObligationSuggestion[]
   crmLinks              CrmLink[]
   notifications         Notification[]
   extractedText         String?
@@ -605,6 +607,33 @@ model ContractObligation {
   @@index([contractId])
   @@index([organizationId, status])
   @@index([status, dueDate])
+}
+
+/// AI-generated obligation candidates remain separate from the durable
+/// obligation ledger until a human accepts them.
+model ContractObligationSuggestion {
+  id               String             @id @default(cuid())
+  contractId       String
+  contract         Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sourceHash       String
+  jobId            String?
+  title            String
+  description      String
+  clauseReference  String?
+  sourceText       String?
+  sourcePage       Int?
+  priority         ObligationPriority @default(MEDIUM)
+  suggestedDueDays Int?
+  confidence       Float              @default(0)
+  status           String             @default("pending") // pending | accepted | dismissed
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([contractId, status])
+  @@index([organizationId, status])
+  @@unique([contractId, sourceHash, title])
 }
 
 model ObligationSubTask {

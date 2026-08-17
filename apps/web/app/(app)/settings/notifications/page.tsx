@@ -1,675 +1,72 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { format } from "date-fns"
-import { Check, Copy, Trash2, Plus } from "lucide-react"
+import { useLocale, useTranslations } from "next-intl"
+import { Check, Copy, ExternalLink, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useSession } from "@/lib/auth/client"
 
-interface OrgChannel {
-  id: string
-  channelType: "slack" | "teams"
-  label: string
-  enabled: boolean
-  createdAt: string
-}
-
-interface OutboundWebhookRow {
-  id: string
-  label: string
-  enabled: boolean
-  urlPreview: string
-  createdAt: string
-}
-
-const MAX_PER_TYPE = 5
-const MAX_WEBHOOKS = 10
+interface Channel { id: string; channelType: "slack" | "teams"; label: string; enabled: boolean; createdAt: string }
+interface Webhook { id: string; label: string; enabled: boolean; urlPreview: string | null; createdAt: string }
+const MAX_PER_TYPE = 5; const MAX_WEBHOOKS = 10
 
 export default function NotificationsSettingsPage() {
-  const { data: session } = useSession()
-  const [role, setRole] = useState<string | null>(null)
-  const [channels, setChannels] = useState<OrgChannel[]>([])
-  const [webhooks, setWebhooks] = useState<OutboundWebhookRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const [showSlackForm, setShowSlackForm] = useState(false)
-  const [showTeamsForm, setShowTeamsForm] = useState(false)
-  const [slackLabel, setSlackLabel] = useState("")
-  const [slackUrl, setSlackUrl] = useState("")
-  const [teamsLabel, setTeamsLabel] = useState("")
-  const [teamsUrl, setTeamsUrl] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  const [showWebhookForm, setShowWebhookForm] = useState(false)
-  const [webhookLabel, setWebhookLabel] = useState("")
-  const [webhookUrl, setWebhookUrl] = useState("")
-
-  const [newSecret, setNewSecret] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [confirmDeleteChannel, setConfirmDeleteChannel] = useState<string | null>(null)
-  const [confirmDeleteWebhook, setConfirmDeleteWebhook] = useState<string | null>(null)
-
+  const t = useTranslations("orgNotifications"); const locale = useLocale(); const { data: session } = useSession(); const requestRef = useRef(0); const copyRequestRef = useRef(0)
+  const [role, setRole] = useState<string | null>(null); const [channels, setChannels] = useState<Channel[]>([]); const [webhooks, setWebhooks] = useState<Webhook[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(false); const [saving, setSaving] = useState(false)
+  const [channelForm, setChannelForm] = useState<"slack" | "teams" | null>(null); const [channelLabel, setChannelLabel] = useState(""); const [channelUrl, setChannelUrl] = useState(""); const [webhookForm, setWebhookForm] = useState(false); const [webhookLabel, setWebhookLabel] = useState(""); const [webhookUrl, setWebhookUrl] = useState("")
+  const [secret, setSecret] = useState<string | null>(null); const [copied, setCopied] = useState(false); const [copyError, setCopyError] = useState(false); const [deleteChannelId, setDeleteChannelId] = useState<string | null>(null); const [deleteWebhookId, setDeleteWebhookId] = useState<string | null>(null)
   const isAdmin = role === "admin" || role === "owner"
+  const slackCount = useMemo(() => channels.filter((c) => c.channelType === "slack").length, [channels]); const teamsCount = useMemo(() => channels.filter((c) => c.channelType === "teams").length, [channels])
+  const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value))
 
-  const slackChannels = useMemo(
-    () => channels.filter((c) => c.channelType === "slack"),
-    [channels],
-  )
-  const teamsChannels = useMemo(
-    () => channels.filter((c) => c.channelType === "teams"),
-    [channels],
-  )
-
-  async function loadAll() {
+  const load = useCallback(async () => {
+    const request = ++requestRef.current; setLoading(true); setError(false)
     try {
-      const [chRes, whRes, mRes] = await Promise.all([
-        fetch("/api/org/notification-channels"),
-        fetch("/api/org/webhooks"),
-        fetch("/api/org/members"),
-      ])
-      if (chRes.ok) {
-        const d = await chRes.json()
-        setChannels(d.channels ?? [])
-      }
-      if (whRes.ok) {
-        const d = await whRes.json()
-        setWebhooks(d.webhooks ?? [])
-      }
-      if (mRes.ok && session?.user?.id) {
-        const d = await mRes.json()
-        const list = d.members ?? d ?? []
-        const mine = list.find(
-          (m: { userId?: string; user?: { id?: string }; role?: string }) =>
-            m.userId === session.user.id || m.user?.id === session.user.id,
-        )
-        setRole(mine?.role ?? null)
-      }
-    } catch {
-      toast.error("Failed to load notification settings")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      const [channelsRes, webhooksRes, membersRes] = await Promise.all([fetch("/api/org/notification-channels"), fetch("/api/org/webhooks"), fetch("/api/org/members")])
+      if (!channelsRes.ok || !webhooksRes.ok || !membersRes.ok) throw new Error()
+      const [channelData, webhookData, memberData] = await Promise.all([channelsRes.json(), webhooksRes.json(), membersRes.json()])
+      if (request !== requestRef.current) return
+      const members = memberData.members ?? memberData ?? []; const mine = members.find((m: { userId?: string; user?: { id?: string }; role?: string }) => m.userId === session?.user?.id || m.user?.id === session?.user?.id)
+      setChannels(channelData.channels ?? []); setWebhooks(webhookData.webhooks ?? []); setRole(mine?.role ?? null)
+    } catch { if (request === requestRef.current) setError(true) }
+    finally { if (request === requestRef.current) setLoading(false) }
   }, [session?.user?.id])
+  useEffect(() => { void load(); return () => { requestRef.current += 1 } }, [load])
 
-  async function createChannel(channelType: "slack" | "teams") {
-    const label = channelType === "slack" ? slackLabel : teamsLabel
-    const url = channelType === "slack" ? slackUrl : teamsUrl
-    if (!label.trim() || !url.trim()) return
-    setSaving(true)
-    try {
-      const res = await fetch("/api/org/notification-channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelType, label, webhookUrl: url }),
-      })
-      if (!res.ok) {
-        if (res.status === 422) {
-          const err = await res.json().catch(() => null)
-          if (err?.error === "limit_reached") {
-            toast.error(`Maximum ${MAX_PER_TYPE} ${channelType} channels reached`)
-            return
-          }
-        }
-        throw new Error()
-      }
-      toast.success(`${channelType === "slack" ? "Slack" : "Teams"} channel added`)
-      if (channelType === "slack") {
-        setSlackLabel("")
-        setSlackUrl("")
-        setShowSlackForm(false)
-      } else {
-        setTeamsLabel("")
-        setTeamsUrl("")
-        setShowTeamsForm(false)
-      }
-      loadAll()
-    } catch {
-      toast.error("Failed to add channel")
-    } finally {
-      setSaving(false)
-    }
-  }
+  async function mutate(url: string, init: RequestInit, success: string) { try { const res = await fetch(url, init); if (!res.ok) throw new Error(); toast.success(t(success)); await load(); return true } catch { toast.error(t("actionError")); return false } }
+  function openChannelForm(channelType: "slack" | "teams") { setChannelLabel(""); setChannelUrl(""); setChannelForm(channelType) }
+  function closeChannelForm() { setChannelForm(null); setChannelLabel(""); setChannelUrl("") }
+  function closeWebhookForm() { setWebhookForm(false); setWebhookLabel(""); setWebhookUrl("") }
+  function closeSecret() { copyRequestRef.current += 1; setSecret(null); setCopyError(false); setCopied(false) }
+  async function createChannel() { if (!channelForm || !channelLabel.trim() || !channelUrl.trim()) return; setSaving(true); const ok = await mutate("/api/org/notification-channels", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelType: channelForm, label: channelLabel, webhookUrl: channelUrl }) }, "channelAdded"); if (ok) closeChannelForm(); setSaving(false) }
+  async function createWebhook(event: React.FormEvent) { event.preventDefault(); if (!webhookLabel.trim() || !webhookUrl.trim()) return; setSaving(true); try { const res = await fetch("/api/org/webhooks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: webhookLabel, url: webhookUrl }) }); if (!res.ok) throw new Error(); const data = await res.json(); setSecret(data.signingSecret); closeWebhookForm(); await load() } catch { toast.error(t("actionError")) } finally { setSaving(false) } }
+  async function copySecret() { if (!secret) return; const request = ++copyRequestRef.current; setCopyError(false); try { await navigator.clipboard.writeText(secret); if (request !== copyRequestRef.current) return; setCopied(true); window.setTimeout(() => { if (request === copyRequestRef.current) setCopied(false) }, 2000) } catch { if (request === copyRequestRef.current) setCopyError(true) } }
 
-  async function toggleChannel(id: string, enabled: boolean) {
-    try {
-      const res = await fetch(`/api/org/notification-channels/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled }),
-      })
-      if (!res.ok) throw new Error()
-      setChannels((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, enabled } : c)),
-      )
-    } catch {
-      toast.error("Failed to update channel")
-    }
-  }
-
-  async function deleteChannel(id: string) {
-    setConfirmDeleteChannel(id)
-  }
-
-  async function doDeleteChannel(id: string) {
-    setConfirmDeleteChannel(null)
-    try {
-      const res = await fetch(`/api/org/notification-channels/${id}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) throw new Error()
-      toast.success("Channel deleted")
-      loadAll()
-    } catch {
-      toast.error("Failed to delete channel")
-    }
-  }
-
-  async function createWebhook(e: React.FormEvent) {
-    e.preventDefault()
-    if (!webhookLabel.trim() || !webhookUrl.trim()) return
-    setSaving(true)
-    try {
-      const res = await fetch("/api/org/webhooks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: webhookLabel, url: webhookUrl }),
-      })
-      if (!res.ok) {
-        if (res.status === 422) {
-          const err = await res.json().catch(() => null)
-          if (err?.error === "limit_reached") {
-            toast.error(`Maximum ${MAX_WEBHOOKS} webhooks reached`)
-            return
-          }
-        }
-        throw new Error()
-      }
-      const data = (await res.json()) as { signingSecret: string }
-      setNewSecret(data.signingSecret)
-      setWebhookLabel("")
-      setWebhookUrl("")
-      setShowWebhookForm(false)
-      loadAll()
-    } catch {
-      toast.error("Failed to create webhook")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function deleteWebhook(id: string) {
-    setConfirmDeleteWebhook(id)
-  }
-
-  async function doDeleteWebhook(id: string) {
-    setConfirmDeleteWebhook(null)
-    try {
-      const res = await fetch(`/api/org/webhooks/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error()
-      toast.success("Webhook deleted")
-      loadAll()
-    } catch {
-      toast.error("Failed to delete webhook")
-    }
-  }
-
-  async function copySecret() {
-    if (!newSecret) return
-    await navigator.clipboard.writeText(newSecret)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <div className="p-6 space-y-8 max-w-3xl">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Notifications</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure how your organization receives contract lifecycle events
-        </p>
-      </div>
-
-      <section className="space-y-3">
-        <div className="flex items-end justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Slack &amp; Teams</h2>
-            <p className="text-xs text-muted-foreground">
-              Receive contract events in your team chat channels
-            </p>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Slack: {slackChannels.length} of {MAX_PER_TYPE} · Teams:{" "}
-            {teamsChannels.length} of {MAX_PER_TYPE}
-          </div>
-        </div>
-
-        <div className="rounded-[var(--radius)] border border-border bg-card">
-          {loading ? (
-            <div className="p-4 space-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : channels.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              No channels configured yet
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-20">Enabled</TableHead>
-                  {isAdmin && <TableHead className="w-12" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {channels.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {c.channelType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{c.label}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(c.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={c.enabled}
-                        onCheckedChange={
-                          isAdmin
-                            ? (v) => toggleChannel(c.id, v)
-                            : undefined
-                        }
-                        disabled={!isAdmin}
-                      />
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteChannel(c.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {isAdmin && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowSlackForm((v) => !v)}
-              disabled={slackChannels.length >= MAX_PER_TYPE}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Slack channel
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowTeamsForm((v) => !v)}
-              disabled={teamsChannels.length >= MAX_PER_TYPE}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Teams channel
-            </Button>
-          </div>
-        )}
-
-        {showSlackForm && isAdmin && (
-          <ChannelForm
-            kind="slack"
-            label={slackLabel}
-            url={slackUrl}
-            saving={saving}
-            onLabel={setSlackLabel}
-            onUrl={setSlackUrl}
-            onSubmit={() => createChannel("slack")}
-            onCancel={() => {
-              setShowSlackForm(false)
-              setSlackLabel("")
-              setSlackUrl("")
-            }}
-          />
-        )}
-        {showTeamsForm && isAdmin && (
-          <ChannelForm
-            kind="teams"
-            label={teamsLabel}
-            url={teamsUrl}
-            saving={saving}
-            onLabel={setTeamsLabel}
-            onUrl={setTeamsUrl}
-            onSubmit={() => createChannel("teams")}
-            onCancel={() => {
-              setShowTeamsForm(false)
-              setTeamsLabel("")
-              setTeamsUrl("")
-            }}
-          />
-        )}
+  const channelLimit = channelForm === "slack" ? slackCount >= MAX_PER_TYPE : teamsCount >= MAX_PER_TYPE
+  return <div className="mx-auto w-full max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8">
+    <header className="space-y-1"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">{t("eyebrow")}</p><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-2xl text-sm text-muted-foreground">{t("subtitle")}</p></header>
+    {error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"><p className="font-medium">{t("loadError")}</p><p className="mt-1 text-sm text-muted-foreground">{t("loadErrorHelp")}</p><Button className="mt-4" variant="outline" onClick={() => void load()}>{t("retry")}</Button></div> : <>
+      <section className="space-y-3" aria-labelledby="chat-heading"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 id="chat-heading" className="text-base font-semibold">{t("chatTitle")}</h2><p className="text-sm text-muted-foreground">{t("chatDescription")}</p></div><p className="text-xs text-muted-foreground">{t("chatCount", { slack: slackCount, teams: teamsCount, max: MAX_PER_TYPE })}</p></div>
+        {loading ? <div className="grid gap-3 sm:grid-cols-2">{[0, 1].map((i) => <Skeleton key={i} className="h-28 w-full" />)}</div> : channels.length === 0 ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{t("noChannels")}</div> : <div className="grid gap-3 sm:grid-cols-2">{channels.map((c) => <article key={c.id} className="rounded-xl border border-border bg-card p-4"><div className="flex items-start justify-between gap-3"><div><Badge variant="outline">{t(`channelTypes.${c.channelType}`)}</Badge><h3 className="mt-2 font-medium">{c.label}</h3><p className="mt-1 text-xs text-muted-foreground">{t("created", { date: formatDate(c.createdAt) })}</p></div><Switch aria-label={t("enabledFor", { label: c.label })} checked={c.enabled} disabled={!isAdmin} onCheckedChange={isAdmin ? (enabled) => void mutate(`/api/org/notification-channels/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, "channelUpdated") : undefined} /></div>{isAdmin && <Button aria-label={t("deleteChannel", { label: c.label })} className="mt-3" variant="ghost" size="sm" onClick={() => setDeleteChannelId(c.id)}><Trash2 className="h-4 w-4" />{t("delete")}</Button>}</article>)}</div>}
+        {isAdmin && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={slackCount >= MAX_PER_TYPE} onClick={() => openChannelForm("slack")}><Plus />{t("addSlack")}</Button><Button variant="outline" size="sm" disabled={teamsCount >= MAX_PER_TYPE} onClick={() => openChannelForm("teams")}><Plus />{t("addTeams")}</Button></div>}
+        {isAdmin && channelForm && <form onSubmit={(e) => { e.preventDefault(); void createChannel() }} className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="channel-label">{t("channelLabel")}</Label><Input id="channel-label" value={channelLabel} onChange={(e) => setChannelLabel(e.target.value)} required /></div><div className="space-y-1.5"><Label htmlFor="channel-url">{t("channelUrl")}</Label><Input id="channel-url" type="password" autoComplete="new-password" value={channelUrl} onChange={(e) => setChannelUrl(e.target.value)} required /></div><div className="flex gap-2 sm:col-span-2"><Button size="sm" disabled={saving || channelLimit}>{saving ? t("saving") : t("add")}</Button><Button type="button" size="sm" variant="ghost" onClick={closeChannelForm}>{t("cancel")}</Button></div></form>}
       </section>
-
-      <section className="space-y-3">
-        <div className="flex items-end justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">
-              Outbound Webhooks
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Send signed events to your own systems (Zapier, Make, internal APIs)
-            </p>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {webhooks.length} of {MAX_WEBHOOKS} configured
-          </div>
-        </div>
-
-        <div className="rounded-[var(--radius)] border border-border bg-card">
-          {loading ? (
-            <div className="p-4 space-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : webhooks.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              No webhooks configured yet
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Label</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-32" />
-                  {isAdmin && <TableHead className="w-12" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {webhooks.map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="font-medium">{w.label}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {w.urlPreview}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(w.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/settings/notifications/webhooks/${w.id}/deliveries`}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        View deliveries
-                      </Link>
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteWebhook(w.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {isAdmin && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowWebhookForm((v) => !v)}
-            disabled={webhooks.length >= MAX_WEBHOOKS}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add webhook
-          </Button>
-        )}
-
-        {showWebhookForm && isAdmin && (
-          <form
-            onSubmit={createWebhook}
-            className="rounded-[var(--radius)] border border-border bg-card p-4 space-y-3"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="wh-label">Label</Label>
-              <Input
-                id="wh-label"
-                placeholder="Production Zapier"
-                value={webhookLabel}
-                onChange={(e) => setWebhookLabel(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="wh-url">URL</Label>
-              <Input
-                id="wh-url"
-                type="url"
-                placeholder="https://hooks.example.com/clauseflow"
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button type="submit" size="sm" disabled={saving}>
-                {saving ? "Creating..." : "Create"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setShowWebhookForm(false)
-                  setWebhookLabel("")
-                  setWebhookUrl("")
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
+      <section className="space-y-3" aria-labelledby="webhooks-heading"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 id="webhooks-heading" className="text-base font-semibold">{t("webhooksTitle")}</h2><p className="text-sm text-muted-foreground">{t("webhooksDescription")}</p></div><p className="text-xs text-muted-foreground">{t("webhookCount", { count: webhooks.length, max: MAX_WEBHOOKS })}</p></div>
+        {loading ? <div className="space-y-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div> : webhooks.length === 0 ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{t("noWebhooks")}</div> : <div className="space-y-3">{webhooks.map((w) => <article key={w.id} className="rounded-xl border border-border bg-card p-4"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="font-medium">{w.label}</h3><Badge variant={w.enabled ? "secondary" : "outline"}>{w.enabled ? t("enabled") : t("disabled")}</Badge></div><p className="mt-1 truncate font-mono text-xs text-muted-foreground">{!w.urlPreview || w.urlPreview === "(unavailable)" ? t("previewUnavailable") : w.urlPreview}</p><p className="mt-1 text-xs text-muted-foreground">{t("created", { date: formatDate(w.createdAt) })}</p></div>{isAdmin && <div className="flex flex-wrap gap-2"><Button nativeButton={false} variant="outline" size="sm" render={<Link href={`/settings/notifications/webhooks/${w.id}/deliveries`} />}><ExternalLink />{t("viewDeliveries")}</Button><Button aria-label={t("deleteWebhook", { label: w.label })} variant="ghost" size="sm" onClick={() => setDeleteWebhookId(w.id)}><Trash2 />{t("delete")}</Button></div>}</div></article>)}</div>}
+        {isAdmin && <Button aria-label={t("addWebhook")} variant="outline" size="sm" disabled={webhooks.length >= MAX_WEBHOOKS} onClick={() => setWebhookForm(true)}><Plus />{t("addWebhook")}</Button>}
+        {isAdmin && webhookForm && <form onSubmit={createWebhook} className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="webhook-label">{t("webhookLabel")}</Label><Input id="webhook-label" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} required /></div><div className="space-y-1.5"><Label htmlFor="webhook-url">{t("webhookUrl")}</Label><Input id="webhook-url" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} required /></div><div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={saving}>{saving ? t("creating") : t("create")}</Button><Button type="button" variant="ghost" onClick={closeWebhookForm}>{t("cancel")}</Button></div></form>}
       </section>
-
-      {/* Delete channel confirmation */}
-      <Dialog open={!!confirmDeleteChannel} onOpenChange={(open) => { if (!open) setConfirmDeleteChannel(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete channel</DialogTitle>
-            <DialogDescription>
-              Delete this notification channel? This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDeleteChannel(null)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              onClick={() => confirmDeleteChannel && doDeleteChannel(confirmDeleteChannel)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete webhook confirmation */}
-      <Dialog open={!!confirmDeleteWebhook} onOpenChange={(open) => { if (!open) setConfirmDeleteWebhook(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete webhook</DialogTitle>
-            <DialogDescription>
-              Delete this webhook? Delivery history will also be removed. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDeleteWebhook(null)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              onClick={() => confirmDeleteWebhook && doDeleteWebhook(confirmDeleteWebhook)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!newSecret} onOpenChange={() => setNewSecret(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Webhook signing secret</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-              <p className="text-sm text-amber-800 font-medium">
-                This secret is shown once. Save it now — it cannot be retrieved
-                again.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                value={newSecret ?? ""}
-                readOnly
-                className="font-mono text-sm"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                onClick={copySecret}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-emerald-600" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <Button className="w-full" onClick={() => setNewSecret(null)}>
-              Done
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
-interface ChannelFormProps {
-  kind: "slack" | "teams"
-  label: string
-  url: string
-  saving: boolean
-  onLabel: (v: string) => void
-  onUrl: (v: string) => void
-  onSubmit: () => void
-  onCancel: () => void
-}
-
-function ChannelForm({
-  kind,
-  label,
-  url,
-  saving,
-  onLabel,
-  onUrl,
-  onSubmit,
-  onCancel,
-}: ChannelFormProps) {
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit()
-      }}
-      className="rounded-[var(--radius)] border border-border bg-card p-4 space-y-3"
-    >
-      <div className="space-y-1.5">
-        <Label htmlFor={`${kind}-label`}>Label</Label>
-        <Input
-          id={`${kind}-label`}
-          placeholder={kind === "slack" ? "#legal-alerts" : "Legal Channel"}
-          value={label}
-          onChange={(e) => onLabel(e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${kind}-url`}>Incoming webhook URL</Label>
-        <Input
-          id={`${kind}-url`}
-          type="password"
-          autoComplete="new-password"
-          placeholder={
-            kind === "slack"
-              ? "https://hooks.slack.com/services/..."
-              : "https://outlook.office.com/webhook/..."
-          }
-          value={url}
-          onChange={(e) => onUrl(e.target.value)}
-          required
-        />
-      </div>
-      <div className="flex gap-2 pt-1">
-        <Button type="submit" size="sm" disabled={saving}>
-          {saving ? "Adding..." : "Add"}
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </form>
-  )
+    </>}
+    <Dialog open={!!deleteChannelId} onOpenChange={(open) => { if (!open) setDeleteChannelId(null) }}><DialogContent><DialogHeader><DialogTitle>{t("deleteChannelTitle")}</DialogTitle><DialogDescription>{t("deleteChannelDescription")}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteChannelId(null)}>{t("cancel")}</Button><Button variant="destructive" onClick={async () => { const id = deleteChannelId; setDeleteChannelId(null); if (id) await mutate(`/api/org/notification-channels/${id}`, { method: "DELETE" }, "channelDeleted") }}>{t("delete")}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={!!deleteWebhookId} onOpenChange={(open) => { if (!open) setDeleteWebhookId(null) }}><DialogContent><DialogHeader><DialogTitle>{t("deleteWebhookTitle")}</DialogTitle><DialogDescription>{t("deleteWebhookDescription")}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteWebhookId(null)}>{t("cancel")}</Button><Button variant="destructive" onClick={async () => { const id = deleteWebhookId; setDeleteWebhookId(null); if (id) await mutate(`/api/org/webhooks/${id}`, { method: "DELETE" }, "webhookDeleted") }}>{t("delete")}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={!!secret} onOpenChange={(open) => { if (!open) closeSecret() }}><DialogContent><DialogHeader><DialogTitle>{t("secretTitle")}</DialogTitle><DialogDescription>{t("secretDescription")}</DialogDescription></DialogHeader><div className="space-y-3"><Label htmlFor="signing-secret">{t("secretLabel")}</Label><div className="flex gap-2"><Input id="signing-secret" value={secret ?? ""} readOnly className="font-mono" onFocus={(e) => e.currentTarget.select()} /><Button aria-label={t("copySecret")} type="button" variant="outline" size="icon" onClick={() => void copySecret()}>{copied ? <Check /> : <Copy />}</Button></div>{copyError && <p role="alert" className="text-sm text-amber-700">{t("copyFailedManual")}</p>}<Button className="w-full" onClick={closeSecret}>{t("done")}</Button></div></DialogContent></Dialog>
+  </div>
 }

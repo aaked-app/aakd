@@ -31,7 +31,7 @@ function LoginForm() {
         callbackURL,
       })
       if (result.error) {
-        toast.error(result.error.message ?? t("signInFailed"))
+        toast.error(t("signInFailed"))
       } else {
         router.push(callbackURL)
       }
@@ -59,12 +59,13 @@ function LoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
+            className="min-h-11"
           />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">{t("password")}</Label>
-            <Link href="/forgot-password" className="text-xs text-indigo-600 hover:underline">
+            <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-xs text-indigo-600 hover:underline">
               {t("forgotPassword")}
             </Link>
           </div>
@@ -76,9 +77,10 @@ function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
+            className="min-h-11"
           />
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="min-h-11 w-full" disabled={loading}>
           {loading ? t("signingIn") : t("login")}
         </Button>
       </form>
@@ -86,7 +88,7 @@ function LoginForm() {
         {t("noAccount")}{" "}
         <Link
           href={callbackURL !== "/dashboard" ? `/register?callbackURL=${encodeURIComponent(callbackURL)}` : "/register"}
-          className="text-indigo-600 hover:underline"
+          className="inline-flex min-h-11 items-center text-indigo-600 hover:underline"
         >
           {t("createOne")}
         </Link>

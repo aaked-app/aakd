@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
-import { format } from "date-fns"
 import { UserPlus, UserMinus, RefreshCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,32 +20,9 @@ import {
 } from "@/components/ui/table"
 import { OrgMember } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 const ROLES = ["admin", "legal", "member", "viewer"] as const
-
-const ROLE_INFO: Record<string, { label: string; description: string; permissions: string[] }> = {
-  admin: {
-    label: "Admin",
-    description: "Full access except ownership transfer.",
-    permissions: ["Invite & remove members", "Change roles", "Create & edit contracts", "Request & decide approvals", "Manage org settings"],
-  },
-  legal: {
-    label: "Legal",
-    description: "Handles contract workflows end-to-end.",
-    permissions: ["Create & edit contracts", "Request & decide approvals", "Send for signing", "View all contracts"],
-  },
-  member: {
-    label: "Member",
-    description: "Day-to-day contributor with limited write access.",
-    permissions: ["Create contracts", "Upload files", "View all contracts", "Cannot approve or manage members"],
-  },
-  viewer: {
-    label: "Viewer",
-    description: "Read-only access — cannot make any changes.",
-    permissions: ["View all contracts", "View approvals & obligations", "No create, edit, or approve actions"],
-  },
-}
 
 const ROLE_RANK: Record<string, number> = {
   owner: 5, admin: 4, legal: 3, member: 2, viewer: 1,
@@ -63,7 +39,7 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
 }
 
-function RoleBadge({ role }: { role: string }) {
+function RoleBadge({ role, label }: { role: string; label: string }) {
   const colors: Record<string, string> = {
     owner:  "bg-purple-100 text-purple-700",
     admin:  "bg-blue-100 text-blue-700",
@@ -73,7 +49,7 @@ function RoleBadge({ role }: { role: string }) {
   }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${colors[role] ?? colors.viewer}`}>
-      {role}
+      {label}
     </span>
   )
 }
@@ -81,6 +57,8 @@ function RoleBadge({ role }: { role: string }) {
 export default function MembersPage() {
   const { data: session } = useSession()
   const t = useTranslations("members")
+  const failedToLoadMessage = t("failedToLoad")
+  const locale = useLocale()
   const [members, setMembers] = useState<OrgMember[]>([])
   const [invitations, setInvitations] = useState<PendingInvitation[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,11 +85,11 @@ export default function MembersPage() {
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return
-      toast.error(t("failedToLoad"))
+      toast.error(failedToLoadMessage)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [failedToLoadMessage])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -123,6 +101,7 @@ export default function MembersPage() {
   const currentUserRole = currentMember?.role ?? "viewer"
   const myRank = ROLE_RANK[currentUserRole] ?? 0
   const canManageMembers = myRank >= ROLE_RANK.admin
+  const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value))
 
   async function invite(e: React.FormEvent) {
     e.preventDefault()
@@ -136,11 +115,11 @@ export default function MembersPage() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         const msg: Record<string, string> = {
-          already_member: "This person is already a member.",
-          already_invited: "An active invitation already exists for this email.",
-          cannot_invite_higher_role: "You can't invite someone to a higher role than your own.",
+          already_member: t("alreadyMember"),
+          already_invited: t("alreadyInvited"),
+          cannot_invite_higher_role: t("cannotInviteHigherRole"),
         }
-        toast.error(msg[body?.error] ?? body?.error ?? "Failed to send invitation")
+        toast.error(msg[body?.error] ?? t("failedToInvite"))
         return
       }
       toast.success(t("inviteSent", { email: inviteEmail }))
@@ -164,11 +143,11 @@ export default function MembersPage() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         const msg: Record<string, string> = {
-          cannot_demote_last_admin: "Can't change — this is the last admin",
-          cannot_demote_last_owner: "Can't change — this is the last owner",
-          Forbidden: "Only an owner can change another owner's role",
+          cannot_demote_last_admin: t("cannotDemoteLastAdmin"),
+          cannot_demote_last_owner: t("cannotDemoteLastOwner"),
+          Forbidden: t("ownerRoleRequired"),
         }
-        toast.error(msg[body?.error] ?? body?.error ?? t("failedToChangeRole"))
+        toast.error(msg[body?.error] ?? t("failedToChangeRole"))
         return
       }
       toast.success(t("roleUpdated"))
@@ -187,8 +166,7 @@ export default function MembersPage() {
     try {
       const res = await fetch(`/api/org/members/${memberId}`, { method: "DELETE" })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        toast.error(body?.error ?? t("failedToRemove"))
+        toast.error(t("failedToRemove"))
         return
       }
       toast.success(t("removed", { name: memberName }))
@@ -203,8 +181,7 @@ export default function MembersPage() {
     try {
       const res = await fetch(`/api/org/invitations/${invitationId}`, { method: "POST" })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        toast.error(body?.error ?? t("failedToResend"))
+        toast.error(t("failedToResend"))
         return
       }
       toast.success(t("inviteResent", { email }))
@@ -239,7 +216,7 @@ export default function MembersPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="max-w-3xl space-y-6 p-4 sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -247,15 +224,15 @@ export default function MembersPage() {
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         {canManageMembers && (
-          <Button onClick={() => setShowInviteModal(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
+          <Button className="min-h-11" onClick={() => setShowInviteModal(true)}>
+            <UserPlus className="h-4 w-4 me-2" />
             {t("inviteMember")}
           </Button>
         )}
       </div>
 
       {/* Active members */}
-      <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
+      <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -295,21 +272,21 @@ export default function MembersPage() {
                   </TableCell>
                   <TableCell>
                     {canManageMembers && actable ? (
-                      <Select
+                      <><span className="sr-only">{t(`roles.${m.role}.label`)}</span><Select
                         value={m.role}
                         onValueChange={(v) => v != null && changeRole(m.id, v)}
                       >
-                        <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectTrigger aria-label={t("actions.changeRole")} className="min-h-11 w-28 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {ROLES.map((r) => (
-                            <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                            <SelectItem key={r} value={r}>{t(`roles.${r}.label`)}</SelectItem>
                           ))}
                         </SelectContent>
-                      </Select>
+                      </Select></>
                     ) : (
-                      <RoleBadge role={m.role} />
+                      <RoleBadge role={m.role} label={t(`roles.${m.role}.label`)} />
                     )}
                   </TableCell>
                   <TableCell>
@@ -318,15 +295,16 @@ export default function MembersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(m.createdAt), "MMM d, yyyy")}
+                    {formatDate(m.createdAt)}
                   </TableCell>
                   <TableCell>
                     {canManageMembers && actable ? (
                       <Button
+                        aria-label={t("actions.removeMember")}
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                        title="Remove member"
+                        className="min-h-11 min-w-11 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                        title={t("actions.removeMember")}
                         onClick={() => removeMember(m.id, m.user.name)}
                       >
                         <UserMinus className="h-4 w-4" />
@@ -342,16 +320,30 @@ export default function MembersPage() {
         </Table>
       </div>
 
+      <div className="space-y-3 md:hidden">
+        {members.map((m) => {
+          const actable = canActOn(m)
+          return <article key={m.id} className="rounded-md border bg-card p-4">
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{m.user.name}</p><p className="truncate text-sm text-muted-foreground">{m.user.email}</p></div><RoleBadge role={m.role} label={t(`roles.${m.role}.label`)} /></div>
+            {canManageMembers && actable && <Select value={m.role} onValueChange={(v) => v != null && changeRole(m.id, v)}>
+              <SelectTrigger aria-label={t("actions.changeRole")} className="mt-3 min-h-11 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{t(`roles.${r}.label`)}</SelectItem>)}</SelectContent>
+            </Select>}
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>{t("tableJoined")}: {formatDate(m.createdAt)}</span>{canManageMembers && actable && <Button aria-label={t("actions.removeMember")} variant="ghost" size="icon" className="min-h-11 min-w-11" onClick={() => removeMember(m.id, m.user.name)}><UserMinus className="size-4" /></Button>}</div>
+          </article>
+        })}
+      </div>
+
       {/* Pending invitations */}
       {canManageMembers && invitations.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-foreground mb-2">
             {t("pendingInvitations")}
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
+            <span className="ms-2 text-xs font-normal text-muted-foreground">
               ({invitations.length})
             </span>
           </h2>
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
+          <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -375,28 +367,30 @@ export default function MembersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <RoleBadge role={inv.role ?? "member"} />
+                      <RoleBadge role={inv.role ?? "member"} label={t(`roles.${inv.role ?? "member"}.label`)} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {format(new Date(inv.expiresAt), "MMM d, yyyy")}
+                      {formatDate(inv.expiresAt)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Button
+                          aria-label={t("actions.resendInvitation")}
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-primary"
-                          title="Resend invitation"
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-primary"
+                          title={t("actions.resendInvitation")}
                           disabled={resendingId === inv.id}
                           onClick={() => resendInvitation(inv.id, inv.email)}
                         >
                           <RefreshCw className={`h-3.5 w-3.5 ${resendingId === inv.id ? "animate-spin" : ""}`} />
                         </Button>
                         <Button
+                          aria-label={t("actions.cancelInvitation")}
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                          title="Cancel invitation"
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          title={t("actions.cancelInvitation")}
                           onClick={() => cancelInvitation(inv.id, inv.email)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -408,6 +402,7 @@ export default function MembersPage() {
               </TableBody>
             </Table>
           </div>
+          <div className="space-y-3 md:hidden">{invitations.map((inv) => <article key={inv.id} className="rounded-md border bg-card p-4"><div className="flex items-start justify-between gap-3"><p className="min-w-0 truncate text-sm">{inv.email}</p><RoleBadge role={inv.role ?? "member"} label={t(`roles.${inv.role ?? "member"}.label`)} /></div><div className="mt-3 flex items-center justify-between"><span className="text-xs text-muted-foreground">{t("tableExpires")}: {formatDate(inv.expiresAt)}</span><div className="flex"><Button aria-label={t("actions.resendInvitation")} variant="ghost" size="icon" className="min-h-11 min-w-11" disabled={resendingId === inv.id} onClick={() => resendInvitation(inv.id, inv.email)}><RefreshCw className="size-4" /></Button><Button aria-label={t("actions.cancelInvitation")} variant="ghost" size="icon" className="min-h-11 min-w-11" onClick={() => cancelInvitation(inv.id, inv.email)}><X className="size-4" /></Button></div></div></article>)}</div>
         </div>
       )}
 
@@ -467,7 +462,8 @@ export default function MembersPage() {
               <Input
                 id="inviteEmail"
                 type="email"
-                placeholder="colleague@example.com"
+                placeholder={t("emailPlaceholder")}
+                className="min-h-11"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 required
@@ -478,15 +474,15 @@ export default function MembersPage() {
                 {t("role")}
               </Label>
               <Select value={inviteRole} onValueChange={(v) => v != null && setInviteRole(v)}>
-                <SelectTrigger id="inviteRole">
+                <SelectTrigger id="inviteRole" className="min-h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES.map((r) => (
                     <SelectItem key={r} value={r}>
                       <div className="flex flex-col py-0.5">
-                        <span className="font-medium capitalize">{r}</span>
-                        <span className="text-xs text-muted-foreground">{ROLE_INFO[r]?.description}</span>
+                         <span className="font-medium">{t(`roles.${r}.label`)}</span>
+                         <span className="text-xs text-muted-foreground">{t(`roles.${r}.description`)}</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -494,19 +490,10 @@ export default function MembersPage() {
               </Select>
 
               {/* Dynamic role description card */}
-              {ROLE_INFO[inviteRole] && (
-                <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 space-y-1.5">
-                  <p className="text-xs font-semibold text-foreground">{ROLE_INFO[inviteRole].label} — what they can do</p>
-                  <ul className="space-y-0.5">
-                    {ROLE_INFO[inviteRole].permissions.map((p) => (
-                      <li key={p} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                        <span className="mt-0.5 text-[10px]">•</span>
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+               <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5">
+                 <p className="text-xs font-semibold text-foreground">{t(`roles.${inviteRole}.label`)}</p>
+                 <p className="mt-1 text-xs text-muted-foreground">{t(`roles.${inviteRole}.description`)}</p>
+               </div>
 
               <p className="text-xs text-muted-foreground">
                 {t("inviteExpiry")}

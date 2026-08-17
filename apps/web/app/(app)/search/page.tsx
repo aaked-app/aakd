@@ -1,439 +1,59 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import { Search, FileText, Sparkles } from "lucide-react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
+import Link from "next/link"
+import { useLocale, useTranslations } from "next-intl"
+import { FileText, Search, SlidersHorizontal, Sparkles } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TypeBadge, StatusBadge } from "@/components/contract-badges"
 import { ContractStatus, ContractType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-interface SearchResult {
-  id: string
-  title: string
-  contractType: ContractType | null
-  status: ContractStatus
-  counterpartyName: string | null
-  value: number | null
-  currency: string | null
-  endDate: string | null
-  createdAt: string
-}
-
+interface SearchResult { id: string; title: string; contractType: ContractType | null; status: ContractStatus; counterpartyName: string | null; value: number | null; currency: string | null; endDate: string | null; createdAt: string }
 const CONTRACT_TYPES: ContractType[] = ["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"]
 const STATUS_OPTIONS: ContractStatus[] = ["ACTIVE", "DRAFT", "EXPIRED", "ARCHIVED"]
+const DESKTOP_QUERY = "(min-width: 1024px)"
+type SearchFailure = "semanticUnavailable" | "unindexed" | "rateLimited" | "generic" | null
+function subscribeToDesktop(onChange: () => void) { if (typeof window === "undefined" || !window.matchMedia) return () => undefined; const query = window.matchMedia(DESKTOP_QUERY); query.addEventListener("change", onChange); return () => query.removeEventListener("change", onChange) }
+function getDesktopSnapshot() { return typeof window === "undefined" || !window.matchMedia ? true : window.matchMedia(DESKTOP_QUERY).matches }
+function formatDate(value: string, locale: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) }
+function useDebounce<T>(value: T, delay: number) { const [debounced, setDebounced] = useState(value); useEffect(() => { const timer = setTimeout(() => setDebounced(value), delay); return () => clearTimeout(timer) }, [value, delay]); return debounced }
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
+type FilterProps = { selectedTypes: Set<ContractType>; selectedStatuses: Set<ContractStatus>; endDateFrom: string; endDateTo: string; valueMin: string; valueMax: string; hasFilters: boolean; toggleType: (value: ContractType) => void; toggleStatus: (value: ContractStatus) => void; setEndDateFrom: (value: string) => void; setEndDateTo: (value: string) => void; setValueMin: (value: string) => void; setValueMax: (value: string) => void; clearFilters: () => void }
+
+function FilterFields(props: FilterProps) {
+  const t = useTranslations("searchPage"); const typeLabel = useTranslations("contract.types"); const statusLabel = useTranslations("contract.statuses")
+  return <div className="space-y-6"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t("filters")}</p>{props.hasFilters && <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={props.clearFilters}>{t("clearFilters")}</Button>}</div><fieldset><legend className="mb-2 text-xs font-semibold">{t("type")}</legend><div className="space-y-1">{CONTRACT_TYPES.map((type) => <label key={type} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted"><input type="checkbox" checked={props.selectedTypes.has(type)} onChange={() => props.toggleType(type)} className="size-4 accent-primary" /><span className="text-sm">{typeLabel(type)}</span></label>)}</div></fieldset><fieldset><legend className="mb-2 text-xs font-semibold">{t("status")}</legend><div className="space-y-1">{STATUS_OPTIONS.map((status) => <label key={status} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted"><input type="checkbox" checked={props.selectedStatuses.has(status)} onChange={() => props.toggleStatus(status)} className="size-4 accent-primary" /><span className="text-sm">{statusLabel(status)}</span></label>)}</div></fieldset><fieldset><legend className="mb-2 text-xs font-semibold">{t("endDate")}</legend><div className="grid grid-cols-2 gap-2"><label className="text-xs text-muted-foreground">{t("from")}<Input type="date" dir="ltr" value={props.endDateFrom} onChange={(e) => props.setEndDateFrom(e.target.value)} className="mt-1 h-9 text-xs" /></label><label className="text-xs text-muted-foreground">{t("to")}<Input type="date" dir="ltr" value={props.endDateTo} onChange={(e) => props.setEndDateTo(e.target.value)} className="mt-1 h-9 text-xs" /></label></div></fieldset><fieldset><legend className="mb-2 text-xs font-semibold">{t("value")}</legend><div className="grid grid-cols-2 gap-2"><label className="text-xs text-muted-foreground">{t("minimum")}<Input type="number" min="0" value={props.valueMin} onChange={(e) => props.setValueMin(e.target.value)} className="mt-1 h-9 text-xs" /></label><label className="text-xs text-muted-foreground">{t("maximum")}<Input type="number" min="0" placeholder={t("any")} value={props.valueMax} onChange={(e) => props.setValueMax(e.target.value)} className="mt-1 h-9 text-xs" /></label></div></fieldset></div>
+}
+
+function ResultRow({ result, locale, compact = false }: { result: SearchResult; locale: string; compact?: boolean }) {
+  const t = useTranslations("searchPage"); const label = t("openContract", { title: result.title })
+  if (compact) return <li className="rounded-[var(--radius)] border border-border bg-card shadow-sm"><Link href={`/contracts/${result.id}`} aria-label={label} className="block p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-semibold">{result.title}</h2><p className="mt-1 truncate text-xs text-muted-foreground">{result.counterpartyName ?? t("notAvailable")}</p></div><StatusBadge status={result.status} /></div><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-muted-foreground">{t("type")}</dt><dd className="mt-1"><TypeBadge type={result.contractType} /></dd></div><div><dt className="text-muted-foreground">{t("created")}</dt><dd className="mt-1 tabular-nums">{formatDate(result.createdAt, locale)}</dd></div></dl></Link></li>
+  return <TableRow><TableCell><Link href={`/contracts/${result.id}`} aria-label={label} className="line-clamp-1 hover:underline">{result.title}</Link></TableCell><TableCell className="text-muted-foreground">{result.counterpartyName ?? t("notAvailable")}</TableCell><TableCell><TypeBadge type={result.contractType} /></TableCell><TableCell><StatusBadge status={result.status} /></TableCell><TableCell className="text-muted-foreground">{formatDate(result.createdAt, locale)}</TableCell></TableRow>
 }
 
 export default function SearchPage() {
-  const router = useRouter()
-
-  const [query, setQuery] = useState(() => {
-    if (typeof window !== "undefined") {
-      return new URLSearchParams(window.location.search).get("q") ?? ""
-    }
-    return ""
-  })
-  const debouncedQuery = useDebounce(query, 300)
-
-  const [selectedTypes, setSelectedTypes] = useState<Set<ContractType>>(new Set())
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<ContractStatus>>(new Set())
-  const [endDateFrom, setEndDateFrom] = useState("")
-  const [endDateTo, setEndDateTo] = useState("")
-  const [valueMin, setValueMin] = useState("")
-  const [valueMax, setValueMax] = useState("")
-
-  const [semanticMode, setSemanticMode] = useState(false)
-
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [searched, setSearched] = useState(false)
-
-  const hasFilters = selectedTypes.size > 0 || selectedStatuses.size > 0 || endDateFrom || endDateTo || valueMin || valueMax
-
-  const runSearch = useCallback(async (
-    q: string,
-    types: Set<ContractType>,
-    statuses: Set<ContractStatus>,
-    dateFrom: string,
-    dateTo: string,
-    minVal: string,
-    maxVal: string,
-    isSemantic: boolean,
-  ) => {
-    const needsSearch = q.trim() || types.size > 0 || statuses.size > 0 || dateFrom || dateTo || minVal || maxVal
-    if (!needsSearch) {
-      setResults([])
-      setTotal(0)
-      setSearched(false)
-      return
-    }
-
-    setLoading(true)
-    setSearched(true)
-    try {
-      let allResults: SearchResult[] = []
-
-      if (q.trim() && isSemantic) {
-        // Semantic (pgvector) search
-        const res = await fetch("/api/search/semantic", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q.trim(), limit: 20 }),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          allResults = (data.results ?? []).map((r: SearchResult) => r)
-        }
-      } else if (q.trim()) {
-        // Use the FTS endpoint: searches title, counterparty, notes, and extracted document text
-        const params = new URLSearchParams({ q: q.trim(), limit: "100" })
-        const res = await fetch(`/api/search?${params}`)
-        if (res.ok) {
-          const data = await res.json()
-          allResults = (data.results ?? []).map((r: SearchResult) => r)
-        }
-      } else {
-        // Filter-only mode: use the contracts API (no text query)
-        const params = new URLSearchParams({ limit: "100" })
-        const statusList = statuses.size > 0 ? Array.from(statuses) : [undefined]
-
-        await Promise.all(
-          statusList.map(async (status) => {
-            const p = new URLSearchParams(params)
-            if (status) p.set("status", status)
-            const res = await fetch(`/api/contracts?${p}`)
-            if (res.ok) {
-              const data = await res.json()
-              allResults = [...allResults, ...(data.contracts ?? [])]
-            }
-          })
-        )
-
-        // Deduplicate by id
-        const seen = new Set<string>()
-        allResults = allResults.filter((r) => {
-          if (seen.has(r.id)) return false
-          seen.add(r.id)
-          return true
-        })
-      }
-
-      // Client-side filtering for type, status (when using FTS), date range, value range
-      if (types.size > 0) {
-        allResults = allResults.filter((r) => r.contractType && types.has(r.contractType))
-      }
-      if (statuses.size > 0 && q.trim()) {
-        allResults = allResults.filter((r) => statuses.has(r.status))
-      }
-      if (dateFrom) {
-        allResults = allResults.filter((r) => r.endDate && r.endDate >= dateFrom)
-      }
-      if (dateTo) {
-        allResults = allResults.filter((r) => r.endDate && r.endDate <= dateTo)
-      }
-      if (minVal) {
-        allResults = allResults.filter((r) => r.value != null && r.value >= Number(minVal))
-      }
-      if (maxVal) {
-        allResults = allResults.filter((r) => r.value != null && r.value <= Number(maxVal))
-      }
-
-      setResults(allResults)
-      setTotal(allResults.length)
-    } catch {
-      setResults([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
+  const t = useTranslations("searchPage"); const locale = useLocale(); const isDesktop = useSyncExternalStore(subscribeToDesktop, getDesktopSnapshot, () => true)
+  const [query, setQuery] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? ""); const debouncedQuery = useDebounce(query, 300)
+  const [selectedTypes, setSelectedTypes] = useState<Set<ContractType>>(new Set()); const [selectedStatuses, setSelectedStatuses] = useState<Set<ContractStatus>>(new Set()); const [endDateFrom, setEndDateFrom] = useState(""); const [endDateTo, setEndDateTo] = useState(""); const [valueMin, setValueMin] = useState(""); const [valueMax, setValueMax] = useState(""); const [semanticMode, setSemanticMode] = useState(false); const [results, setResults] = useState<SearchResult[]>([]); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(false); const [searched, setSearched] = useState(false); const [failure, setFailure] = useState<SearchFailure>(null); const [filterOpen, setFilterOpen] = useState(false); const [retryKey, setRetryKey] = useState(0)
+  const hasFilters = Boolean(selectedTypes.size || selectedStatuses.size || endDateFrom || endDateTo || valueMin || valueMax)
+  const runSearch = useCallback(async (q: string, types: Set<ContractType>, statuses: Set<ContractStatus>, dateFrom: string, dateTo: string, minVal: string, maxVal: string, semantic: boolean, signal: AbortSignal) => {
+    const needed = Boolean(q.trim() || types.size || statuses.size || dateFrom || dateTo || minVal || maxVal); if (!needed) { setResults([]); setTotal(0); setSearched(false); setFailure(null); setLoading(false); return }
+    setLoading(true); setSearched(true); setFailure(null)
+    try { let list: SearchResult[] = []
+      if (q.trim() && semantic) { const response = await fetch("/api/search/semantic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: q.trim(), limit: 20 }), signal }); if (!response.ok) { setResults([]); setTotal(0); setFailure(response.status === 429 ? "rateLimited" : response.status === 503 ? "semanticUnavailable" : "generic"); return } const data = await response.json(); if (data.indexed === false) { setResults([]); setTotal(0); setFailure("unindexed"); return } list = data.results ?? []
+      } else if (q.trim()) { const params = new URLSearchParams({ q: q.trim(), limit: "100" }); const response = await fetch(`/api/search?${params}`, { signal }); if (!response.ok) { setResults([]); setTotal(0); setFailure(response.status === 429 ? "rateLimited" : "generic"); return } list = (await response.json()).results ?? []
+      } else { const base = new URLSearchParams({ limit: "100" }); const requested = statuses.size ? Array.from(statuses) : [undefined]; const lists = await Promise.all(requested.map(async (status) => { const params = new URLSearchParams(base); if (status) params.set("status", status); const response = await fetch(`/api/contracts?${params}`, { signal }); if (!response.ok) { setFailure(response.status === 429 ? "rateLimited" : "generic"); throw new Error("search_request_failed") } return (await response.json()).contracts ?? [] })); const seen = new Set<string>(); list = lists.flat().filter((item: SearchResult) => !seen.has(item.id) && (seen.add(item.id), true)) }
+      if (types.size) list = list.filter((item) => item.contractType && types.has(item.contractType)); if (statuses.size && q.trim()) list = list.filter((item) => statuses.has(item.status)); if (dateFrom) list = list.filter((item) => item.endDate && item.endDate >= dateFrom); if (dateTo) list = list.filter((item) => item.endDate && item.endDate <= dateTo); if (minVal) list = list.filter((item) => item.value != null && item.value >= Number(minVal)); if (maxVal) list = list.filter((item) => item.value != null && item.value <= Number(maxVal)); setResults(list); setTotal(list.length)
+    } catch (error) { if ((error as Error).name !== "AbortError") { setResults([]); setTotal(0); setFailure((current) => current ?? "generic") } } finally { if (!signal.aborted) setLoading(false) }
   }, [])
-
-  useEffect(() => {
-    runSearch(debouncedQuery, selectedTypes, selectedStatuses, endDateFrom, endDateTo, valueMin, valueMax, semanticMode)
-    const params = new URLSearchParams(window.location.search)
-    if (debouncedQuery) params.set("q", debouncedQuery)
-    else params.delete("q")
-    window.history.replaceState(null, "", `${window.location.pathname}${params.toString() ? `?${params}` : ""}`)
-  }, [debouncedQuery, selectedTypes, selectedStatuses, endDateFrom, endDateTo, valueMin, valueMax, semanticMode, runSearch])
-
-  function toggleType(t: ContractType) {
-    setSelectedTypes((prev) => {
-      const next = new Set(prev)
-      if (next.has(t)) next.delete(t)
-      else next.add(t)
-      return next
-    })
-  }
-
-  function toggleStatus(s: ContractStatus) {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev)
-      if (next.has(s)) next.delete(s)
-      else next.add(s)
-      return next
-    })
-  }
-
-  return (
-    <div className="flex h-full">
-      {/* Left filter panel */}
-      <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-card overflow-y-auto">
-        <div className="border-b border-border px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Filters</span>
-        </div>
-
-        <div className="p-4 space-y-6">
-          {/* Type */}
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</p>
-            <div className="space-y-1.5">
-              {CONTRACT_TYPES.map((t) => (
-                <label key={t} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedTypes.has(t)}
-                    onChange={() => toggleType(t)}
-                    className="size-4 rounded border-border accent-primary"
-                  />
-                  <span className="text-sm text-foreground/80">
-                    {t}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</p>
-            <div className="space-y-1.5">
-              {STATUS_OPTIONS.map((s) => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedStatuses.has(s)}
-                    onChange={() => toggleStatus(s)}
-                    className="size-4 rounded border-border accent-primary"
-                  />
-                  <span className="text-sm text-foreground/80">
-                    {s.charAt(0) + s.slice(1).toLowerCase()}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* End Date */}
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">End Date</p>
-            <div className="space-y-2">
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">From</p>
-                <Input
-                  type="date"
-                  value={endDateFrom}
-                  onChange={(e) => setEndDateFrom(e.target.value)}
-                  className="h-7 text-xs"
-                />
-              </div>
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">To</p>
-                <Input
-                  type="date"
-                  value={endDateTo}
-                  onChange={(e) => setEndDateTo(e.target.value)}
-                  className="h-7 text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Value */}
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Value</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">Min</p>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={valueMin}
-                  onChange={(e) => setValueMin(e.target.value)}
-                  className="h-7 text-xs"
-                />
-              </div>
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">Max</p>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="Any"
-                  value={valueMax}
-                  onChange={(e) => setValueMax(e.target.value)}
-                  className="h-7 text-xs"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="flex h-full flex-1 flex-col overflow-auto">
-        {/* Search input */}
-        <div className="border-b border-border px-6 py-3">
-          <div className="relative flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                autoFocus
-                placeholder={semanticMode ? "Ask a semantic question..." : "Search contracts, counterparties..."}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setSemanticMode((s) => !s)}
-              title={semanticMode ? "Switch to keyword search" : "Switch to semantic search"}
-              className={cn(
-                "flex items-center justify-center rounded-md p-2 transition-colors hover:bg-muted",
-                semanticMode ? "text-foreground bg-muted" : "text-muted-foreground",
-              )}
-            >
-              <Sparkles className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Results */}
-        <div className="flex-1 p-6">
-          {loading ? (
-            <div className="rounded-[var(--radius)] border border-border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</TableHead>
-                    <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Counterparty</TableHead>
-                    <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</TableHead>
-                    <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                    <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {Array.from({ length: 5 }).map((_, j) => (
-                        <TableCell key={j} className="py-2.5">
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : results.length > 0 ? (
-            <>
-              <div className="mb-3 flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">
-                  {total} result{total !== 1 ? "s" : ""}
-                  {debouncedQuery ? ` for "${debouncedQuery}"` : ""}
-                  {hasFilters ? " (filtered)" : ""}
-                </p>
-                {semanticMode && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    <Sparkles className="size-3" />
-                    AI-powered
-                  </span>
-                )}
-              </div>
-              <div className="rounded-[var(--radius)] border border-border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</TableHead>
-                      <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Counterparty</TableHead>
-                      <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</TableHead>
-                      <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                      <TableHead className="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.map((r) => (
-                      <TableRow
-                        key={r.id}
-                        className="cursor-pointer hover:bg-muted-foreground/[0.08]"
-                        onClick={() => router.push(`/contracts/${r.id}`)}
-                      >
-                        <TableCell className="py-2.5 text-sm font-medium text-foreground">
-                          <span className="line-clamp-1">{r.title}</span>
-                        </TableCell>
-                        <TableCell className="py-2.5 text-sm text-muted-foreground">
-                          {r.counterpartyName ?? "—"}
-                        </TableCell>
-                        <TableCell className="py-2.5">
-                          <TypeBadge type={r.contractType} />
-                        </TableCell>
-                        <TableCell className="py-2.5">
-                          <StatusBadge status={r.status} />
-                        </TableCell>
-                        <TableCell className="py-2.5 text-sm text-muted-foreground">
-                          {new Date(r.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          ) : searched ? (
-            <div className="flex flex-col items-center justify-center pt-20">
-              <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                <FileText className="size-6 text-muted-foreground" />
-              </div>
-              <p className="mt-3 text-sm font-medium text-foreground">No results</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Try adjusting your search or filters
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center pt-20">
-              <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                <FileText className="size-6 text-muted-foreground" />
-              </div>
-              <h3 className="mt-3 text-sm font-medium text-foreground">Search your contracts</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Search across titles, counterparties, notes, and extracted text
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+  useEffect(() => { const controller = new AbortController(); void runSearch(debouncedQuery, selectedTypes, selectedStatuses, endDateFrom, endDateTo, valueMin, valueMax, semanticMode, controller.signal); const params = new URLSearchParams(window.location.search); if (debouncedQuery) params.set("q", debouncedQuery); else params.delete("q"); window.history.replaceState(null, "", `${window.location.pathname}${params.toString() ? `?${params}` : ""}`); return () => controller.abort() }, [debouncedQuery, selectedTypes, selectedStatuses, endDateFrom, endDateTo, valueMin, valueMax, semanticMode, retryKey, runSearch])
+  const toggleType = (type: ContractType) => setSelectedTypes((previous) => { const next = new Set(previous); if (next.has(type)) next.delete(type); else next.add(type); return next }); const toggleStatus = (status: ContractStatus) => setSelectedStatuses((previous) => { const next = new Set(previous); if (next.has(status)) next.delete(status); else next.add(status); return next }); const clearFilters = () => { setSelectedTypes(new Set()); setSelectedStatuses(new Set()); setEndDateFrom(""); setEndDateTo(""); setValueMin(""); setValueMax("") }
+  const filterProps = { selectedTypes, selectedStatuses, endDateFrom, endDateTo, valueMin, valueMax, hasFilters, toggleType, toggleStatus, setEndDateFrom, setEndDateTo, setValueMin, setValueMax, clearFilters }
+  const resultCount = t(total === 1 ? "resultCountOne" : "resultCountMany", { count: total }); const titleKey = failure === "semanticUnavailable" ? "semanticUnavailableTitle" : failure === "unindexed" ? "unindexedTitle" : failure === "rateLimited" ? "rateLimitedTitle" : "genericTitle"; const descriptionKey = failure === "semanticUnavailable" ? "semanticUnavailableDescription" : failure === "unindexed" ? "unindexedDescription" : failure === "rateLimited" ? "rateLimitedDescription" : "genericDescription"
+  return <div className="flex h-full min-h-0">{isDesktop && <aside role="region" aria-label={t("filters")} className="h-full w-60 shrink-0 overflow-y-auto border-e border-border bg-card p-4"><FilterFields {...filterProps} /></aside>}<main className="flex min-w-0 flex-1 flex-col overflow-auto"><div className="border-b border-border px-4 py-3 sm:px-6"><div className="mb-3 flex items-center justify-between gap-3"><h1 className="text-lg font-semibold">{t("title")}</h1>{!isDesktop && <Button variant="outline" size="sm" onClick={() => setFilterOpen(true)} aria-label={t("openFilters")}><SlidersHorizontal className="me-2 size-4" />{t("filters")}</Button>}</div><div className="flex items-center gap-2"><div className="relative flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input role="searchbox" aria-label={t("searchLabel")} autoFocus placeholder={semanticMode ? t("meaningPlaceholder") : t("keywordPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} className="ps-9" /></div><div role="radiogroup" aria-label={t("methodLabel")} className="flex rounded-md border border-border p-0.5"><button type="button" role="radio" aria-checked={!semanticMode} onClick={() => setSemanticMode(false)} className={cn("rounded px-2 py-1 text-xs", !semanticMode && "bg-muted font-medium")}>{t("keyword")}</button><button type="button" role="radio" aria-checked={semanticMode} onClick={() => setSemanticMode(true)} className={cn("rounded px-2 py-1 text-xs", semanticMode && "bg-muted font-medium")}><Sparkles className="me-1 inline size-3" />{t("meaning")}</button></div></div></div><div className="flex-1 p-4 sm:p-6">{loading ? <div className="rounded-[var(--radius)] border border-border bg-card p-4"><div className="space-y-4">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div></div> : results.length ? <><p className="mb-3 text-sm text-muted-foreground">{resultCount}{debouncedQuery ? ` ${t("forQuery", { query: debouncedQuery })}` : ""}{hasFilters ? ` · ${t("filtered")}` : ""}</p>{isDesktop ? <div className="rounded-[var(--radius)] border border-border bg-card"><Table aria-label={t("resultsLabel")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("counterparty")}</TableHead><TableHead>{t("type")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("created")}</TableHead></TableRow></TableHeader><TableBody>{results.map((result) => <ResultRow key={result.id} result={result} locale={locale} />)}</TableBody></Table></div> : <ul aria-label={t("resultsLabel")} className="space-y-3">{results.map((result) => <ResultRow key={result.id} result={result} locale={locale} compact />)}</ul>}</> : failure ? <div className="flex flex-col items-center justify-center py-20 text-center"><FileText className="size-10 text-muted-foreground" /><h2 className="mt-3 text-sm font-semibold">{t(titleKey)}</h2><p className="mt-1 max-w-sm text-sm text-muted-foreground">{t(descriptionKey)}</p><Button className="mt-4" variant="outline" onClick={() => setRetryKey((key) => key + 1)}>{t("retry")}</Button></div> : searched ? <div className="flex flex-col items-center justify-center py-20 text-center"><FileText className="size-10 text-muted-foreground" /><h2 className="mt-3 text-sm font-semibold">{t("noResultsTitle")}</h2><p className="mt-1 text-sm text-muted-foreground">{t("noResultsDescription")}</p></div> : <div className="flex flex-col items-center justify-center py-20 text-center"><FileText className="size-10 text-muted-foreground" /><h2 className="mt-3 text-sm font-semibold">{t("initialTitle")}</h2><p className="mt-1 text-sm text-muted-foreground">{t("initialDescription")}</p></div>}</div></main><Sheet open={filterOpen} onOpenChange={setFilterOpen}><SheetContent side={locale.startsWith("ar") ? "left" : "right"} closeLabel={t("closeFilters")} className="w-[min(22rem,90vw)]"><SheetHeader><SheetTitle>{t("filters")}</SheetTitle></SheetHeader><div className="mt-6"><FilterFields {...filterProps} /></div></SheetContent></Sheet></div>
 }

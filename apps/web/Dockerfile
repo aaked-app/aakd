@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
 RUN npm install -g pnpm@10.33.3
 
 # ── deps: install all workspace deps with lockfile ───────────────────────────
@@ -24,19 +24,19 @@ RUN node_modules/.bin/prisma generate
 RUN pnpm run build
 
 # ── runner: minimal production image ─────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-# LibreOffice is used by the document.convert worker to convert PDF→DOCX before
-# parsing with mammoth, which preserves tables, headings, and structure.
-RUN apk add --no-cache libreoffice
 # prisma CLI needed for migrate deploy at container start
-RUN npm install -g prisma
+RUN npm install -g prisma@7.8.0
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma
 # prisma.config.ts is needed by Prisma 7 at runtime for migrate deploy
 COPY --from=builder /app/apps/web/prisma.config.ts ./
+# Prisma 7 loads this config before Next's standalone trace. Keep the
+# explicit env loader available in the minimal runner image for migrations.
+COPY --from=builder /app/apps/web/node_modules/@next/env ./node_modules/@next/env
 # With outputFileTracingRoot set to the monorepo root, the standalone
 # output mirrors the monorepo structure: server.js lives at apps/web/server.js
 # and root node_modules are at the top level.
@@ -47,5 +47,6 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 WORKDIR /app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 # Run pending migrations then start the server
 CMD ["sh", "-c", "npx prisma migrate deploy && node apps/web/server.js"]

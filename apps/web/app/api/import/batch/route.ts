@@ -7,6 +7,7 @@ import { storage } from "@/lib/storage"
 import { isZipBuffer, sanitizeFilename } from "@/lib/types/import-helpers"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { logger } from "@/lib/logger"
+import { compensateFailedImportStart } from "@/lib/import/start-compensation"
 
 const MAX_ZIP_BYTES = 500 * 1024 * 1024 // 500 MB
 const MAX_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
@@ -86,6 +87,8 @@ export async function POST(req: Request) {
         })
       } catch (err) {
         logger.error({ err, importJobId: job.id }, "[import.batch] enqueue failed")
+        await compensateFailedImportStart(job.id, [storageKey], "import.batch")
+        return Response.json({ error: "queue_unavailable" }, { status: 503 })
       }
 
       return Response.json({ jobId: job.id, totalRows: job.totalRows }, { status: 201 })
@@ -120,6 +123,7 @@ export async function POST(req: Request) {
     }
 
     const manifest: { index: number; filename: string; storageKey: string; sizeBytes: number }[] = []
+    const uploadedKeys: string[] = []
     for (let i = 0; i < multiple.length; i++) {
       const file = multiple[i]
       const sanitized = sanitizeFilename(file.name)
@@ -127,8 +131,16 @@ export async function POST(req: Request) {
       const buf = Buffer.from(await file.arrayBuffer())
       try {
         await storage.upload(key, buf, file.type || "application/octet-stream")
+        uploadedKeys.push(key)
       } catch (err) {
         logger.error({ err, storageKey: key, filename: file.name }, "[import.batch] file upload failed")
+        for (const uploadedKey of uploadedKeys) {
+          try {
+            await storage.delete(uploadedKey)
+          } catch (cleanupErr) {
+            logger.error({ err: cleanupErr, storageKey: uploadedKey }, "[import.batch] partial upload cleanup failed")
+          }
+        }
         return Response.json({ error: "storage_failed" }, { status: 502 })
       }
       manifest.push({ index: i, filename: file.name, storageKey: key, sizeBytes: file.size })
@@ -143,8 +155,16 @@ export async function POST(req: Request) {
       )
     } catch (err) {
       logger.error({ err, manifestKey }, "[import.batch] manifest upload failed")
+      for (const uploadedKey of uploadedKeys) {
+        try {
+          await storage.delete(uploadedKey)
+        } catch (cleanupErr) {
+          logger.error({ err: cleanupErr, storageKey: uploadedKey }, "[import.batch] partial upload cleanup failed")
+        }
+      }
       return Response.json({ error: "storage_failed" }, { status: 502 })
     }
+    uploadedKeys.push(manifestKey)
 
     const job = await importJobModel.create({
       data: {
@@ -167,6 +187,8 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       logger.error({ err, importJobId: job.id }, "[import.batch] enqueue failed")
+      await compensateFailedImportStart(job.id, uploadedKeys, "import.batch")
+      return Response.json({ error: "queue_unavailable" }, { status: 503 })
     }
 
     return Response.json({ jobId: job.id, totalRows: job.totalRows }, { status: 201 })

@@ -4,8 +4,9 @@
  * Uses the same Redis instance as BullMQ. State is shared across all pods, so
  * multi-replica deployments enforce a single global limit per key.
  *
- * Falls back to an in-memory sliding window if Redis is unavailable — this
- * keeps the dev experience working without Redis but is best-effort only.
+ * Falls back to an in-memory sliding window only outside production. Production
+ * fails closed when Redis is unavailable so a deployment cannot silently lose
+ * its abuse protection during an outage.
  *
  * Key granularity is up to the caller:
  *   - Per-org:  key = `${organizationId}:${routeId}`
@@ -92,7 +93,10 @@ export async function rateLimit(
   { allowed: true; retryAfter: 0 } | { allowed: false; retryAfter: number }
 > {
   const client = getClient()
-  if (!client) return inMemoryCheck(key, limit, windowMs)
+  if (!client) {
+    if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
+    return inMemoryCheck(key, limit, windowMs)
+  }
 
   const now = Date.now()
   const windowStart = now - windowMs
@@ -115,7 +119,10 @@ export async function rateLimit(
     pipeline.zrange(redisKey, 0, 0, "WITHSCORES")
     const results = await pipeline.exec()
 
-    if (!results) return inMemoryCheck(key, limit, windowMs)
+    if (!results) {
+      if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
+      return inMemoryCheck(key, limit, windowMs)
+    }
 
     const countResult = results[2]
     const oldestResult = results[4]
@@ -146,6 +153,7 @@ export async function rateLimit(
     const retryAfterSecs = Math.ceil(retryAfterMs / 1000)
     return { allowed: false, retryAfter: Math.max(1, retryAfterSecs) }
   } catch {
+    if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
     return inMemoryCheck(key, limit, windowMs)
   }
 }

@@ -198,7 +198,6 @@ export async function POST(req: Request) {
 
     captureServerEvent(ctx.userId, "contract_created", {
       contractType: parsed.data.contractType,
-      organizationId: ctx.organizationId,
     })
 
     // Generate renewal alerts if date fields were provided (non-critical side-effect)

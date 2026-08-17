@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
@@ -43,16 +43,17 @@ function settingsRedirect(query: string): Response {
 }
 
 export async function GET(req: Request) {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return settingsRedirect(`error=${encodeURIComponent("not_configured")}`)
-  }
-
   const ctx = await resolveAuth(req)
   if (!ctx) {
     return settingsRedirect(`error=${encodeURIComponent("unauthenticated")}`)
   }
   if (!hasRole(ctx.role, "admin")) {
     return settingsRedirect(`error=${encodeURIComponent("forbidden")}`)
+  }
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return settingsRedirect(`error=${encodeURIComponent("not_configured")}`)
   }
 
   const url = new URL(req.url)
@@ -88,13 +89,12 @@ export async function GET(req: Request) {
       }).toString(),
     })
     if (!tokenRes.ok) {
-      const text = await tokenRes.text()
-      logger.error({ status: tokenRes.status, body: text }, "[gdrive.callback] token exchange failed")
+      logger.error({ status: tokenRes.status }, "[gdrive.callback] token exchange failed")
       return settingsRedirect(`error=${encodeURIComponent("exchange_failed")}`)
     }
     tokenResponse = await tokenRes.json()
-  } catch (err) {
-    logger.error({ err }, "[gdrive.callback] token exchange threw")
+  } catch {
+    logger.error({ code: "exchange_request_failed" }, "[gdrive.callback] token exchange threw")
     return settingsRedirect(`error=${encodeURIComponent("exchange_failed")}`)
   }
 

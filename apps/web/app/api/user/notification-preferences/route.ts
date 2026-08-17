@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { resolveAuth } from "@/lib/auth/middleware"
+import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import {
@@ -55,6 +55,9 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const writeCheck = requireWriteScope(ctx)
+  if (writeCheck) return writeCheck
 
   return requestContext.run(ctx, async () => {
     let body: unknown

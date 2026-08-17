@@ -38,6 +38,13 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 function resetMocks() {
   vi.resetAllMocks()
   vi.mocked(requireWriteScope).mockReturnValue(null)
+  vi.mocked(prisma.$transaction).mockImplementation(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: typeof prisma) => Promise<unknown>)(prisma)
+    }
+    if (Array.isArray(arg)) return Promise.all(arg)
+    return arg
+  })
 }
 
 // ─── Shared auth contexts ─────────────────────────────────────────────────────
@@ -255,6 +262,32 @@ describe("POST /api/contracts/[id]/obligations", () => {
     expect(res.status).toBe(422)
   })
 
+  it("returns 422 without mutation or activity when title is whitespace-only", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
+      id: "obl-1",
+      contractId: "contract-1",
+    } as any)
+    const { POST } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route"
+    )
+
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "   \t" }),
+      }),
+      { params: { id: "contract-1", obligationId: "obl-1" } },
+    )
+
+    expect(res.status).toBe(422)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.obligationSubTask.create).not.toHaveBeenCalled()
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
   it("returns 422 when dueDate is in the past", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
@@ -372,6 +405,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
   })
 
   it("returns 404 when obligation not found", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
@@ -380,6 +414,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(404)
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 
   it("returns 404 when obligation belongs to different contract", async () => {
@@ -760,6 +795,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
   })
 
   it("returns 422 when subtask cap (20) is reached", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       id: "obl-1",
@@ -780,9 +816,23 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("subtask_limit_reached")
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 without activity for invalid JSON", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({ id: "obl-1", contractId: "contract-1" } as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{",
+    }), { params: { id: "contract-1", obligationId: "obl-1" } })
+    expect(res.status).toBe(400)
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 
   it("returns 201 on happy path", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       id: "obl-1",
@@ -804,6 +854,157 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.id).toBe("sub-1")
+    expect(writeActivity).toHaveBeenCalledWith(
+      "contract-1",
+      "user-admin",
+      "OBLIGATION_UPDATED",
+      "Sub-task created: Send payment proof",
+      {
+        obligationId: "obl-1",
+        subtaskId: "sub-1",
+        subtaskOperation: "created",
+      },
+      prisma,
+    )
+  })
+
+  it("rolls back creation when its activity write fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
+      id: "obl-1",
+      contractId: "contract-1",
+    } as any)
+    let persisted: typeof mockSubTask[] = []
+    vi.mocked(prisma.obligationSubTask.count).mockResolvedValue(0)
+    const createSubTask = prisma.obligationSubTask.create as unknown as ReturnType<typeof vi.fn>
+    createSubTask.mockImplementation(async () => {
+      persisted = [...persisted, mockSubTask]
+      return mockSubTask as any
+    })
+    vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+      let staged = [...persisted]
+      const tx = {
+        ...prisma,
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        obligationSubTask: {
+          ...prisma.obligationSubTask,
+          count: vi.fn().mockImplementation(async () => staged.length),
+          create: vi.fn().mockImplementation(async () => {
+            staged = [...staged, mockSubTask]
+            return mockSubTask
+          }),
+        },
+      }
+      const result = await callback(tx)
+      persisted = staged
+      return result
+    })
+    vi.mocked(writeActivity).mockRejectedValueOnce(new Error("audit unavailable"))
+    const { POST } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route"
+    )
+
+    await expect(POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Send payment proof" }),
+      }),
+      { params: { id: "contract-1", obligationId: "obl-1" } },
+    )).rejects.toThrow("audit unavailable")
+
+    expect(persisted).toEqual([])
+    expect(writeActivity).toHaveBeenCalledWith(
+      "contract-1",
+      "user-admin",
+      "OBLIGATION_UPDATED",
+      "Sub-task created: Send payment proof",
+      expect.objectContaining({ subtaskOperation: "created" }),
+      expect.objectContaining({ obligationSubTask: expect.any(Object) }),
+    )
+  })
+
+  it("serializes concurrent creates so count 19 cannot become 21", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contractObligation.findUnique).mockResolvedValue({
+      id: "obl-1",
+      contractId: "contract-1",
+    } as any)
+    let persistedCount = 19
+    const countSubTasks = prisma.obligationSubTask.count as unknown as ReturnType<typeof vi.fn>
+    const createSubTask = prisma.obligationSubTask.create as unknown as ReturnType<typeof vi.fn>
+    countSubTasks.mockImplementation(async () => persistedCount)
+    createSubTask.mockImplementation(async ({ data }: { data: { title: string } }) => {
+      persistedCount += 1
+      return { ...mockSubTask, id: `sub-${persistedCount}`, title: data.title } as any
+    })
+    let lockTail = Promise.resolve()
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
+      let releaseLock: (() => void) | undefined
+      const tx = {
+        ...prisma,
+        $queryRaw: vi.fn().mockImplementation(async () => {
+          const previous = lockTail
+          lockTail = new Promise<void>((resolve) => { releaseLock = resolve })
+          await previous
+          return []
+        }),
+        obligationSubTask: {
+          ...prisma.obligationSubTask,
+          count: vi.fn().mockImplementation(async () => persistedCount),
+          create: vi.fn().mockImplementation(async ({ data }: any) => {
+            persistedCount += 1
+            return { ...mockSubTask, id: `sub-${persistedCount}`, title: data.title }
+          }),
+        },
+      }
+      try {
+        return await callback(tx)
+      } finally {
+        releaseLock?.()
+      }
+    })
+    const { POST } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route"
+    )
+    const create = (title: string) => POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      }),
+      { params: { id: "contract-1", obligationId: "obl-1" } },
+    )
+
+    const responses = await Promise.all([create("First"), create("Second")])
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 422])
+    expect(persistedCount).toBe(20)
+  })
+
+  it("does not write activity when subtask creation fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
+      id: "obl-1",
+      contractId: "contract-1",
+    } as any)
+    vi.mocked(prisma.obligationSubTask.count).mockResolvedValueOnce(0)
+    vi.mocked(prisma.obligationSubTask.create).mockRejectedValueOnce(new Error("db unavailable"))
+    const { POST } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route"
+    )
+
+    await expect(POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Send payment proof" }),
+      }),
+      { params: { id: "contract-1", obligationId: "obl-1" } },
+    )).rejects.toThrow("db unavailable")
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 })
 
@@ -866,6 +1067,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
   })
 
   it("returns 404 when subtask not in scope", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce(null)
     const { PATCH } = await import(
@@ -883,9 +1085,11 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
       { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
     )
     expect(res.status).toBe(404)
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 
   it("returns 200 and marks subtask completed", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     setupHappyPathScope()
     vi.mocked(prisma.obligationSubTask.update).mockResolvedValueOnce({
@@ -911,6 +1115,20 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.isCompleted).toBe(true)
+    expect(writeActivity).toHaveBeenCalledWith(
+      "contract-1",
+      "user-admin",
+      "OBLIGATION_UPDATED",
+      "Sub-task updated: Send payment proof (isCompleted)",
+      {
+        obligationId: "obl-1",
+        subtaskId: "sub-1",
+        subtaskOperation: "updated",
+        changedFields: ["isCompleted"],
+        isCompleted: true,
+      },
+      prisma,
+    )
   })
 
   it("returns 200 and reopens subtask when isCompleted is false", async () => {
@@ -940,6 +1158,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
   })
 
   it("returns 422 for invalid payload (title too long)", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     setupHappyPathScope()
     const { PATCH } = await import(
@@ -957,6 +1176,94 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
       { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
     )
     expect(res.status).toBe(422)
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["empty", {}],
+    ["unknown-only", { ignored: true }],
+    ["whitespace title", { title: "  \n" }],
+  ])("returns 422 without mutation or activity for %s PATCH payload", async (_name, payload) => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    setupHappyPathScope()
+    const { PATCH } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route"
+    )
+
+    const res = await PATCH(
+      new Request(
+        "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      ),
+      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+    )
+
+    expect(res.status).toBe(422)
+    expect(prisma.obligationSubTask.update).not.toHaveBeenCalled()
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
+  it("rolls back update when its activity write fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    setupHappyPathScope()
+    let persisted = { ...mockSubTask }
+    const updateSubTask = prisma.obligationSubTask.update as unknown as ReturnType<typeof vi.fn>
+    updateSubTask.mockImplementation(async () => {
+      persisted = { ...persisted, isCompleted: true }
+      return persisted as any
+    })
+    vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+      let staged = { ...persisted }
+      const tx = {
+        ...prisma,
+        obligationSubTask: {
+          ...prisma.obligationSubTask,
+          update: vi.fn().mockImplementation(async () => {
+            staged = { ...staged, isCompleted: true }
+            return staged
+          }),
+        },
+      }
+      const result = await callback(tx)
+      persisted = staged
+      return result
+    })
+    vi.mocked(writeActivity).mockRejectedValueOnce(new Error("audit unavailable"))
+    const { PATCH } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route"
+    )
+
+    await expect(PATCH(
+      new Request(
+        "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCompleted: true }),
+        },
+      ),
+      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+    )).rejects.toThrow("audit unavailable")
+
+    expect(persisted.isCompleted).toBe(false)
+  })
+
+  it("does not write activity when subtask update fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    setupHappyPathScope()
+    vi.mocked(prisma.obligationSubTask.update).mockRejectedValueOnce(new Error("db unavailable"))
+    const { PATCH } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route")
+    await expect(PATCH(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isCompleted: true }),
+    }), { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } })).rejects.toThrow("db unavailable")
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 })
 
@@ -1010,6 +1317,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
   })
 
   it("returns 404 when subtask not in scope", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import(
@@ -1023,9 +1331,11 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
       { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
     )
     expect(res.status).toBe(404)
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 
   it("returns 204 on successful delete", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     setupHappyPathScope()
     vi.mocked(prisma.obligationSubTask.delete).mockResolvedValueOnce(mockSubTask as any)
@@ -1040,6 +1350,91 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
       { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
     )
     expect(res.status).toBe(204)
+    expect(writeActivity).toHaveBeenCalledWith(
+      "contract-1",
+      "user-admin",
+      "OBLIGATION_UPDATED",
+      "Sub-task deleted: Send payment proof",
+      {
+        obligationId: "obl-1",
+        subtaskId: "sub-1",
+        subtaskOperation: "deleted",
+      },
+      prisma,
+    )
+  })
+
+  it("does not write activity when deletion is denied", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
+    const { DELETE } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route"
+    )
+    const res = await DELETE(
+      new Request(
+        "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
+        { method: "DELETE" },
+      ),
+      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+    )
+    expect(res.status).toBe(403)
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
+  it("rolls back deletion when its activity write fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    setupHappyPathScope()
+    let persisted: typeof mockSubTask | null = { ...mockSubTask }
+    const deleteSubTask = prisma.obligationSubTask.delete as unknown as ReturnType<typeof vi.fn>
+    deleteSubTask.mockImplementation(async () => {
+      const deleted = persisted
+      persisted = null
+      return deleted as any
+    })
+    vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+      let staged = persisted && { ...persisted }
+      const tx = {
+        ...prisma,
+        obligationSubTask: {
+          ...prisma.obligationSubTask,
+          delete: vi.fn().mockImplementation(async () => {
+            const deleted = staged
+            staged = null
+            return deleted
+          }),
+        },
+      }
+      const result = await callback(tx)
+      persisted = staged
+      return result
+    })
+    vi.mocked(writeActivity).mockRejectedValueOnce(new Error("audit unavailable"))
+    const { DELETE } = await import(
+      "@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route"
+    )
+
+    await expect(DELETE(
+      new Request(
+        "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
+        { method: "DELETE" },
+      ),
+      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+    )).rejects.toThrow("audit unavailable")
+
+    expect(persisted).toEqual(mockSubTask)
+  })
+
+  it("does not write activity when subtask deletion fails", async () => {
+    const { writeActivity } = await import("@/lib/db/activity")
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    setupHappyPathScope()
+    vi.mocked(prisma.obligationSubTask.delete).mockRejectedValueOnce(new Error("db unavailable"))
+    const { DELETE } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route")
+    await expect(DELETE(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1", { method: "DELETE" }), {
+      params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" },
+    })).rejects.toThrow("db unavailable")
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 })
 
@@ -1103,6 +1498,30 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("no_extracted_text")
+  })
+
+  it("re-queues text extraction when the file is present but text is not ready", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      extractedText: null,
+      files: [{ id: "file-1", storageKey: "org-1/contract-1/agreement.pdf" }],
+    } as any)
+    const { contractExtractQueue } = await import("@/lib/jobs/queues")
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }),
+      { params: { id: "contract-1" } },
+    )
+
+    expect(res.status).toBe(202)
+    expect(await res.json()).toEqual({ error: "text_processing", queued: true })
+    expect(contractExtractQueue.add).toHaveBeenCalledWith(
+      "extract",
+      expect.objectContaining({ contractId: "contract-1", fileId: "file-1" }),
+      { jobId: "contract-text-file-1" },
+    )
   })
 
   it("returns 422 when no AI provider is configured", async () => {
@@ -1205,6 +1624,46 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.state).toBe("not_found")
+  })
+
+  it("does not expose a job belonging to another contract", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-other", organizationId: "org-1" },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ title: "private" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
+      { params: { id: "contract-1" } },
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ state: "not_found" })
+  })
+
+  it("does not expose a job belonging to another organization", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-1", organizationId: "org-other" },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ title: "private" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
+      { params: { id: "contract-1" } },
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ state: "not_found" })
   })
 })
 

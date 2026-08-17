@@ -1,16 +1,16 @@
-# Deploy ClauseFlow on Oracle Cloud (Free Forever)
+# Deploy Aakd on Oracle Cloud
 
-Total time: ~30 minutes. Cost: $0/month forever.
+Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and free-tier terms can change, so verify current terms before deploying.
 
 ---
 
 ## What you'll get
 
-- ClauseFlow at `https://app.yourdomain.com`
-- DocuSeal (e-signatures) at `https://sign.yourdomain.com`
+- Aakd at `https://app.yourdomain.com`
+- DocuSeal (e-signatures) at `https://sign.app.yourdomain.com`
 - Auto-SSL via Let's Encrypt (Caddy)
-- Daily PostgreSQL backups
-- 4 ARM cores + 24 GB RAM — plenty of headroom
+- Daily PostgreSQL backups retained locally for seven days
+- Up to 2 ARM OCPUs + 12 GB RAM on the current Always Free allocation
 
 ---
 
@@ -30,11 +30,11 @@ Total time: ~30 minutes. Cost: $0/month forever.
 
 1. In Oracle Cloud Console → **Compute → Instances → Create instance**
 2. Configure:
-   - **Name:** `clauseflow`
+   - **Name:** `aakd`
    - **Image:** Ubuntu 22.04 (click "Change Image" → Ubuntu → 22.04 Minimal)
    - **Shape:** Click "Change Shape" → Ampere → `VM.Standard.A1.Flex`
-     - OCPUs: **4**
-     - Memory: **24 GB**
+     - OCPUs: **2**
+     - Memory: **12 GB**
      - *(This is the Always Free allocation)*
 3. **Add SSH key:** Click "Generate a key pair for me" → **Download both keys** → save them somewhere safe
 4. Click **Create**
@@ -54,7 +54,7 @@ Add these DNS records:
 | Type | Name | Value | Proxy |
 |---|---|---|---|
 | A | `app` | `YOUR_VM_IP` | DNS only (gray cloud) |
-| A | `sign` | `YOUR_VM_IP` | DNS only (gray cloud) |
+| A | `sign.app` | `YOUR_VM_IP` | DNS only (gray cloud) |
 
 > ⚠️ Use "DNS only" (not proxied) for the first setup so Caddy can get SSL certificates directly.
 
@@ -62,9 +62,9 @@ Wait 1–2 minutes for DNS to propagate. Verify with: `nslookup app.yourdomain.c
 
 ---
 
-## Step 4 — Create a Resend account (5 min)
+## Step 4 — Configure email (optional, 5 min)
 
-Resend sends your transactional emails (invites, alerts, etc.). Free tier: 100 emails/day.
+Email is optional. Without it, the application still works, but invitations and renewal alerts are not delivered. Resend is the simplest option for transactional email and has a free tier, but any SMTP provider works.
 
 1. Go to **https://resend.com** → Sign up
 2. Go to **Domains** → Add your domain → follow the DNS instructions
@@ -92,24 +92,25 @@ On the VM, run:
 # Install git if needed
 sudo apt-get update && sudo apt-get install -y git
 
-# Clone ClauseFlow
-git clone https://github.com/YOUR_ORG/clauseflow.git ~/clauseflow
-cd ~/clauseflow
+# Clone Aakd
+git clone https://github.com/aaked-app/aakd.git ~/aakd
+cd ~/aakd
 
 # Make scripts executable
 chmod +x scripts/*.sh
 
-# Run the deploy script
-bash scripts/deploy.sh
+# Run the deploy script with one reviewed immutable release commit
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/deploy.sh
 ```
 
 The script will:
 - Install Docker automatically
-- Ask you 4 questions (domain, Resend key, from email, your email)
+- Ask for a domain and optional email settings
+- Refuse floating branches and deploy only the supplied exact Git commit
 - Auto-generate all passwords and secrets
 - Build Docker images (~5 min first time)
 - Start all services
-- Open ports 80 + 443
+- Validate the stack and wait for the app health endpoint
 
 ---
 
@@ -124,26 +125,26 @@ The script will:
 
 ## Step 8 — Set up DocuSeal for e-signatures (3 min)
 
-1. Open `https://sign.yourdomain.com`
+1. Open `https://sign.app.yourdomain.com`
 2. Create an admin account
 3. Go to **Settings → API** → copy the API key
 4. Back on your VM, run:
    ```bash
-   bash ~/clauseflow/scripts/set-docuseal-key.sh YOUR_DOCUSEAL_API_KEY
+     bash ~/aakd/scripts/set-docuseal-key.sh YOUR_DOCUSEAL_API_KEY
    ```
 
 E-signatures now work.
 
 ---
 
-## Updating ClauseFlow
+## Updating Aakd
 
 ```bash
-cd ~/clauseflow
-bash scripts/update.sh
+cd ~/aakd
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
 ```
 
-That's it. Zero downtime, pulls latest code, rebuilds images, restarts services.
+The update deploys only the exact reviewed commit you provide, rebuilds images, and restarts services. It refuses automatic updates that contain database migrations until recovery is verified. Expect a brief restart while the new containers come online.
 
 ---
 
@@ -159,6 +160,10 @@ docker compose -f docker-compose.prod.yml logs -f app
 # Check service status
 docker compose -f docker-compose.prod.yml ps
 
+# Run deployment diagnostics and export a host backup
+bash scripts/doctor.sh
+bash scripts/backup.sh
+
 # Restart a specific service
 docker compose -f docker-compose.prod.yml restart worker
 
@@ -173,15 +178,18 @@ docker compose -f docker-compose.prod.yml exec db psql -U postgres clauseflow
 
 ## Backups
 
-Backups run automatically every 24 hours. They're stored in a Docker volume.
+Backups run automatically every 24 hours and retain PostgreSQL dumps for seven
+days in a Docker volume on the same host. They do **not** back up MinIO contract
+files, DocuSeal data, or `.env.prod`; copy those to encrypted off-host storage
+and complete a restore drill before relying on this deployment for recovery.
 
 To download a backup:
 ```bash
 # List backups
 docker compose -f docker-compose.prod.yml exec backup ls /backups
 
-# Copy latest backup to your local machine (run from your local machine)
-scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/clauseflow_backups/_data/latest.sql.gz .
+# Copy a timestamped backup shown above to your local machine
+scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/clauseflow_backups/_data/clauseflow-YYYYMMDD-HHMMSS.sql.gz .
 ```
 
 ---
@@ -190,10 +198,10 @@ scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/claus
 
 | Service | Cost |
 |---|---|
-| Oracle Cloud ARM VM (4 CPU, 24 GB) | **$0/month (Always Free)** |
+| Oracle Cloud ARM VM (2 OCPU, 12 GB) | **$0/month (Always Free)** |
 | Oracle Cloud block storage (50 GB) | **$0/month (Always Free)** |
 | Cloudflare (DNS + proxy) | **$0/month** |
-| Resend (100 emails/day) | **$0/month** |
+| Email provider (optional) | **$0+ / month** |
 | Domain name | ~$10/year |
 | **Total** | **~$0.83/month** |
 
@@ -201,7 +209,7 @@ scp -i ~/Downloads/ssh-key-*.key ubuntu@YOUR_VM_IP:/var/lib/docker/volumes/claus
 
 ## Oracle Cloud VCN Security List
 
-Oracle Cloud has a second firewall layer called "Security List" in the VCN. The deploy script opens ports via iptables, but you must also open them in the Oracle Cloud console:
+Oracle Cloud has a second firewall layer called "Security List" in the VCN. Open ports 80 and 443 in the Oracle Cloud console. The installer does not modify host iptables by default; set `CONFIGURE_FIREWALL=true` only if you explicitly want that behavior:
 
 1. In Oracle Cloud → **Networking → Virtual Cloud Networks → your VCN**
 2. Click **Security Lists → Default Security List**

@@ -1,10 +1,10 @@
-# ClauseFlow API Reference
+# Aakd API Reference
 
 All API endpoints are under `/api/`. Authentication is required for all routes.
 
 ## Authentication
 
-ClauseFlow supports two authentication methods:
+Aakd supports two authentication methods:
 
 **Session cookie** (browser users)
 Authenticate via the web UI. Session cookies are set automatically.
@@ -594,4 +594,4 @@ All errors return JSON with an `error` field:
 | 429 | Rate limited — retry after `Retry-After` seconds |
 | 500 | Server error |
 
-> **Note:** ClauseFlow returns 404 (not 403) when a resource exists but belongs to another org. This prevents leaking resource existence across tenant boundaries.
+> **Note:** Aakd returns 404 (not 403) when a resource exists but belongs to another org. This prevents leaking resource existence across tenant boundaries.

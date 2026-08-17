@@ -1,6 +1,7 @@
 node_modules
 **/node_modules
 **/.next
+**/.next-*
 **/.git
 **/dist
 **/build
@@ -9,3 +10,5 @@ node_modules
 !**/.env.example
 **/coverage
 **/*.log
+**/.worker-dist
+**/.playwright-mcp

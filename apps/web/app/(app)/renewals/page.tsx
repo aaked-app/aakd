@@ -1,23 +1,28 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import Link from "next/link"
-import { RefreshCw, ExternalLink } from "lucide-react"
+import { useLocale, useTranslations } from "next-intl"
+import {
+  AlertCircle,
+  CalendarClock,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+} from "lucide-react"
 import { toast } from "sonner"
+
+import { RiskBadge } from "@/components/risk-badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { RiskBadge } from "@/components/risk-badge"
 import { cn } from "@/lib/utils"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RenewalContract {
   id: string
@@ -33,292 +38,348 @@ interface RenewalContract {
   daysUntilDeadline: number | null
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+type LoadState = "loading" | "ready" | "error"
+type Urgency = "overdue" | "action" | "soon" | "later" | "unknown"
 
-function formatCurrency(value: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
+const DESKTOP_QUERY = "(min-width: 1280px)"
+
+function subscribeToDesktop(onChange: () => void) {
+  if (typeof window === "undefined" || !window.matchMedia) return () => undefined
+  const query = window.matchMedia(DESKTOP_QUERY)
+  query.addEventListener("change", onChange)
+  return () => query.removeEventListener("change", onChange)
 }
 
-function formatDate(date: string | null) {
-  if (!date) return "—"
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+function getDesktopSnapshot() {
+  return typeof window === "undefined" || !window.matchMedia
+    ? true
+    : window.matchMedia(DESKTOP_QUERY).matches
 }
 
-// ─── UrgencyPill ─────────────────────────────────────────────────────────────
-
-function UrgencyPill({ days }: { days: number | null }) {
-  if (days == null) {
-    return <span className="text-muted-foreground text-xs">—</span>
-  }
-
-  const rounded = Math.ceil(days)
-
-  if (rounded < 0) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-        OVERDUE
-      </span>
-    )
-  }
-  if (rounded <= 7) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-        {rounded}d left
-      </span>
-    )
-  }
-  if (rounded <= 30) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-        {rounded}d left
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-      {rounded}d left
-    </span>
-  )
+function classifyUrgency(days: number | null): Urgency {
+  if (days == null || !Number.isFinite(days)) return "unknown"
+  if (days < 0) return "overdue"
+  if (days <= 7) return "action"
+  if (days <= 30) return "soon"
+  return "later"
 }
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
+function formatDate(value: string | null, locale: string, fallback: string) {
+  if (!value) return fallback
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return fallback
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(date)
+}
+
+function formatCurrency(
+  value: number | null,
+  currency: string | null,
+  locale: string,
+  fallback: string,
+) {
+  if (value == null || !Number.isFinite(value)) return fallback
+  const code = currency ?? "USD"
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  } catch {
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${code}`
+  }
+}
 
 function StatCard({
   count,
   label,
-  borderColor,
+  description,
+  accent,
+  locale,
 }: {
   count: number
   label: string
-  borderColor: string
+  description: string
+  accent: string
+  locale: string
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-[var(--radius)] border border-border bg-card p-4 border-l-4",
-        borderColor,
-      )}
-    >
-      <p className="text-2xl font-bold text-foreground">{count}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
-    </div>
+    <article className={cn("min-w-0 rounded-xl border border-border border-s-4 bg-card p-4 shadow-sm", accent)}>
+      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+        {new Intl.NumberFormat(locale).format(count)}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+    </article>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function StatePanel({
+  error = false,
+  title,
+  description,
+  action,
+  actionLabel,
+}: {
+  error?: boolean
+  title: string
+  description: string
+  action?: () => void
+  actionLabel?: string
+}) {
+  const Icon = error ? AlertCircle : CalendarClock
+  return (
+    <section className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-14 text-center">
+      <Icon className={cn("mx-auto size-9", error ? "text-destructive" : "text-muted-foreground")} aria-hidden="true" />
+      <h2 className="mt-4 text-base font-semibold text-foreground">{title}</h2>
+      <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
+      {action && actionLabel ? (
+        <Button className="mt-5 min-h-11" variant="outline" onClick={action}>
+          {actionLabel}
+        </Button>
+      ) : null}
+    </section>
+  )
+}
+
+function UrgencyBadge({
+  days,
+  t,
+}: {
+  days: number | null
+  t: (key: string, values?: Record<string, number>) => string
+}) {
+  const urgency = classifyUrgency(days)
+  if (urgency === "unknown") {
+    return <span className="text-sm text-muted-foreground">{t("notAvailable")}</span>
+  }
+  if (urgency === "overdue") {
+    return (
+      <span className="inline-flex rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive ring-1 ring-destructive/20">
+        {t("overdue")}
+      </span>
+    )
+  }
+
+  const rounded = Math.ceil(days as number)
+  const label = t(rounded === 1 ? "dayRemaining" : "daysRemaining", { days: rounded })
+  const styles = urgency === "action"
+    ? "bg-destructive/10 text-destructive ring-destructive/20"
+    : urgency === "soon"
+      ? "bg-warning/15 text-warning ring-warning/25"
+      : "bg-success/15 text-success ring-success/25"
+  return (
+    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1", styles)}>
+      {label}
+    </span>
+  )
+}
+
+function LocalizedRisk({
+  level,
+  t,
+}: {
+  level: string | null
+  t: (key: string) => string
+}) {
+  const normalized = level?.toUpperCase()
+  const known = normalized === "LOW" || normalized === "MEDIUM" || normalized === "HIGH"
+  const key = known ? `risk${normalized[0]}${normalized.slice(1).toLowerCase()}` : "riskNotScored"
+  return <RiskBadge level={known ? normalized : null} label={t(key)} size="sm" />
+}
 
 export default function RenewalsPage() {
+  const t = useTranslations("renewals")
+  const locale = useLocale()
+  const isDesktop = useSyncExternalStore(subscribeToDesktop, getDesktopSnapshot, () => true)
+  const loadErrorToast = t("loadErrorToast")
+  const requestRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
   const [renewals, setRenewals] = useState<RenewalContract[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadState, setLoadState] = useState<LoadState>("loading")
 
-  const fetchRenewals = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true)
-    try {
-      const res = await fetch("/api/renewals", { signal })
-      if (!res.ok) throw new Error("Failed to load renewals")
-      const data = await res.json()
-      setRenewals(data.renewals ?? [])
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return
-      toast.error("Failed to load renewal data")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const loadRenewals = useCallback(() => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    const requestId = ++requestRef.current
+    setLoadState("loading")
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/renewals", { signal: controller.signal })
+        if (!response.ok) throw new Error("renewals_unavailable")
+        const data = await response.json()
+        if (controller.signal.aborted || requestId !== requestRef.current) return
+        setRenewals(Array.isArray(data.renewals) ? data.renewals : [])
+        setLoadState("ready")
+      } catch {
+        if (controller.signal.aborted || requestId !== requestRef.current) return
+        setLoadState("error")
+        toast.error(loadErrorToast)
+      }
+    })()
+  }, [loadErrorToast])
 
   useEffect(() => {
-    const controller = new AbortController()
-    fetchRenewals(controller.signal)
-    return () => controller.abort()
-  }, [fetchRenewals])
+    loadRenewals()
+    return () => controllerRef.current?.abort()
+  }, [loadRenewals])
 
-  // Compute stat buckets
-  const actionRequired = renewals.filter(
-    (r) => r.daysUntilDeadline != null && r.daysUntilDeadline <= 7,
-  ).length
-  const comingSoon = renewals.filter(
-    (r) => r.daysUntilDeadline != null && r.daysUntilDeadline > 7 && r.daysUntilDeadline <= 30,
-  ).length
-  const onTrack = renewals.filter(
-    (r) => r.daysUntilDeadline == null || r.daysUntilDeadline > 30,
-  ).length
+  const stats = useMemo(() => {
+    const result = { action: 0, soon: 0, later: 0 }
+    for (const renewal of renewals) {
+      const urgency = classifyUrgency(renewal.daysUntilDeadline)
+      if (urgency === "overdue" || urgency === "action") result.action += 1
+      else if (urgency === "soon") result.soon += 1
+      else result.later += 1
+    }
+    return result
+  }, [renewals])
+
+  const fallback = t("notAvailable")
+  const formatNoticePeriod = (days: number | null) => {
+    if (days == null || !Number.isFinite(days)) return fallback
+    const rounded = Math.round(days)
+    return t(rounded === 1 ? "day" : "days", { days: rounded })
+  }
+  const risk = (renewal: RenewalContract) => <LocalizedRisk level={renewal.riskScore} t={t} />
+  const urgency = (renewal: RenewalContract) => <UrgencyBadge days={renewal.daysUntilDeadline} t={t} />
+  const href = (renewal: RenewalContract) => `/contracts/${renewal.id}`
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
-        <div>
-          <h1 className="text-xl font-semibold">Renewal Watch</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Auto-renewing contracts sorted by notice deadline
-          </p>
+    <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:px-7">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
+          </div>
+          <Button
+            variant="outline"
+            className="min-h-11 w-fit"
+            onClick={loadRenewals}
+            disabled={loadState === "loading"}
+          >
+            <RefreshCw className={cn("size-4", loadState === "loading" && "animate-spin")} aria-hidden="true" />
+            {t("refresh")}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fetchRenewals()}
-          disabled={loading}
-        >
-          <RefreshCw className={cn("size-4", loading && "animate-spin")} strokeWidth={1.8} />
-          Refresh
-        </Button>
-      </div>
+      </header>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-7 space-y-5">
-        {/* Stat cards */}
-        {loading ? (
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard
-              count={actionRequired}
-              label="Action Required (≤7 days or overdue)"
-              borderColor="border-l-red-500"
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-7">
+        <div className="mx-auto w-full max-w-[96rem] space-y-5">
+          {loadState === "loading" ? (
+            <>
+              <section aria-label={t("attentionLabel")} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[0, 1, 2].map((item) => <Skeleton key={item} className="h-28 rounded-xl" />)}
+              </section>
+              <div role="status" aria-live="polite" className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+                <Loader2 className="mx-auto mb-3 size-5 animate-spin" aria-hidden="true" />
+                {t("loading")}
+              </div>
+            </>
+          ) : loadState === "error" ? (
+            <StatePanel
+              error
+              title={t("unavailableTitle")}
+              description={t("unavailableDescription")}
+              action={loadRenewals}
+              actionLabel={t("retry")}
             />
-            <StatCard
-              count={comingSoon}
-              label="Coming Soon (8–30 days)"
-              borderColor="border-l-amber-500"
-            />
-            <StatCard
-              count={onTrack}
-              label="On Track (>30 days)"
-              borderColor="border-l-emerald-500"
-            />
-          </div>
-        )}
+          ) : (
+            <>
+              <section aria-label={t("attentionLabel")} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatCard count={stats.action} label={t("actionRequired")} description={t("actionRequiredDescription")} accent="border-s-destructive" locale={locale} />
+                <StatCard count={stats.soon} label={t("comingSoon")} description={t("comingSoonDescription")} accent="border-s-warning" locale={locale} />
+                <StatCard count={stats.later} label={t("laterOrUnknown")} description={t("laterOrUnknownDescription")} accent="border-s-success" locale={locale} />
+              </section>
 
-        {/* Table */}
-        {loading ? (
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  {["Contract", "Counterparty", "Value", "End Date", "Notice Period", "Notice Deadline", "Days Left", "Risk", ""].map((h) => (
-                    <TableHead key={h} className="h-9 bg-muted text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                      {h}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <TableCell key={j} className="py-2.5">
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : renewals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-              <RefreshCw className="size-7 text-muted-foreground" strokeWidth={1.5} />
-            </div>
-            <div className="text-center">
-              <p className="font-semibold text-foreground">No auto-renewal contracts</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Contracts with auto-renewal enabled will appear here with their notice deadlines.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  {["Contract", "Counterparty", "Value", "End Date", "Notice Period", "Notice Deadline", "Days Left", "Risk", ""].map((h) => (
-                    <TableHead
-                      key={h}
-                      className="h-9 border-b border-border bg-muted text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
-                    >
-                      {h}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {renewals.map((r, idx) => (
-                  <TableRow
-                    key={r.id}
-                    className={cn(
-                      "transition-colors",
-                      idx < renewals.length - 1 && "border-b border-border",
-                      "hover:bg-muted/50",
-                    )}
-                  >
-                    {/* Contract */}
-                    <TableCell className="py-2.5 text-[12.5px] font-medium max-w-[200px]">
-                      <span className="truncate block">{r.title}</span>
-                    </TableCell>
-
-                    {/* Counterparty */}
-                    <TableCell className="py-2.5 text-[12.5px] text-muted-foreground">
-                      {r.counterpartyName ?? "—"}
-                    </TableCell>
-
-                    {/* Value */}
-                    <TableCell className="py-2.5 text-[12.5px] tabular-nums text-muted-foreground">
-                      {r.value != null ? formatCurrency(r.value, r.currency ?? "USD") : "—"}
-                    </TableCell>
-
-                    {/* End Date */}
-                    <TableCell className="py-2.5 text-[12px] text-muted-foreground">
-                      {formatDate(r.endDate)}
-                    </TableCell>
-
-                    {/* Notice Period */}
-                    <TableCell className="py-2.5 text-[12px] text-muted-foreground">
-                      {r.noticePeriodDays != null ? `${r.noticePeriodDays}d` : "—"}
-                    </TableCell>
-
-                    {/* Notice Deadline */}
-                    <TableCell className="py-2.5 text-[12px] text-muted-foreground">
-                      {formatDate(r.noticeDeadlineDate)}
-                    </TableCell>
-
-                    {/* Days Left */}
-                    <TableCell className="py-2.5">
-                      <UrgencyPill days={r.daysUntilDeadline} />
-                    </TableCell>
-
-                    {/* Risk */}
-                    <TableCell className="py-2.5">
-                      <RiskBadge level={r.riskScore} size="sm" />
-                    </TableCell>
-
-                    {/* Action */}
-                    <TableCell className="py-2.5">
-                      <Link href={`/contracts/${r.id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-[12px]">
-                          View
-                          <ExternalLink className="size-3" />
-                        </Button>
+              {renewals.length === 0 ? (
+                <StatePanel title={t("emptyTitle")} description={t("emptyDescription")} />
+              ) : isDesktop ? (
+                <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                  <table aria-label={t("resultsLabel")} className="w-full table-fixed border-collapse text-sm">
+                    <thead className="bg-muted/70 text-xs uppercase tracking-[0.04em] text-muted-foreground">
+                      <tr className="border-b border-border">
+                        <th scope="col" className="w-[23%] px-3 py-3 text-start font-semibold">{t("tableContract")}</th>
+                        <th scope="col" className="w-[12%] px-3 py-3 text-start font-semibold">{t("value")}</th>
+                        <th scope="col" className="w-[12%] px-3 py-3 text-start font-semibold">{t("endDate")}</th>
+                        <th scope="col" className="w-[13%] px-3 py-3 text-start font-semibold">{t("noticePeriod")}</th>
+                        <th scope="col" className="w-[14%] px-3 py-3 text-start font-semibold">{t("noticeDeadline")}</th>
+                        <th scope="col" className="w-[12%] px-3 py-3 text-start font-semibold">{t("daysLeft")}</th>
+                        <th scope="col" className="w-[9%] px-3 py-3 text-start font-semibold">{t("risk")}</th>
+                        <th scope="col" className="w-[5%] px-3 py-3 text-start font-semibold"><span className="sr-only">{t("actions")}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {renewals.map((renewal) => (
+                        <tr key={renewal.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                          <td className="min-w-0 px-3 py-2 align-middle">
+                            <div className="flex min-h-11 min-w-0 flex-col justify-center">
+                              <span className="truncate font-semibold text-foreground">{renewal.title}</span>
+                              <span className="truncate text-xs text-muted-foreground">{renewal.counterpartyName ?? fallback}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">{formatCurrency(renewal.value, renewal.currency, locale, fallback)}</td>
+                          <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">{formatDate(renewal.endDate, locale, fallback)}</td>
+                          <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">{formatNoticePeriod(renewal.noticePeriodDays)}</td>
+                          <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">{formatDate(renewal.noticeDeadlineDate, locale, fallback)}</td>
+                          <td className="px-3 py-2 align-middle">{urgency(renewal)}</td>
+                          <td className="px-3 py-2 align-middle">{risk(renewal)}</td>
+                          <td className="px-3 py-2 text-end align-middle">
+                            <Link
+                              href={href(renewal)}
+                              aria-label={t("viewContract", { title: renewal.title })}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            >
+                              <ExternalLink className="size-4" aria-hidden="true" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <ul aria-label={t("compactResultsLabel")} className="space-y-3">
+                  {renewals.map((renewal) => (
+                    <li key={renewal.id} className="min-w-0 rounded-xl border border-border bg-card shadow-sm">
+                      <Link
+                        href={href(renewal)}
+                        aria-label={t("viewContract", { title: renewal.title })}
+                        className="block min-h-11 min-w-0 rounded-xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30"
+                      >
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h2 className="break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{renewal.title}</h2>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{renewal.counterpartyName ?? fallback}</p>
+                          </div>
+                          {urgency(renewal)}
+                        </div>
+                        <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 text-xs">
+                          <div><dt className="text-muted-foreground">{t("value")}</dt><dd className="mt-1 tabular-nums text-foreground">{formatCurrency(renewal.value, renewal.currency, locale, fallback)}</dd></div>
+                          <div><dt className="text-muted-foreground">{t("risk")}</dt><dd className="mt-1">{risk(renewal)}</dd></div>
+                          <div><dt className="text-muted-foreground">{t("endDate")}</dt><dd className="mt-1 tabular-nums text-foreground">{formatDate(renewal.endDate, locale, fallback)}</dd></div>
+                          <div><dt className="text-muted-foreground">{t("noticePeriod")}</dt><dd className="mt-1 tabular-nums text-foreground">{formatNoticePeriod(renewal.noticePeriodDays)}</dd></div>
+                          <div className="col-span-2"><dt className="text-muted-foreground">{t("noticeDeadline")}</dt><dd className="mt-1 tabular-nums text-foreground">{formatDate(renewal.noticeDeadlineDate, locale, fallback)}</dd></div>
+                        </dl>
+                        <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
+                          {t("view")}<ExternalLink className="size-4" aria-hidden="true" />
+                        </span>
                       </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </main>
   )
 }

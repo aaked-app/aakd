@@ -9,6 +9,8 @@ import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
+import { fireAndLog } from "@/lib/utils/fire-and-log"
+import { Prisma } from "@prisma/client"
 
 // GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -89,6 +91,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!(file instanceof File)) {
       return new Response("Missing file field", { status: 400 })
     }
+    const skipAiExtraction = formData.get("previewCompleted") === "true"
 
     if (file.size > MAX_SIZE) {
       return new Response("File exceeds 50MB limit", { status: 413 })
@@ -151,20 +154,47 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       })
 
+      // A new file invalidates derived text, risk, and unreviewed AI facts.
+      // Keep explicitly accepted metadata, but never present results from the
+      // previous document version as if they belonged to this upload.
+      await tx.contract.update({
+        where: { id: params.id },
+        data: {
+          extractedText: null,
+          isOcrExtracted: false,
+          riskScore: null,
+          riskScoredAt: null,
+          riskDetails: Prisma.JsonNull,
+        },
+      })
+      if (latestFile) {
+        await tx.aIExtraction.deleteMany({
+          where: { contractId: params.id, status: { not: "accepted" } },
+        })
+      }
+
       return { contractFile }
     })
 
     await writeActivity(params.id, ctx.userId, "UPLOADED", filename)
 
-    await enqueueNotification("contract.uploaded", params.id, ctx.userId, {})
+    fireAndLog(
+      enqueueNotification("contract.uploaded", params.id, ctx.userId, {}),
+      "enqueueNotification:contractUploaded",
+      ctx.requestId,
+    )
     // Write in-app notification directly — does not depend on worker being up
-    await writeInAppToOrgMembers(
-      ctx.organizationId,
-      params.id,
-      "contract.uploaded",
-      "Contract file uploaded",
-      `A file was uploaded to "${existing.title}"`,
-      ctx.userId, // exclude the uploader
+    fireAndLog(
+      writeInAppToOrgMembers(
+        ctx.organizationId,
+        params.id,
+        "contract.uploaded",
+        "Contract file uploaded",
+        `A file was uploaded to "${existing.title}"`,
+        ctx.userId, // exclude the uploader
+      ),
+      "writeInAppToOrgMembers:contractUploaded",
+      ctx.requestId,
     )
 
     // Enqueue text extraction job — heavy work must not block the API route
@@ -173,7 +203,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         contractId: params.id,
         fileId: contractFile.id,
         storageKey: key,
-      })
+        preserveUserFields: true,
+        ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
+      }, { jobId: `contract-text-${contractFile.id}` })
     } catch (err) {
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue extraction job")
       return Response.json({ ...contractFile, downloadUrl: null, extractionQueued: false }, { status: 201 })
@@ -202,10 +234,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const downloadUrl = await storage.getSignedDownloadUrl(key)
 
     captureServerEvent(ctx.userId, "file_uploaded", {
-      contractId: params.id,
-      organizationId: ctx.organizationId,
       mimeType,
-      sizeBytes: buffer.byteLength,
       version: contractFile.version,
       isFirstFile: contractFile.version === 1,
     })

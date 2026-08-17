@@ -1,10 +1,10 @@
 # Zapier / Make Integration
 
-ClauseFlow does not yet ship a published Zapier app or Make.com connector. This document specifies the trigger and action surface a future Zapier / Make app would expose. Today, every capability described here is already available via the public API and outbound webhooks — you can wire ClauseFlow into Zapier, Make, n8n, or any other automation platform using a generic "Webhooks" trigger and HTTP action.
+Aakd does not yet ship a published Zapier app or Make.com connector. This document specifies the trigger and action surface a future Zapier / Make app would expose. Today, every capability described here is already available via the public API and outbound webhooks, so you can wire Aakd into Zapier, Make, n8n, or another automation platform using a generic webhooks trigger and HTTP action.
 
 ## Authentication
 
-All API requests authenticate via Bearer token using a ClauseFlow API key.
+All API requests authenticate via Bearer token using an Aakd API key.
 
 - Header: `Authorization: Bearer cf_live_<key>`
 - Generate keys at `/settings/api-keys` (admin only)
@@ -15,7 +15,7 @@ In Zapier, configure authentication as **API Key** auth with the header above.
 
 ## Triggers (10)
 
-Triggers fire when ClauseFlow's outbound webhook system delivers a signed event to your registered URL. Register a webhook at `/settings/notifications` to obtain a per-org `signingSecret`. Every delivery includes an `X-ClauseFlow-Signature` header — see [Webhook signature verification](#webhook-signature-verification).
+Triggers fire when Aakd's outbound webhook system delivers a signed event to your registered URL. Register a webhook at `/settings/notifications` to obtain a per-org `signingSecret`. Every delivery includes an `X-ClauseFlow-Signature` header, see [Webhook signature verification](#webhook-signature-verification).
 
 Each trigger receives the same envelope shape:
 
@@ -107,7 +107,7 @@ Each trigger receives the same envelope shape:
 
 ## Actions (3)
 
-Actions perform writes against the ClauseFlow API. Each maps directly to an existing endpoint.
+Actions perform writes against the Aakd API. Each maps directly to an existing endpoint.
 
 ### Create Contract
 
@@ -156,7 +156,7 @@ curl "https://app.example.com/api/search?q=Acme%20MSA&mode=semantic" \
 1. Sign in as an org admin.
 2. Navigate to `/settings/notifications` → Outbound Webhooks → "Add webhook".
 3. Enter a label and your destination URL (Zapier "Catch Hook", Make "Custom webhook", n8n "Webhook" node, etc.).
-4. After save, ClauseFlow displays the `signingSecret` **once**. Copy it immediately — it cannot be retrieved again. Lose it and you must recreate the webhook.
+4. After save, Aakd displays the `signingSecret` **once**. Copy it immediately, it cannot be retrieved again. Lose it and you must recreate the webhook.
 5. Validate the `X-ClauseFlow-Signature` header on every incoming request (see below).
 
 Failed deliveries are retried automatically: 10 s, 30 s, 90 s. After three failures the delivery is marked `failed` and surfaced in the delivery log at `/settings/notifications/webhooks/{id}/deliveries`.

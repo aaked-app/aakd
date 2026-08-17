@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
         <p className="mt-4 text-center text-sm text-zinc-500">
-          <Link href="/login" className="text-indigo-600 hover:underline">
+          <Link href="/login" className="inline-flex min-h-11 items-center text-indigo-600 hover:underline">
             {t("backToSignIn")}
           </Link>
         </p>
@@ -67,14 +67,15 @@ export default function ForgotPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
+            className="min-h-11"
           />
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="min-h-11 w-full" disabled={loading}>
           {loading ? t("sending") : t("sendResetLink")}
         </Button>
       </form>
       <p className="mt-4 text-center text-sm text-zinc-500">
-        <Link href="/login" className="text-indigo-600 hover:underline">
+        <Link href="/login" className="inline-flex min-h-11 items-center text-indigo-600 hover:underline">
           {t("backToSignIn")}
         </Link>
       </p>

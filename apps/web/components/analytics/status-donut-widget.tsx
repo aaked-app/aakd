@@ -1,90 +1,25 @@
 "use client"
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+import { useLocale, useTranslations } from "next-intl"
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import type { ContractStatus } from "@/lib/types"
 
-const STATUS_COLORS: Record<string, string> = {
-  ACTIVE:           "hsl(148, 58%, 30%)",
-  DRAFT:            "hsl(215, 10%, 72%)",
-  PENDING_APPROVAL: "hsl(38, 92%, 50%)",
-  EXPIRED:          "hsl(0, 84%, 60%)",
-  INTERNAL_REVIEW:  "hsl(200, 98%, 39%)",
-  ARCHIVED:         "hsl(215, 10%, 85%)",
-}
-
+const COLORS: Record<string, string> = { ACTIVE: "hsl(148, 58%, 30%)", DRAFT: "hsl(215, 10%, 72%)", PENDING_APPROVAL: "hsl(38, 92%, 50%)", EXPIRED: "hsl(0, 84%, 60%)", INTERNAL_REVIEW: "hsl(200, 98%, 39%)", ARCHIVED: "hsl(215, 10%, 85%)" }
 const DEFAULT_COLOR = "hsl(215, 10%, 80%)"
+const VALID_STATUSES = new Set<ContractStatus>(["DRAFT", "INTERNAL_REVIEW", "PENDING_APPROVAL", "AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "ARCHIVED"])
 
-type Datum = { status: string; count: number }
-
-export function StatusDonutWidget({ data }: { data: Datum[] }) {
-  const total = data.reduce((s, d) => s + d.count, 0)
-
-  if (total === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-12 text-center">
-        No contract data yet.
-      </p>
-    )
-  }
-
-  const chartData = data.map((d) => ({
-    name: d.status.replace("_", " "),
-    key: d.status,
-    value: d.count,
-  }))
-
-  return (
-    <div className="flex items-center gap-6">
-      {/* Donut */}
-      <div className="shrink-0 w-[160px] h-[160px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              innerRadius={50}
-              outerRadius={75}
-              dataKey="value"
-              strokeWidth={2}
-              stroke="hsl(0 0% 100%)"
-              isAnimationActive={false}
-            >
-              {chartData.map((entry, idx) => (
-                <Cell
-                  key={idx}
-                  fill={STATUS_COLORS[entry.key] ?? DEFAULT_COLOR}
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{ fontSize: 12 }}
-              formatter={(value, name) => [value, name]}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Legend */}
-      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-        {chartData.map((d) => {
-          const pct = total > 0 ? Math.round((d.value / total) * 100) : 0
-          return (
-            <div key={d.key} className="flex items-center gap-2 text-xs">
-              <span
-                className="shrink-0 w-2.5 h-2.5 rounded-sm"
-                style={{ background: STATUS_COLORS[d.key] ?? DEFAULT_COLOR }}
-              />
-              <span className="flex-1 truncate text-foreground/80">{d.name}</span>
-              <span className="tabular-nums font-medium text-foreground">
-                {d.value}
-              </span>
-              <span className="tabular-nums text-muted-foreground w-7 text-right">
-                {pct}%
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+export function StatusDonutWidget({ data }: { data: Array<{ status: string; count: number }> }) {
+  const t = useTranslations("analytics")
+  const statusT = useTranslations("contract.statuses")
+  const locale = useLocale()
+  const number = new Intl.NumberFormat(locale)
+  const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 })
+  const filtered = data.filter((item) => item.count > 0)
+  const total = filtered.reduce((sum, item) => sum + item.count, 0)
+  if (total === 0) return <p className="py-12 text-center text-sm text-muted-foreground">{t("emptyStatus")}</p>
+  const label = (status: string) => VALID_STATUSES.has(status as ContractStatus) ? statusT(status as ContractStatus) : status
+  return <div className="flex flex-col items-center gap-5 sm:flex-row">
+    <div className="h-40 w-40 shrink-0" role="img" aria-label={t("statusChartLabel")}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={filtered} dataKey="count" nameKey="status" innerRadius={50} outerRadius={75} isAnimationActive={false}>{filtered.map((item) => <Cell key={item.status} fill={COLORS[item.status] ?? DEFAULT_COLOR} />)}</Pie><Tooltip formatter={(value, _name, item) => [number.format(Number(value)), label(String((item as { payload?: { status?: string } }).payload?.status ?? ""))]} /></PieChart></ResponsiveContainer></div>
+    <ul className="w-full min-w-0 space-y-2">{filtered.map((item) => <li key={item.status} className="flex items-center gap-2 text-sm"><span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: COLORS[item.status] ?? DEFAULT_COLOR }} /><span className="min-w-0 flex-1 break-words">{label(item.status)}</span><span className="tabular-nums">{number.format(item.count)}</span><span className="w-12 text-end tabular-nums text-muted-foreground">{percent.format(item.count / total)}</span></li>)}</ul>
+  </div>
 }

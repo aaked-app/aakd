@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import { getRequestContext } from "@/lib/context"
 import { logger } from "@/lib/logger"
+import { getDatabasePoolSize } from "@/lib/security/production-config"
 
 // Only models that have a direct organizationId column should be in this set.
 // ContractFile, ContractVersion, and Activity are org-scoped *indirectly*
@@ -45,7 +46,7 @@ type ScopedQueryArgs = {
 function createPrismaClient() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL ?? "",
-    max: parseInt(process.env.DATABASE_POOL_SIZE ?? "20", 10),
+    max: getDatabasePoolSize(),
   })
 
   const adapter = new PrismaPg(pool)

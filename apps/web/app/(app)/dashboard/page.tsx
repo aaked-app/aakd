@@ -1,6 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import Link from "next/link"
 import { Settings2, Plus, ArrowUpRight, FileText } from "lucide-react"
 import { useSession } from "@/lib/auth/client"
@@ -8,7 +14,7 @@ import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Contract } from "@/lib/types"
 import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,57 +22,175 @@ function getInitials(name: string): string {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
 }
 
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—"
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-  } catch { return "—" }
+const DESKTOP_QUERY = "(min-width: 1024px)"
+
+type LoadState = "loading" | "ready" | "error"
+
+function isFiniteCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
 }
 
-function formatValue(value: number | null | undefined, currency = "USD"): string {
-  if (!value) return "—"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency", currency,
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(value)
+function hasDashboardAnalyticsShape(value: unknown): value is AnalyticsSummary {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<AnalyticsSummary>
+  const obligations = candidate.obligations
+  return Boolean(
+    candidate.expiringSoon &&
+    isFiniteCount(candidate.expiringSoon.next30) &&
+    Array.isArray(candidate.byStatus) &&
+    candidate.byStatus.every((item) =>
+      typeof item?.status === "string" && isFiniteCount(item.count),
+    ) &&
+    Array.isArray(candidate.monthlyVolume) &&
+    candidate.monthlyVolume.every((item) =>
+      typeof item?.month === "string" && isFiniteCount(item.count),
+    ) &&
+    (obligations === null || Boolean(
+      obligations &&
+      isFiniteCount(obligations.overdue) &&
+      isFiniteCount(obligations.dueSoon),
+    )),
+  )
+}
+
+function hasDashboardContractShape(value: unknown): value is Contract {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<Contract>
+  const owner = candidate.owner
+  return Boolean(
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.status === "string" &&
+    (candidate.counterpartyName == null || typeof candidate.counterpartyName === "string") &&
+    (candidate.value == null || (typeof candidate.value === "number" && Number.isFinite(candidate.value))) &&
+    (candidate.currency == null || typeof candidate.currency === "string") &&
+    (candidate.endDate == null || typeof candidate.endDate === "string") &&
+    (owner == null || (
+      typeof owner === "object" &&
+      typeof owner.name === "string" &&
+      typeof owner.email === "string" &&
+      (owner.image == null || typeof owner.image === "string")
+    )),
+  )
+}
+
+function subscribeToDesktop(onChange: () => void) {
+  if (typeof window === "undefined" || !window.matchMedia) return () => undefined
+  const query = window.matchMedia(DESKTOP_QUERY)
+  query.addEventListener("change", onChange)
+  return () => query.removeEventListener("change", onChange)
+}
+
+function getDesktopSnapshot() {
+  return typeof window === "undefined" || !window.matchMedia
+    ? true
+    : window.matchMedia(DESKTOP_QUERY).matches
+}
+
+function formatDate(dateStr: string | null | undefined, locale: string): string {
+  if (!dateStr) return "—"
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return "—"
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(date)
+}
+
+function formatValue(value: number | null | undefined, currency: string | null | undefined, locale: string): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  try {
+    return new Intl.NumberFormat(locale, currency ? {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    } : {
+      maximumFractionDigits: 2,
+    }).format(value)
+  } catch {
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
+  }
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({ title, value, sub, loading }: { title: string; value: number; sub: string; loading?: boolean }) {
+function StatCard({
+  title,
+  value,
+  sub,
+  loading,
+  locale,
+  unavailableLabel,
+}: {
+  title: string
+  value: number | null
+  sub: string
+  loading?: boolean
+  locale: string
+  unavailableLabel?: string
+}) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card px-5 py-4">
+    <article className="rounded-[var(--radius)] border border-border bg-card px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-1">{title}</p>
       {loading
         ? <Skeleton className="h-8 w-16 my-0.5" />
-        : <p className="text-[28px] font-extrabold leading-none tabular-nums text-foreground">{value}</p>
+        : <p className="text-[28px] font-extrabold leading-none tabular-nums text-foreground">
+            {value == null ? "—" : new Intl.NumberFormat(locale).format(value)}
+          </p>
       }
-      <p className="text-[11.5px] text-muted-foreground mt-1.5">{sub}</p>
-    </div>
+      <p className="text-[11.5px] text-muted-foreground mt-1.5">
+        {!loading && value == null && unavailableLabel ? unavailableLabel : sub}
+      </p>
+    </article>
   )
 }
 
 // ─── Renewal bar chart ────────────────────────────────────────────────────────
 
-function RenewalChart({ monthlyVolume, standardLabel, highVolumeLabel, noDataLabel }: { monthlyVolume: Array<{ month: string; count: number }>; standardLabel: string; highVolumeLabel: string; noDataLabel: string }) {
+function RenewalChart({
+  monthlyVolume,
+  locale,
+  chartLabel,
+  noDataLabel,
+}: {
+  monthlyVolume: Array<{ month: string; count: number }>
+  locale: string
+  chartLabel: (summary: string) => string
+  noDataLabel: string
+}) {
   const slice = monthlyVolume.slice(-8)
   if (slice.length === 0) {
     return <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">{noDataLabel}</div>
   }
   const max = Math.max(...slice.map((d) => d.count), 1)
   const barW = 28, gap = 10, chartH = 100
+  const points = slice.map((item) => {
+    const date = new Date(`${item.month}-01T00:00:00.000Z`)
+    const month = Number.isNaN(date.getTime())
+      ? item.month
+      : new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(date)
+    return { ...item, label: month }
+  })
+  const summary = points
+    .map((item) => `${item.label}: ${new Intl.NumberFormat(locale).format(item.count)}`)
+    .join(", ")
 
   return (
     <div>
-      <svg width="100%" viewBox={`0 0 ${slice.length * (barW + gap) - gap} ${chartH + 28}`} className="block">
-        {slice.map((d, i) => {
+      <svg
+        width="100%"
+        viewBox={`0 0 ${slice.length * (barW + gap) - gap} ${chartH + 28}`}
+        className="block"
+        role="img"
+        aria-label={chartLabel(summary)}
+      >
+        {points.map((d, i) => {
           const barH = Math.max(4, (d.count / max) * chartH)
           const x = i * (barW + gap)
-          let label = d.month
-          try { label = new Date(d.month + "-01").toLocaleDateString("en-US", { month: "short" }) } catch {}
           const isHigh = d.count === max && d.count > 0
           return (
-            <g key={i}>
+            <g key={d.month}>
               <rect x={x} y={chartH - barH} width={barW} height={barH} rx={3}
                 fill={isHigh ? "hsl(38 85% 52%)" : "hsl(148 58% 30%)"} opacity={isHigh ? 1 : 0.75} />
               {d.count > 0 && (
@@ -76,22 +200,12 @@ function RenewalChart({ monthlyVolume, standardLabel, highVolumeLabel, noDataLab
                 </text>
               )}
               <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={10} fill="hsl(215 8% 45%)">
-                {label}
+                {d.label}
               </text>
             </g>
           )
         })}
       </svg>
-      <div className="flex gap-4 mt-1 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "hsl(148 58% 30%)", opacity: 0.75 }} />
-          {standardLabel}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "hsl(38 85% 52%)" }} />
-          {highVolumeLabel}
-        </span>
-      </div>
     </div>
   )
 }
@@ -101,96 +215,86 @@ function RenewalChart({ monthlyVolume, standardLabel, highVolumeLabel, noDataLab
 export default function DashboardPage() {
   const { data: session } = useSession()
   const t = useTranslations("dashboard")
+  const locale = useLocale()
+  const isDesktop = useSyncExternalStore(
+    subscribeToDesktop,
+    getDesktopSnapshot,
+    () => true,
+  )
   const [analytics, setAnalytics]     = useState<AnalyticsSummary | null>(null)
   const [contracts, setContracts]     = useState<Contract[]>([])
-  const [loading, setLoading]         = useState(true)
+  const [loadState, setLoadState]     = useState<LoadState>("loading")
+  const requestIdRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  const loadDashboard = useCallback(async () => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    const requestId = ++requestIdRef.current
+    controllerRef.current = controller
+    setLoadState("loading")
+
+    try {
+      const [analyticsResponse, contractsResponse] = await Promise.all([
+        fetch("/api/analytics/summary", {
+          credentials: "include",
+          signal: controller.signal,
+        }),
+        fetch("/api/contracts?limit=5", {
+          credentials: "include",
+          signal: controller.signal,
+        }),
+      ])
+      if (!analyticsResponse.ok || !contractsResponse.ok) throw new Error("dashboard_request_failed")
+
+      const [analyticsData, contractsData] = await Promise.all([
+        analyticsResponse.json() as Promise<AnalyticsSummary>,
+        contractsResponse.json() as Promise<{ contracts?: Contract[] }>,
+      ])
+      if (
+        !hasDashboardAnalyticsShape(analyticsData) ||
+        !Array.isArray(contractsData?.contracts) ||
+        !contractsData.contracts.every(hasDashboardContractShape)
+      ) {
+        throw new Error("dashboard_response_invalid")
+      }
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
+
+      setAnalytics(analyticsData)
+      setContracts(contractsData.contracts)
+      setLoadState("ready")
+    } catch {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
+      setLoadState("error")
+    }
+  }, [])
 
   // Fetch on every mount — no Next.js cache layer involved, always fresh.
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-
-    Promise.all([
-      fetch("/api/analytics/summary", { credentials: "include" }).then((r) => r.ok ? r.json() : null),
-      fetch("/api/contracts?limit=5",  { credentials: "include" }).then((r) => r.ok ? r.json() : null),
-    ]).then(([analyticsData, contractsData]) => {
-      if (cancelled) return
-      setAnalytics(analyticsData ?? null)
-      setContracts(contractsData?.contracts ?? [])
-      setLoading(false)
-    }).catch(() => { if (!cancelled) setLoading(false) })
-
-    return () => { cancelled = true }
-  }, []) // mounts fresh on every navigation
+    void loadDashboard()
+    return () => {
+      requestIdRef.current += 1
+      controllerRef.current?.abort()
+    }
+  }, [loadDashboard])
 
   const hour       = new Date().getHours()
   const greeting   = hour < 12 ? t("greeting.morning") : hour < 17 ? t("greeting.afternoon") : t("greeting.evening")
-  const fullName   = session?.user?.name ?? session?.user?.email ?? "there"
+  const fullName   = session?.user?.name ?? session?.user?.email ?? t("teamFallback")
   const firstName  = fullName.split(" ")[0]
 
   const activeCount   = analytics?.byStatus.find((s) => s.status === "ACTIVE")?.count ?? 0
   const expiringCount = analytics?.expiringSoon.next30 ?? 0
-  const pendingCount  = analytics?.approvalFunnel.pending ?? 0
+  const overdueCount = analytics?.obligations?.overdue ?? null
+  const dueSoonCount = analytics?.obligations?.dueSoon ?? null
 
   const totalContracts = analytics?.byStatus.reduce((sum, s) => sum + s.count, 0) ?? null
 
-  const tableHeaders = [t("table.contract"), t("table.counterparty"), t("table.value"), t("table.due"), t("table.status"), ""]
-
-  // Show full-page empty state when analytics have loaded and org has zero contracts.
-  if (!loading && totalContracts === 0) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
-          <div>
-            <h1 className="text-[18px] font-bold tracking-tight leading-snug">{greeting}, {firstName}</h1>
-            <p className="text-[12.5px] text-muted-foreground mt-0.5">{t("subtitle")}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/settings/notifications"
-              title="Notification settings"
-              className="flex h-[34px] w-[34px] items-center justify-center rounded-[var(--radius)] border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Settings2 className="h-[15px] w-[15px]" />
-            </Link>
-            <Link
-              href="/contracts/new"
-              className="inline-flex items-center gap-1.5 h-[34px] px-3 text-[13px] font-medium rounded-[var(--radius)] bg-primary text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("newContract")}
-            </Link>
-          </div>
-        </div>
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm px-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius)] bg-primary/10 border border-primary/20">
-              <FileText className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Upload your first contract</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                Get started by uploading a PDF or DOCX contract. Aakd will extract key dates, parties, and risk signals automatically.
-              </p>
-            </div>
-            <Link
-              href="/contracts/new"
-              className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium rounded-[var(--radius)] bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              Get started →
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col h-full">
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
-        <div>
-          {loading
+    <main className="flex min-h-full flex-col" dir={locale.startsWith("ar") ? "rtl" : "ltr"}>
+      <header className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-7">
+        <div className="min-w-0">
+          {loadState === "loading"
             ? <Skeleton className="h-6 w-48 mb-1" />
             : <h1 className="text-[18px] font-bold tracking-tight leading-snug">{greeting}, {firstName}</h1>
           }
@@ -198,137 +302,208 @@ export default function DashboardPage() {
             {t("subtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/settings/notifications"
-            title="Notification settings"
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-[var(--radius)] border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={t("settings")}
+            title={t("settings")}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius)] border border-border bg-background text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Settings2 className="h-[15px] w-[15px]" />
           </Link>
           <Link
             href="/contracts/new"
-            className="inline-flex items-center gap-1.5 h-[34px] px-3 text-[13px] font-medium rounded-[var(--radius)] bg-primary text-primary-foreground transition-opacity hover:opacity-90"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="h-3.5 w-3.5" />
             {t("newContract")}
           </Link>
         </div>
-      </div>
+      </header>
 
-      {/* ── Stat cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3 px-7 pt-4 shrink-0">
-        <StatCard title={t("activeContracts")}  value={activeCount}   sub={t("totalInPortfolio")}  loading={loading} />
-        <StatCard title={t("expiringSoon")}      value={expiringCount} sub={t("within30Days")}      loading={loading} />
-        <StatCard title={t("pendingApprovals")}  value={pendingCount}  sub={t("awaitingReview")}    loading={loading} />
-      </div>
-
-      {/* ── Main grid ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-[1fr_340px] gap-4 px-7 py-4 flex-1 min-h-0">
-        {/* Recent contracts table */}
-        <div className="flex flex-col min-h-0">
-          <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-[14px] font-semibold">{t("recentContracts")}</h2>
-            <Link href="/contracts" className="flex items-center gap-1 text-[12px] font-medium text-primary hover:opacity-80 transition-opacity">
-              {t("viewAll")} <ArrowUpRight className="h-3 w-3" />
+      {loadState === "loading" ? (
+        <section
+          className="grid flex-1 gap-4 px-4 py-5 sm:px-6 lg:px-7"
+          role="status"
+          aria-label={t("loading")}
+          aria-busy="true"
+        >
+          <span className="sr-only">{t("loading")}</span>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="rounded-[var(--radius)] border border-border bg-card px-5 py-4">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="my-2 h-8 w-16" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            ))}
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </section>
+      ) : loadState === "error" ? (
+        <section className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6" role="alert">
+          <div className="max-w-md rounded-[var(--radius)] border border-destructive/30 bg-card p-6 text-center">
+            <h2 className="text-base font-semibold text-foreground">{t("loadErrorTitle")}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("loadErrorDescription")}</p>
+            <button
+              type="button"
+              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => void loadDashboard()}
+            >
+              {t("retry")}
+            </button>
+          </div>
+        </section>
+      ) : totalContracts === 0 ? (
+        <section className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
+          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius)] border border-primary/20 bg-primary/10">
+              <FileText className="h-8 w-8 text-primary" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t("uploadFirstTitle")}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t("uploadFirst")}</p>
+            </div>
+            <Link
+              href="/contracts/new"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("uploadContract")}
             </Link>
           </div>
+        </section>
+      ) : (
+        <div className="flex flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:px-7">
+          <section aria-labelledby="workspace-summary-heading">
+            <h2 id="workspace-summary-heading" className="sr-only">{t("workspaceSummary")}</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard title={t("activeContracts")} value={activeCount} sub={t("totalInPortfolio")} locale={locale} />
+              <StatCard title={t("expiringSoon")} value={expiringCount} sub={t("workspaceScope")} locale={locale} />
+              <StatCard
+                title={t("overdueObligations")}
+                value={overdueCount}
+                sub={t("needsAttention")}
+                locale={locale}
+                unavailableLabel={t("obligationsUnavailable")}
+              />
+              <StatCard
+                title={t("dueSoonObligations")}
+                value={dueSoonCount}
+                sub={t("needsAttention")}
+                locale={locale}
+                unavailableLabel={t("obligationsUnavailable")}
+              />
+            </div>
+          </section>
 
-          {loading ? (
-            <div className="rounded-[var(--radius)] border border-border overflow-hidden bg-card">
-              <table className="w-full border-collapse" style={{ fontSize: "12.5px" }}>
-                <thead>
-                  <tr>
-                    {tableHeaders.map((h, i) => (
-                      <th key={i} className="px-3 py-[7px] text-left text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground bg-muted border-b border-border">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i} className="border-b border-border last:border-0">
-                      {Array.from({ length: 6 }).map((_, j) => (
-                        <td key={j} className="px-3 py-2.5"><Skeleton className="h-4 w-full" /></td>
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <section className="flex min-w-0 flex-col" aria-labelledby="recent-contracts-heading">
+              <div className="mb-2.5 flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="recent-contracts-heading" className="text-sm font-semibold">{t("recentContracts")}</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t("recentContractsDescription")}</p>
+                </div>
+                <Link href="/contracts" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {t("viewAll")} <ArrowUpRight className="h-3 w-3 rtl:-scale-x-100" aria-hidden="true" />
+                </Link>
+              </div>
+
+              {contracts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius)] border border-dashed border-border bg-muted/20 px-4 py-14 text-center">
+                  <FileText className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                  <p className="text-sm text-muted-foreground">{t("noRecentContracts")}</p>
+                </div>
+              ) : isDesktop ? (
+                <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-card">
+                  <table className="w-full min-w-[720px] border-collapse text-[12.5px]" aria-label={t("recentContracts")}>
+                    <thead>
+                      <tr className="border-b border-border bg-muted">
+                        {[t("tableContract"), t("tableCounterparty"), t("tableValue"), t("tableEndDate"), t("tableStatus"), t("tableOwner")].map((header) => (
+                          <th key={header} scope="col" className="px-3 py-2 text-start text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contracts.map((contract) => (
+                        <tr key={contract.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
+                          <td className="px-3 py-3 font-medium">
+                            <Link href={`/contracts/${contract.id}`} className="inline-flex min-h-11 items-center transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{contract.title}</Link>
+                          </td>
+                          <td className="px-3 py-3 text-muted-foreground">{contract.counterpartyName ?? "—"}</td>
+                          <td className="px-3 py-3 tabular-nums">{formatValue(contract.value, contract.currency, locale)}</td>
+                          <td className="px-3 py-3 text-muted-foreground">{formatDate(contract.endDate, locale)}</td>
+                          <td className="px-3 py-3"><ContractStatusBadge status={contract.status} /></td>
+                          <td className="px-3 py-3">
+                            {contract.owner ? (
+                              contract.owner.image ? (
+                                <img
+                                  src={contract.owner.image}
+                                  className="h-7 w-7 rounded-full object-cover"
+                                  alt={contract.owner.name || contract.owner.email}
+                                  title={contract.owner.name || contract.owner.email}
+                                />
+                              ) : (
+                                <span
+                                  title={contract.owner.name || contract.owner.email}
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary"
+                                >
+                                  {getInitials(contract.owner.name || contract.owner.email)}
+                                </span>
+                              )
+                            ) : <span className="text-muted-foreground">{t("unassigned")}</span>}
+                          </td>
+                        </tr>
                       ))}
-                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <ul className="grid gap-3" role="list" aria-label={t("recentContracts")}>
+                  {contracts.map((contract) => (
+                    <li key={contract.id} className="rounded-[var(--radius)] border border-border bg-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/contracts/${contract.id}`} className="inline-flex min-h-11 items-center font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            {contract.title}
+                          </Link>
+                          <p className="truncate text-sm text-muted-foreground">{contract.counterpartyName ?? "—"}</p>
+                        </div>
+                        <ContractStatusBadge status={contract.status} />
+                      </div>
+                      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+                        <div>
+                          <dt className="text-muted-foreground">{t("tableValue")}</dt>
+                          <dd className="mt-0.5 tabular-nums text-foreground">{formatValue(contract.value, contract.currency, locale)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">{t("tableEndDate")}</dt>
+                          <dd className="mt-0.5 text-foreground">{formatDate(contract.endDate, locale)}</dd>
+                        </div>
+                        <div className="col-span-2">
+                          <dt className="text-muted-foreground">{t("owner")}</dt>
+                          <dd className="mt-0.5 text-foreground">{contract.owner?.name || contract.owner?.email || t("unassigned")}</dd>
+                        </div>
+                      </dl>
+                    </li>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : contracts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-[var(--radius)] border border-dashed border-border bg-muted/20 py-14 gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius)] bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium">{t("noContracts")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t("uploadFirst")}</p>
-              </div>
-              <Link href="/contracts/new" className="inline-flex items-center gap-1.5 h-8 px-3 text-[0.8rem] font-medium rounded-[var(--radius)] bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
-                <Plus className="h-3.5 w-3.5" /> {t("uploadContract")}
-              </Link>
-            </div>
-          ) : (
-            <div className="rounded-[var(--radius)] border border-border overflow-hidden bg-card">
-              <table className="w-full border-collapse" style={{ fontSize: "12.5px" }}>
-                <thead>
-                  <tr>
-                    {tableHeaders.map((h, i) => (
-                      <th key={i} className="px-3 py-[7px] text-left text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground bg-muted border-b border-border">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {contracts.map((c) => (
-                    <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer">
-                      <td className="px-3 py-2.5 font-medium">
-                        <Link href={`/contracts/${c.id}`} className="hover:text-primary transition-colors">{c.title}</Link>
-                      </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">{c.counterpartyName ?? "—"}</td>
-                      <td className="px-3 py-2.5 tabular-nums">{formatValue(c.value, c.currency ?? undefined)}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">{formatDate(c.endDate)}</td>
-                      <td className="px-3 py-2.5"><ContractStatusBadge status={c.status} /></td>
-                      <td className="px-3 py-2.5">
-                        {c.owner && (
-                          c.owner.image ? (
-                            <img
-                              src={c.owner.image}
-                              className="w-full h-full object-cover rounded-full"
-                              alt={c.owner.name || c.owner.email}
-                              title={c.owner.name || c.owner.email}
-                              style={{ width: "22px", height: "22px" }}
-                            />
-                          ) : (
-                            <div title={c.owner.name || c.owner.email}
-                              className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-primary/12 text-primary shrink-0"
-                              style={{ fontSize: "9px", fontWeight: 700 }}>
-                              {getInitials(c.owner.name || c.owner.email)}
-                            </div>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                </ul>
+              )}
+            </section>
 
-        {/* Renewal timeline */}
-        <div className="rounded-[var(--radius)] border border-border bg-card px-5 py-4 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[13px] font-semibold">{t("renewalTimeline")}</h3>
-            <span className="text-[11px] text-muted-foreground">
-              Last {(analytics?.monthlyVolume ?? []).slice(-8).length} months
-            </span>
+            <section className="flex flex-col rounded-[var(--radius)] border border-border bg-card px-5 py-4" aria-labelledby="contracts-added-heading">
+              <h2 id="contracts-added-heading" className="text-[13px] font-semibold">{t("contractsAdded")}</h2>
+              <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{t("contractsAddedDescription")}</p>
+              <RenewalChart
+                monthlyVolume={analytics?.monthlyVolume ?? []}
+                locale={locale}
+                chartLabel={(summary) => t("chartSummary", { summary })}
+                noDataLabel={t("noData")}
+              />
+            </section>
           </div>
-          {loading
-            ? <Skeleton className="h-32 w-full" />
-            : <RenewalChart monthlyVolume={analytics?.monthlyVolume ?? []} standardLabel={t("standard")} highVolumeLabel={t("highVolume")} noDataLabel={t("noData")} />
-          }
         </div>
-      </div>
-    </div>
+      )}
+    </main>
   )
 }

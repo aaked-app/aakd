@@ -9,7 +9,7 @@ import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
-import { createImportedContract } from "../create-contract"
+import { createImportedContractForRow, recordImportRowFailure } from "../create-contract"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { parseImportDate, parseCurrency } from "../parse-utils"
 import { safeUnzipSync } from "../zip-safety"
@@ -116,27 +116,25 @@ export async function runPandadocHandler(
   for (let i = 0; i < head.length; i++) {
     const rowIndex = i + 1
     const doc = head[i]
+    const existing = await db.importRow.findFirst({
+      where: { jobId: job.id, rowIndex, status: "success" },
+      select: { id: true },
+    })
+    if (existing) {
+      succeeded += 1
+      continue
+    }
     try {
       const data = mapPandaDoc(doc)
-      const contractId = await createImportedContract(data, {
-        organizationId: ctx.organizationId,
-        ownerId: ctx.createdById,
-      })
-      // Upsert on (jobId, rowIndex) — a retry re-processes the same
-      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "success", contractId },
-        update: { sourceRef: doc.dir, status: "success", contractId, errorMessage: null },
-      })
+      await createImportedContractForRow(
+        data,
+        { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef: doc.dir },
+      )
       succeeded += 1
     } catch (err) {
       const errorMessage = (err as Error).message || "unknown_error"
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "failed", errorMessage },
-        update: { sourceRef: doc.dir, status: "failed", errorMessage, contractId: null },
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef: doc.dir }, errorMessage)
       failed += 1
     }
   }

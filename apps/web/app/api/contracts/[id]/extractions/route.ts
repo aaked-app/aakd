@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
@@ -49,11 +50,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 // ─── POST /api/contracts/[id]/extractions ─────────────────────────────────────
-// Seeds initial AIExtraction rows from the Pass-1 (extract-preview) data so the
-// AI Extractions tab is populated immediately on the contract detail page.
+// Seeds initial extraction rows from the Pass-1 (extract-preview) data so the
+// contract detail page is populated immediately. User-edited values are stored
+// as accepted manual facts and are protected from worker enrichment.
 // The worker's ai_extract job will later enrich these rows with sourceText and
 // sourcePage via its own createMany(skipDuplicates)+updateMany(status≠accepted)
-// upsert — so worker data always wins over seed data.
+// upsert. Accepted manual rows are intentionally protected from worker output.
 
 const EXTRACTABLE_FIELDS = new Set([
   "contractType", "startDate", "endDate", "renewalDate",
@@ -68,6 +70,7 @@ const SeedSchema = z.object({
         field:      z.string().min(1),
         rawValue:   z.string().min(1),
         confidence: z.number().min(0).max(1).default(0),
+        extractedBy: z.enum(["ai", "manual"]).default("ai"),
       }),
     )
     .min(1)
@@ -108,8 +111,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         confidence:  e.confidence,
         sourceText:  null,
         sourcePage:  null,
-        extractedBy: "ai",
-        status:      "pending",
+        extractedBy: e.extractedBy,
+        status:      e.extractedBy === "manual" ? "accepted" : "pending",
       })),
       skipDuplicates: true,
     })
@@ -123,13 +126,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 //   { action: "accept",     extractionId: string }           — mark accepted + write to contract
 //   { action: "reject",     extractionId: string }           — mark rejected
 //   { action: "edit",       extractionId: string, newValue } — update rawValue then accept
-//   { action: "accept_all" }                                 — bulk accept all pending extractions
 
 const PatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("accept"),     extractionId: z.string().min(1) }),
   z.object({ action: z.literal("reject"),     extractionId: z.string().min(1) }),
   z.object({ action: z.literal("edit"),       extractionId: z.string().min(1), newValue: z.string().min(1) }),
-  z.object({ action: z.literal("accept_all") }),
 ])
 
 // Map of extraction field name → canonical Contract column + type coercion
@@ -180,77 +181,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body = PatchSchema.parse(await req.json())
     } catch (err) {
       return Response.json({ error: "Invalid request body", detail: err }, { status: 400 })
-    }
-
-    // ── accept_all ────────────────────────────────────────────────────────────
-    if (body.action === "accept_all") {
-      // Snapshot + writes run inside a single interactive transaction to close
-      // the TOCTOU window where new pending extractions could slip between the
-      // findMany and the updateMany, ending up accepted=true but not written.
-      let accepted: number | { count: number; updatedFields: string[] }
-      try {
-        accepted = await prisma.$transaction(async (tx) => {
-        const pending = await tx.aIExtraction.findMany({
-          where: { contractId: params.id, status: "pending" },
-          select: { id: true, field: true, rawValue: true },
-        })
-
-        if (pending.length === 0) return 0
-
-        const contractUpdates: Record<string, unknown> = {}
-        const invalidFields: string[] = []
-        for (const ex of pending) {
-          const mapping = FIELD_MAP[ex.field]
-          if (mapping && ex.rawValue !== null) {
-            const coerced = mapping.coerce(ex.rawValue)
-            if (isCoercedValueValid(coerced)) {
-              contractUpdates[mapping.column] = coerced
-            } else {
-              invalidFields.push(ex.field)
-            }
-          }
-        }
-
-        if (invalidFields.length > 0) {
-          throw Object.assign(new Error("coercion_failed"), { fields: invalidFields })
-        }
-
-        await tx.aIExtraction.updateMany({
-          where: { contractId: params.id, status: "pending" },
-          data: { status: "accepted" },
-        })
-        if (Object.keys(contractUpdates).length > 0) {
-          await tx.contract.update({ where: { id: params.id }, data: contractUpdates })
-        }
-        return { count: pending.length, updatedFields: Object.keys(contractUpdates) }
-        })
-      } catch (err) {
-        const e = err as Error & { fields?: string[] }
-        if (e.message === "coercion_failed") {
-          return Response.json(
-            { error: "One or more AI-extracted values failed type coercion", fields: e.fields },
-            { status: 422 },
-          )
-        }
-        throw err
-      }
-
-      if (accepted === 0) {
-        return Response.json({ accepted: 0 })
-      }
-
-      const { count, updatedFields } = accepted as { count: number; updatedFields: string[] }
-
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "METADATA_UPDATED",
-        `Accepted all ${count} AI extraction fields`,
-      )
-
-      await regenerateAlertsIfTouched(params.id, updatedFields)
-
-      return Response.json({ accepted: count })
     }
 
     // ── single-field actions (accept / reject / edit) ─────────────────────────
@@ -310,6 +240,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         "METADATA_UPDATED",
         `Accepted AI extraction for field "${extraction.field}"`,
       )
+
+      // Keep activation telemetry aggregate-only. Never send document identifiers
+      // or extracted values to the analytics provider.
+      captureServerEvent(ctx.userId, "contract_fact_reviewed", {
+        action: body.action,
+        field: extraction.field,
+      })
 
       await regenerateAlertsIfTouched(params.id, [extraction.field])
     } else {

@@ -1,6 +1,12 @@
 import nodemailer from "nodemailer"
-import { ContractAlert, Contract, Organization } from "@prisma/client"
-import { prisma } from "@/lib/db/client"
+import type { ContractAlert, Contract, Organization, PrismaClient } from "@prisma/client"
+
+type EmailClient = Pick<PrismaClient, "user" | "member" | "contractAlert">
+
+async function getDefaultEmailClient(): Promise<EmailClient> {
+  const { prisma } = await import("@/lib/db/client")
+  return prisma
+}
 
 export type ContractAlertWithContract = ContractAlert & {
   contract: Contract & { organization: Organization }
@@ -80,7 +86,7 @@ function getTransporter() {
   })
 }
 
-async function resolveAlertRecipients(alert: ContractAlertWithContract): Promise<string[]> {
+async function resolveAlertRecipients(alert: ContractAlertWithContract, prisma: EmailClient): Promise<string[]> {
   const recipients = new Set<string>()
 
   // Always include the contract owner if we can find them
@@ -110,11 +116,12 @@ async function resolveAlertRecipients(alert: ContractAlertWithContract): Promise
   return Array.from(recipients)
 }
 
-export async function sendAlertEmail(alert: ContractAlertWithContract): Promise<void> {
+export async function sendAlertEmail(alert: ContractAlertWithContract, db?: EmailClient): Promise<void> {
+  const prisma = db ?? await getDefaultEmailClient()
   // Silently skip if SMTP is not configured
   if (!process.env.SMTP_HOST) return
 
-  const to = await resolveAlertRecipients(alert)
+  const to = await resolveAlertRecipients(alert, prisma)
   if (to.length === 0) return
 
   const label = ALERT_LABELS[alert.alertType] ?? alert.alertType
@@ -139,11 +146,12 @@ export async function sendAlertEmail(alert: ContractAlertWithContract): Promise<
  * Loads an alert by id and sends its email. Used by the email.send worker
  * so the alerts check pipeline isn't blocked by SMTP latency.
  */
-export async function sendAlertEmailById(alertId: string): Promise<void> {
+export async function sendAlertEmailById(alertId: string, db?: EmailClient): Promise<void> {
+  const prisma = db ?? await getDefaultEmailClient()
   const alert = await prisma.contractAlert.findUnique({
     where: { id: alertId },
     include: { contract: { include: { organization: true } } },
   })
   if (!alert) return
-  await sendAlertEmail(alert as ContractAlertWithContract)
+  await sendAlertEmail(alert as ContractAlertWithContract, prisma)
 }
