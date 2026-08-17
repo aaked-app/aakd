@@ -14,7 +14,7 @@ approval bypass, and external side effects remain outside this release.
 | Cross-organization contract ID | Not found / no data | MCP and isolation tests |
 | `get_contract` request | Safe metadata and cited fields only; no raw extracted text or tenant ID | MCP response-shape tests |
 | `list_contracts` request | Safe list projection only; no raw extracted text or tenant ID | MCP query projection tests |
-| `ask_contract` with API key lacking `text_read` | Tool error before contract lookup or provider call | MCP text-access regression |
+| `ask_contract` with API key lacking `text_read` | Tool error before contract lookup or provider call | MCP text-access regression and `scripts/verify-mcp-http.sh` |
 | `ask_contract` with session member or API key carrying `text_read` | Contract text may be sent only for the requested contract; provider remains optional and no mutation occurs | MCP text-access boundary and AI tests |
 | `list_obligations` request | Safe obligation projection; no organization identifier, creator/assignee email or hidden fields | MCP projection regression |
 | `get_import_job` request | Safe job/row projection; no storage keys, drive IDs, mappings, error-report keys or organization identifier | MCP projection regression |
@@ -51,6 +51,9 @@ integration, and must never echo tenant or contract data in their responses.
   `text_read` capability and is never implied by `write`.
 - No analytics event contains contract IDs, organization IDs, extracted values,
   document contents, or file sizes.
-- This matrix does not claim external Claude or Codex client certification. The
-  JSON-RPC initialize, tools/list, tools/call, ping, and notification behavior
-  is tested locally; external-client replay remains a release follow-up.
+- The standards-based HTTP replay in `scripts/verify-mcp-http.sh` exercises
+  initialize, tools/list, tools/call, ping, notification handling, and API-key
+  scope guards against a running deployment. This proves the wire contract and
+  authorization boundary without sending contract data to a third party. It does
+  not claim certification by the Claude or Codex applications themselves; those
+  client-specific replays remain optional follow-up evidence.
