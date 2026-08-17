@@ -240,7 +240,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 log "Waiting for app to be ready..."
 ATTEMPTS=0
 MAX_ATTEMPTS=30
-until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app wget -q --spider http://localhost:3000/api/health 2>/dev/null; do
+until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" 2>/dev/null; do
   ATTEMPTS=$((ATTEMPTS + 1))
   if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
     error "App health check timed out. Inspect: docker compose -f docker-compose.prod --env-file .env.prod logs app"
