@@ -37,6 +37,9 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma
 # prisma.config.ts is needed by Prisma 7 at runtime for migrate deploy
 COPY --from=builder /app/apps/web/prisma.config.ts ./
+# Prisma 7 loads this config before Next's standalone trace. Keep the
+# explicit env loader available in the minimal runner image for migrations.
+COPY --from=builder /app/apps/web/node_modules/@next/env ./node_modules/@next/env
 # With outputFileTracingRoot set to the monorepo root, the standalone
 # output mirrors the monorepo structure: server.js lives at apps/web/server.js
 # and root node_modules are at the top level.

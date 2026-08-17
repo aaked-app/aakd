@@ -17,6 +17,7 @@ trap 'rm -f "$TEMP_ENV"' EXIT
 cat > "$TEMP_ENV" <<'EOF'
 POSTGRES_PASSWORD=phase0-test-postgres
 REDIS_PASSWORD=phase0-test-redis
+REDIS_URL=redis://:phase0-test-redis@redis:6379
 MINIO_ROOT_USER=phase0minio
 MINIO_ROOT_PASSWORD=phase0-test-minio
 BETTER_AUTH_SECRET=phase0-test-auth-secret
