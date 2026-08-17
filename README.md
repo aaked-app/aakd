@@ -1,283 +1,189 @@
 # Aakd
 
-Turn executed contracts into reviewed, owned actions.
+**Turn executed contracts into reviewed, owned actions.**
 
-Aakd is an open-source, self-hostable contract operations core for teams that
-need to know what a signed agreement requires next, who owns it, when it is
-due, and where the evidence came from.
+Aakd is an open-source, self-hostable contract operations workspace. It helps a
+team move from an executed PDF or DOCX to cited contract facts, assigned
+obligations, deadlines, approvals, and completion evidence.
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](./docker-compose.yml)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://postgresql.org)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
----
+> Aakd is an early open-source release. Customer validation is in progress.
+> It is not a hosted service, legal-advice product, compliance certification,
+> or autonomous legal agent.
 
-## The first useful workflow
-
-1. **Upload** an executed PDF or DOCX contract, including scanned PDFs when OCR is enabled.
-2. **Review** extracted fields and obligations with exact source text and page citations.
-3. **Assign** owners, dates, conditions, and follow-up work.
-4. **Act** from the obligations and renewal view, with reminders and completion evidence.
-5. **Collaborate** through approvals, comments, and optional DocuSeal signing.
+## The workflow
 
 ```text
-executed agreement → cited facts → reviewed obligations → owned deadlines → completion evidence
+executed agreement
+        ↓
+source-linked facts and obligations
+        ↓
+human review and correction
+        ↓
+owners, deadlines, approvals, and reminders
+        ↓
+completion evidence
 ```
 
-AI is optional and reviewable. When configured, it assists with extraction,
-questions, risk scoring, and obligation suggestions. It does not become the
-canonical source of contract truth or take consequential action without a
-human-controlled workflow.
+The first useful path is deliberately narrow:
 
-## Who this is for
+1. Upload an executed PDF or DOCX.
+2. Review extracted fields, obligations, and exact source citations.
+3. Correct anything that is wrong or missing.
+4. Assign owners and due dates.
+5. Track follow-up work, renewals, approvals, and evidence of completion.
 
-The current release is aimed at teams with recurring vendor or customer
-agreements that are spread across files, calendars, email, and task systems.
-It is especially useful for self-hosters, privacy-sensitive teams, and
-developers who want an inspectable contract data model.
+AI is optional. When enabled, it assists with extraction, questions, risk
+signals, and obligation suggestions. AI output remains reviewable and is never
+the canonical source of contract truth.
 
-It is not currently a replacement for an enterprise CLM rollout, a legal
-advice service, or an autonomous legal agent. Drafting, templates, billing,
-and hosted Cloud features remain paused or later-phase surfaces.
+## What is included today
 
-When self-hosted, your contracts stay on infrastructure you control. AI providers are optional: use Ollama locally or bring your own provider key.
+- Contract repository with PDF/DOCX uploads, OCR, folders, tags, search, and
+  version history.
+- Source-linked metadata and obligation review with page-level evidence.
+- Obligation and renewal views with owners, deadlines, reminders, and audit
+  history.
+- Organization-scoped approvals, comments, notifications, and activity logs.
+- Optional DocuSeal signing integration.
+- Optional AI through a provider key or local Ollama deployment.
+- REST API and a scoped MCP endpoint for agent-assisted, human-controlled
+  workflows.
+- English, French, German, Spanish, and Arabic RTL interfaces.
 
-### Phase 0 release scope
+## Intentionally out of scope for the first release
 
-The supported first-run path is intentionally narrow: upload a real PDF or DOCX, review the extracted fields and citations, then create and complete obligations. Templates, contract authoring, autonomous agents, billing, and hosted service features remain hidden or paused until they have their own release evidence. The underlying code is retained for later phases, but it is not part of the Phase 0 promise.
+Authoring, template management, autonomous agents, billing, hosted Cloud, and
+enterprise identity features are later phases. The code for some of these
+surfaces remains in the repository, but they are not part of the Phase 0
+promise.
 
----
+See [`PRODUCT.md`](PRODUCT.md) for the product constitution and [`docs/`](docs/)
+for deployment and API documentation.
 
-## Quick start
+## Try it locally
+
+### Requirements
+
+- Docker and Docker Compose
+- Git
+- OpenSSL, for generating local secrets
+
+### Start the complete stack
 
 ```bash
-# 1. Clone and configure
-git clone https://github.com/aaked-app/aakd.git
-cd aakd
-cp .env.example .env       # fill in the required values below
+git clone https://github.com/wassimbensalem/aakd-internal.git
+cd aakd-internal
+cp .env.example .env
 
-# Generate secrets, then paste them into .env
-openssl rand -base64 32     # BETTER_AUTH_SECRET
-openssl rand -hex 32        # ENCRYPTION_KEY
-openssl rand -hex 32        # NOTIFICATION_ENCRYPTION_KEY
-openssl rand -hex 64        # DOCUSEAL_SECRET_KEY_BASE
+# Generate values and put them in .env
+openssl rand -base64 32   # BETTER_AUTH_SECRET
+openssl rand -hex 32      # ENCRYPTION_KEY
+openssl rand -hex 32      # NOTIFICATION_ENCRYPTION_KEY
+openssl rand -hex 64      # DOCUSEAL_SECRET_KEY_BASE
 
-# 2. Start everything
 docker compose up
-
-# 3. Open the app
-open http://localhost:3000
 ```
 
-First signup creates your account and organization. The repository, uploads, manual metadata, approvals, obligations, and signing screens work without an AI key. Configure an AI provider in Settings only when you want extraction, Q&A, risk scoring, or AI-assisted obligation suggestions.
+Open [http://localhost:3000](http://localhost:3000). The first signup creates
+an account and organization. Repository, uploads, manual metadata, approvals,
+obligations, and signing can be tried without an AI provider. Add an AI key in
+Settings only if you want AI-assisted features.
 
-### Production deployment
+The local stack also includes PostgreSQL, Redis, MinIO, Mailpit, DocuSeal, and
+the background worker. Their local endpoints and credentials are documented in
+[`docs/self-hosting.md`](docs/self-hosting.md).
 
-For a public deployment on an Ubuntu VM, use the production installer. It creates strong secrets, validates the Compose configuration, builds the web app and worker, starts PostgreSQL, Redis, MinIO, DocuSeal, Caddy and backups, then waits for the health endpoint.
+## Deploy it yourself
+
+For a single Ubuntu VM, the production installer configures the web app, worker,
+PostgreSQL, Redis, S3-compatible storage, DocuSeal, Caddy, and backups:
 
 ```bash
-git clone https://github.com/aaked-app/aakd.git ~/aakd
+git clone https://github.com/wassimbensalem/aakd-internal.git ~/aakd
 cd ~/aakd
 chmod +x scripts/*.sh
 bash scripts/deploy.sh
 ```
 
-Before running it, point your domain's DNS records to the server and allow inbound TCP ports 80 and 443 in the cloud firewall. The installer does not change host firewall rules by default. Set `CONFIGURE_FIREWALL=true` only when you want it to add those iptables rules. Email and AI are optional; configure them later in `.env.prod` if needed.
-
-To update an existing installation:
-
-```bash
-cd ~/aakd
-bash scripts/update.sh
-```
-
-To diagnose a running installation or export a backup:
+Point DNS to the server and allow ports 80 and 443 before running the installer.
+Email and AI providers are optional. Do not expose the development Compose
+stack or its default MinIO/Mailpit credentials to the internet.
 
 ```bash
-bash scripts/doctor.sh
-bash scripts/backup.sh
+bash scripts/update.sh                       # update an installation
+bash scripts/doctor.sh                        # diagnose an installation
+bash scripts/backup.sh                        # create a database backup
+bash scripts/restore.sh backups/file.sql.gz --yes-really-restore
 ```
 
-Restoring is deliberately guarded because it replaces the current database:
+Read the complete [self-hosting guide](docs/self-hosting.md) and the
+[Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md) before using Aakd with
+real contracts.
 
-```bash
-bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
-```
+## Screenshots
 
-For the full production checklist, backups, TLS, storage, email and troubleshooting, see [the self-hosting guide](docs/self-hosting.md) and [the Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md).
+![Aakd dashboard](docs/screenshots/dashboard.png)
 
-For transparent public evaluation, use the [community launch checklist](docs/community-launch-checklist.md).
+![Aakd contract repository](docs/screenshots/contracts.png)
 
-## Verify a Phase 0 release
+## Privacy and AI
 
-Run the reproducible local engineering checks before publishing a release:
+Self-hosting keeps application data on infrastructure you control. AI is
+opt-in: use Ollama locally or bring your own provider key. Aakd stores the
+source text and citation for AI-derived fields so a reviewer can inspect and
+correct them.
+
+Do not treat an AI result as legal advice or as an automatic approval. Review
+contract facts and obligations before relying on them.
+
+## Architecture
+
+- **Web:** Next.js 14 App Router, React 18, TypeScript, Tailwind CSS
+- **Data:** PostgreSQL 16, Prisma, pgvector
+- **Auth:** Better Auth with organization-scoped access
+- **Jobs:** BullMQ and Redis, with a separate worker process
+- **Files:** S3-compatible storage, MinIO in the local stack
+- **AI:** Anthropic, OpenAI, or Ollama through the existing provider layer
+- **Signing:** DocuSeal integration
+
+The main application lives in `apps/web`. The worker is
+`apps/web/worker.ts`. Start with [`CLAUDE.md`](CLAUDE.md) and
+[`AGENTS.md`](AGENTS.md) when contributing.
+
+## Verify a release candidate
+
+Run the Phase 0 verification script before publishing a release:
 
 ```bash
 bash scripts/verify-phase-0.sh
 ```
 
-This validates Compose configuration, typecheck, lint, the complete test suite,
-the mandatory tenant-isolation suite, and the production build. It does not
-claim customer adoption or replace the documented disposable Compose and MCP
-HTTP replays.
-
----
-
-## Screenshots
-
-**Dashboard** — renewal timeline, pending approvals, and recent contracts at a glance.
-
-![Aakd dashboard](docs/screenshots/dashboard.png)
-
-**Contract repository** — full-text search, status and risk filters, at-a-glance value and end dates.
-
-![Aakd contracts list](docs/screenshots/contracts.png)
-
----
-
-## Features
-
-### Contract Management
-| Feature | Status |
-|---|---|
-| PDF & DOCX upload (magic-byte validated, 50 MB max) | ✅ |
-| OCR for scanned / image-only PDFs | ✅ |
-| AI metadata extraction (parties, dates, value, governing law, auto-renewal) | ✅ optional |
-| Soft-delete with full audit trail | ✅ |
-| Folders, tags, full-text + semantic search | ✅ |
-| Contract versions & document snapshots | ✅ review history |
-
-### AI Layer
-| Feature | Status |
-|---|---|
-| Contract Q&A with exact citations | ✅ optional |
-| AI risk scoring — LOW / MEDIUM / HIGH + 6-category breakdown | ✅ optional |
-| Obligation suggestions (review required before creation) | ✅ optional |
-| BYOK — bring your own Anthropic or OpenAI key | ✅ |
-| Ollama support for fully local AI | ✅ |
-
-### Workflow & Signing
-| Feature | Status |
-|---|---|
-| Approval workflows with role-based routing | ✅ |
-| E-signatures via DocuSeal (self-hostable) | ✅ |
-| Track changes / redlining with version comparison | Later phase |
-| Snapshot comparison with word-level diff | Later phase |
-| Track changes sidebar with author context | Later phase |
-
-### Authoring
-| Feature | Status |
-|---|---|
-| Rich document editor (TipTap) with track changes | Paused after Phase 0 |
-| Template studio with variable fill wizard | Paused after Phase 0 |
-| Built-in clause snippet library (13 standard legal clauses) | Later phase |
-| Word import + DOCX/PDF export | Later phase |
-| Contract snapshots & version history | ✅ review history |
-| AI Companion tab — contract Q&A inline in editor | Paused after Phase 0 |
-
-### Renewals & Obligations
-| Feature | Status |
-|---|---|
-| Auto-renewal risk dashboard (sorted by notice deadline) | ✅ |
-| Obligation tracker with sub-tasks | ✅ |
-| Daily overdue obligation cron | ✅ |
-| Renewal alert emails | ✅ |
-
-### Integrations & Ecosystem
-| Feature | Status |
-|---|---|
-| Slack & Microsoft Teams notifications | Optional |
-| Outgoing webhooks (Zapier / Make compatible) | Optional |
-| MCP server endpoint (Claude, Cursor, any MCP client) | ✅ scoped |
-| REST API with API key auth | ✅ scoped |
-| CRM sync — HubSpot, Salesforce, Pipedrive | Later phase |
-| Bulk import — CSV, PandaDoc, DocuSign CLM, Google Drive | Later phase |
-
-### Internationalization
-English · Français · Deutsch · Español · العربية (RTL)
-
----
-
-## Why Aakd?
-
-| | Aakd | Ironclad | DocuSign CLM | Signit |
-|---|---|---|---|---|
-| Open source | ✅ | ❌ | ❌ | ❌ |
-| Self-hostable | ✅ | ❌ | ❌ | ❌ |
-| BYOK AI (no per-use fee) | ✅ | ❌ | ❌ | ❌ |
-| Arabic RTL | ✅ | ❌ | ❌ | ✅ |
-| MCP server | ✅ | ❌ | ❌ | ❌ |
-| Software model | Free self-hosted software | Paid SaaS | Paid SaaS | Commercial |
-
-This project is open source and self-hostable. It is not currently a hosted service and does not claim formal compliance certifications or enterprise identity features.
-
----
-
-## Stack
-
-- **Frontend:** Next.js 14 App Router · TypeScript · Tailwind CSS · TipTap editor
-- **Backend:** Next.js API routes · Prisma ORM · PostgreSQL 16 + pgvector
-- **Auth:** Better Auth (email/password + org management)
-- **Jobs:** BullMQ + Redis
-- **Storage:** S3-compatible (MinIO for self-hosted, AWS S3 for cloud)
-- **AI:** Anthropic Claude · OpenAI · Ollama (local)
-- **E-signature:** DocuSeal
-- **Observability:** OpenTelemetry (opt-in OTLP traces, Jaeger-ready)
-
----
-
-## Self-hosting
-
-The default compose stack runs the web app, BullMQ worker, PostgreSQL, Redis,
-MinIO, Mailpit, and DocuSeal. You need `POSTGRES_PASSWORD`,
-`BETTER_AUTH_SECRET`, `NOTIFICATION_ENCRYPTION_KEY`,
-`DOCUSEAL_SECRET_KEY_BASE`, and the storage settings. AI credentials are
-optional for local/manual workflows and required only for AI-assisted
-features. The production installer generates the required secrets for you.
-
-See [docker-compose.yml](./docker-compose.yml) for local development and [docker-compose.prod.yml](./docker-compose.prod.yml) for production deployment. The development Compose file includes Mailpit and default MinIO credentials and must not be exposed to the internet.
-
-Minimum environment variables:
-```env
-DATABASE_URL=postgresql://...
-BETTER_AUTH_SECRET=<random 32+ char string>
-BETTER_AUTH_URL=http://localhost:3000
-STORAGE_BUCKET=aakd
-STORAGE_ACCESS_KEY=...
-STORAGE_SECRET_KEY=...
-STORAGE_ENDPOINT=http://minio:9000   # leave empty for AWS S3
-REDIS_URL=redis://redis:6379
-```
-
-Optional (AI features degrade gracefully without these):
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-```
-
----
-
-## Development
-
-```bash
-pnpm install
-pnpm dev            # Next.js on :3000
-pnpm worker:dev     # BullMQ worker (watch mode)
-pnpm db:migrate     # run Prisma migrations
-pnpm db:studio      # Prisma Studio on :5555
-pnpm test           # unit + integration tests
-pnpm typecheck      # TypeScript across all packages
-```
-
----
-
-## License
-
-AGPL-3.0 — free for self-hosted use. Commercial licenses available for white-labeling and SaaS redistribution.
-
----
+This checks Compose configuration, type safety, lint, tests, tenant-isolation
+tests, and the production build. It does not claim customer adoption,
+enterprise compliance, or production security certification.
 
 ## Contributing
 
-PRs welcome. Read [CLAUDE.md](./CLAUDE.md) for the architecture decisions and coding conventions before contributing.
+Start with an issue or discussion describing the user problem, the affected
+workflow, and how it can be verified. Keep changes focused and preserve the
+source-linked, human-reviewable contract model. See the repository's issue and
+pull-request templates for project-specific guidance.
+
+For security vulnerabilities, use the private reporting process in
+[`SECURITY.md`](SECURITY.md) rather than publishing exploit details in an issue.
+
+## Documentation
+
+- [Product constitution and roadmap](PRODUCT.md)
+- [Self-hosting guide](docs/self-hosting.md)
+- [API reference](docs/api-reference.md)
+- [Community launch checklist](docs/community-launch-checklist.md)
+
+## License
+
+Aakd is licensed under [AGPL-3.0](LICENSE). Commercial licensing is available
+for white-labeling or SaaS redistribution.
