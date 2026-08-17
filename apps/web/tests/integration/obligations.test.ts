@@ -1105,6 +1105,30 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     expect(body.error).toBe("no_extracted_text")
   })
 
+  it("re-queues text extraction when the file is present but text is not ready", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      extractedText: null,
+      files: [{ id: "file-1", storageKey: "org-1/contract-1/agreement.pdf" }],
+    } as any)
+    const { contractExtractQueue } = await import("@/lib/jobs/queues")
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }),
+      { params: { id: "contract-1" } },
+    )
+
+    expect(res.status).toBe(202)
+    expect(await res.json()).toEqual({ error: "text_processing", queued: true })
+    expect(contractExtractQueue.add).toHaveBeenCalledWith(
+      "extract",
+      expect.objectContaining({ contractId: "contract-1", fileId: "file-1" }),
+      { jobId: "contract-text:file-1" },
+    )
+  })
+
   it("returns 422 when no AI provider is configured", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)

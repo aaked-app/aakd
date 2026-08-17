@@ -183,7 +183,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         fileId: contractFile.id,
         storageKey: key,
         preserveUserFields: true,
-      })
+      }, { jobId: `contract-text:${contractFile.id}` })
     } catch (err) {
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue extraction job")
       return Response.json({ ...contractFile, downloadUrl: null, extractionQueued: false }, { status: 201 })

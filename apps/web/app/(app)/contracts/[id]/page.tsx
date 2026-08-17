@@ -400,8 +400,10 @@ export default function ContractDetailPage() {
   // until data appears (or give up after 90 s).
   useEffect(() => {
     if (loading) return
-    if (extractions.length > 0) {
-      // Data arrived — kill any active poll and clear the indicator
+    if (extractions.length > 0 && contract?.hasExtractedText) {
+      // Both metadata rows and source text are ready — kill any active poll.
+      // Create-with-review seeds rows before the upload worker finishes, so
+      // extractions alone must not stop the text readiness poll.
       if (extractionPollRef.current) {
         clearInterval(extractionPollRef.current)
         extractionPollRef.current = null
@@ -447,7 +449,7 @@ export default function ContractDetailPage() {
         extractionPollRef.current = null
       }
     }
-  }, [loading, extractions.length, files.length, id])
+  }, [loading, extractions.length, files.length, contract?.hasExtractedText, id])
 
   async function changeStatus(newStatus: ContractStatus) {
     try {
