@@ -17,6 +17,7 @@ approval bypass, and external side effects remain outside this release.
 | Malformed JSON-RPC envelope | JSON-RPC invalid-request error | MCP protocol tests |
 | Unknown tool or method | JSON-RPC/tool error; no side effect | MCP protocol tests |
 | Individual obligation mutation | Member/write-scope check, organization scope, activity record | Obligation route and MCP tests |
+| MCP/API mutation attribution | Activity metadata records request source and request ID alongside the acting user | Activity attribution unit tests and MCP mutation tests |
 | Approval request | Legal-or-higher role, write scope, separation of duties, auditable approval state | Approval route tests |
 | Raw contract question | Provider receives only the authorized contract context; response is not exposed through list/detail tools | AI and MCP tests |
 
