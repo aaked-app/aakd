@@ -31,7 +31,7 @@ application.
 | Agent/API attribution | PASS | Activity records preserve the acting user plus request source and request ID for session and API-key/MCP mutations; focused attribution tests pass |
 | AI review safety | PASS | Bulk acceptance endpoint and UI removed; individual accept/reject/edit actions remain reviewable |
 | Authenticated workflow usability | PASS | Cookie consent no longer blocks authenticated routes; onboarding tour is hidden synchronously on the dedicated onboarding page |
-| Activation instrumentation | PASS | Server-side events cover contract creation, file upload, individual fact review, and obligation create/complete; telemetry excludes contract, organization, extracted-value, and file-size identifiers |
+| Activation instrumentation | PASS | `workspace_created`, `file_uploaded`, `contract_fact_reviewed`, `obligation_created`/`obligation_completed`, consented return pageviews, and `/api/health` cover the required milestones; the event contract explicitly excludes contract/org IDs, extracted values, source text, file names, credentials and file size |
 | Capability truth boundary | PASS | `research/gates/phase-0-capability-matrix.md` defines available, paused, and absent surfaces for the release |
 | Synthetic/adversarial corpus | PASS | Versioned eight-document fixture covers amendments/conflicts, duplicate import, precedence ambiguity, missing evidence, departed owner, timezone-sensitive notice, failed delivery, and low-confidence critical clauses; its expected outcomes are validated by `phase-0-synthetic-corpus.test.ts` |
 | Agent security matrix | PASS | `research/gates/phase-0-agent-security-matrix.md` indexes the authenticated, scoped, minimized-read, and approval-boundary cases covered by tests |

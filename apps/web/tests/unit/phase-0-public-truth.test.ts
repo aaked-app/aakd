@@ -7,6 +7,10 @@ const moduleMatrix = readFileSync(
   resolve(process.cwd(), "../../research/gates/phase-0-module-classification.md"),
   "utf8",
 )
+const activationContract = readFileSync(
+  resolve(process.cwd(), "../../research/gates/phase-0-activation-event-contract.md"),
+  "utf8",
+)
 
 describe("Phase 0 public capability truth", () => {
   it("does not advertise paused authoring surfaces as available", () => {
@@ -29,5 +33,20 @@ describe("Phase 0 public capability truth", () => {
     expect(moduleMatrix).toContain("Complete product-subsystem matrix")
     expect(moduleMatrix).toContain("MCP / Agent Gateway")
     expect(moduleMatrix).toContain("Templates, authoring and clause studio")
+  })
+
+  it("documents every required activation milestone", () => {
+    for (const event of [
+      "workspace_created",
+      "file_uploaded",
+      "contract_fact_reviewed",
+      "obligation_created",
+      "obligation_completed",
+      "`$pageview`",
+      "/api/health",
+    ]) {
+      expect(activationContract).toContain(event)
+    }
+    expect(activationContract).toContain("No organization name, ID, email, or contract data")
   })
 })

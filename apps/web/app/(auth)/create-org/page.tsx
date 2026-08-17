@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useTranslations } from "next-intl"
+import posthog from "posthog-js"
 
 export default function CreateOrgPage() {
   const router = useRouter()
@@ -41,6 +42,13 @@ export default function CreateOrgPage() {
         )
       } else {
         await organization.setActive({ organizationId: result.data.id })
+        // Keep workspace activation aggregate-only and never send the org ID.
+        // PostHog is consent-aware and telemetry must never block onboarding.
+        try {
+          posthog.capture("workspace_created")
+        } catch {
+          // Telemetry failures must not interrupt the first-run path.
+        }
         router.push("/onboarding")
       }
     } catch {
