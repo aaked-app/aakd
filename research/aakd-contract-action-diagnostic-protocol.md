@@ -10,6 +10,12 @@ Falsify—not confirm—the only remaining Cloud hypothesis:
 
 The protocol follows the decision gates in `aakd-cloud-icp-evidence-2026-08-16.md` and the H3 restrictions in `aakd-customer-first-clm-cycle-2026-08-16.md`. A generic need for reminders, storage, AI chat, or contract management is a disqualification, not a positive signal.
 
+Operational intake, consent, corpus handling, deletion, pilot receipts, repeat
+cycles, and review decisions are defined in the [Phase 0 evidence-intake
+checklist](gates/phase-0-evidence-intake-checklist.md). That checklist is
+mandatory for evidence to enter the ledger; it does not itself count as
+customer evidence.
+
 ## Eligibility screen
 
 Proceed only if all answers are true:
