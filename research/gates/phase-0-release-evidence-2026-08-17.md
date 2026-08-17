@@ -15,7 +15,7 @@ evidence is being claimed by this release record.
 |---|---|---|
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
-| Production build | PASS | `pnpm build` completed successfully at release head `60923c8` |
+| Production build | PASS | `pnpm build` completed successfully at release head `e5e25dc` (the intervening product-status documentation change does not alter build inputs) |
 | Unit/integration tests | PASS | 52 committed test files, 1,068 tests passed on clean commit `cd0a15b`; release head `3d57e06` has the same route/test surface, including MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
@@ -50,4 +50,4 @@ evidence is being claimed by this release record.
 
 ## Release interpretation
 
-The Phase 0 engineering checks are PASS at release head `60923c8`: the disposable clean-volume stack is healthy at the preceding source boundary, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening after the replay is covered by clean typecheck, 1,068-test suite, focused MCP/security tests and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The one-command Compose build remains host-capacity constrained on this 16 GB VM, so a larger clean VM should be used for final release rehearsal. Phase 0 is not a customer-validation pass: do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
+The Phase 0 engineering checks are PASS at release head `e5e25dc`: the disposable clean-volume stack is healthy at the preceding source boundary, the worker remains stable, and a real PDF reaches cited human review without an AI key. The Agent Gateway hardening after the replay is covered by clean typecheck, 1,068-test suite, focused MCP/security tests and production build verification. Public copy is aligned across all five supported locales with the capability matrix. The one-command Compose build remains host-capacity constrained on this 16 GB VM, so a larger clean VM should be used for final release rehearsal. Phase 0 is not a customer-validation pass: do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
