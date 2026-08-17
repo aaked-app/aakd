@@ -37,7 +37,7 @@ US and UK B2B service, software and technical companies with meaningful recurrin
 
 ### Current position
 
-The repository is **Phase 0 in progress with later-phase feature islands**. It already contains broad CLM features, but has not passed the activation, customer, quality, repeat-use or managed-Cloud gates.
+The repository is **Phase 0 in progress with later-phase feature islands**. Engineering Gate A is release-ready at commit `40e7cdb`; the activation, customer, quality, repeat-use and managed-Cloud gates are not implied by that result and remain open until their evidence exists.
 
 ### What is differentiated
 
