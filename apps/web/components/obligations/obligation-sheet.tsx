@@ -281,6 +281,7 @@ export function ObligationSheet({
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const saveRequestRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -292,6 +293,10 @@ export function ObligationSheet({
   }
 
   async function save() {
+    // Guard the request synchronously as well as through the button state.
+    // React state updates are asynchronous, so two rapid clicks must not
+    // create duplicate obligations.
+    if (saveRequestRef.current) return
     if (!form.title.trim()) {
       toast.error("Title is required")
       return
@@ -301,6 +306,7 @@ export function ObligationSheet({
       return
     }
 
+    saveRequestRef.current = true
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
@@ -345,6 +351,7 @@ export function ObligationSheet({
       toast.success(obligation ? "Obligation updated" : "Obligation created")
       onOpenChange(false)
     } finally {
+      saveRequestRef.current = false
       setSaving(false)
     }
   }

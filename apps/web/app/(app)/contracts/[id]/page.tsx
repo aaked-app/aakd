@@ -617,21 +617,6 @@ export default function ContractDetailPage() {
     }
   }
 
-  async function handleAcceptAll() {
-    try {
-      const res = await fetch(`/api/contracts/${id}/extractions`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept_all" }),
-      })
-      if (!res.ok) { toast.error("Failed to accept all extractions"); return }
-      setExtractions((prev) => prev.map((e) => ({ ...e, status: "accepted" as const })))
-      toast.success("All extractions accepted")
-    } catch {
-      toast.error("Failed to accept all")
-    }
-  }
-
   async function removeTag(tagId: string) {
     if (!contract) return
     const newTagIds = (contract.tags ?? []).filter(t => t.id !== tagId).map(t => t.id)
@@ -1394,11 +1379,6 @@ export default function ContractDetailPage() {
                     {pendingExtractions.length > 0 && ` · ${pendingExtractions.length} pending review`}
                   </p>
                   <div className="flex items-center gap-2">
-                    {pendingExtractions.length > 0 && (
-                      <Button size="sm" onClick={handleAcceptAll}>
-                        Accept All
-                      </Button>
-                    )}
                     <Button size="sm" variant="outline" onClick={handleRerunExtraction} disabled={rerunningExtraction}>
                       <RefreshCw className={cn("size-3.5", rerunningExtraction && "animate-spin")} />
                       {rerunningExtraction ? "Re-running…" : "Re-run Extraction"}

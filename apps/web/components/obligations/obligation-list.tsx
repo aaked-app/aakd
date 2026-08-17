@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { format, differenceInCalendarDays } from "date-fns"
 import { Check, CheckSquare, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react"
@@ -79,6 +79,7 @@ export function ObligationList({
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
   const [reviewingIdx, setReviewingIdx] = useState<number | null>(null)
+  const extractionRequestRef = useRef(false)
   const [jobId, setJobId] = useState<string | null>(() => {
     // Hydrate from localStorage on mount — survives navigation
     if (typeof window === "undefined") return null
@@ -122,6 +123,7 @@ export function ObligationList({
               setSuggestions(s)
             }
             setExtracting(false)
+            extractionRequestRef.current = false
             localStorage.removeItem(`obligation_extract_job_${contractId}`)
             setJobId(null)
           }
@@ -129,6 +131,7 @@ export function ObligationList({
           if (!cancelled) {
             toast.error("Obligation extraction failed. Please try again.")
             setExtracting(false)
+            extractionRequestRef.current = false
             localStorage.removeItem(`obligation_extract_job_${contractId}`)
             setJobId(null)
           }
@@ -138,6 +141,7 @@ export function ObligationList({
         if (!cancelled) {
           toast.error("Failed to check extraction status.")
           setExtracting(false)
+          extractionRequestRef.current = false
           localStorage.removeItem(`obligation_extract_job_${contractId}`)
           setJobId(null)
         }
@@ -154,6 +158,10 @@ export function ObligationList({
   }, [jobId, contractId])
 
   async function extractWithAI() {
+    // State updates are asynchronous. Keep a synchronous guard as well so a
+    // double click cannot enqueue two extraction jobs before `extracting`
+    // reaches the button.
+    if (extractionRequestRef.current) return
     if (!hasContractFile) {
       toast.error("Upload a PDF or DOCX first.")
       return
@@ -162,6 +170,7 @@ export function ObligationList({
       toast.info("Your document is still being prepared. Try again in a moment.")
       return
     }
+    extractionRequestRef.current = true
     setExtracting(true)
     setSuggestions([])
     setDismissedIds(new Set())
@@ -179,6 +188,7 @@ export function ObligationList({
           toast.error("Could not extract obligations.")
         }
         setExtracting(false)
+        extractionRequestRef.current = false
         return
       }
       if (!res.ok) throw new Error()
@@ -189,6 +199,7 @@ export function ObligationList({
     } catch {
       toast.error("Failed to extract obligations.")
       setExtracting(false)
+      extractionRequestRef.current = false
     }
   }
 

@@ -5,6 +5,8 @@ import ContractDetailPage from "@/app/(app)/contracts/[id]/page"
 
 let tabParam: string | null = null
 let memberRole = "admin"
+const push = vi.fn()
+const router = { push }
 
 const copy: Record<string, string> = {
   breadcrumb: "Contract navigation",
@@ -47,7 +49,7 @@ const copy: Record<string, string> = {
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "contract-1" }),
   useSearchParams: () => new URLSearchParams(tabParam ? `tab=${tabParam}` : ""),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => router,
 }))
 
 vi.mock("next-intl", () => ({
@@ -131,6 +133,7 @@ describe("contract workspace responsive hierarchy", () => {
   beforeEach(() => {
     tabParam = null
     memberRole = "admin"
+    push.mockReset()
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString()
       return new Response(JSON.stringify(apiResponse(url)), {
@@ -185,19 +188,12 @@ describe("contract workspace responsive hierarchy", () => {
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
   })
 
-  it("preserves bulk acceptance and sends the original accept_all payload", async () => {
+  it("does not expose bulk acceptance, keeping every AI value individually reviewable", async () => {
     render(<ContractDetailPage />)
     await screen.findByRole("heading", { name: "Master Services Agreement" })
     fireEvent.click(screen.getByRole("tab", { name: /AI extractions/i }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Accept All" }))
-
-    await waitFor(() => {
-      const bulkRequest = vi.mocked(fetch).mock.calls.find(([input, init]) =>
-        input === "/api/contracts/contract-1/extractions" && init?.method === "PATCH",
-      )
-      expect(bulkRequest).toBeDefined()
-      expect(JSON.parse(bulkRequest?.[1]?.body as string)).toEqual({ action: "accept_all" })
-    })
+    expect(screen.queryByRole("button", { name: "Accept All" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument()
   })
 })
