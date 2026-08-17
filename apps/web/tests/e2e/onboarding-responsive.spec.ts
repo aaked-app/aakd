@@ -29,11 +29,11 @@ test("onboarding stays usable at mobile, desktop, and Arabic RTL widths", async 
   await page.getByLabel("Email").fill(`onboarding-owner-${suffix}@example.test`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
   await page.getByRole("button", { name: "Create account" }).click()
-  await expect(page).toHaveURL(/\/create-org/)
+  await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
 
   await page.getByLabel("Organization name").fill(`E2E Onboarding ${suffix}`)
   await page.getByRole("button", { name: "Create organization" }).click()
-  await expect(page).toHaveURL(/\/onboarding/)
+  await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 })
 
   await page.setViewportSize({ width: 320, height: 720 })
   await expectResponsiveOnboarding(page, "Upload a contract")

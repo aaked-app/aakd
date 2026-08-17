@@ -12,9 +12,9 @@ This record covers engineering readiness only. Product evidence remains open in 
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
 | Production build | PASS | `pnpm build` completed successfully |
-| Unit/integration tests | PASS | 49 files, 1,051 tests passed, including the localized landing-page truth and CTA contract |
+| Unit/integration tests | PASS | 50 files, 1,057 tests passed, including the responsive dashboard, localized landing-page truth, and CTA contract |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
-| End-to-end suite | PASS | `CI=1 pnpm --filter web test:e2e`: 18 tests passed |
+| End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page |
 | MCP security regressions | PASS | 41 MCP tests passed, including the standard initialize/initialized/tools-list/ping handshake; viewer writes are rejected and contract list/detail responses omit raw extracted text and tenant identifiers |
 | AI review safety | PASS | Bulk acceptance endpoint and UI removed; individual accept/reject/edit actions remain reviewable |
@@ -23,6 +23,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 | Capability truth boundary | PASS | `research/gates/phase-0-capability-matrix.md` defines available, paused, and absent surfaces for the release |
 | Agent security matrix | PASS | `research/gates/phase-0-agent-security-matrix.md` indexes the authenticated, scoped, minimized-read, and approval-boundary cases covered by tests |
 | Compose syntax and required interpolation | PASS | `scripts/validate-self-hosting.sh` validates development and production Compose files with generated placeholder secrets; shell syntax checks pass for deploy/update/doctor/backup/restore/validator scripts |
+| Local integrated runtime | PASS | The application served the full no-retry E2E suite with PostgreSQL and MinIO running as separate local services; this verifies authenticated upload/onboarding behavior with real database and object-storage boundaries |
 | Fresh VM/container boot | HOLD | Docker daemon was unavailable in this workstation session, so a clean runtime boot was not claimed |
 
 ## Known non-blocking warnings
@@ -32,6 +33,7 @@ This record covers engineering readiness only. Product evidence remains open in 
 - A clean cloud VM install and real customer evidence are still required before claiming operational or product-market readiness.
 - The local Docker daemon was unavailable during this run; the Compose files were validated syntactically with all required variables supplied.
 - GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
+- The integrated E2E run used local PostgreSQL and MinIO services rather than Docker. It closes neither the fresh-VM/container gate nor the external customer-evidence gates.
 
 ## Release interpretation
 

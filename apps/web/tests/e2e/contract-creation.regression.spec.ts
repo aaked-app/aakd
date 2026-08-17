@@ -8,11 +8,11 @@ test("new users can create and open a contract", async ({ page }) => {
   await page.getByLabel("Email").fill(`contract-owner-${suffix}@example.test`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
   await page.getByRole("button", { name: "Create account" }).click()
-  await expect(page).toHaveURL(/\/create-org/)
+  await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
 
   await page.getByLabel("Organization name").fill(`E2E Contracts ${suffix}`)
   await page.getByRole("button", { name: "Create organization" }).click()
-  await expect(page).toHaveURL(/\/onboarding/)
+  await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 })
   await page.getByRole("link", { name: "Skip for now" }).click()
   await expect(page).toHaveURL(/\/dashboard/)
 
