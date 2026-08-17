@@ -52,7 +52,7 @@ describe("GET /api/mcp — discovery", () => {
     expect(body.name).toBe("Aakd MCP")
     expect(body.protocol).toBe("json-rpc-2.0")
     expect(body.endpoint).toBe("/api/mcp")
-    expect(body.organizationId).toBe("org-1")
+    expect(body.organizationId).toBeUndefined()
     expect(body.tools).toHaveLength(13)
   })
 })
@@ -243,6 +243,39 @@ describe("POST /api/mcp — tools/call get_contract", () => {
     )
     const body = await res.json()
     expect(body.result.content[0].text).not.toContain("CONFIDENTIAL FULL CONTRACT BODY")
+  })
+
+  it("does not expose raw extraction values or source excerpts in contract detail", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "c1",
+      title: "Private NDA",
+      organizationId: "org-1",
+      owner: null,
+      tags: [],
+      files: [],
+      extractions: [
+        {
+          id: "x1",
+          field: "renewalDate",
+          rawValue: "2030-01-01",
+          sourceText: "CONFIDENTIAL RENEWAL CLAUSE",
+          confidence: 0.99,
+          sourcePage: 4,
+          extractedBy: "AI",
+          status: "PENDING",
+        },
+      ],
+    } as any)
+
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(
+      mcpRequest("tools/call", { name: "get_contract", arguments: { id: "c1" } }),
+    )
+    const body = await res.json()
+    const text = body.result.content[0].text as string
+    expect(text).not.toContain("2030-01-01")
+    expect(text).not.toContain("CONFIDENTIAL RENEWAL CLAUSE")
+    expect(text).toContain('"sourcePage": 4')
   })
 
   it("returns isError:true when contract belongs to a different org", async () => {

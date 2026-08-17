@@ -16,7 +16,7 @@ experimental, or absent.
 | Obligations | Available | Create, assign, remind, and complete obligations with audit activity | obligation routes and tests |
 | Approvals | Available | Existing approval workflow remains available for review-gated changes | approval routes and e2e coverage |
 | Optional AI extraction/Q&A | Available with explicit setup | Provider configuration is optional; AI output remains reviewable and attribution-aware | AI settings and review tests |
-| MCP / Agent Gateway | Available with limits | Authenticated, role-checked, scope-checked reads/writes; minimized contract reads; no autonomous bulk mutations | `apps/web/app/api/mcp/route.ts`; 40 MCP tests |
+| MCP / Agent Gateway | Available with limits | Authenticated, role-checked, scope-checked reads/writes; minimized contract reads; no autonomous bulk mutations | `apps/web/app/api/mcp/route.ts`; 42 MCP tests |
 | Audit activity | Available | Contract and obligation state changes write activity records | activity helper and route tests |
 | Self-hosted Compose deployment | Available for configuration | Development and production Compose interpolation is CI-validated; runtime boot still needs a Docker-capable environment | `scripts/validate-self-hosting.sh`; self-hosting docs |
 | Signing integration | Available, optional | DocuSeal integration is not required for core activation and needs external credentials | signing routes; deployment docs |

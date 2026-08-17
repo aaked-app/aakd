@@ -526,9 +526,7 @@ async function toolGetContract(
         select: {
           id: true,
           field: true,
-          rawValue: true,
           confidence: true,
-          sourceText: true,
           sourcePage: true,
           extractedBy: true,
           status: true,
@@ -545,8 +543,16 @@ async function toolGetContract(
     return toolError(id, "Error: Contract not found")
   }
 
-  const { organizationId: _organizationId, extractedText: _extractedText, ...safeContract } = contract as typeof contract & { extractedText?: string | null }
-  return toolSuccess(id, safeContract)
+  const { organizationId: _organizationId, extractedText: _extractedText, ...safeContract } =
+    contract as typeof contract & { extractedText?: string | null }
+  const safeExtractions = safeContract.extractions.map((extraction) =>
+    Object.fromEntries(
+      Object.entries(extraction).filter(
+        ([key]) => key !== "rawValue" && key !== "sourceText",
+      ),
+    ),
+  )
+  return toolSuccess(id, { ...safeContract, extractions: safeExtractions })
 }
 
 async function toolCreateContract(
@@ -1227,7 +1233,6 @@ export async function GET(req: Request) {
     name: "Aakd MCP",
     protocol: "json-rpc-2.0",
     endpoint: "/api/mcp",
-    organizationId: ctx.organizationId,
     tools: TOOLS,
   })
 }
