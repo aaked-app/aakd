@@ -15,7 +15,8 @@ if ! command -v flock >/dev/null 2>&1; then
   echo "flock is required to prevent concurrent production updates." >&2
   exit 1
 fi
-exec 9>"$REPO_DIR/.aakd-update.lock"
+LOCK_FILE="$(git rev-parse --git-path aakd-update.lock)"
+exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "Another Aakd update is already running." >&2
   exit 1
@@ -41,9 +42,18 @@ rollback() {
   trap - ERR
   if [ "$CHECKED_OUT_NEW_REF" = true ]; then
     echo "[Aakd] Update failed; restoring $PREVIOUS_REF..." >&2
-    git checkout --detach "$PREVIOUS_REF" >&2 || true
-    docker compose -f docker-compose.prod.yml --env-file .env.prod build --parallel >&2 || true
-    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d >&2 || true
+    git checkout --detach "$PREVIOUS_REF" >&2 || {
+      echo "[Aakd] Rollback could not restore the previous Git revision." >&2
+      exit 1
+    }
+    docker compose -f docker-compose.prod.yml --env-file .env.prod build --parallel >&2 || {
+      echo "[Aakd] Rollback could not rebuild the previous release." >&2
+      exit 1
+    }
+    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d >&2 || {
+      echo "[Aakd] Rollback could not restart the previous release." >&2
+      exit 1
+    }
   fi
   exit "$status"
 }
@@ -53,6 +63,11 @@ echo "[Aakd] Fetching requested release commit..."
 git fetch --prune origin
 if ! git cat-file -e "${AAKD_REF}^{commit}" 2>/dev/null; then
   echo "AAKD_REF was not found after fetch: ${AAKD_REF}" >&2
+  exit 1
+fi
+if ! git diff --quiet "$PREVIOUS_REF" "$AAKD_REF" -- apps/web/prisma/migrations; then
+  echo "Refusing an automatic update containing database migrations." >&2
+  echo "Create and verify a recovery point, then follow the documented maintenance procedure." >&2
   exit 1
 fi
 git checkout --detach "$AAKD_REF"

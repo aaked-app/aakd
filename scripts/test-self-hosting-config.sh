@@ -27,8 +27,16 @@ if ! grep -q 'mv .* || return 1' "$ROOT_DIR/docker-compose.prod.yml"; then
   exit 1
 fi
 
-if ! grep -q 'flock -n' "$ROOT_DIR/scripts/update.sh"; then
+if ! grep -q 'flock -n' "$ROOT_DIR/scripts/update.sh" || ! grep -q 'git rev-parse --git-path aakd-update.lock' "$ROOT_DIR/scripts/update.sh"; then
   echo "Expected updates to take an exclusive deployment lock." >&2
+  exit 1
+fi
+if ! grep -q 'apps/web/prisma/migrations' "$ROOT_DIR/scripts/update.sh"; then
+  echo "Expected automatic updates to refuse releases carrying database migrations." >&2
+  exit 1
+fi
+if ! grep -q 'scripts/verify-production.sh' "$ROOT_DIR/scripts/deploy.sh"; then
+  echo "Expected the installer to run full infrastructure verification." >&2
   exit 1
 fi
 if ! grep -q '/api/health' "$ROOT_DIR/scripts/update.sh"; then

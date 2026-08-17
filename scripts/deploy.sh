@@ -236,7 +236,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod build --parallel
 log "Starting all services..."
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
-# ── 9. Wait for app to be healthy ────────────────────────────────────────────
+# ── 9. Verify infrastructure readiness ───────────────────────────────────────
 log "Waiting for app to be ready..."
 ATTEMPTS=0
 MAX_ATTEMPTS=30
@@ -248,10 +248,20 @@ until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app
   sleep 5
 done
 
+log "Waiting for public TLS and dependent services..."
+ATTEMPTS=0
+until bash scripts/verify-production.sh; do
+  ATTEMPTS=$((ATTEMPTS + 1))
+  if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+    error "Infrastructure verification timed out. Inspect: docker compose -f docker-compose.prod.yml --env-file .env.prod ps"
+  fi
+  sleep 5
+done
+
 # ── 10. Done ─────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}╔════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}${BOLD}║         Deploy Complete! 🚀             ║${NC}"
+echo -e "${GREEN}${BOLD}║  Infrastructure verification passed     ║${NC}"
 echo -e "${GREEN}${BOLD}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -262,7 +272,7 @@ echo -e "  ${BOLD}DocuSeal:${NC} https://sign.${DOMAIN:-your-domain.com}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Wait 1-2 min for Caddy to get SSL certificates"
-echo "  2. Open https://${DOMAIN:-your-domain.com} and create your account"
+echo "  2. Open https://${DOMAIN:-your-domain.com}, create an organization, and complete the first-value journey"
 echo "  3. Go to sign.${DOMAIN:-your-domain.com} → API → copy the key"
 echo "     Then run: ./scripts/set-docuseal-key.sh YOUR_KEY"
 echo ""
@@ -271,4 +281,6 @@ echo "  Logs:    docker compose -f docker-compose.prod.yml logs -f"
 echo "  Status:  docker compose -f docker-compose.prod.yml ps"
 echo "  Restart: docker compose -f docker-compose.prod.yml restart"
 echo "  Update:  AAKD_REF=<reviewed-commit-sha> bash scripts/update.sh"
+echo ""
+echo -e "${YELLOW}Pilot status:${NC} Infrastructure is verified; do not claim pilot completion until the user journey and restore drill are recorded."
 echo ""
