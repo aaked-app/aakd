@@ -22,7 +22,7 @@ application.
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
 | Production build | PASS | `pnpm build` completed successfully at the verified engineering boundary; see the current release pointer above |
-| Unit/integration tests | PASS | 52 committed test files, 1,068 tests passed on clean commit `cd0a15b`; release head `3d57e06` has the same route/test surface, including MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
+| Unit/integration tests | PASS | 53 committed test files, 1,071 tests passed at the current source boundary, including the versioned Phase 0 synthetic-corpus regression plus MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page and a real generated PDF produces five reviewable fields with exact source text and `Source page 1` citations without an external AI provider |
@@ -33,6 +33,7 @@ application.
 | Authenticated workflow usability | PASS | Cookie consent no longer blocks authenticated routes; onboarding tour is hidden synchronously on the dedicated onboarding page |
 | Activation instrumentation | PASS | Server-side events cover contract creation, file upload, individual fact review, and obligation create/complete; telemetry excludes contract, organization, extracted-value, and file-size identifiers |
 | Capability truth boundary | PASS | `research/gates/phase-0-capability-matrix.md` defines available, paused, and absent surfaces for the release |
+| Synthetic/adversarial corpus | PASS | Versioned eight-document fixture covers amendments/conflicts, duplicate import, precedence ambiguity, missing evidence, departed owner, timezone-sensitive notice, failed delivery, and low-confidence critical clauses; its expected outcomes are validated by `phase-0-synthetic-corpus.test.ts` |
 | Agent security matrix | PASS | `research/gates/phase-0-agent-security-matrix.md` indexes the authenticated, scoped, minimized-read, and approval-boundary cases covered by tests |
 | API route authorization inventory | PASS | All 102 API route files were audited. The only five without `resolveAuth` are deliberate auth, health, unsubscribe, CRM webhook, and DocuSeal webhook endpoints with rate-limit, signed-token, provider-signature, HMAC, scope, and state/host guards documented in the Agent Security Matrix |
 | Compose syntax and required interpolation | PASS | `scripts/validate-self-hosting.sh` validates development and production Compose files with generated placeholder secrets; shell syntax checks pass for deploy/update/doctor/backup/restore/validator scripts |

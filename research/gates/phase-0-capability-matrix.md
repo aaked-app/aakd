@@ -7,6 +7,11 @@ available only when its current behavior is documented and covered by the Phase 
 verification record. Marketing copy must not promote capabilities marked paused,
 experimental, or absent.
 
+The versioned synthetic/adversarial corpus and expected outcomes are recorded in
+[`phase-0-synthetic-corpus-v1.json`](phase-0-synthetic-corpus-v1.json) and are
+covered by `phase-0-synthetic-corpus.test.ts`. It is a regression fixture only,
+not customer evidence.
+
 | Capability | Phase 0 status | Release boundary | Evidence / owner |
 | --- | --- | --- | --- |
 | PDF/DOCX upload | Available | Real-file upload with type and size validation; processing is queued | `apps/web/app/api/contracts/[id]/upload/route.ts`; release evidence |
