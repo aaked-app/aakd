@@ -32,7 +32,7 @@ import {
 } from "@/lib/types/crm"
 import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
