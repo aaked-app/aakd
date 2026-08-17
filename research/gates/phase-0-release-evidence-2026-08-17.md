@@ -16,7 +16,7 @@ evidence is being claimed by this release record.
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
 | Production build | PASS | `pnpm build` completed successfully |
-| Unit/integration tests | PASS | 50 committed files, 1,054 tests passed, including MCP detail redaction, request attribution, and the localized landing-page truth and CTA contract |
+| Unit/integration tests | PASS | 51 committed files, 1,061 tests passed, including MCP detail redaction, request attribution, responsive search behavior, and the localized landing-page truth and CTA contract |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page |
@@ -44,7 +44,7 @@ evidence is being claimed by this release record.
 - The disposable Compose run initially exposed two startup defects: the development Redis URL did not follow its configured password, and the minimal app image omitted Prisma's `@next/env` loader. Both are fixed and the exact `origin/main` replay passed.
 - GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
 - The integrated E2E run used local PostgreSQL and MinIO services rather than Docker; the subsequent disposable Compose run closed the container portion of the clean-install gate. A separate cloud VM and the external customer-evidence gates remain open.
-- The current worktree contains additional uncommitted dashboard, operations, and responsive UI tests and changes. The supplementary run reached 52 files and 1,080 tests, but those changes are intentionally excluded from the release commit and are not used as release evidence.
+- The current worktree contains additional uncommitted dashboard, operations, and responsive UI tests and changes. The supplementary run reached 53 files and 1,089 tests, but those changes are intentionally excluded from the release commit and are not used as release evidence.
 
 ## Release interpretation
 
