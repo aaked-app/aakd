@@ -1,6 +1,6 @@
 # Phase 0 scorecard: truth, safety, activation and evidence
 
-Status: engineering PASS; product evidence OPEN
+Status: engineering release candidate; verification and product evidence OPEN
 Version: 1
 Phase: PRODUCT.md Phase 0
 Accountable owner: Aakd engineering/product owner
@@ -20,11 +20,11 @@ This scorecard separates engineering release readiness from product evidence. A 
 | Protected API authentication | 100% of protected routes have authentication and organization scope | Route inventory plus tests | Continue release verification | Block release |
 | MCP mutation authorization | 100% of mutation cases enforce role, scope and attribution; approval-gated workflows remain behind the existing approval API | MCP security matrix and approval route tests | Continue release verification | Block release |
 | Agent read minimization | 0 unauthorized raw-text or cross-tenant disclosures in the adversarial suite | MCP/API adversarial tests | Continue release verification | Block release |
-| Clean install | 1 clean environment reaches the app using documented steps and accepts a real PDF/DOCX | Fresh-machine run log | Continue release verification | Fix setup/docs |
-| First useful action | 1 real PDF/DOCX reaches a cited, reviewable action without external operator help | E2E run and screen recording/log | Continue release verification | Fix activation flow |
+| Clean install | 1 clean environment reaches the app using documented steps and accepts a real PDF/DOCX | Historical disposable Compose run; latest `main` replay is still inconclusive because Docker storage was exhausted | Continue release verification | Fix setup/docs and rerun on a clean host |
+| First useful action | 1 real PDF/DOCX reaches a cited, reviewable action without external operator help | Existing E2E proves upload-first contract creation, but does not yet assert a real extracted citation/review outcome | Continue activation verification | Add a real-file cited-action assertion |
 | Public capability truth | 0 unsupported capability, customer, security or deployment claims in supported locales | Copy audit | Continue release verification | Correct claims before release |
 
-Engineering release decision: PASS only when every row above passes. Any failed row keeps Phase 0 engineering status OPEN.
+Engineering release decision: OPEN until the current-head clean install and cited-action assertions pass. Any incomplete or historical-only row keeps Phase 0 engineering status OPEN.
 
 ## Gate B: product evidence readiness
 
@@ -43,4 +43,4 @@ Product evidence decision: PASS only when every row above passes. This gate cann
 | Date | Version | Decision | Reason | Authority |
 |---|---|---|---|---|
 | 2026-08-17 | 1 | OPEN | Initial scorecard created before Phase 0 evidence collection | Founder/CEO |
-| 2026-08-17 | 1 | ENGINEERING PASS / PRODUCT OPEN | Local verification and disposable Compose install passed; customer failure, corpus, funded-pilot, repeat-use and support-burden evidence remain uncollected | Founder/CEO |
+| 2026-08-17 | 1 | ENGINEERING CANDIDATE / PRODUCT OPEN | Local verification passed, but the current-head disposable replay exhausted Docker storage and the E2E suite does not yet assert a real cited extraction outcome; customer failure, corpus, funded-pilot, repeat-use and support-burden evidence remain uncollected | Founder/CEO |

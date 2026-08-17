@@ -50,4 +50,4 @@ evidence is being claimed by this release record.
 
 ## Release interpretation
 
-The engineering release gates are green, including a clean disposable Compose boot and containerized E2E run. Phase 0 is not a customer-validation pass: do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
+The local engineering checks are green, but the Phase 0 engineering gate remains OPEN: the latest current-head disposable Compose replay exhausted Docker storage during image export, and the browser regression does not yet assert a real extracted citation/review outcome. The historical Compose and E2E records remain useful evidence but do not substitute for those current-head checks. Phase 0 is also not a customer-validation pass: do not publish claims of production adoption, formal certifications, hosted availability, or enterprise identity support.
