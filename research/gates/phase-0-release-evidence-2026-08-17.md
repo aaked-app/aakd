@@ -9,9 +9,11 @@ The evidence contract and current empty state are recorded in
 `research/gates/phase-0-customer-evidence-ledger.md`; no external customer
 evidence is being claimed by this release record.
 
-**Current release pointer:** current-head runtime evidence is verified through
-`c904771` (clean-volume Compose health, stable worker and 18-test browser
-replay). The HTTP MCP replay remains verified through `d2fccc9`; the latest
+**Current release pointer:** the last clean-volume runtime evidence is verified
+through `c904771` (clean-volume Compose health, stable worker and 18-test
+browser replay). Follow-up Phase 0 activation fixes are pushed through
+`6fd9474`; focused contract-workspace and obligation tests pass at that source
+boundary. The HTTP MCP replay remains verified through `d2fccc9`; the latest
 source verifier run covers the current application and documentation boundary.
 Historical rows below retain the
 commit at which each check was run; they are not claims that a later
@@ -28,6 +30,7 @@ documentation-only commit reran the application.
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page and a real generated PDF produces five reviewable fields with exact source text and `Source page 1` citations without an external AI provider |
+| Activation recovery regression | PASS | Focused contract-workspace and obligation suites passed 77 tests at `6fd9474`; seeded review fields no longer stop text-readiness polling early, and obligation extraction re-queues the latest uploaded file when text is still processing. |
 | MCP security regressions | PASS | 45 MCP tests passed, including the standard initialize/initialized/tools-list/ping handshake; viewer writes and API-key text reads without `text_read` are rejected, and contract/obligation/import responses omit raw extraction values, source excerpts, raw extracted text, storage keys and tenant identifiers |
 | MCP HTTP compatibility replay | PASS | `MCP_API_KEY=... MCP_URL=http://localhost:3000/api/mcp bash scripts/verify-mcp-http.sh` passed against the disposable deployment: initialize, `notifications/initialized` (202), `tools/list` (13 tools), ping, `list_contracts`, and read/write scope guards |
 | Agent/API attribution | PASS | Activity records preserve the acting user plus request source and request ID for session and API-key/MCP mutations; focused attribution tests pass |
@@ -44,6 +47,7 @@ documentation-only commit reran the application.
 | Local integrated runtime | PASS | The application served the full no-retry E2E suite with PostgreSQL and MinIO running as separate local services; this verifies authenticated upload/onboarding behavior with real database and object-storage boundaries |
 | Clean Compose install | PASS | A disposable project with empty PostgreSQL, MinIO and DocuSeal volumes built both application images, applied all 29 migrations, started app/worker/Redis/DB/object storage, and returned `200` from `/api/health` with DB and Redis checks green |
 | Containerized end-to-end suite | PASS | `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm --filter web exec playwright test --retries=0` against the disposable Compose app: 18 tests passed |
+| Contract workspace payload check | PASS (build without lint) | A production build with lint disabled compiled the Phase 0 contract workspace at 26 kB / 375 kB First Load JS after removing the paused editor bundle from the page; the prior boundary was 44 kB / 523 kB. Full build remains blocked by the unrelated dirty-worktree lint error recorded below. |
 | Exact `origin/main` replay | PASS (historical) | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite. Current head is covered by the separate `9708b6d` replay below. |
 | Clean Compose replay at `e693e2f` | PASS (health) | A clean archive of commit `e693e2f` was built without the dirty worktree, booted with empty database/object-storage volumes, applied the migrations, started app/worker/Redis/DB/object storage, and returned HTTP 200 from `/api/health` with DB and Redis green. The subsequent search/localization commits were verified by build and tests; this disposable replay was not rerun for those commits. |
 | Current-head Compose replay at `d2fccc9` | PASS | An isolated project from empty volumes built both current app/worker images, applied migrations, started DB/Redis/MinIO/DocuSeal/app/worker, kept the worker running, and returned `200` from `/api/health` with DB and Redis green on Docker Engine 29.5.2. |
@@ -60,6 +64,7 @@ documentation-only commit reran the application.
 - GitHub Actions runs for commits `e33a3b3` and earlier terminated before any step started because no hosted runner was assigned (`runner_id: 0`). Local verification is therefore the authoritative current evidence until repository Actions capacity is restored.
 - The integrated E2E run used local PostgreSQL and MinIO services rather than Docker; the subsequent disposable Compose run closed the container portion of the clean-install gate. A separate cloud VM and the external customer-evidence gates remain open.
 - The current worktree contains additional unrelated dashboard, operations, settings, and responsive UI changes. They remain intentionally excluded from this release evidence until separately committed and replayed.
+- The full test/typecheck/lint commands currently encounter unrelated dirty-worktree import changes: missing `normalizeBatchManifest`, incomplete import-route mocks, and an unused `SOURCE_LABEL` constant. The focused Phase 0 suites and production compilation with lint disabled pass; these unrelated changes must be reconciled before a new full verifier claim.
 
 ## Release interpretation
 
