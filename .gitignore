@@ -18,6 +18,8 @@ apps/web/.claude/
 apps/web/.next-stale-*/
 apps/web/playwright-report/
 apps/web/test-results/
+docs/media/aakd-workflow.webm
+docs/media/aakd-demo-final.png
 
 # Python artifacts
 .pytest_cache/

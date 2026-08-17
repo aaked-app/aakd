@@ -10,6 +10,8 @@ obligations, deadlines, approvals, and completion evidence.
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
+[Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md)
+
 > Aakd is an early open-source release. Customer validation is in progress.
 > It is not a hosted service, legal-advice product, compliance certification,
 > or autonomous legal agent.
@@ -39,6 +41,17 @@ The first useful path is deliberately narrow:
 AI is optional. When enabled, it assists with extraction, questions, risk
 signals, and obligation suggestions. AI output remains reviewable and is never
 the canonical source of contract truth.
+
+## Demo
+
+This is a real browser recording of the Phase 0 workflow using a disposable
+account and a synthetic contract. It shows account setup, contract upload,
+human review, and contract creation.
+
+![Aakd upload-to-contract workflow](docs/media/aakd-workflow.gif)
+
+The recording contains no real contract data. The workflow continues after
+creation into cited extraction review, obligations, approvals, and reminders.
 
 ## What is included today
 
