@@ -20,6 +20,24 @@ approval bypass, and external side effects remain outside this release.
 | Approval request | Legal-or-higher role, write scope, separation of duties, auditable approval state | Approval route tests |
 | Raw contract question | Provider receives only the authorized contract context; response is not exposed through list/detail tools | AI and MCP tests |
 
+## Public endpoint inventory
+
+The route audit covered all 102 `apps/web/app/api/**/route.ts` files. The five
+routes without `resolveAuth` are deliberate integration or probe endpoints, not
+unscoped application APIs:
+
+| Endpoint | Why it is public | Compensating control | Verification |
+| --- | --- | --- | --- |
+| `/api/auth/[...all]` | Better Auth must receive sign-in, sign-up, and callback requests | Better Auth validates the session flow; POST is rate-limited per source IP and sign-up input is bounded/sanitized | Auth integration tests; route inspection |
+| `/api/health` | Orchestrators need a liveness/readiness probe before a session exists | Read-only DB/Redis probes, bounded timeouts, secure response headers, no tenant data | Health integration tests |
+| `/api/user/unsubscribe` | Email clients follow one-click unsubscribe links without an active session | HMAC-signed, expiring token is required; token subject must still be an organization member; only that event preference is changed | Notification integration tests |
+| `/api/webhooks/docuseal` | DocuSeal calls the signing callback directly | Raw-body HMAC-SHA256 is mandatory; missing secret/signature fails closed; signed document URL is host allow-listed; contract update is organization-scoped and state-guarded | Webhook integration tests |
+| `/api/crm/[provider]/webhook` | CRM providers call deal-stage callbacks directly | Provider-specific signature verification occurs inside `parseWebhookEvent`; only a matched integration enters an organization request context; writes are link-scoped and state-guarded | CRM integration tests; provider implementation audit |
+
+No other API route is intentionally unauthenticated. Public webhook handlers
+must remain fail-closed for writes even when their provider has no connected
+integration, and must never echo tenant or contract data in their responses.
+
 ## Explicit non-goals
 
 - No autonomous agent may send messages, sign, approve, or mutate a contract
