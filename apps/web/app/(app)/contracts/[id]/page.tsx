@@ -1828,9 +1828,9 @@ export default function ContractDetailPage() {
         <TabsContent value="editor" className="flex-1 overflow-hidden m-0 border-0 flex flex-col">
           <div className="flex h-full items-center justify-center p-8">
             <div className="max-w-md rounded-[var(--radius)] border border-dashed border-border bg-muted/20 p-6 text-center">
-              <p className="font-semibold text-foreground">Document editing is paused</p>
+              <p className="font-semibold text-foreground">{tWorkspace("editorPausedTitle")}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Phase 0 focuses on uploading, reviewing and tracking executed contracts. The original document remains available from the Documents tab.
+                {tWorkspace("editorPausedDescription")}
               </p>
             </div>
           </div>

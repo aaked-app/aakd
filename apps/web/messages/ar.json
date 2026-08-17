@@ -19,6 +19,8 @@
     "search": "بحث...",
     "theme": "المظهر",
     "auditLog": "سجل التدقيق",
+    "settingsSection": "قسم الإعدادات",
+    "settingsNavigation": "التنقل في الإعدادات",
     "billing": "الفواتير",
     "orgNotifications": "إشعارات المؤسسة",
     "myNotifications": "إشعاراتي",
@@ -152,7 +154,9 @@
     "folder": "المجلد",
     "removeTag": "إزالة {tag}",
     "addTag": "إضافة وسم",
-    "sourcePage": "صفحة المصدر {page}"
+    "sourcePage": "صفحة المصدر {page}",
+    "editorPausedTitle": "تحرير المستندات متوقف مؤقتًا",
+    "editorPausedDescription": "تركز المرحلة 0 على رفع العقود الموقعة ومراجعتها ومتابعتها. يبقى المستند الأصلي متاحًا في علامة تبويب المستندات."
   }
   },
   "auth": {
@@ -229,29 +233,59 @@
   },
   "analytics": {
     "title": "التحليلات",
-    "subtitle": "مقاييس أداء العقود والاتجاهات.",
-    "totalContracts": "إجمالي العقود",
-    "activeContracts": "العقود النشطة",
-    "expiringContracts": "تنتهي قريبًا",
-    "contractValue": "إجمالي قيمة العقود",
-    "byStatus": "حسب الحالة",
-    "byType": "حسب النوع",
-    "renewalTimeline": "الجدول الزمني للتجديدات",
-    "obligations": "الالتزامات",
-    "totalContractsKpi": "إجمالي العقود",
-    "expiringSoonKpi": "تنتهي قريبًا",
-    "approvalRate": "معدل الموافقة",
-    "totalValue": "القيمة الإجمالية",
-    "next30Days": "الـ 30 يومًا القادمة",
-    "contractsByStatus": "العقود حسب الحالة",
-    "monthlyVolume": "الحجم الشهري للعقود",
-    "valueByType": "قيمة العقود حسب النوع",
-    "approvalFunnel": "مسار الموافقة",
-    "expiringContracts2": "العقود المنتهية",
-    "failedToLoad": "فشل تحميل بيانات التحليلات. يُرجى تحديث الصفحة."
+    "subtitle": "راجع نشاط المحفظة وسجلات العقود التي قد تحتاج إلى اهتمام.",
+    "activeExpiringKpi": "العقود النشطة التي تنتهي", "activeExpiringScope": "خلال 30 يومًا؛ العقود النشطة فقط",
+    "overdueObligationsKpi": "الالتزامات المتأخرة", "overdueObligationsScope": "سجلات الالتزامات الحالية",
+    "approvalDecisionRate": "معدل قرارات الموافقة", "approvalDecisionSummary": "تمت الموافقة على {approved} من أصل {decided} قرارًا",
+    "portfolioContractsKpi": "عقود المحفظة", "portfolioContractsScope": "جميع حالات العقود",
+    "expiringSection": "العقود النشطة التي تنتهي", "expiringScope": "أعداد تراكمية خلال 30 و60 و90 يومًا؛ العقود النشطة فقط.",
+    "obligationsSection": "التزامات تحتاج إلى اهتمام", "obligationsScope": "السجلات المتأخرة، إضافة إلى السجلات المعلقة أو قيد التنفيذ المستحقة في موعد حد السبعة أيام أو قبله.",
+    "approvalSection": "قرارات الموافقة", "approvalScope": "يستخدم المعدل الموافقات المقبولة والمرفوضة فقط؛ وتظهر الطلبات المعلقة بشكل منفصل.",
+    "statusSection": "العقود حسب الحالة", "statusScope": "المحفظة الحالية عبر جميع حالات العقود.",
+    "monthlySection": "العقود المنشأة حسب الشهر", "monthlyScope": "العقود المنشأة في كل شهر تقويمي بتوقيت UTC خلال آخر 12 شهرًا.",
+    "recordedValuesSection": "القيم المسجلة حسب نوع العقد", "recordedValuesScope": "القيم الخام المحفوظة في سجلات العقود، مجمعة حسب النوع.",
+    "recordedValuesCaveat": "قد تستخدم القيم عملات مختلفة ولا يجري تحويلها. لا تعتبر الإجماليات تقييمًا للمحفظة.",
+    "unavailable": "غير متاح", "obligationsUnavailableShort": "تعذر تحميل بيانات الالتزامات", "obligationsUnavailable": "تعذر تحميل أعداد الالتزامات. تظل التحليلات الأخرى متاحة.",
+    "noApprovalDecisionsShort": "لا توجد قرارات مقبولة أو مرفوضة", "approved": "مقبولة", "rejected": "مرفوضة", "pending": "معلقة",
+    "approvalDecisionDenominator": "مجموعة حساب المعدل: {count} موافقات مقبولة أو مرفوضة", "approvalRequestsContext": "طلبات الموافقة المسجلة: {count}",
+    "overdue": "متأخرة", "dueSoon": "مستحقة في موعد حد السبعة أيام أو قبله", "overdueScope": "سجلات الالتزامات المحددة كمتأخرة", "dueSoonScope": "سجلات معلقة أو قيد التنفيذ، بما فيها التواريخ التي انقضت",
+    "withinDays": "خلال {days} يومًا", "daysRemaining": "{count, plural, zero {# يوم} one {يوم واحد} two {يومان} few {# أيام} many {# يومًا} other {# يوم}}", "contract": "العقد", "counterparty": "الطرف المقابل", "type": "النوع", "expires": "ينتهي", "days": "الأيام",
+    "contractsCreated": "العقود المنشأة", "contractsCount": "{count, plural, zero {لا عقود} one {عقد واحد} two {عقدان} few {# عقود} many {# عقدًا} other {# عقد}}", "monthlyEquivalent": "{month}: {count, plural, zero {لم تُنشأ عقود} one {أُنشئ عقد واحد} two {أُنشئ عقدان} few {أُنشئت # عقود} many {أُنشئ # عقدًا} other {أُنشئ # عقد}}", "recordedValueForContracts": "{count, plural, zero {لا عقود} one {القيمة المسجلة لعقد واحد} two {القيمة المسجلة لعقدين} few {القيمة المسجلة عبر # عقود} many {القيمة المسجلة عبر # عقدًا} other {القيمة المسجلة عبر # عقد}}",
+    "statusChartLabel": "أعداد العقود ونسبها حسب الحالة", "monthlyChartLabel": "أعداد إنشاء العقود حسب شهر UTC", "recordedValuesChartLabel": "قيم العقود المسجلة حسب النوع دون تحويل العملات",
+    "expiringListDisclosure": "يتم عرض أقرب {shown} عقود من أصل {total} عقدًا نشطًا تنتهي خلال 90 يومًا.",
+    "emptyExpiring": "لا توجد عقود نشطة تنتهي خلال الأيام التسعين القادمة.", "emptyApprovals": "لا توجد قرارات موافقة متاحة بعد.", "emptyStatus": "لا توجد بيانات لحالات العقود بعد.", "emptyMonthly": "لم يتم إنشاء عقود خلال آخر 12 شهرًا.", "emptyValues": "لا توجد قيم عقود مسجلة.",
+    "loadErrorTitle": "التحليلات غير متاحة", "failedToLoad": "تعذر تحميل التحليلات. لم تتغير سجلات عقودك.", "retry": "إعادة المحاولة"
   },
   "import": {
+    "eyebrow": "ترحيل المحفظة",
     "title": "استيراد العقود",
+    "driveConnected": "تم ربط Google Drive",
+    "sourceSelector": "اختر مصدر الاستيراد",
+    "refresh": "تحديث",
+    "loadError": "تعذر تحميل سجل الاستيراد.",
+    "tryAgain": "حاول مرة أخرى",
+    "succeeded": "ناجحة",
+    "failed": "فاشلة",
+    "retryFailures": "إعادة محاولة العناصر الفاشلة",
+    "retryConfirm": "هل تريد إعادة محاولة الصفوف الفاشلة في هذا الاستيراد؟",
+    "retryQueued": "تمت إضافة إعادة المحاولة إلى قائمة الانتظار",
+    "retryError": "تعذرت إعادة محاولة الاستيراد",
+    "detailsLoadError": "تعذر تحميل تفاصيل الصفوف",
+    "date": "التاريخ",
+    "sourceLabel": "المصدر",
+    "statusLabel": "الحالة",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد عمليات استيراد بعد.",
+    "expandFailures": "إظهار الصفوف الفاشلة",
+    "collapseFailures": "إخفاء الصفوف الفاشلة",
+    "downloadErrorReport": "تنزيل تقرير الأخطاء",
+    "loadingFailures": "جارٍ تحميل الصفوف الفاشلة…",
+    "noFailedRows": "لا توجد صفوف فاشلة.",
+    "row": "الصف",
+    "error": "الخطأ",
+    "sequence": { "label": "تسلسل الاستيراد", "choose": { "title": "اختر مصدراً", "body": "استخدم أحد مسارات الاستيراد المدعومة حالياً." }, "review": { "title": "راجع قبل البدء", "body": "أكد الملفات أو مطابقة الأعمدة قبل إضافتها إلى قائمة الانتظار." }, "monitor": { "title": "راقب واستعد", "body": "تابع أحدث عشر مهام وأعد محاولة العناصر الفاشلة بأمان." } },
+    "driveErrors": { "not_configured": "لم تتم تهيئة Google Drive.", "unauthenticated": "سجّل الدخول قبل ربط Google Drive.", "forbidden": "ليست لديك صلاحية ربط Google Drive.", "missing_params": "أعاد Google Drive استجابة غير مكتملة.", "state_mismatch": "انتهت صلاحية اتصال Google Drive. حاول مرة أخرى.", "exchange_failed": "تعذر على Google Drive إكمال الاتصال.", "missing_refresh_token": "لم يوفر Google Drive الوصول المطلوب.", "unknown": "تعذر ربط Google Drive." },
+    "dropzone": { "chooseFile": "اختر ملفاً للاستيراد", "chooseFiles": "اختر ملفات للاستيراد", "clear": "مسح الملفات المحددة", "promptSingle": "اسحب ملفاً وأفلته هنا، أو", "promptMultiple": "اسحب الملفات وأفلتها هنا، أو", "browse": "انقر للتصفح" },
     "subtitle": "قم بترحيل عقودك الحالية إلى Aakd من جداول البيانات أو PandaDoc أو ContractBook أو DocuSign CLM أو أي أداة يمكنها تصدير الملفات.",
     "tabs": {
       "csv": "جدول بيانات",
@@ -458,9 +492,6 @@
     "genericDescription": "تعذر إكمال هذا البحث. لم تتغير اتفاقياتك.",
     "retry": "إعادة البحث"
   },
-  "searchPage": {
-    "title": "العثور على اتفاقية", "subtitle": "ابحث بالاسم أو المعنى، وضيّق النتائج، وافتح الاتفاقية المطلوبة.", "searchLabel": "البحث في الاتفاقيات", "keywordPlaceholder": "ابحث في العناوين والأطراف والملاحظات والنص المستخرج", "meaningPlaceholder": "صف الاتفاقية التي تبحث عنها", "methodLabel": "طريقة البحث", "keyword": "كلمة مفتاحية", "meaning": "المعنى", "meaningNote": "تُرتب نتائج المعنى حسب التشابه الدلالي.", "filters": "الفلاتر", "openFilters": "فتح الفلاتر", "closeFilters": "إغلاق الفلاتر", "clearFilters": "مسح الفلاتر", "type": "النوع", "status": "الحالة", "endDate": "تاريخ الانتهاء", "from": "من", "to": "إلى", "value": "القيمة", "minimum": "الحد الأدنى", "maximum": "الحد الأقصى", "any": "أي", "loading": "جارٍ البحث عن الاتفاقيات", "resultsLabel": "نتائج البحث", "resultCountOne": "نتيجة واحدة ({count})", "resultCountMany": "{count} نتائج", "forQuery": "لـ «{query}»", "filtered": "مُرشح", "meaningOrdered": "مرتبة حسب التشابه الدلالي", "name": "الاسم", "counterparty": "الطرف المقابل", "created": "تاريخ الإنشاء", "openContract": "فتح {title}", "notAvailable": "—", "initialTitle": "ابحث في اتفاقياتك", "initialDescription": "استخدم الاسم أو الطرف المقابل أو الملاحظات أو النص المستخرج أو الفلاتر.", "noResultsTitle": "لم يتم العثور على اتفاقيات", "noResultsDescription": "جرّب بحثاً آخر أو عدّل الفلاتر.", "semanticUnavailableTitle": "البحث بالمعنى غير متاح", "semanticUnavailableDescription": "البحث بالمعنى غير مهيأ حالياً. لا يزال البحث بالكلمات متاحاً.", "unindexedTitle": "فهرس المعنى غير متاح", "unindexedDescription": "لا يوجد فهرس للمعنى بعد. جرّب البحث بالكلمات.", "rateLimitedTitle": "تم الوصول إلى حد البحث", "rateLimitedDescription": "البحث محدود مؤقتاً. حاول مرة أخرى قريباً.", "genericTitle": "البحث غير متاح", "genericDescription": "تعذر إكمال البحث. لم يتم تغيير اتفاقياتك.", "retry": "إعادة المحاولة"
-  },
   "dashboard": {
     "greeting": {
       "morning": "صباح الخير",
@@ -540,6 +571,9 @@
     "failedToArchive": "فشل الأرشفة",
     "contractArchived": "تمت أرشفة العقد"
   },
+  "settingsProfile": {
+    "title": "ملفي الشخصي", "subtitle": "إدارة بيانات الحساب المحفوظة", "personalInformation": "المعلومات الشخصية", "name": "الاسم", "namePlaceholder": "اسمك", "email": "البريد الإلكتروني", "changeAvatar": "تغيير الصورة", "chooseAvatar": "اختيار صورة", "presets": "صور جاهزة", "uploadOwn": "رفع صورتك", "uploading": "جارٍ الرفع…", "chooseFile": "اختيار ملف", "customUpload": "صورة مخصصة", "applying": "جارٍ التطبيق…", "apply": "تطبيق", "saving": "جارٍ الحفظ…", "saveChanges": "حفظ التغييرات", "saved": "تم حفظ الملف", "saveFailed": "تعذر حفظ التغييرات"
+  },
   "org": {
     "title": "المؤسسة",
     "subtitle": "إدارة إعدادات مؤسستك",
@@ -564,7 +598,9 @@
     "model": "النموذج",
     "notConfigured": "غير مُعدّ",
     "aiConfigHint": "عيّن AI_PROVIDER ومفتاح API المقابل في بيئتك لتفعيل استخراج الذكاء الاصطناعي.",
-    "loading": "جارٍ التحميل…"
+    "aiRemoveFailed": "تعذر إزالة مفتاح الذكاء الاصطناعي للمؤسسة",
+    "loading": "جارٍ التحميل…",
+    "logoReadOnly": "لم يتم تعيين شعار للمؤسسة. يمكن للمسؤول إضافة شعار."
   },
   "members": {
     "title": "أعضاء الفريق",
@@ -602,13 +638,15 @@
     "inviteCancelled": "تم إلغاء الدعوة",
     "failedToCancel": "فشل إلغاء الدعوة",
     "remove": "إزالة",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "roles": { "owner": { "label": "المالك", "description": "تحكم كامل بمساحة العمل" }, "admin": { "label": "المسؤول", "description": "يدير الوصول إلى المساحة" }, "legal": { "label": "الشؤون القانونية", "description": "يراجع العقود ويديرها" }, "member": { "label": "عضو", "description": "يعمل على العقود المسندة" }, "viewer": { "label": "مشاهد", "description": "وصول للقراءة فقط" } },
+    "actions": { "changeRole": "تغيير دور العضو", "removeMember": "إزالة العضو", "resendInvitation": "إعادة إرسال الدعوة", "cancelInvitation": "إلغاء الدعوة" }
   },
   "apiKeys": {
     "title": "مفاتيح API",
     "subtitle": "إدارة مفاتيح API للوصول البرمجي",
     "createNewKey": "إنشاء مفتاح جديد",
-    "warningText": "توفر مفاتيح API وصولًا كاملًا إلى بيانات مؤسستك. احتفظ بها سرية وقم بتدويرها بانتظام.",
+    "warningText": "تصل مفاتيح API إلى بيانات المؤسسة وفق الصلاحيات المحددة. احتفظ بها سرية وقم بتدويرها بانتظام.",
     "noKeys": "لا توجد مفاتيح API بعد. أنشئ واحدًا للبدء.",
     "keyShownOnce": "تم عرض المفتاح الكامل مرة واحدة عند الإنشاء.",
     "neverUsed": "لم يُستخدم قط",
@@ -627,7 +665,11 @@
     "createFailed": "فشل إنشاء مفتاح API",
     "createdTitle": "تم إنشاء مفتاح API",
     "copyOnce": "سيظهر هذا المفتاح مرة واحدة فقط. انسخه الآن.",
-    "done": "تم"
+    "done": "تم",
+    "accessLevel": "مستوى الوصول", "readOnly": "قراءة البيانات الوصفية", "readContent": "قراءة البيانات الوصفية ونص العقد", "readWrite": "القراءة والكتابة", "readContentDescription": "يمكن استرجاع نص العقد للأسئلة والأجوبة دون تغيير البيانات.", "scopeRead": "قراءة البيانات الوصفية", "scopeTextRead": "قراءة نص العقد", "scopeWrite": "تعديل البيانات", "copyKey": "نسخ مفتاح API", "copyFailedManual": "تعذر النسخ. حدد المفتاح وانسخه يدوياً.", "status": "الحالة", "active": "نشط", "revoked": "ملغى", "expired": "منتهي", "scopes": "الصلاحيات", "expires": "ينتهي", "noExpiry": "دون انتهاء", "adminOnly": "لا يمكن إدارة مفاتيح API إلا للمالك أو المسؤول."
+  },
+  "contractActivity": {
+    "title": "نشاط العقود", "subtitle": "{count, plural, one {حدث عقد واحد} other {# من أحداث العقود}}", "searchLabel": "البحث في نشاط العقود", "searchPlaceholder": "ابحث في الإجراءات أو الأشخاص أو العقود", "actionFilterLabel": "تصفية حسب الإجراء", "dateFilterLabel": "تصفية حسب التاريخ", "allActions": "كل الإجراءات", "last7Days": "آخر 7 أيام", "last30Days": "آخر 30 يوماً", "last90Days": "آخر 90 يوماً", "allTime": "كل الوقت", "action": "الإجراء", "actor": "المنفذ", "resource": "العقد", "time": "الوقت", "empty": "لا يوجد نشاط عقود.", "error": "تعذر تحميل نشاط العقود.", "retry": "إعادة المحاولة", "showing": "عرض {from}–{to} من {total}", "page": "الصفحة {page} من {totalPages}", "previousPage": "الصفحة السابقة", "nextPage": "الصفحة التالية"
   },
   "activity": {
     "CREATED": "Created contract",

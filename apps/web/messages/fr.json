@@ -19,6 +19,8 @@
     "search": "Rechercher...",
     "theme": "Thème",
     "auditLog": "Journal d'audit",
+    "settingsSection": "Section des paramètres",
+    "settingsNavigation": "Navigation des paramètres",
     "billing": "Facturation",
     "orgNotifications": "Notifications org.",
     "myNotifications": "Mes notifications",
@@ -152,7 +154,9 @@
     "folder": "Dossier",
     "removeTag": "Supprimer {tag}",
     "addTag": "Ajouter une étiquette",
-    "sourcePage": "Page source {page}"
+    "sourcePage": "Page source {page}",
+    "editorPausedTitle": "La modification des documents est suspendue",
+    "editorPausedDescription": "La phase 0 se concentre sur le dépôt, la revue et le suivi des contrats signés. Le document original reste disponible dans l’onglet Documents."
   }
   },
   "auth": {
@@ -229,29 +233,76 @@
   },
   "analytics": {
     "title": "Analyses",
-    "subtitle": "Métriques de performance et tendances des contrats.",
-    "totalContracts": "Total des contrats",
-    "activeContracts": "Contrats actifs",
-    "expiringContracts": "Bientôt expirés",
-    "contractValue": "Valeur totale des contrats",
-    "byStatus": "Par statut",
-    "byType": "Par type",
-    "renewalTimeline": "Calendrier des renouvellements",
-    "obligations": "Obligations",
-    "totalContractsKpi": "Total des contrats",
-    "expiringSoonKpi": "Bientôt expirés",
-    "approvalRate": "Taux d'approbation",
-    "totalValue": "Valeur totale",
-    "next30Days": "30 prochains jours",
-    "contractsByStatus": "Contrats par statut",
-    "monthlyVolume": "Volume mensuel de contrats",
-    "valueByType": "Valeur des contrats par type",
-    "approvalFunnel": "Entonnoir d'approbation",
-    "expiringContracts2": "Contrats expirant",
-    "failedToLoad": "Impossible de charger les données analytiques. Veuillez actualiser la page."
+    "subtitle": "Consultez l’activité du portefeuille et les contrats susceptibles de nécessiter une action.",
+    "activeExpiringKpi": "Contrats actifs expirant",
+    "activeExpiringScope": "Sous 30 jours ; contrats actifs uniquement",
+    "overdueObligationsKpi": "Obligations en retard",
+    "overdueObligationsScope": "Enregistrements d’obligations actuels",
+    "approvalDecisionRate": "Taux de décision d’approbation",
+    "approvalDecisionSummary": "{approved} approuvées sur {decided} décidées",
+    "portfolioContractsKpi": "Contrats du portefeuille",
+    "portfolioContractsScope": "Tous les statuts de contrat",
+    "expiringSection": "Contrats actifs expirant",
+    "expiringScope": "Comptes cumulés sous 30, 60 et 90 jours ; contrats actifs uniquement.",
+    "obligationsSection": "Obligations à traiter",
+    "obligationsScope": "En retard, plus les enregistrements en attente ou en cours dont l’échéance est antérieure ou égale à la limite de 7 jours.",
+    "approvalSection": "Décisions d’approbation",
+    "approvalScope": "Le taux utilise uniquement les approbations approuvées et rejetées ; les demandes en attente sont séparées.",
+    "statusSection": "Contrats par statut",
+    "statusScope": "Portefeuille actuel, tous statuts confondus.",
+    "monthlySection": "Contrats créés par mois",
+    "monthlyScope": "Contrats créés chaque mois civil UTC au cours des 12 derniers mois.",
+    "recordedValuesSection": "Valeurs enregistrées par type de contrat",
+    "recordedValuesScope": "Valeurs brutes enregistrées dans les contrats, regroupées par type.",
+    "recordedValuesCaveat": "Les valeurs peuvent utiliser des devises différentes et ne sont pas converties. Ne les interprétez pas comme une valorisation du portefeuille.",
+    "unavailable": "Indisponible",
+    "obligationsUnavailableShort": "Les données d’obligations n’ont pas pu être chargées",
+    "obligationsUnavailable": "Les comptes d’obligations n’ont pas pu être chargés. Les autres analyses restent disponibles.",
+    "noApprovalDecisionsShort": "Aucune décision approuvée ou rejetée",
+    "approved": "Approuvées", "rejected": "Rejetées", "pending": "En attente",
+    "approvalDecisionDenominator": "Population du taux : {count} approbations approuvées ou rejetées",
+    "approvalRequestsContext": "Demandes d’approbation enregistrées : {count}",
+    "overdue": "En retard", "dueSoon": "Échéance antérieure ou égale à la limite de 7 jours",
+    "overdueScope": "Obligations marquées en retard", "dueSoonScope": "En attente ou en cours, y compris les dates déjà dépassées",
+    "withinDays": "Sous {days} jours", "daysRemaining": "{count, plural, one {# jour} other {# jours}}",
+    "contract": "Contrat", "counterparty": "Contrepartie", "type": "Type", "expires": "Expire", "days": "Jours",
+    "contractsCreated": "Contrats créés", "contractsCount": "{count, plural, one {# contrat} other {# contrats}}",
+    "monthlyEquivalent": "{month} : {count, plural, one {# contrat créé} other {# contrats créés}}", "recordedValueForContracts": "{count, plural, one {Valeur enregistrée pour # contrat} other {Valeur enregistrée pour # contrats}}",
+    "statusChartLabel": "Nombre et pourcentage de contrats par statut", "monthlyChartLabel": "Nombre de créations de contrats par mois UTC", "recordedValuesChartLabel": "Valeurs enregistrées par type sans conversion de devise",
+    "expiringListDisclosure": "Affichage des {shown} contrats les plus proches sur {total} contrats actifs expirant sous 90 jours.",
+    "emptyExpiring": "Aucun contrat actif n’expire dans les 90 prochains jours.", "emptyApprovals": "Aucune décision d’approbation n’est encore disponible.", "emptyStatus": "Aucune donnée de statut n’est encore disponible.", "emptyMonthly": "Aucun contrat n’a été créé au cours des 12 derniers mois.", "emptyValues": "Aucune valeur de contrat enregistrée n’est disponible.",
+    "loadErrorTitle": "Les analyses sont indisponibles", "failedToLoad": "Impossible de charger les analyses. Vos contrats n’ont pas été modifiés.", "retry": "Réessayer"
   },
   "import": {
+    "eyebrow": "Migration du portefeuille",
     "title": "Importer des contrats",
+    "driveConnected": "Google Drive est connecté",
+    "sourceSelector": "Choisir une source d’importation",
+    "refresh": "Actualiser",
+    "loadError": "L’historique des importations n’a pas pu être chargé.",
+    "tryAgain": "Réessayer",
+    "succeeded": "Réussis",
+    "failed": "Échoués",
+    "retryFailures": "Réessayer les éléments échoués",
+    "retryConfirm": "Réessayer les lignes échouées de cette importation ?",
+    "retryQueued": "Nouvelle tentative mise en file",
+    "retryError": "Impossible de relancer l’importation",
+    "detailsLoadError": "Impossible de charger le détail des lignes",
+    "date": "Date",
+    "sourceLabel": "Source",
+    "statusLabel": "Statut",
+    "loading": "Chargement…",
+    "empty": "Aucune importation pour le moment.",
+    "expandFailures": "Afficher les lignes échouées",
+    "collapseFailures": "Masquer les lignes échouées",
+    "downloadErrorReport": "Télécharger le rapport d’erreurs",
+    "loadingFailures": "Chargement des lignes échouées…",
+    "noFailedRows": "Aucune ligne échouée.",
+    "row": "Ligne",
+    "error": "Erreur",
+    "sequence": { "label": "Étapes d’importation", "choose": { "title": "Choisir une source", "body": "Utilisez l’une des sources d’importation déjà prises en charge." }, "review": { "title": "Vérifier avant de démarrer", "body": "Confirmez les fichiers ou la correspondance des colonnes avant la mise en file." }, "monitor": { "title": "Suivre et reprendre", "body": "Suivez les dix dernières tâches et relancez les éléments échoués en sécurité." } },
+    "driveErrors": { "not_configured": "Google Drive n’est pas configuré.", "unauthenticated": "Connectez-vous avant de relier Google Drive.", "forbidden": "Vous n’avez pas l’autorisation de relier Google Drive.", "missing_params": "Google Drive a renvoyé une réponse incomplète.", "state_mismatch": "La connexion Google Drive a expiré. Réessayez.", "exchange_failed": "Google Drive n’a pas pu terminer la connexion.", "missing_refresh_token": "Google Drive n’a pas fourni l’accès requis. Réessayez.", "unknown": "Impossible de connecter Google Drive." },
+    "dropzone": { "chooseFile": "Choisir un fichier à importer", "chooseFiles": "Choisir des fichiers à importer", "clear": "Effacer les fichiers sélectionnés", "promptSingle": "Déposez un fichier ici, ou", "promptMultiple": "Déposez des fichiers ici, ou", "browse": "cliquez pour parcourir" },
     "subtitle": "Migrez vos contrats existants dans Aakd depuis des tableurs, PandaDoc, ContractBook, DocuSign CLM ou tout outil exportant des fichiers.",
     "tabs": {
       "csv": "Tableur",
@@ -458,9 +509,6 @@
     "genericDescription": "Nous n’avons pas pu terminer cette recherche. Vos contrats n’ont pas été modifiés.",
     "retry": "Relancer la recherche"
   },
-  "searchPage": {
-    "title": "Trouver un accord", "subtitle": "Recherchez par nom ou sens, affinez les résultats et ouvrez l’accord souhaité.", "searchLabel": "Rechercher des accords", "keywordPlaceholder": "Rechercher titres, contreparties, notes et texte extrait", "meaningPlaceholder": "Décrivez l’accord recherché", "methodLabel": "Méthode de recherche", "keyword": "Mot-clé", "meaning": "Sens", "meaningNote": "Les résultats par sens sont classés par similarité sémantique.", "filters": "Filtres", "openFilters": "Ouvrir les filtres", "closeFilters": "Fermer les filtres", "clearFilters": "Effacer les filtres", "type": "Type", "status": "Statut", "endDate": "Date de fin", "from": "De", "to": "À", "value": "Valeur", "minimum": "Minimum", "maximum": "Maximum", "any": "Toutes", "loading": "Recherche d’accords", "resultsLabel": "Résultats de recherche", "resultCountOne": "{count} résultat", "resultCountMany": "{count} résultats", "forQuery": "pour « {query} »", "filtered": "Filtré", "meaningOrdered": "Classé par similarité", "name": "Nom", "counterparty": "Contrepartie", "created": "Créé", "openContract": "Ouvrir {title}", "notAvailable": "—", "initialTitle": "Rechercher vos accords", "initialDescription": "Utilisez un nom, une contrepartie, une note, du texte extrait ou les filtres.", "noResultsTitle": "Aucun accord trouvé", "noResultsDescription": "Essayez une autre recherche ou ajustez les filtres.", "semanticUnavailableTitle": "Recherche par sens indisponible", "semanticUnavailableDescription": "La recherche par sens n’est pas configurée. La recherche par mot-clé reste disponible.", "unindexedTitle": "Index sémantique indisponible", "unindexedDescription": "Aucun index sémantique n’est disponible. Essayez les mots-clés.", "rateLimitedTitle": "Limite de recherche atteinte", "rateLimitedDescription": "La recherche est temporairement limitée. Réessayez bientôt.", "genericTitle": "Recherche indisponible", "genericDescription": "La recherche n’a pas pu aboutir. Vos accords n’ont pas été modifiés.", "retry": "Réessayer"
-  },
   "dashboard": {
     "greeting": {
       "morning": "Bonjour",
@@ -540,6 +588,9 @@
     "failedToArchive": "Échec de l'archivage",
     "contractArchived": "Contrat archivé"
   },
+  "settingsProfile": {
+    "title": "Mon profil", "subtitle": "Gérez les informations enregistrées de votre compte", "personalInformation": "Informations personnelles", "name": "Nom", "namePlaceholder": "Votre nom", "email": "E-mail", "changeAvatar": "Modifier l’avatar", "chooseAvatar": "Choisir un avatar", "presets": "Préréglages", "uploadOwn": "Importer le vôtre", "uploading": "Importation…", "chooseFile": "Choisir un fichier", "customUpload": "Import personnalisé", "applying": "Application…", "apply": "Appliquer", "saving": "Enregistrement…", "saveChanges": "Enregistrer", "saved": "Profil enregistré", "saveFailed": "Échec de l’enregistrement"
+  },
   "org": {
     "title": "Organisation",
     "subtitle": "Gérez les paramètres de votre organisation",
@@ -564,7 +615,9 @@
     "model": "Modèle",
     "notConfigured": "Non configuré",
     "aiConfigHint": "Définissez AI_PROVIDER et la clé API correspondante dans votre environnement pour activer l'extraction IA.",
-    "loading": "Chargement…"
+    "aiRemoveFailed": "Impossible de supprimer la clé IA de l’organisation",
+    "loading": "Chargement…",
+    "logoReadOnly": "Aucun logo n’est défini. Un administrateur peut en ajouter un."
   },
   "members": {
     "title": "Membres de l'équipe",
@@ -602,13 +655,15 @@
     "inviteCancelled": "Invitation annulée",
     "failedToCancel": "Échec de l'annulation de l'invitation",
     "remove": "Supprimer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "roles": { "owner": { "label": "Propriétaire", "description": "Contrôle complet de l’espace" }, "admin": { "label": "Administrateur", "description": "Gère les accès à l’espace" }, "legal": { "label": "Juridique", "description": "Examine et gère les contrats" }, "member": { "label": "Membre", "description": "Travaille sur les contrats attribués" }, "viewer": { "label": "Lecteur", "description": "Accès en lecture seule" } },
+    "actions": { "changeRole": "Modifier le rôle du membre", "removeMember": "Retirer le membre", "resendInvitation": "Renvoyer l’invitation", "cancelInvitation": "Annuler l’invitation" }
   },
   "apiKeys": {
     "title": "Clés API",
     "subtitle": "Gérez les clés API pour l'accès programmatique",
     "createNewKey": "Créer une nouvelle clé",
-    "warningText": "Les clés API donnent un accès complet aux données de votre organisation. Gardez-les secrètes et faites-les tourner régulièrement.",
+    "warningText": "Les clés API accèdent aux données selon les portées choisies. Gardez-les secrètes et faites-les tourner régulièrement.",
     "noKeys": "Aucune clé API. Créez-en une pour commencer.",
     "keyShownOnce": "La clé complète a été affichée une fois à la création.",
     "neverUsed": "Jamais utilisée",
@@ -627,7 +682,11 @@
     "createFailed": "Échec de la création de la clé API",
     "createdTitle": "Clé API créée",
     "copyOnce": "Cette clé ne sera affichée qu'une seule fois. Copiez-la maintenant.",
-    "done": "Terminé"
+    "done": "Terminé",
+    "accessLevel": "Niveau d’accès", "readOnly": "Lire les métadonnées", "readContent": "Lire les métadonnées et le texte", "readWrite": "Lire et modifier", "readContentDescription": "Peut récupérer le texte des contrats pour les questions-réponses, sans modifier les données.", "scopeRead": "Lire les métadonnées", "scopeTextRead": "Lire le texte des contrats", "scopeWrite": "Modifier les données", "copyKey": "Copier la clé API", "copyFailedManual": "La copie a échoué. Sélectionnez et copiez la clé manuellement.", "status": "Statut", "active": "Active", "revoked": "Révoquée", "expired": "Expirée", "scopes": "Portées", "expires": "Expire", "noExpiry": "Sans expiration", "adminOnly": "Seuls les propriétaires et administrateurs peuvent gérer les clés API."
+  },
+  "contractActivity": {
+    "title": "Activité des contrats", "subtitle": "{count, plural, one {# événement de contrat} other {# événements de contrat}}", "searchLabel": "Rechercher dans l’activité", "searchPlaceholder": "Rechercher des actions, personnes ou contrats", "actionFilterLabel": "Filtrer par action", "dateFilterLabel": "Filtrer par date", "allActions": "Toutes les actions", "last7Days": "7 derniers jours", "last30Days": "30 derniers jours", "last90Days": "90 derniers jours", "allTime": "Toute la période", "action": "Action", "actor": "Auteur", "resource": "Contrat", "time": "Date", "empty": "Aucune activité de contrat.", "error": "Impossible de charger l’activité des contrats.", "retry": "Réessayer", "showing": "Affichage de {from} à {to} sur {total}", "page": "Page {page} sur {totalPages}", "previousPage": "Page précédente", "nextPage": "Page suivante"
   },
   "activity": {
     "CREATED": "Created contract",

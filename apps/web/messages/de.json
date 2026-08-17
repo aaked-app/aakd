@@ -19,6 +19,8 @@
     "search": "Suchen...",
     "theme": "Design",
     "auditLog": "Audit-Protokoll",
+    "settingsSection": "Einstellungsbereich",
+    "settingsNavigation": "Einstellungsnavigation",
     "billing": "Abrechnung",
     "orgNotifications": "Org-Benachrichtigungen",
     "myNotifications": "Meine Benachrichtigungen",
@@ -152,7 +154,9 @@
     "folder": "Ordner",
     "removeTag": "{tag} entfernen",
     "addTag": "Tag hinzufügen",
-    "sourcePage": "Quellseite {page}"
+    "sourcePage": "Quellseite {page}",
+    "editorPausedTitle": "Die Dokumentbearbeitung ist pausiert",
+    "editorPausedDescription": "In Phase 0 konzentrieren wir uns auf das Hochladen, Prüfen und Nachverfolgen unterzeichneter Verträge. Das Originaldokument bleibt im Tab Dokumente verfügbar."
   }
   },
   "auth": {
@@ -229,29 +233,59 @@
   },
   "analytics": {
     "title": "Analysen",
-    "subtitle": "Leistungskennzahlen und Trends für Verträge.",
-    "totalContracts": "Verträge gesamt",
-    "activeContracts": "Aktive Verträge",
-    "expiringContracts": "Bald auslaufend",
-    "contractValue": "Gesamtvertragswert",
-    "byStatus": "Nach Status",
-    "byType": "Nach Typ",
-    "renewalTimeline": "Verlängerungs-Zeitleiste",
-    "obligations": "Verpflichtungen",
-    "totalContractsKpi": "Verträge gesamt",
-    "expiringSoonKpi": "Bald auslaufend",
-    "approvalRate": "Genehmigungsrate",
-    "totalValue": "Gesamtwert",
-    "next30Days": "nächste 30 Tage",
-    "contractsByStatus": "Verträge nach Status",
-    "monthlyVolume": "Monatliches Vertragsvolumen",
-    "valueByType": "Vertragswert nach Typ",
-    "approvalFunnel": "Genehmigungstrichter",
-    "expiringContracts2": "Auslaufende Verträge",
-    "failedToLoad": "Analysedaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite."
+    "subtitle": "Prüfen Sie Portfolioaktivitäten und Vertragsdatensätze, die Aufmerksamkeit erfordern könnten.",
+    "activeExpiringKpi": "Auslaufende aktive Verträge", "activeExpiringScope": "Innerhalb von 30 Tagen; nur aktive Verträge",
+    "overdueObligationsKpi": "Überfällige Verpflichtungen", "overdueObligationsScope": "Aktuelle Verpflichtungsdatensätze",
+    "approvalDecisionRate": "Genehmigungsentscheidungsrate", "approvalDecisionSummary": "{approved} von {decided} Entscheidungen genehmigt",
+    "portfolioContractsKpi": "Portfolioverträge", "portfolioContractsScope": "Alle Vertragsstatus",
+    "expiringSection": "Auslaufende aktive Verträge", "expiringScope": "Kumulative Anzahlen innerhalb von 30, 60 und 90 Tagen; nur aktive Verträge.",
+    "obligationsSection": "Zu bearbeitende Verpflichtungen", "obligationsScope": "Überfällige Datensätze sowie ausstehende oder laufende Datensätze mit Fälligkeit bis einschließlich des 7-Tage-Stichtags.",
+    "approvalSection": "Genehmigungsentscheidungen", "approvalScope": "Die Rate verwendet nur genehmigte plus abgelehnte Genehmigungen; ausstehende Anfragen werden separat gezeigt.",
+    "statusSection": "Verträge nach Status", "statusScope": "Aktuelles Portfolio über alle Vertragsstatus.",
+    "monthlySection": "Pro Monat erstellte Verträge", "monthlyScope": "In jedem UTC-Kalendermonat der letzten 12 Monate erstellte Verträge.",
+    "recordedValuesSection": "Erfasste Werte nach Vertragstyp", "recordedValuesScope": "In Vertragsdatensätzen gespeicherte Rohwerte, gruppiert nach Vertragstyp.",
+    "recordedValuesCaveat": "Werte können unterschiedliche Währungen verwenden und werden nicht umgerechnet. Die Summen sind keine Portfoliobewertung.",
+    "unavailable": "Nicht verfügbar", "obligationsUnavailableShort": "Verpflichtungsdaten konnten nicht geladen werden", "obligationsUnavailable": "Verpflichtungsanzahlen konnten nicht geladen werden. Andere Analysen bleiben verfügbar.",
+    "noApprovalDecisionsShort": "Keine genehmigten oder abgelehnten Entscheidungen", "approved": "Genehmigt", "rejected": "Abgelehnt", "pending": "Ausstehend",
+    "approvalDecisionDenominator": "Grundgesamtheit der Rate: {count} genehmigte oder abgelehnte Genehmigungen", "approvalRequestsContext": "Erfasste Genehmigungsanfragen: {count}",
+    "overdue": "Überfällig", "dueSoon": "Bis einschließlich des 7-Tage-Stichtags fällig", "overdueScope": "Als überfällig markierte Verpflichtungen", "dueSoonScope": "Ausstehend oder laufend, einschließlich bereits vergangener Fälligkeiten",
+    "withinDays": "Innerhalb von {days} Tagen", "daysRemaining": "{count, plural, one {# Tag} other {# Tage}}", "contract": "Vertrag", "counterparty": "Vertragspartei", "type": "Typ", "expires": "Läuft aus", "days": "Tage",
+    "contractsCreated": "Erstellte Verträge", "contractsCount": "{count, plural, one {# Vertrag} other {# Verträge}}", "monthlyEquivalent": "{month}: {count, plural, one {# Vertrag erstellt} other {# Verträge erstellt}}", "recordedValueForContracts": "{count, plural, one {Erfasster Wert für # Vertrag} other {Erfasster Wert für # Verträge}}",
+    "statusChartLabel": "Vertragsanzahlen und -anteile nach Status", "monthlyChartLabel": "Vertragserstellungen nach UTC-Monat", "recordedValuesChartLabel": "Erfasste Vertragswerte nach Typ ohne Währungsumrechnung",
+    "expiringListDisclosure": "Die {shown} nächstfälligen von {total} aktiven Verträgen, die innerhalb von 90 Tagen auslaufen.",
+    "emptyExpiring": "In den nächsten 90 Tagen laufen keine aktiven Verträge aus.", "emptyApprovals": "Noch keine Genehmigungsentscheidungen verfügbar.", "emptyStatus": "Noch keine Vertragsstatusdaten verfügbar.", "emptyMonthly": "In den letzten 12 Monaten wurden keine Verträge erstellt.", "emptyValues": "Keine erfassten Vertragswerte verfügbar.",
+    "loadErrorTitle": "Analysen sind nicht verfügbar", "failedToLoad": "Analysedaten konnten nicht geladen werden. Ihre Vertragsdatensätze wurden nicht geändert.", "retry": "Erneut versuchen"
   },
   "import": {
+    "eyebrow": "Portfolio-Migration",
     "title": "Verträge importieren",
+    "driveConnected": "Google Drive verbunden",
+    "sourceSelector": "Importquelle auswählen",
+    "refresh": "Aktualisieren",
+    "loadError": "Der Importverlauf konnte nicht geladen werden.",
+    "tryAgain": "Erneut versuchen",
+    "succeeded": "Erfolgreich",
+    "failed": "Fehlgeschlagen",
+    "retryFailures": "Fehlgeschlagene Elemente erneut versuchen",
+    "retryConfirm": "Fehlgeschlagene Zeilen dieses Imports erneut versuchen?",
+    "retryQueued": "Erneuter Versuch eingereiht",
+    "retryError": "Import konnte nicht erneut gestartet werden",
+    "detailsLoadError": "Zeilendetails konnten nicht geladen werden",
+    "date": "Datum",
+    "sourceLabel": "Quelle",
+    "statusLabel": "Status",
+    "loading": "Wird geladen…",
+    "empty": "Noch keine Importe.",
+    "expandFailures": "Fehlgeschlagene Zeilen anzeigen",
+    "collapseFailures": "Fehlgeschlagene Zeilen ausblenden",
+    "downloadErrorReport": "Fehlerbericht herunterladen",
+    "loadingFailures": "Fehlgeschlagene Zeilen werden geladen…",
+    "noFailedRows": "Keine fehlgeschlagenen Zeilen.",
+    "row": "Zeile",
+    "error": "Fehler",
+    "sequence": { "label": "Importablauf", "choose": { "title": "Quelle auswählen", "body": "Verwenden Sie einen der bereits unterstützten Importwege." }, "review": { "title": "Vor dem Start prüfen", "body": "Bestätigen Sie Dateien oder Spaltenzuordnung vor der Warteschlange." }, "monitor": { "title": "Überwachen und fortsetzen", "body": "Verfolgen Sie die letzten zehn Aufträge und wiederholen Sie Fehler sicher." } },
+    "driveErrors": { "not_configured": "Google Drive ist nicht konfiguriert.", "unauthenticated": "Melden Sie sich vor der Verbindung mit Google Drive an.", "forbidden": "Sie dürfen Google Drive nicht verbinden.", "missing_params": "Google Drive hat eine unvollständige Antwort gesendet.", "state_mismatch": "Die Google-Drive-Verbindung ist abgelaufen. Versuchen Sie es erneut.", "exchange_failed": "Google Drive konnte die Verbindung nicht abschließen.", "missing_refresh_token": "Google Drive hat den erforderlichen Zugriff nicht bereitgestellt.", "unknown": "Google Drive konnte nicht verbunden werden." },
+    "dropzone": { "chooseFile": "Datei zum Import auswählen", "chooseFiles": "Dateien zum Import auswählen", "clear": "Ausgewählte Dateien entfernen", "promptSingle": "Datei hier ablegen oder", "promptMultiple": "Dateien hier ablegen oder", "browse": "zum Durchsuchen klicken" },
     "subtitle": "Migrieren Sie Ihre bestehenden Verträge in Aakd aus Tabellen, PandaDoc, ContractBook, DocuSign CLM oder jedem Tool, das Dateien exportieren kann.",
     "tabs": {
       "csv": "Tabelle",
@@ -458,9 +492,6 @@
     "genericDescription": "Diese Suche konnte nicht abgeschlossen werden. Ihre Vereinbarungen wurden nicht geändert.",
     "retry": "Suche wiederholen"
   },
-  "searchPage": {
-    "title": "Vereinbarung finden", "subtitle": "Nach Name oder Bedeutung suchen, Ergebnisse filtern und die gewünschte Vereinbarung öffnen.", "searchLabel": "Vereinbarungen suchen", "keywordPlaceholder": "Titel, Gegenparteien, Notizen und extrahierten Text durchsuchen", "meaningPlaceholder": "Beschreiben Sie die gesuchte Vereinbarung", "methodLabel": "Suchmethode", "keyword": "Schlüsselwort", "meaning": "Bedeutung", "meaningNote": "Bedeutungsergebnisse werden nach semantischer Ähnlichkeit sortiert.", "filters": "Filter", "openFilters": "Filter öffnen", "closeFilters": "Filter schließen", "clearFilters": "Filter löschen", "type": "Typ", "status": "Status", "endDate": "Enddatum", "from": "Von", "to": "Bis", "value": "Wert", "minimum": "Minimum", "maximum": "Maximum", "any": "Beliebig", "loading": "Vereinbarungen werden gesucht", "resultsLabel": "Suchergebnisse", "resultCountOne": "{count} Ergebnis", "resultCountMany": "{count} Ergebnisse", "forQuery": "für „{query}“", "filtered": "Gefiltert", "meaningOrdered": "Nach Bedeutungsähnlichkeit sortiert", "name": "Name", "counterparty": "Gegenpartei", "created": "Erstellt", "openContract": "{title} öffnen", "notAvailable": "—", "initialTitle": "Vereinbarungen durchsuchen", "initialDescription": "Verwenden Sie Name, Gegenpartei, Notiz, extrahierten Text oder Filter.", "noResultsTitle": "Keine Vereinbarungen gefunden", "noResultsDescription": "Versuchen Sie eine andere Suche oder passen Sie die Filter an.", "semanticUnavailableTitle": "Bedeutungssuche nicht verfügbar", "semanticUnavailableDescription": "Die Bedeutungssuche ist nicht konfiguriert. Die Stichwortsuche funktioniert weiterhin.", "unindexedTitle": "Bedeutungsindex nicht verfügbar", "unindexedDescription": "Noch kein Bedeutungsindex verfügbar. Versuchen Sie die Stichwortsuche.", "rateLimitedTitle": "Suchlimit erreicht", "rateLimitedDescription": "Die Suche ist vorübergehend begrenzt. Versuchen Sie es später erneut.", "genericTitle": "Suche nicht verfügbar", "genericDescription": "Die Suche konnte nicht abgeschlossen werden. Ihre Vereinbarungen wurden nicht geändert.", "retry": "Erneut versuchen"
-  },
   "dashboard": {
     "greeting": {
       "morning": "Guten Morgen",
@@ -540,6 +571,9 @@
     "failedToArchive": "Archivierung fehlgeschlagen",
     "contractArchived": "Vertrag archiviert"
   },
+  "settingsProfile": {
+    "title": "Mein Profil", "subtitle": "Gespeicherte Kontodaten verwalten", "personalInformation": "Persönliche Informationen", "name": "Name", "namePlaceholder": "Ihr Name", "email": "E-Mail", "changeAvatar": "Avatar ändern", "chooseAvatar": "Avatar auswählen", "presets": "Vorgaben", "uploadOwn": "Eigenes Bild hochladen", "uploading": "Wird hochgeladen…", "chooseFile": "Datei auswählen", "customUpload": "Eigenes Bild", "applying": "Wird angewendet…", "apply": "Anwenden", "saving": "Wird gespeichert…", "saveChanges": "Speichern", "saved": "Profil gespeichert", "saveFailed": "Speichern fehlgeschlagen"
+  },
   "org": {
     "title": "Organisation",
     "subtitle": "Verwalten Sie Ihre Organisationseinstellungen",
@@ -564,7 +598,9 @@
     "model": "Modell",
     "notConfigured": "Nicht konfiguriert",
     "aiConfigHint": "Setzen Sie AI_PROVIDER und den entsprechenden API-Schlüssel in Ihrer Umgebung, um KI-Extraktion zu aktivieren.",
-    "loading": "Wird geladen…"
+    "aiRemoveFailed": "Der KI-Schlüssel der Organisation konnte nicht entfernt werden",
+    "loading": "Wird geladen…",
+    "logoReadOnly": "Kein Organisationslogo festgelegt. Ein Administrator kann eines hinzufügen."
   },
   "members": {
     "title": "Teammitglieder",
@@ -602,13 +638,15 @@
     "inviteCancelled": "Einladung storniert",
     "failedToCancel": "Einladung konnte nicht storniert werden",
     "remove": "Entfernen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "roles": { "owner": { "label": "Eigentümer", "description": "Vollständige Kontrolle" }, "admin": { "label": "Administrator", "description": "Verwaltet Zugriffe" }, "legal": { "label": "Recht", "description": "Prüft und verwaltet Verträge" }, "member": { "label": "Mitglied", "description": "Arbeitet mit zugewiesenen Verträgen" }, "viewer": { "label": "Betrachter", "description": "Nur-Lese-Zugriff" } },
+    "actions": { "changeRole": "Mitgliederrolle ändern", "removeMember": "Mitglied entfernen", "resendInvitation": "Einladung erneut senden", "cancelInvitation": "Einladung abbrechen" }
   },
   "apiKeys": {
     "title": "API-Schlüssel",
     "subtitle": "Verwalten Sie API-Schlüssel für programmatischen Zugriff",
     "createNewKey": "Neuen Schlüssel erstellen",
-    "warningText": "API-Schlüssel ermöglichen vollständigen Zugriff auf die Daten Ihrer Organisation. Halten Sie sie geheim und rotieren Sie sie regelmäßig.",
+    "warningText": "API-Schlüssel greifen gemäß ihren gewählten Berechtigungen auf Organisationsdaten zu. Halten Sie sie geheim und rotieren Sie sie regelmäßig.",
     "noKeys": "Noch keine API-Schlüssel. Erstellen Sie einen, um zu beginnen.",
     "keyShownOnce": "Der vollständige Schlüssel wurde einmalig bei der Erstellung angezeigt.",
     "neverUsed": "Noch nie verwendet",
@@ -627,7 +665,11 @@
     "createFailed": "API-Schlüssel konnte nicht erstellt werden",
     "createdTitle": "API-Schlüssel erstellt",
     "copyOnce": "Dieser Schlüssel wird nur einmal angezeigt. Kopieren Sie ihn jetzt.",
-    "done": "Fertig"
+    "done": "Fertig",
+    "accessLevel": "Zugriffsstufe", "readOnly": "Metadaten lesen", "readContent": "Metadaten und Vertragstext lesen", "readWrite": "Lesen und schreiben", "readContentDescription": "Kann Vertragstext für Fragen und Antworten abrufen, aber keine Daten ändern.", "scopeRead": "Metadaten lesen", "scopeTextRead": "Vertragstext lesen", "scopeWrite": "Daten schreiben", "copyKey": "API-Schlüssel kopieren", "copyFailedManual": "Kopieren fehlgeschlagen. Schlüssel manuell auswählen und kopieren.", "status": "Status", "active": "Aktiv", "revoked": "Widerrufen", "expired": "Abgelaufen", "scopes": "Berechtigungen", "expires": "Läuft ab", "noExpiry": "Kein Ablauf", "adminOnly": "Nur Eigentümer und Administratoren können API-Schlüssel verwalten."
+  },
+  "contractActivity": {
+    "title": "Vertragsaktivität", "subtitle": "{count, plural, one {# Vertragsereignis} other {# Vertragsereignisse}}", "searchLabel": "Vertragsaktivität durchsuchen", "searchPlaceholder": "Aktionen, Personen oder Verträge suchen", "actionFilterLabel": "Nach Aktion filtern", "dateFilterLabel": "Nach Datum filtern", "allActions": "Alle Aktionen", "last7Days": "Letzte 7 Tage", "last30Days": "Letzte 30 Tage", "last90Days": "Letzte 90 Tage", "allTime": "Gesamter Zeitraum", "action": "Aktion", "actor": "Akteur", "resource": "Vertrag", "time": "Zeit", "empty": "Keine Vertragsaktivität gefunden.", "error": "Vertragsaktivität konnte nicht geladen werden.", "retry": "Erneut versuchen", "showing": "{from}–{to} von {total}", "page": "Seite {page} von {totalPages}", "previousPage": "Vorherige Seite", "nextPage": "Nächste Seite"
   },
   "activity": {
     "CREATED": "Created contract",

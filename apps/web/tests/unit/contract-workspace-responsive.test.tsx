@@ -41,6 +41,8 @@ const copy: Record<string, string> = {
   removeTag: "Remove {tag}",
   addTag: "Add tag",
   editor: "Editor",
+  editorPausedTitle: "Document editing is paused",
+  editorPausedDescription: "Phase 0 focuses on uploading, reviewing and tracking executed contracts.",
   sourcePage: "Source page {page}",
   "DRAFT": "Draft",
   "ACTIVE": "Active",

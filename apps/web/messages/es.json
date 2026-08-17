@@ -19,6 +19,8 @@
     "search": "Buscar...",
     "theme": "Tema",
     "auditLog": "Registro de auditoría",
+    "settingsSection": "Sección de ajustes",
+    "settingsNavigation": "Navegación de ajustes",
     "billing": "Facturación",
     "orgNotifications": "Notificaciones de la org.",
     "myNotifications": "Mis notificaciones",
@@ -152,7 +154,9 @@
     "folder": "Carpeta",
     "removeTag": "Eliminar {tag}",
     "addTag": "Añadir etiqueta",
-    "sourcePage": "Página de origen {page}"
+    "sourcePage": "Página de origen {page}",
+    "editorPausedTitle": "La edición de documentos está pausada",
+    "editorPausedDescription": "La fase 0 se centra en cargar, revisar y hacer seguimiento de contratos ejecutados. El documento original sigue disponible en la pestaña Documentos."
   }
   },
   "auth": {
@@ -229,29 +233,59 @@
   },
   "analytics": {
     "title": "Analíticas",
-    "subtitle": "Métricas de rendimiento y tendencias de contratos.",
-    "totalContracts": "Total de contratos",
-    "activeContracts": "Contratos activos",
-    "expiringContracts": "Próximos a vencer",
-    "contractValue": "Valor total de contratos",
-    "byStatus": "Por estado",
-    "byType": "Por tipo",
-    "renewalTimeline": "Cronograma de renovaciones",
-    "obligations": "Obligaciones",
-    "totalContractsKpi": "Total de contratos",
-    "expiringSoonKpi": "Próximos a vencer",
-    "approvalRate": "Tasa de aprobación",
-    "totalValue": "Valor total",
-    "next30Days": "próximos 30 días",
-    "contractsByStatus": "Contratos por estado",
-    "monthlyVolume": "Volumen mensual de contratos",
-    "valueByType": "Valor de contratos por tipo",
-    "approvalFunnel": "Embudo de aprobación",
-    "expiringContracts2": "Contratos que vencen",
-    "failedToLoad": "No se pudieron cargar los datos de analíticas. Por favor, actualice la página."
+    "subtitle": "Revise la actividad de la cartera y los contratos que pueden requerir atención.",
+    "activeExpiringKpi": "Contratos activos que vencen", "activeExpiringScope": "En 30 días; solo contratos activos",
+    "overdueObligationsKpi": "Obligaciones vencidas", "overdueObligationsScope": "Registros de obligaciones actuales",
+    "approvalDecisionRate": "Tasa de decisión de aprobación", "approvalDecisionSummary": "{approved} aprobadas de {decided} decididas",
+    "portfolioContractsKpi": "Contratos de la cartera", "portfolioContractsScope": "Todos los estados de contrato",
+    "expiringSection": "Contratos activos que vencen", "expiringScope": "Recuentos acumulados en 30, 60 y 90 días; solo contratos activos.",
+    "obligationsSection": "Obligaciones que requieren atención", "obligationsScope": "Registros vencidos, más los pendientes o en curso con fecha de vencimiento igual o anterior al límite de 7 días.",
+    "approvalSection": "Decisiones de aprobación", "approvalScope": "La tasa usa solo aprobaciones aprobadas más rechazadas; las solicitudes pendientes se muestran aparte.",
+    "statusSection": "Contratos por estado", "statusScope": "Cartera actual en todos los estados de contrato.",
+    "monthlySection": "Contratos creados por mes", "monthlyScope": "Contratos creados en cada mes natural UTC durante los últimos 12 meses.",
+    "recordedValuesSection": "Valores registrados por tipo de contrato", "recordedValuesScope": "Valores brutos guardados en los contratos, agrupados por tipo.",
+    "recordedValuesCaveat": "Los valores pueden usar distintas monedas y no se convierten. No interprete los totales como una valoración de la cartera.",
+    "unavailable": "No disponible", "obligationsUnavailableShort": "No se pudieron cargar los datos de obligaciones", "obligationsUnavailable": "No se pudieron cargar los recuentos de obligaciones. Las demás analíticas siguen disponibles.",
+    "noApprovalDecisionsShort": "No hay decisiones aprobadas o rechazadas", "approved": "Aprobadas", "rejected": "Rechazadas", "pending": "Pendientes",
+    "approvalDecisionDenominator": "Población de la tasa: {count} aprobaciones aprobadas o rechazadas", "approvalRequestsContext": "Solicitudes de aprobación registradas: {count}",
+    "overdue": "Vencidas", "dueSoon": "Vencen en la fecha límite de 7 días o antes", "overdueScope": "Obligaciones marcadas como vencidas", "dueSoonScope": "Pendientes o en curso, incluidas fechas ya vencidas",
+    "withinDays": "En {days} días", "daysRemaining": "{count, plural, one {# día} other {# días}}", "contract": "Contrato", "counterparty": "Contraparte", "type": "Tipo", "expires": "Vence", "days": "Días",
+    "contractsCreated": "Contratos creados", "contractsCount": "{count, plural, one {# contrato} other {# contratos}}", "monthlyEquivalent": "{month}: {count, plural, one {# contrato creado} other {# contratos creados}}", "recordedValueForContracts": "{count, plural, one {Valor registrado en # contrato} other {Valor registrado en # contratos}}",
+    "statusChartLabel": "Recuentos y porcentajes de contratos por estado", "monthlyChartLabel": "Recuentos de creación de contratos por mes UTC", "recordedValuesChartLabel": "Valores registrados por tipo sin conversión de moneda",
+    "expiringListDisclosure": "Se muestran los {shown} vencimientos más próximos de {total} contratos activos que vencen en 90 días.",
+    "emptyExpiring": "Ningún contrato activo vence en los próximos 90 días.", "emptyApprovals": "Aún no hay decisiones de aprobación disponibles.", "emptyStatus": "Aún no hay datos de estado de contratos.", "emptyMonthly": "No se han creado contratos en los últimos 12 meses.", "emptyValues": "No hay valores de contrato registrados.",
+    "loadErrorTitle": "Las analíticas no están disponibles", "failedToLoad": "No se pudieron cargar las analíticas. Sus contratos no se modificaron.", "retry": "Intentar de nuevo"
   },
   "import": {
+    "eyebrow": "Migración de cartera",
     "title": "Importar contratos",
+    "driveConnected": "Google Drive conectado",
+    "sourceSelector": "Elegir una fuente de importación",
+    "refresh": "Actualizar",
+    "loadError": "No se pudo cargar el historial de importaciones.",
+    "tryAgain": "Intentar de nuevo",
+    "succeeded": "Correctos",
+    "failed": "Fallidos",
+    "retryFailures": "Reintentar elementos fallidos",
+    "retryConfirm": "¿Reintentar las filas fallidas de esta importación?",
+    "retryQueued": "Reintento puesto en cola",
+    "retryError": "No se pudo reintentar la importación",
+    "detailsLoadError": "No se pudieron cargar los detalles de las filas",
+    "date": "Fecha",
+    "sourceLabel": "Fuente",
+    "statusLabel": "Estado",
+    "loading": "Cargando…",
+    "empty": "Aún no hay importaciones.",
+    "expandFailures": "Mostrar filas fallidas",
+    "collapseFailures": "Ocultar filas fallidas",
+    "downloadErrorReport": "Descargar informe de errores",
+    "loadingFailures": "Cargando filas fallidas…",
+    "noFailedRows": "No hay filas fallidas.",
+    "row": "Fila",
+    "error": "Error",
+    "sequence": { "label": "Secuencia de importación", "choose": { "title": "Elegir una fuente", "body": "Usa una de las rutas de importación ya compatibles." }, "review": { "title": "Revisar antes de iniciar", "body": "Confirma los archivos o el mapeo de columnas antes de ponerlos en cola." }, "monitor": { "title": "Supervisar y recuperar", "body": "Sigue los últimos diez trabajos y reintenta los elementos fallidos con seguridad." } },
+    "driveErrors": { "not_configured": "Google Drive no está configurado.", "unauthenticated": "Inicia sesión antes de conectar Google Drive.", "forbidden": "No tienes permiso para conectar Google Drive.", "missing_params": "Google Drive devolvió una respuesta incompleta.", "state_mismatch": "La conexión de Google Drive caducó. Inténtalo de nuevo.", "exchange_failed": "Google Drive no pudo completar la conexión.", "missing_refresh_token": "Google Drive no proporcionó el acceso necesario.", "unknown": "No se pudo conectar Google Drive." },
+    "dropzone": { "chooseFile": "Elegir un archivo para importar", "chooseFiles": "Elegir archivos para importar", "clear": "Quitar archivos seleccionados", "promptSingle": "Arrastra un archivo aquí o", "promptMultiple": "Arrastra archivos aquí o", "browse": "haz clic para buscar" },
     "subtitle": "Migre sus contratos existentes a Aakd desde hojas de cálculo, PandaDoc, ContractBook, DocuSign CLM o cualquier herramienta que pueda exportar archivos.",
     "tabs": {
       "csv": "Hoja de cálculo",
@@ -458,9 +492,6 @@
     "genericDescription": "No pudimos completar esta búsqueda. Sus acuerdos no se modificaron.",
     "retry": "Reintentar búsqueda"
   },
-  "searchPage": {
-    "title": "Encontrar un acuerdo", "subtitle": "Busca por nombre o significado, filtra los resultados y abre el acuerdo que necesitas.", "searchLabel": "Buscar acuerdos", "keywordPlaceholder": "Buscar títulos, contrapartes, notas y texto extraído", "meaningPlaceholder": "Describe el acuerdo que buscas", "methodLabel": "Método de búsqueda", "keyword": "Palabra clave", "meaning": "Significado", "meaningNote": "Los resultados por significado se ordenan por similitud semántica.", "filters": "Filtros", "openFilters": "Abrir filtros", "closeFilters": "Cerrar filtros", "clearFilters": "Borrar filtros", "type": "Tipo", "status": "Estado", "endDate": "Fecha de finalización", "from": "Desde", "to": "Hasta", "value": "Valor", "minimum": "Mínimo", "maximum": "Máximo", "any": "Cualquiera", "loading": "Buscando acuerdos", "resultsLabel": "Resultados de búsqueda", "resultCountOne": "{count} resultado", "resultCountMany": "{count} resultados", "forQuery": "para «{query}»", "filtered": "Filtrado", "meaningOrdered": "Ordenado por similitud", "name": "Nombre", "counterparty": "Contraparte", "created": "Creado", "openContract": "Abrir {title}", "notAvailable": "—", "initialTitle": "Busca tus acuerdos", "initialDescription": "Usa un nombre, contraparte, nota, texto extraído o los filtros.", "noResultsTitle": "No se encontraron acuerdos", "noResultsDescription": "Prueba otra búsqueda o ajusta los filtros.", "semanticUnavailableTitle": "Búsqueda por significado no disponible", "semanticUnavailableDescription": "La búsqueda por significado no está configurada. La búsqueda por palabras sigue disponible.", "unindexedTitle": "Índice de significado no disponible", "unindexedDescription": "Aún no hay un índice de significado. Prueba la búsqueda por palabras.", "rateLimitedTitle": "Límite de búsqueda alcanzado", "rateLimitedDescription": "La búsqueda está limitada temporalmente. Inténtalo de nuevo pronto.", "genericTitle": "Búsqueda no disponible", "genericDescription": "No pudimos completar la búsqueda. Tus acuerdos no cambiaron.", "retry": "Reintentar"
-  },
   "dashboard": {
     "greeting": {
       "morning": "Buenos días",
@@ -540,6 +571,9 @@
     "failedToArchive": "Error al archivar",
     "contractArchived": "Contrato archivado"
   },
+  "settingsProfile": {
+    "title": "Mi perfil", "subtitle": "Gestiona los datos guardados de tu cuenta", "personalInformation": "Información personal", "name": "Nombre", "namePlaceholder": "Tu nombre", "email": "Correo electrónico", "changeAvatar": "Cambiar avatar", "chooseAvatar": "Elegir avatar", "presets": "Preajustes", "uploadOwn": "Subir tu imagen", "uploading": "Subiendo…", "chooseFile": "Elegir archivo", "customUpload": "Imagen personalizada", "applying": "Aplicando…", "apply": "Aplicar", "saving": "Guardando…", "saveChanges": "Guardar cambios", "saved": "Perfil guardado", "saveFailed": "No se pudo guardar"
+  },
   "org": {
     "title": "Organización",
     "subtitle": "Gestione la configuración de su organización",
@@ -564,7 +598,9 @@
     "model": "Modelo",
     "notConfigured": "No configurado",
     "aiConfigHint": "Configure AI_PROVIDER y la clave API correspondiente en su entorno para habilitar la extracción con IA.",
-    "loading": "Cargando…"
+    "aiRemoveFailed": "No se pudo eliminar la clave de IA de la organización",
+    "loading": "Cargando…",
+    "logoReadOnly": "No hay un logotipo definido. Un administrador puede añadirlo."
   },
   "members": {
     "title": "Miembros del equipo",
@@ -602,13 +638,15 @@
     "inviteCancelled": "Invitación cancelada",
     "failedToCancel": "No se pudo cancelar la invitación",
     "remove": "Eliminar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "roles": { "owner": { "label": "Propietario", "description": "Control completo del espacio" }, "admin": { "label": "Administrador", "description": "Gestiona el acceso" }, "legal": { "label": "Legal", "description": "Revisa y gestiona contratos" }, "member": { "label": "Miembro", "description": "Trabaja con contratos asignados" }, "viewer": { "label": "Lector", "description": "Acceso de solo lectura" } },
+    "actions": { "changeRole": "Cambiar rol del miembro", "removeMember": "Eliminar miembro", "resendInvitation": "Reenviar invitación", "cancelInvitation": "Cancelar invitación" }
   },
   "apiKeys": {
     "title": "Claves API",
     "subtitle": "Gestione las claves API para el acceso programático",
     "createNewKey": "Crear nueva clave",
-    "warningText": "Las claves API proporcionan acceso completo a los datos de su organización. Manténgalas en secreto y rótelas regularmente.",
+    "warningText": "Las claves API acceden a los datos según los permisos seleccionados. Manténgalas en secreto y rótelas regularmente.",
     "noKeys": "Sin claves API aún. Cree una para comenzar.",
     "keyShownOnce": "La clave completa se mostró una vez en la creación.",
     "neverUsed": "Nunca usada",
@@ -627,7 +665,11 @@
     "createFailed": "Error al crear la clave API",
     "createdTitle": "Clave API creada",
     "copyOnce": "Esta clave solo se mostrará una vez. Cópiela ahora.",
-    "done": "Listo"
+    "done": "Listo",
+    "accessLevel": "Nivel de acceso", "readOnly": "Leer metadatos", "readContent": "Leer metadatos y texto contractual", "readWrite": "Leer y escribir", "readContentDescription": "Puede recuperar texto contractual para preguntas y respuestas, pero no modificar datos.", "scopeRead": "Leer metadatos", "scopeTextRead": "Leer texto contractual", "scopeWrite": "Modificar datos", "copyKey": "Copiar clave API", "copyFailedManual": "No se pudo copiar. Selecciona y copia la clave manualmente.", "status": "Estado", "active": "Activa", "revoked": "Revocada", "expired": "Caducada", "scopes": "Permisos", "expires": "Caduca", "noExpiry": "Sin caducidad", "adminOnly": "Solo propietarios y administradores pueden gestionar claves API."
+  },
+  "contractActivity": {
+    "title": "Actividad de contratos", "subtitle": "{count, plural, one {# evento de contrato} other {# eventos de contrato}}", "searchLabel": "Buscar actividad contractual", "searchPlaceholder": "Buscar acciones, personas o contratos", "actionFilterLabel": "Filtrar por acción", "dateFilterLabel": "Filtrar por fecha", "allActions": "Todas las acciones", "last7Days": "Últimos 7 días", "last30Days": "Últimos 30 días", "last90Days": "Últimos 90 días", "allTime": "Todo el período", "action": "Acción", "actor": "Autor", "resource": "Contrato", "time": "Fecha", "empty": "No hay actividad contractual.", "error": "No se pudo cargar la actividad contractual.", "retry": "Reintentar", "showing": "Mostrando {from}–{to} de {total}", "page": "Página {page} de {totalPages}", "previousPage": "Página anterior", "nextPage": "Página siguiente"
   },
   "activity": {
     "CREATED": "Created contract",
