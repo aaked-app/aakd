@@ -33,6 +33,7 @@ evidence is being claimed by this release record.
 | Clean Compose install | PASS | A disposable project with empty PostgreSQL, MinIO and DocuSeal volumes built both application images, applied all 29 migrations, started app/worker/Redis/DB/object storage, and returned `200` from `/api/health` with DB and Redis checks green |
 | Containerized end-to-end suite | PASS | `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm --filter web exec playwright test --retries=0` against the disposable Compose app: 18 tests passed |
 | Exact `origin/main` replay | PASS | An archive of commit `bbbde93` was built without the dirty worktree, booted from empty named volumes, returned healthy DB/Redis checks, and passed the same 18-test browser suite |
+| Current `origin/main` clean replay | PASS (health) | A clean archive of commit `e693e2f` was built without the dirty worktree, booted with empty database/object-storage volumes, applied the current migrations, started app/worker/Redis/DB/object storage, and returned HTTP 200 from `/api/health` with DB and Redis green. The browser suite was not rerun in this disposable replay. |
 | Fresh VM/container boot | PASS (container) | Docker Compose boot was verified from empty named volumes on 2026-08-17. A separate cloud VM has not been used; the VM-specific path remains a deployment follow-up |
 
 ## Known non-blocking warnings
