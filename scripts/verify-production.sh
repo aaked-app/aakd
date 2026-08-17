@@ -26,7 +26,7 @@ for service in app worker db redis minio caddy; do
   fi
 done
 
-"${COMPOSE[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+"${COMPOSE[@]}" exec -T app node -e "fetch(process.env.INTERNAL_APP_URL + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 "${COMPOSE[@]}" exec -T app npx prisma migrate status >/dev/null
 "${COMPOSE[@]}" exec -T db pg_isready -U postgres -d clauseflow >/dev/null
 "${COMPOSE[@]}" exec -T redis redis-cli -a "$(awk -F= '$1 == "REDIS_PASSWORD" { print substr($0, index($0, "=") + 1); exit }' .env.prod)" ping | grep -qx PONG
