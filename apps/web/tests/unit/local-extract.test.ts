@@ -22,4 +22,9 @@ describe("local contract extraction fallback", () => {
   it("fails closed when the text does not contain an unambiguous supported fact", () => {
     expect(extractLocalFields("A document with no supported metadata claims.")).toEqual([])
   })
+
+  it("attributes citations to the page containing the source phrase", () => {
+    const fields = extractLocalFields("Page one.\fEffective Date: January 15, 2025")
+    expect(fields[0]).toMatchObject({ field: "startDate", sourcePage: 2 })
+  })
 })
