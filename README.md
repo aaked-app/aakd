@@ -1,6 +1,10 @@
 # Aakd
 
-Open-source contract management for teams that want to run their own stack.
+Turn executed contracts into reviewed, owned actions.
+
+Aakd is an open-source, self-hostable contract operations core for teams that
+need to know what a signed agreement requires next, who owns it, when it is
+due, and where the evidence came from.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](./docker-compose.yml)
@@ -9,14 +13,33 @@ Open-source contract management for teams that want to run their own stack.
 
 ---
 
-## What it does
+## The first useful workflow
 
-1. **Upload** a PDF or DOCX contract (including scanned PDFs when OCR is enabled)
-2. **Review** extracted fields with source text and page citations before writing them to the contract record
-3. **Ask questions** in plain language when an AI provider is configured
-4. **Track obligations and renewals** with owners, due dates, reminders, and completion status
-5. **Collaborate** through approvals, comments, and optional DocuSeal signing
-6. **Automate** through scoped API and MCP access, webhooks, and notifications
+1. **Upload** an executed PDF or DOCX contract, including scanned PDFs when OCR is enabled.
+2. **Review** extracted fields and obligations with exact source text and page citations.
+3. **Assign** owners, dates, conditions, and follow-up work.
+4. **Act** from the obligations and renewal view, with reminders and completion evidence.
+5. **Collaborate** through approvals, comments, and optional DocuSeal signing.
+
+```text
+executed agreement → cited facts → reviewed obligations → owned deadlines → completion evidence
+```
+
+AI is optional and reviewable. When configured, it assists with extraction,
+questions, risk scoring, and obligation suggestions. It does not become the
+canonical source of contract truth or take consequential action without a
+human-controlled workflow.
+
+## Who this is for
+
+The current release is aimed at teams with recurring vendor or customer
+agreements that are spread across files, calendars, email, and task systems.
+It is especially useful for self-hosters, privacy-sensitive teams, and
+developers who want an inspectable contract data model.
+
+It is not currently a replacement for an enterprise CLM rollout, a legal
+advice service, or an autonomous legal agent. Drafting, templates, billing,
+and hosted Cloud features remain paused or later-phase surfaces.
 
 When self-hosted, your contracts stay on infrastructure you control. AI providers are optional: use Ollama locally or bring your own provider key.
 
@@ -32,7 +55,13 @@ The supported first-run path is intentionally narrow: upload a real PDF or DOCX,
 # 1. Clone and configure
 git clone https://github.com/aaked-app/aakd.git
 cd aakd
-cp .env.example .env       # fill in DATABASE_URL, BETTER_AUTH_SECRET, STORAGE_*, REDIS_URL
+cp .env.example .env       # fill in the required values below
+
+# Generate secrets, then paste them into .env
+openssl rand -base64 32     # BETTER_AUTH_SECRET
+openssl rand -hex 32        # ENCRYPTION_KEY
+openssl rand -hex 32        # NOTIFICATION_ENCRYPTION_KEY
+openssl rand -hex 64        # DOCUSEAL_SECRET_KEY_BASE
 
 # 2. Start everything
 docker compose up
@@ -77,6 +106,8 @@ bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
 ```
 
 For the full production checklist, backups, TLS, storage, email and troubleshooting, see [the self-hosting guide](docs/self-hosting.md) and [the Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md).
+
+For transparent public evaluation, use the [community launch checklist](docs/community-launch-checklist.md).
 
 ## Verify a Phase 0 release
 
@@ -198,7 +229,12 @@ This project is open source and self-hostable. It is not currently a hosted serv
 
 ## Self-hosting
 
-The default compose stack runs the web app, BullMQ worker, PostgreSQL, Redis, and MinIO. You need a database URL, Better Auth secret, Redis URL, and S3-compatible storage credentials. AI credentials are optional for local/manual workflows and required only for AI-assisted features.
+The default compose stack runs the web app, BullMQ worker, PostgreSQL, Redis,
+MinIO, Mailpit, and DocuSeal. You need `POSTGRES_PASSWORD`,
+`BETTER_AUTH_SECRET`, `NOTIFICATION_ENCRYPTION_KEY`,
+`DOCUSEAL_SECRET_KEY_BASE`, and the storage settings. AI credentials are
+optional for local/manual workflows and required only for AI-assisted
+features. The production installer generates the required secrets for you.
 
 See [docker-compose.yml](./docker-compose.yml) for local development and [docker-compose.prod.yml](./docker-compose.prod.yml) for production deployment. The development Compose file includes Mailpit and default MinIO credentials and must not be exposed to the internet.
 
