@@ -78,7 +78,6 @@ import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
-import { EditorTab } from "@/components/editor/editor-tab"
 import { ContractCrmSection } from "@/components/crm/contract-crm-section"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -1827,11 +1826,14 @@ export default function ContractDetailPage() {
 
         {/* Editor */}
         <TabsContent value="editor" className="flex-1 overflow-hidden m-0 border-0 flex flex-col">
-          <EditorTab
-            contractId={contract.id}
-            contractStatus={contract.status}
-            role={currentMember?.role ?? "member"}
-          />
+          <div className="flex h-full items-center justify-center p-8">
+            <div className="max-w-md rounded-[var(--radius)] border border-dashed border-border bg-muted/20 p-6 text-center">
+              <p className="font-semibold text-foreground">Document editing is paused</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Phase 0 focuses on uploading, reviewing and tracking executed contracts. The original document remains available from the Documents tab.
+              </p>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Obligations */}

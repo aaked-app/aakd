@@ -66,10 +66,6 @@ vi.mock("@/lib/auth/client", () => ({
   useSession: () => ({ data: { user: { id: "user-1", name: "Ada Legal" } } }),
 }))
 
-vi.mock("@/components/editor/editor-tab", () => ({
-  EditorTab: () => <div>Document editor workspace</div>,
-}))
-
 vi.mock("@/components/crm/contract-crm-section", () => ({
   ContractCrmSection: () => <div>Linked deals</div>,
 }))
@@ -158,7 +154,7 @@ describe("contract workspace responsive hierarchy", () => {
     tabParam = "editor"
     render(<ContractDetailPage />)
 
-    expect(await screen.findByText("Document editor workspace")).toBeVisible()
+    expect(await screen.findByText("Document editing is paused")).toBeVisible()
     for (const name of ["Overview", "Files", "AI extractions", "Approvals", "Obligations", "Risk"]) {
       expect(screen.getByRole("tab", { name: new RegExp(name, "i") })).toBeInTheDocument()
     }
