@@ -102,7 +102,7 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 | AI metadata extraction (parties, dates, value, governing law, auto-renewal) | ✅ optional |
 | Soft-delete with full audit trail | ✅ |
 | Folders, tags, full-text + semantic search | ✅ |
-| Contract versions & document snapshots | ✅ |
+| Contract versions & document snapshots | ✅ review history |
 
 ### AI Layer
 | Feature | Status |
@@ -118,18 +118,18 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 |---|---|
 | Approval workflows with role-based routing | ✅ |
 | E-signatures via DocuSeal (self-hostable) | ✅ |
-| Track changes / redlining with version comparison | ✅ |
-| Snapshot comparison with word-level diff | ✅ |
-| Track changes sidebar with author context | ✅ |
+| Track changes / redlining with version comparison | Later phase |
+| Snapshot comparison with word-level diff | Later phase |
+| Track changes sidebar with author context | Later phase |
 
 ### Authoring
 | Feature | Status |
 |---|---|
 | Rich document editor (TipTap) with track changes | Paused after Phase 0 |
 | Template studio with variable fill wizard | Paused after Phase 0 |
-| Built-in clause snippet library (13 standard legal clauses) | ✅ |
-| Word import + DOCX/PDF export | ✅ |
-| Contract snapshots & version history | ✅ |
+| Built-in clause snippet library (13 standard legal clauses) | Later phase |
+| Word import + DOCX/PDF export | Later phase |
+| Contract snapshots & version history | ✅ review history |
 | AI Companion tab — contract Q&A inline in editor | Paused after Phase 0 |
 
 ### Renewals & Obligations
@@ -143,12 +143,12 @@ For the full production checklist, backups, TLS, storage, email and troubleshoot
 ### Integrations & Ecosystem
 | Feature | Status |
 |---|---|
-| Slack & Microsoft Teams notifications | ✅ |
-| Outgoing webhooks (Zapier / Make compatible) | ✅ |
-| MCP server endpoint (Claude, Cursor, any MCP client) | ✅ |
-| REST API with API key auth | ✅ |
-| CRM sync — HubSpot, Salesforce, Pipedrive | ✅ |
-| Bulk import — CSV, PandaDoc, DocuSign CLM, Google Drive | ✅ |
+| Slack & Microsoft Teams notifications | Optional |
+| Outgoing webhooks (Zapier / Make compatible) | Optional |
+| MCP server endpoint (Claude, Cursor, any MCP client) | ✅ scoped |
+| REST API with API key auth | ✅ scoped |
+| CRM sync — HubSpot, Salesforce, Pipedrive | Later phase |
+| Bulk import — CSV, PandaDoc, DocuSign CLM, Google Drive | Later phase |
 
 ### Internationalization
 English · Français · Deutsch · Español · العربية (RTL)
