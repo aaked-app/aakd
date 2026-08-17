@@ -90,6 +90,7 @@ interface AIExtraction {
   confidence: number
   sourceText: string
   sourcePage: number | null
+  extractedBy: string
   status: "pending" | "accepted" | "rejected"
 }
 
@@ -1375,7 +1376,7 @@ export default function ContractDetailPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">{extractions.length} fields</span>{" "}
-                    extracted by AI
+                    extracted from the document
                     {pendingExtractions.length > 0 && ` · ${pendingExtractions.length} pending review`}
                   </p>
                   <div className="flex items-center gap-2">
@@ -1413,6 +1414,9 @@ export default function ContractDetailPage() {
                         </div>
                         <p className="text-sm font-semibold text-foreground mb-3 min-h-[1.25rem]">
                           {e.rawValue ?? "—"}
+                        </p>
+                        <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {e.extractedBy === "local" ? "Deterministic local extraction" : "AI extraction"}
                         </p>
                         {e.sourceText && (
                           <blockquote className="mb-3 border-s-2 border-border ps-3 text-xs italic text-muted-foreground">

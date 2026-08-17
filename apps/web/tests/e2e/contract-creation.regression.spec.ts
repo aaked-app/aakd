@@ -1,4 +1,26 @@
 import { expect, test } from "@playwright/test"
+import React from "react"
+import { Document, Page, Text, renderToBuffer } from "@react-pdf/renderer"
+
+async function createContractPdf() {
+  return Buffer.from(
+    await renderToBuffer(
+      React.createElement(
+        Document,
+        null,
+        React.createElement(
+          Page,
+          null,
+          React.createElement(
+            Text,
+            null,
+            "MASTER SERVICES AGREEMENT\nEffective Date: January 15, 2025\nThis agreement automatically renews unless either party gives 30 days prior written notice.\nGoverning Law: State of Delaware.",
+          ),
+        ),
+      ),
+    ),
+  )
+}
 
 test("new users can create and open a contract", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -29,7 +51,7 @@ test("new users can create and open a contract", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles({
     name: "e2e-service-agreement.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from("%PDF-1.4\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\ntrailer\\n<<>>\\n%%EOF\\n"),
+    buffer: await createContractPdf(),
   })
   await page.getByRole("button", { name: /continue to review/i }).click()
   await page.getByLabel(/contract title/i).waitFor()
@@ -39,4 +61,9 @@ test("new users can create and open a contract", async ({ page }) => {
   await expect(page).toHaveURL((url) =>
     /^\/contracts\/[a-z0-9]+$/.test(url.pathname) && url.pathname !== "/contracts/new",
   { timeout: 30_000 })
+
+  await page.getByRole("tab", { name: /AI Extractions/i }).click()
+  await expect(page.getByText("MASTER SERVICES AGREEMENT", { exact: true })).toBeVisible({ timeout: 45_000 })
+  await expect(page.getByText("Effective Date: January 15, 2025", { exact: true })).toBeVisible()
+  await expect(page.getByText("Source page 1", { exact: true }).first()).toBeVisible()
 })

@@ -38,6 +38,7 @@ import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
+import { extractLocalFields } from "@/lib/ai/local-extract"
 import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
@@ -162,6 +163,22 @@ function getOpenAI(): OpenAI {
 
 const libreConvert = promisify(libre.convert)
 const execAsync = promisify(exec)
+
+async function extractPdfTextWithPoppler(buffer: Buffer): Promise<string | null> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clauseflow-pdf-"))
+  const pdfPath = path.join(tmpDir, "input.pdf")
+  try {
+    await fs.writeFile(pdfPath, buffer)
+    const { stdout } = await execAsync(`pdftotext -layout "${pdfPath}" -`, { maxBuffer: 2 * 1024 * 1024 })
+    const text = stdout.trim()
+    return text.length > 0 ? text : null
+  } catch (err) {
+    logger.warn({ err }, "[extract] poppler text extraction failed")
+    return null
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
 
 // ─── OCR helper ───────────────────────────────────────────────────────────────
 // Attempts OCR on a PDF buffer.
@@ -326,8 +343,11 @@ const extractWorker = new Worker<ContractExtractJobData>(
         logger.debug({ fileId, chars: extractedText?.length ?? 0 }, "[extract] PDF text extracted")
       } catch (err) {
         // pdf-parse can throw on malformed/corrupted PDFs (e.g. "bad XRef entry").
-        // Don't re-throw — fall through to the OCR path which may still succeed.
-        logger.warn({ err, fileId, contractId }, "[extract] pdf-parse failed — will attempt OCR")
+        // Don't re-throw. Use the worker image's poppler parser before falling
+        // back to OCR, since some valid PDFs are rejected by pdf-parse's older
+        // bundled PDF.js implementation.
+        logger.warn({ err, fileId, contractId }, "[extract] pdf-parse failed — trying poppler")
+        extractedText = await extractPdfTextWithPoppler(buffer)
       }
       // If text is absent or suspiciously short (scanned/image PDF), attempt OCR
       if (!extractedText || extractedText.length < 100) {
@@ -485,6 +505,17 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   return null
 }
 
+function localExtractionJson(text: string): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      extractLocalFields(text).map(({ field, value, confidence, sourceText, sourcePage }) => [
+        field,
+        { value, confidence, sourceText, sourcePage },
+      ]),
+    ),
+  )
+}
+
 // ─── Worker: contract.ai_extract ─────────────────────────────────────────────
 
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
@@ -505,23 +536,16 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     }
 
     let rawJson: string
+    let extractionMethod = "ai"
     try {
       const result = await callExtractionLLM(textToAnalyze)
       if (result === null) {
-        logger.warn({ contractId }, "[ai_extract] extraction skipped — no AI provider configured")
-        await getWorkerPrisma().activity.create({
-          data: {
-            contractId,
-            userId: null,
-            actorLabel: "System",
-            action: "METADATA_EXTRACTED",
-            detail: "AI extraction skipped — no AI provider configured",
-            metadata: { skipped: true, reason: "no_provider" },
-          },
-        })
-        return
+        rawJson = localExtractionJson(textToAnalyze)
+        extractionMethod = "local"
+        logger.info({ contractId }, "[ai_extract] using deterministic local extraction fallback")
+      } else {
+        rawJson = result
       }
-      rawJson = result
     } catch (err) {
       logger.error({ err, contractId }, "[ai_extract] LLM call failed")
       await getWorkerPrisma().activity.create({
@@ -666,7 +690,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
         confidence: data.confidence,
         sourceText: data.sourceText,
         sourcePage: data.sourcePage,
-        extractedBy: "ai",
+        extractedBy: extractionMethod,
         status: "pending",
       })),
       skipDuplicates: true,
@@ -680,14 +704,14 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           confidence: data.confidence,
           sourceText: data.sourceText,
           sourcePage: data.sourcePage,
-          extractedBy: "ai",
+          extractedBy: extractionMethod,
           status: "pending",
         },
       })
     }
 
     await getWorkerPrisma().activity.create({
-      data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `AI extracted ${fieldData.length} fields` },
+      data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `${extractionMethod === "local" ? "Local" : "AI"} extraction found ${fieldData.length} fields` },
     })
 
     logger.info(
@@ -1957,9 +1981,13 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
           rawText = result.text ?? ""
           logger.debug({ contractId, rawChars: rawText.length }, "[document.convert] PDF text extracted (fallback)")
         } catch (err) {
-          logger.error({ err, contractId }, "[document.convert] pdf-parse failed")
-          if (deleteSource) await storage.delete(storageKey).catch(() => {})
-          throw err
+          rawText = (await extractPdfTextWithPoppler(buffer)) ?? ""
+          if (!rawText) {
+            logger.error({ err, contractId }, "[document.convert] PDF text extraction failed")
+            if (deleteSource) await storage.delete(storageKey).catch(() => {})
+            throw err
+          }
+          logger.debug({ contractId, rawChars: rawText.length }, "[document.convert] Poppler text extracted (fallback)")
         }
         nodes = plaintextToPlateNodes(rawText)
       }
