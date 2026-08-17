@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { buildExtractionSeedPayload } from "@/lib/ai/extraction-seed"
 
 // ---- Constants ----
 
@@ -696,19 +697,9 @@ export default function NewContractPage() {
       const contract = (await res.json()) as { id: string }
 
       if (file) {
-        const fd = new globalThis.FormData()
-        fd.append("file", file)
-        const uploadPromise = fetch(`/api/contracts/${contract.id}/upload`, {
-          method: "POST",
-          body: fd,
-          credentials: "include",
-        })
-
-        // Seed AIExtraction rows immediately from the Pass-1 (extract-preview)
-        // data so the AI Extractions tab is populated the moment the user lands
-        // on the contract detail page — no spinner needed.
-        // The worker's ai_extract job will later enrich these rows with
-        // sourceText / sourcePage via its own upsert (skipDuplicates + updateMany).
+        // Persist Pass-1 provenance before uploading the file. The upload
+        // enqueues the worker, so doing this first prevents a fast worker from
+        // creating an AI row before a user-edited value is recorded as manual.
         const seedFields: Array<{ field: keyof FormData; rawValue: string }> = [
           { field: "contractType",     rawValue: formData.contractType },
           { field: "counterpartyName", rawValue: formData.counterpartyName },
@@ -719,31 +710,30 @@ export default function NewContractPage() {
           { field: "governingLaw",     rawValue: formData.governingLaw },
           { field: "autoRenewal",      rawValue: String(formData.autoRenewal) },
         ]
-        const seedPayload = seedFields
-          .filter(({ field, rawValue }) =>
-            aiFieldsRef.current.has(field) &&
-            !touchedFieldsRef.current.has(field) &&
-            rawValue !== "" &&
-            rawValue != null,
-          )
-          .map(({ field, rawValue }) => ({
-            field,
-            rawValue,
-            confidence: confidence[field] ?? 0,
-          }))
+        const seedPayload = buildExtractionSeedPayload(
+          seedFields,
+          touchedFieldsRef.current,
+          aiFieldsRef.current,
+          confidence,
+        )
 
         if (seedPayload.length > 0) {
-          void fetch(`/api/contracts/${contract.id}/extractions`, {
+          const seedRes = await fetch(`/api/contracts/${contract.id}/extractions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ extractions: seedPayload }),
             credentials: "include",
-          }).catch(() => {
-            // Non-critical — the worker will populate the tab anyway
           })
+          if (!seedRes.ok) throw new Error("Initial extraction review state could not be saved")
         }
 
-        const uploadRes = await uploadPromise
+        const fd = new globalThis.FormData()
+        fd.append("file", file)
+        const uploadRes = await fetch(`/api/contracts/${contract.id}/upload`, {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+        })
         if (!uploadRes.ok) {
           throw new Error("File upload failed")
         }

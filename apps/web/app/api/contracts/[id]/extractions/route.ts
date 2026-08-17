@@ -50,11 +50,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 // ─── POST /api/contracts/[id]/extractions ─────────────────────────────────────
-// Seeds initial AIExtraction rows from the Pass-1 (extract-preview) data so the
-// AI Extractions tab is populated immediately on the contract detail page.
+// Seeds initial extraction rows from the Pass-1 (extract-preview) data so the
+// contract detail page is populated immediately. User-edited values are stored
+// as accepted manual facts and are protected from worker enrichment.
 // The worker's ai_extract job will later enrich these rows with sourceText and
 // sourcePage via its own createMany(skipDuplicates)+updateMany(status≠accepted)
-// upsert — so worker data always wins over seed data.
+// upsert. Accepted manual rows are intentionally protected from worker output.
 
 const EXTRACTABLE_FIELDS = new Set([
   "contractType", "startDate", "endDate", "renewalDate",
@@ -69,6 +70,7 @@ const SeedSchema = z.object({
         field:      z.string().min(1),
         rawValue:   z.string().min(1),
         confidence: z.number().min(0).max(1).default(0),
+        extractedBy: z.enum(["ai", "manual"]).default("ai"),
       }),
     )
     .min(1)
@@ -109,8 +111,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         confidence:  e.confidence,
         sourceText:  null,
         sourcePage:  null,
-        extractedBy: "ai",
-        status:      "pending",
+        extractedBy: e.extractedBy,
+        status:      e.extractedBy === "manual" ? "accepted" : "pending",
       })),
       skipDuplicates: true,
     })

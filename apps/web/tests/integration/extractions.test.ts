@@ -92,6 +92,43 @@ describe("GET /api/contracts/[id]/extractions", () => {
   })
 })
 
+// ─── POST seed tests ─────────────────────────────────────────────────────────
+
+describe("POST /api/contracts/[id]/extractions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("persists manual seed facts as accepted and AI seeds as pending", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.aIExtraction.createMany).mockResolvedValueOnce({ count: 2 })
+
+    const { POST } = await import("@/app/api/contracts/[id]/extractions/route")
+    const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        extractions: [
+          { field: "counterpartyName", rawValue: "Edited Acme", extractedBy: "manual" },
+          { field: "contractType", rawValue: "MSA", extractedBy: "ai", confidence: 0.91 },
+        ],
+      }),
+    })
+
+    const res = await requestContext.run(mockCtx, () =>
+      POST(req, { params: { id: "contract-1" } }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.aIExtraction.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.arrayContaining([
+        expect.objectContaining({ field: "counterpartyName", extractedBy: "manual", status: "accepted", confidence: 0 }),
+        expect.objectContaining({ field: "contractType", extractedBy: "ai", status: "pending", confidence: 0.91 }),
+      ]),
+    }))
+  })
+})
+
 // ─── PATCH tests ─────────────────────────────────────────────────────────────
 
 describe("PATCH /api/contracts/[id]/extractions", () => {

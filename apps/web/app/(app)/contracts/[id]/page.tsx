@@ -87,7 +87,7 @@ interface AIExtraction {
   id: string
   field: string
   rawValue: string
-  confidence: number
+  confidence: number | null
   sourceText: string
   sourcePage: number | null
   extractedBy: string
@@ -1390,7 +1390,7 @@ export default function ContractDetailPage() {
                   {extractions.map((e) => {
                     const accepted = e.status === "accepted"
                     const rejected = e.status === "rejected"
-                    const confidencePct = Math.round(e.confidence * 100)
+                    const confidencePct = e.confidence == null ? null : Math.round(e.confidence * 100)
                     return (
                       <div
                         key={e.id}
@@ -1401,22 +1401,30 @@ export default function ContractDetailPage() {
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{e.field}</p>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
-                              confidencePct >= 90
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-amber-100 text-amber-700",
-                            )}
-                          >
-                            {confidencePct}%
-                          </span>
+                          {confidencePct == null ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shrink-0">
+                              Manual
+                            </span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
+                                confidencePct >= 90
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-amber-100 text-amber-700",
+                              )}
+                            >
+                              {confidencePct}%
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm font-semibold text-foreground mb-3 min-h-[1.25rem]">
                           {e.rawValue ?? "—"}
                         </p>
                         <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {e.extractedBy === "local" ? "Deterministic local extraction" : "AI extraction"}
+                          {e.extractedBy === "manual" || e.extractedBy === "user"
+                            ? "Manually entered or edited"
+                            : e.extractedBy === "local" ? "Deterministic local extraction" : "AI extraction"}
                         </p>
                         {e.sourceText && (
                           <blockquote className="mb-3 border-s-2 border-border ps-3 text-xs italic text-muted-foreground">
