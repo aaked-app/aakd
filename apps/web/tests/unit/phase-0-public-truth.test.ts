@@ -11,6 +11,10 @@ const activationContract = readFileSync(
   resolve(process.cwd(), "../../research/gates/phase-0-activation-event-contract.md"),
   "utf8",
 )
+const securityChecklist = readFileSync(
+  resolve(process.cwd(), "../../research/gates/phase-0-security-release-checklist.md"),
+  "utf8",
+)
 
 describe("Phase 0 public capability truth", () => {
   it("does not advertise paused authoring surfaces as available", () => {
@@ -48,5 +52,19 @@ describe("Phase 0 public capability truth", () => {
       expect(activationContract).toContain(event)
     }
     expect(activationContract).toContain("No organization name, ID, email, or contract data")
+  })
+
+  it("publishes a security checklist with the core release boundaries", () => {
+    for (const boundary of [
+      "Tenant isolation",
+      "MCP text access",
+      "Upload handling",
+      "AI safety",
+      "SSO/SCIM",
+      "Explicit non-claims",
+    ]) {
+      expect(securityChecklist).toContain(boundary)
+    }
+    expect(securityChecklist).toContain("Required recheck triggers")
   })
 })

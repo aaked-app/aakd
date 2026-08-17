@@ -16,6 +16,9 @@ Investment posture for every product subsystem is recorded in
 [`phase-0-module-classification.md`](phase-0-module-classification.md). The
 classification is a freeze boundary, not a deletion plan.
 
+The release security controls and recheck triggers are recorded in
+[`phase-0-security-release-checklist.md`](phase-0-security-release-checklist.md).
+
 | Capability | Phase 0 status | Release boundary | Evidence / owner |
 | --- | --- | --- | --- |
 | PDF/DOCX upload | Available | Real-file upload with type and size validation; processing is queued | `apps/web/app/api/contracts/[id]/upload/route.ts`; release evidence |
