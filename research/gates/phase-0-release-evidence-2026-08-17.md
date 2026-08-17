@@ -5,6 +5,10 @@ Scope: Aakd OSS core, contract-first activation, Agent Gateway/MCP controls
 
 This record covers engineering readiness only. Product evidence remains open in the Phase 0 scorecard until real organizations, paid pilots, and repeat usage are observed.
 
+The evidence contract and current empty state are recorded in
+`research/gates/phase-0-customer-evidence-ledger.md`; no external customer
+evidence is being claimed by this release record.
+
 ## Verification record
 
 | Gate | Result | Evidence |

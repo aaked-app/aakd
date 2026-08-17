@@ -30,11 +30,11 @@ Engineering release decision: PASS only when every row above passes. Any failed 
 
 | Measure | PASS threshold | Evidence source | PASS action | FAIL action |
 |---|---:|---|---|---|
-| Organizations reporting the same recent target failure | >=5 organizations | Interview/observation ledger | Keep the workflow hypothesis | Revisit target workflow |
-| Representative corpora | >=3 organizations | Redacted corpus receipt and provenance | Run benchmark | Continue evidence collection |
-| Economic owners funding the same pilot | >=2 owners | Paid pilot records | Authorize deeper product investment | Reject or revise the wedge |
-| Repeat organizational usage | >=2 organizations repeat within 90 days | Product events and customer confirmation | Advance to next roadmap gate | Keep Phase 0 open |
-| Support burden | <=2 founder-hours per 25 contracts | Delivery/support ledger | Continue validation | Simplify or reject workflow |
+| Organizations reporting the same recent target failure | >=5 organizations | `research/gates/phase-0-customer-evidence-ledger.md` | Keep the workflow hypothesis | Revisit target workflow |
+| Representative corpora | >=3 organizations | `research/gates/phase-0-customer-evidence-ledger.md` redacted corpus receipts | Run benchmark | Continue evidence collection |
+| Economic owners funding the same pilot | >=2 owners | `research/gates/phase-0-customer-evidence-ledger.md` payment records | Authorize deeper product investment | Reject or revise the wedge |
+| Repeat organizational usage | >=2 organizations repeat within 90 days | `research/gates/phase-0-customer-evidence-ledger.md` plus product events/customer confirmation | Advance to next roadmap gate | Keep Phase 0 open |
+| Support burden | <=2 founder-hours per 25 contracts | `research/gates/phase-0-customer-evidence-ledger.md` delivery/support ledger | Continue validation | Simplify or reject workflow |
 
 Product evidence decision: PASS only when every row above passes. This gate cannot be satisfied by tests, GitHub stars, feature breadth or inferred willingness to pay.
 
