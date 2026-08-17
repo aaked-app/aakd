@@ -22,7 +22,7 @@ application.
 | TypeScript | PASS | `pnpm typecheck` completed with 0 errors |
 | Lint | PASS | `pnpm --filter web lint` completed; only pre-existing image and hook warnings remain |
 | Production build | PASS | `pnpm build` completed successfully at the verified engineering boundary; see the current release pointer above |
-| Unit/integration tests | PASS | 54 committed test files, 1,074 tests passed at the current source boundary, including the versioned Phase 0 synthetic-corpus, public-capability-truth, and module-classification regressions plus MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
+| Unit/integration tests | PASS | 54 committed test files, 1,075 tests passed at the current source boundary, including the versioned Phase 0 synthetic-corpus, public-capability-truth, module-classification, and activation-event regressions plus MCP detail redaction, request attribution, explicit text-read authorization, minimized obligation/import projections, individual AI review, duplicate-action guards, and the no-provider cited extraction fallback |
 | Organization isolation | PASS | `pnpm --filter web test:isolation`: 11 tests passed |
 | End-to-end suite | PASS | `CI=1 PLAYWRIGHT_BASE_URL=http://localhost:3003 pnpm --filter web exec playwright test --retries=0`: 18 tests passed against a real local PostgreSQL 14 database and MinIO object store |
 | Contract creation regression | PASS | New-account upload-first flow reaches a contract detail page and a real generated PDF produces five reviewable fields with exact source text and `Source page 1` citations without an external AI provider |
