@@ -5,14 +5,11 @@ import { useRouter } from "next/navigation"
 import {
   Search,
   Plus,
-  Layers,
-  Sparkles,
   LayoutGrid,
   FileText,
   BarChart3,
   Target,
   Plug,
-  CreditCard,
 } from "lucide-react"
 
 interface PaletteItem {
@@ -30,16 +27,12 @@ interface RecentContract {
 const STATIC_ITEMS: PaletteItem[] = [
   // Actions
   { label: "New Contract",      href: "/contracts/new",          icon: Plus,        section: "Actions" },
-  { label: "New from Template", href: "/templates",              icon: Layers,      section: "Actions" },
-  { label: "Create with AI",    href: "/ai/create",              icon: Sparkles,    section: "Actions" },
   // Navigation
   { label: "Dashboard",         href: "/dashboard",              icon: LayoutGrid,  section: "Navigation" },
   { label: "Contracts",         href: "/contracts",              icon: FileText,    section: "Navigation" },
-  { label: "Templates",         href: "/templates",              icon: Layers,      section: "Navigation" },
   { label: "Analytics",         href: "/analytics",              icon: BarChart3,   section: "Navigation" },
   { label: "Obligations",       href: "/obligations",            icon: Target,      section: "Navigation" },
   { label: "Integrations",      href: "/settings/integrations",  icon: Plug,        section: "Navigation" },
-  { label: "Billing",           href: "/settings/billing",       icon: CreditCard,  section: "Navigation" },
 ]
 
 export function CommandPalette() {

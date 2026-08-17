@@ -108,7 +108,7 @@ function getVariableHint(name: string, label: string): string {
 // ---------------------------------------------------------------------------
 // Preview renderer — walks TipTap JSON and substitutes variable values
 // ---------------------------------------------------------------------------
-function renderPreview(content: unknown, values: Record<string, string>): string {
+export function renderPreview(content: unknown, values: Record<string, string>): string {
   if (!content || typeof content !== "object") return ""
 
   function visitNode(n: unknown): string {
@@ -123,7 +123,7 @@ function renderPreview(content: unknown, values: Record<string, string>): string
 
     // Text leaf
     if (node.type === "text") {
-      let text = node.text ?? ""
+      let text = escapeHtml(node.text ?? "")
       // Apply basic marks
       if (Array.isArray(node.marks)) {
         for (const mark of node.marks) {
@@ -142,7 +142,7 @@ function renderPreview(content: unknown, values: Record<string, string>): string
       if (filled) {
         return `<span class="font-medium text-foreground">${escapeHtml(filled)}</span>`
       }
-      return `<mark style="background:#fef3c7;color:#92400e;padding:0 4px;border-radius:3px;">{{${varName}}}</mark>`
+      return `<mark style="background:#fef3c7;color:#92400e;padding:0 4px;border-radius:3px;">{{${escapeHtml(varName)}}}</mark>`
     }
 
     const inner = Array.isArray(node.content) ? node.content.map(visitNode).join("") : ""
@@ -154,7 +154,7 @@ function renderPreview(content: unknown, values: Record<string, string>): string
     }
 
     if (node.type === "heading") {
-      const level = node.attrs?.level ?? "1"
+      const level = ["1", "2", "3"].includes(node.attrs?.level ?? "") ? node.attrs?.level ?? "1" : "1"
       const tag = `h${level}`
       const sizes: Record<string, string> = {
         "1": "font-size:1.5em;font-weight:700;margin:1em 0 0.5em",

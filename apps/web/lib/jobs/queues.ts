@@ -13,11 +13,17 @@ export interface ContractExtractJobData {
   contractId: string
   fileId: string
   storageKey: string
+  /** Initial uploads already contain user-reviewed metadata from the fast review form. */
+  preserveUserFields?: boolean
+  /** The create flow already ran the authoritative preview extractor. */
+  skipAiExtraction?: boolean
 }
 
 export interface ContractAiExtractJobData {
   contractId: string
   extractedText: string
+  /** Do not create AI suggestions for metadata the user supplied during upload. */
+  preserveUserFields?: boolean
 }
 
 export interface AlertsCheckJobData {
@@ -43,6 +49,8 @@ export interface ImportProcessJobData {
 export interface ContractEmbedJobData {
   contractId: string
   extractedText: string
+  preserveUserFields?: boolean
+  skipAiExtraction?: boolean
 }
 
 export interface SigningSyncJobData {
@@ -87,8 +95,18 @@ export type EmailJobData =
 
 export interface ObligationExtractJobData {
   contractId: string
+  organizationId: string
   extractedText: string  // passed in so the worker doesn't need a DB read
   requestedById: string
+  sourceHash: string
+}
+
+export interface ContractRiskScoreJobData {
+  contractId: string
+  organizationId: string
+  requestedById: string
+  extractedText: string
+  sourceHash: string
 }
 
 // ─── M6: Authoring (Word import / DOCX+PDF export) ───────────────────────────
@@ -159,6 +177,7 @@ let _obligationsCheckQueue: Queue<ObligationsCheckJobData> | null = null
 let _salesforcePollQueue: Queue<SalesforcePollJobData> | null = null
 let _importProcessQueue: Queue<ImportProcessJobData> | null = null
 let _obligationExtractQueue: Queue<ObligationExtractJobData> | null = null
+let _contractRiskScoreQueue: Queue<ContractRiskScoreJobData> | null = null
 
 export function getContractExtractQueue(): Queue<ContractExtractJobData> {
   return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", { connection }))
@@ -254,6 +273,13 @@ export function getObligationExtractQueue(): Queue<ObligationExtractJobData> {
   ))
 }
 
+export function getContractRiskScoreQueue(): Queue<ContractRiskScoreJobData> {
+  return (_contractRiskScoreQueue ??= new Queue<ContractRiskScoreJobData>(
+    "contract.risk_score",
+    { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 2, backoff: { type: "exponential", delay: 5000 } } },
+  ))
+}
+
 export function getImportProcessQueue(): Queue<ImportProcessJobData> {
   // attempts: 1 — partial progress is persisted per ImportRow as the worker
   // streams through the file. A retry would re-process completed rows; instead
@@ -331,4 +357,8 @@ export const obligationExtractQueue = {
   add: (...a: Parameters<Queue<ObligationExtractJobData>["add"]>) =>
     getObligationExtractQueue().add(...a),
   close: () => _obligationExtractQueue?.close() ?? Promise.resolve(),
+}
+export const contractRiskScoreQueue = {
+  add: (...a: Parameters<Queue<ContractRiskScoreJobData>["add"]>) => getContractRiskScoreQueue().add(...a),
+  close: () => _contractRiskScoreQueue?.close() ?? Promise.resolve(),
 }

@@ -1,33 +1,36 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import {
   LayoutDashboard,
   FileText,
-  Layers,
   Target,
   BarChart2,
-  Bot,
-  MessageSquare,
   Settings,
   LogOut,
   Search,
   ChevronDown,
   RefreshCw,
+  Menu,
 } from "lucide-react"
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { CmdK } from "@/components/cmd-k"
 import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { GlobalProviders } from "@/components/global-providers"
 import { AakdLogoMark } from "@/components/aakd-logo"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,17 +64,29 @@ function getInitials(name: string): string {
 
 // ─── SoonBadge ───────────────────────────────────────────────────────────────
 
-function SoonBadge() {
+function SoonBadge({ label }: { label: string }) {
   return (
-    <span className="ml-auto text-[9px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-      Soon
+    <span className="ms-auto rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+      {label}
     </span>
   )
 }
 
 // ─── NavItemRow ──────────────────────────────────────────────────────────────
 
-function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavItemRow({
+  item,
+  pathname,
+  compactAtTablet,
+  soonLabel,
+  onNavigate,
+}: {
+  item: NavItem
+  pathname: string
+  compactAtTablet: boolean
+  soonLabel: string
+  onNavigate?: () => void
+}) {
   const Icon = item.icon
   const activePrefix = item.matchPrefix ?? item.href
   const isActive = item.exact
@@ -81,12 +96,15 @@ function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
   if (item.disabled) {
     return (
       <div
-        className="flex items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] opacity-40 cursor-not-allowed select-none"
-        style={{ fontSize: "13px" }}
+        className={cn(
+          "flex min-h-11 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] opacity-40 cursor-not-allowed select-none",
+          compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
+        )}
+        title={item.label}
       >
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-        <span>{item.label}</span>
-        <SoonBadge />
+        <span className={cn(compactAtTablet && "md:hidden xl:inline")}>{item.label}</span>
+        <span className={cn("ms-auto", compactAtTablet && "md:hidden xl:inline-flex")}><SoonBadge label={soonLabel} /></span>
       </div>
     )
   }
@@ -94,19 +112,22 @@ function NavItemRow({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
+      aria-current={isActive ? "page" : undefined}
+      title={item.label}
       className={cn(
-        "flex items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] transition-colors",
+        "flex min-h-11 items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-[10px] py-2 text-[13px] transition-colors",
+        compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
         isActive
           ? "bg-primary/10 text-primary font-semibold"
           : "text-foreground/80 hover:bg-muted-foreground/[0.08] hover:text-foreground"
       )}
-      style={{ fontSize: "13px" }}
     >
       <Icon
         className="h-4 w-4 shrink-0"
         strokeWidth={isActive ? 2.2 : 1.8}
       />
-      <span>{item.label}</span>
+      <span className={cn(compactAtTablet && "md:hidden xl:inline")}>{item.label}</span>
     </Link>
   )
 }
@@ -121,8 +142,15 @@ function Sidebar({
   orgName,
   onSignOut,
   navSections,
+  navigationLabel,
   searchLabel,
+  signOutLabel,
+  soonLabel,
   themeLabel,
+  userAvatarLabel,
+  compactAtTablet = false,
+  className,
+  onNavigate,
 }: {
   pathname: string
   userName: string
@@ -131,50 +159,67 @@ function Sidebar({
   orgName: string
   onSignOut: () => void
   navSections: NavSection[]
+  navigationLabel: string
   searchLabel: string
+  signOutLabel: string
+  soonLabel: string
   themeLabel: string
+  userAvatarLabel: string
+  compactAtTablet?: boolean
+  className?: string
+  onNavigate?: () => void
 }) {
   return (
-    <aside className="flex flex-col h-full w-[232px] shrink-0 bg-muted border-r border-border">
+    <aside className={cn(
+      "flex h-full w-[232px] shrink-0 flex-col border-e border-border bg-muted",
+      compactAtTablet && "md:w-16 xl:w-[232px]",
+      className,
+    )}>
       {/* Logo row */}
-      <div className="flex items-center gap-2.5 px-3 py-3 border-b border-border">
+      <div className={cn(
+        "flex min-h-14 items-center gap-2.5 border-b border-border px-3 py-3",
+        compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3",
+      )}>
         <AakdLogoMark size={26} />
-        <span className="font-extrabold text-sm flex-1 min-w-0 truncate" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
+        <span className={cn("font-extrabold text-sm flex-1 min-w-0 truncate", compactAtTablet && "md:hidden xl:block")} style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
           Aakd
         </span>
-        <NotificationBell />
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className={cn(compactAtTablet && "md:hidden xl:inline-flex")}><NotificationBell /></span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground shrink-0", compactAtTablet && "md:hidden xl:block")} />
       </div>
 
       {/* Search bar */}
       <div className="px-2 pt-2 pb-1">
         <button
           type="button"
-          className="flex items-center gap-2 w-full rounded-[calc(var(--radius)-1px)] px-[10px] py-[6px] bg-background border border-border text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
-          style={{ fontSize: "13px" }}
+          className={cn(
+            "flex min-h-11 w-full items-center gap-2 rounded-[calc(var(--radius)-1px)] border border-border bg-background px-[10px] py-2 text-[13px] text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground",
+            compactAtTablet && "md:justify-center md:px-0 xl:justify-start xl:px-[10px]",
+          )}
           onClick={() => {
+            onNavigate?.()
             document.dispatchEvent(
               new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
             )
           }}
         >
           <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
-          <span className="flex-1 text-left">{searchLabel}</span>
-          <kbd className="font-mono text-[10px] bg-muted border border-border rounded px-1 py-0.5 text-muted-foreground leading-none">
+          <span className={cn("flex-1 text-start", compactAtTablet && "md:hidden xl:block")}>{searchLabel}</span>
+          <kbd className={cn("font-mono text-[11px] bg-muted border border-border rounded px-1 py-0.5 text-muted-foreground leading-none", compactAtTablet && "md:hidden xl:inline")}>
             ⌘K
           </kbd>
         </button>
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
+      <nav aria-label={navigationLabel} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
         {navSections.map((section) => (
           <div key={section.title}>
-            <p className="px-[10px] pt-[14px] pb-1 text-[10px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
+            <p className={cn("px-[10px] pt-[14px] pb-1 text-xs font-semibold tracking-[0.07em] text-muted-foreground uppercase", compactAtTablet && "md:sr-only xl:not-sr-only")}>
               {section.title}
             </p>
             {section.items.map((item) => (
-              <NavItemRow key={item.href} item={item} pathname={pathname} />
+              <NavItemRow key={item.href} item={item} pathname={pathname} compactAtTablet={compactAtTablet} soonLabel={soonLabel} onNavigate={onNavigate} />
             ))}
           </div>
         ))}
@@ -183,17 +228,17 @@ function Sidebar({
       {/* Spacer is handled by flex-1 on nav above */}
 
       {/* Theme toggle row */}
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
-        <ThemeToggle />
-        <span className="text-xs text-muted-foreground">{themeLabel}</span>
+      <div className={cn("flex items-center gap-2 px-3 py-2 border-t border-border", compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3")}>
+        <ThemeToggle label={themeLabel} />
+        <span className={cn("text-xs text-muted-foreground", compactAtTablet && "md:hidden xl:inline")}>{themeLabel}</span>
       </div>
 
       {/* User card */}
       <div className="px-2 pb-2">
-        <div className="bg-background border border-border rounded-md p-2 flex items-center gap-2">
+        <div className={cn("bg-background border border-border rounded-md p-2 flex items-center gap-2", compactAtTablet && "md:flex-col md:border-0 md:bg-transparent md:p-0 xl:flex-row xl:border xl:bg-background xl:p-2")}>
           {/* Avatar */}
           {userImage ? (
-            <img src={userImage} className="h-7 w-7 rounded-full object-cover shrink-0" alt="avatar" />
+            <img src={userImage} className="h-7 w-7 rounded-full object-cover shrink-0" alt={userAvatarLabel} />
           ) : (
             <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
               <span className="text-[10px] font-bold text-primary">
@@ -202,11 +247,11 @@ function Sidebar({
             </div>
           )}
           {/* Info */}
-          <div className="flex-1 min-w-0">
+          <div className={cn("flex-1 min-w-0", compactAtTablet && "md:hidden xl:block")}>
             <p className="font-semibold text-xs truncate leading-tight">
               {userName || userEmail}
             </p>
-            <p className="text-[10px] text-muted-foreground truncate leading-tight">
+            <p className="text-xs text-muted-foreground truncate leading-tight">
               {orgName}
             </p>
           </div>
@@ -214,9 +259,10 @@ function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+            className="size-11 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={onSignOut}
-            title="Sign out"
+            aria-label={signOutLabel}
+            title={signOutLabel}
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
@@ -232,10 +278,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, isPending } = useSession()
-  const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
-  const { data: orgs, isPending: orgsListPending } = useListOrganizations()
+  const {
+    data: activeOrg,
+    error: activeOrgError,
+    isPending: orgPending,
+    refetch: refetchActiveOrganization,
+  } = useActiveOrganization()
+  const {
+    data: orgs,
+    error: orgsListError,
+    isPending: orgsListPending,
+    refetch: refetchOrganizations,
+  } = useListOrganizations()
   const t = useTranslations("nav")
+  const locale = useLocale()
   const ph = usePostHog()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [activationFailure, setActivationFailure] = useState<{
+    organizationId: string
+    userId: string
+  } | null>(null)
+  const firstOrganizationId = orgs?.[0]?.id
+  const sessionUserId = session?.user?.id
 
   const NAV_SECTIONS: NavSection[] = [
     {
@@ -244,16 +308,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("dashboard"),   href: "/dashboard",   icon: LayoutDashboard, exact: true },
         { label: t("contracts"),   href: "/contracts",   icon: FileText },
         { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
-        { label: t("templates"),   href: "/templates",   icon: Layers },
         { label: t("obligations"), href: "/obligations", icon: Target },
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
-      ],
-    },
-    {
-      title: t("sections.ai"),
-      items: [
-        { label: t("aiAgents"),  href: "/ai/agents", icon: Bot,          disabled: true },
-        { label: t("aiCreate"),  href: "/ai/create", icon: MessageSquare, disabled: true },
       ],
     },
     {
@@ -279,9 +335,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // lib/auth/middleware.ts); mirror that here instead of showing a dead-end
   // "no organization" screen to someone who actually has one.
   useEffect(() => {
-    if (orgPending || orgsListPending || activeOrg || !orgs?.length) return
-    organization.setActive({ organizationId: orgs[0].id }).catch(() => {})
-  }, [orgPending, orgsListPending, activeOrg, orgs])
+    if (
+      isPending ||
+      !sessionUserId ||
+      orgPending ||
+      activeOrgError ||
+      orgsListPending ||
+      orgsListError ||
+      activeOrg ||
+      !firstOrganizationId ||
+      (
+        activationFailure?.organizationId === firstOrganizationId &&
+        activationFailure.userId === sessionUserId
+      )
+    ) return
+
+    let cancelled = false
+    organization.setActive({ organizationId: firstOrganizationId })
+      .then((result) => {
+        if (!cancelled && result?.error) {
+          setActivationFailure({ organizationId: firstOrganizationId, userId: sessionUserId })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivationFailure({ organizationId: firstOrganizationId, userId: sessionUserId })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isPending,
+    sessionUserId,
+    orgPending,
+    activeOrgError,
+    orgsListPending,
+    orgsListError,
+    activeOrg,
+    firstOrganizationId,
+    activationFailure,
+  ])
 
   // Identify authenticated user in PostHog so events are tied to real people
   useEffect(() => {
@@ -297,7 +392,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // While activeOrg is null but the org list hasn't resolved yet (or has, and
   // the auto-activate effect above just fired), keep showing the skeleton
   // rather than flashing the "no organization" screen.
-  const resolvingOrg = !activeOrg && (orgsListPending || Boolean(orgs?.length))
+  const activationError = !activeOrg &&
+    activationFailure?.organizationId === firstOrganizationId &&
+    activationFailure?.userId === sessionUserId
+  const organizationResolutionError = !activeOrg && Boolean(
+    activeOrgError || orgsListError || activationError
+  )
+  const resolvingOrg = !activeOrg && !organizationResolutionError && (
+    orgsListPending || Boolean(orgs?.length)
+  )
+
+  const retryOrganizationResolution = () => {
+    setActivationFailure(null)
+    void refetchActiveOrganization()
+    void refetchOrganizations()
+  }
+
+  if (!isPending && session?.user && organizationResolutionError) {
+    return (
+      <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
+        <AakdLogoMark size={36} />
+        <div className="space-y-1.5 text-center">
+          <h1 className="text-lg font-semibold text-foreground">{t("organizationLoadErrorTitle")}</h1>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            {t("organizationLoadErrorDescription")}
+          </p>
+        </div>
+        <Button variant="outline" onClick={retryOrganizationResolution}>
+          {t("retryOrganization")}
+        </Button>
+      </main>
+    )
+  }
 
   if (isPending || orgPending || resolvingOrg) {
     return (
@@ -319,23 +445,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // accept-invitation can resolve naturally.
   if (!activeOrg) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 gap-6">
+      <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
         <AakdLogoMark size={36} />
         <div className="text-center space-y-1.5">
-          <h1 className="text-lg font-semibold text-foreground">No organization yet</h1>
+          <h1 className="text-lg font-semibold text-foreground">{t("noOrganizationTitle")}</h1>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Create a new organization or accept an email invitation from your team.
+            {t("noOrganizationDescription")}
           </p>
         </div>
         <div className="flex flex-col items-center gap-3 w-full max-w-xs">
           <Button className="w-full" onClick={() => router.push("/create-org")}>
-            Create organization
+            {t("createOrganization")}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Waiting for an invite? Check your email and click the invitation link.
+            {t("invitationHint")}
           </p>
         </div>
-      </div>
+      </main>
     )
   }
 
@@ -345,7 +471,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const orgName = activeOrg?.name ?? ""
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background md:flex-row">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted px-3 md:hidden">
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetTrigger
+            render={<Button variant="ghost" size="icon" className="-ms-1 size-11" aria-label={t("openNavigation")} />}
+          >
+            <Menu className="size-5" />
+            <span className="sr-only">{t("openNavigation")}</span>
+          </SheetTrigger>
+          <SheetContent
+            side={locale === "ar" ? "right" : "left"}
+            closeLabel={t("closeNavigation")}
+            className="w-[min(19rem,88vw)] gap-0 border-border bg-muted p-0 text-foreground"
+          >
+            <SheetTitle className="sr-only">Aakd</SheetTitle>
+            <Sidebar
+              pathname={pathname}
+              userName={userName}
+              userEmail={userEmail}
+              userImage={userImage}
+              orgName={orgName}
+              onSignOut={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
+              navSections={NAV_SECTIONS}
+              navigationLabel={t("mobileNavigation")}
+              searchLabel={t("search")}
+              signOutLabel={t("signOut")}
+              soonLabel={t("soon")}
+              themeLabel={t("theme")}
+              userAvatarLabel={t("userAvatar")}
+              className="w-full border-e-0"
+              onNavigate={() => setMobileNavOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <AakdLogoMark size={24} />
+          <span className="text-sm font-extrabold" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif" }}>Aakd</span>
+        </Link>
+        <NotificationBell />
+      </header>
+
       <Sidebar
         pathname={pathname}
         userName={userName}
@@ -356,16 +522,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
         }
         navSections={NAV_SECTIONS}
+        navigationLabel={t("primaryNavigation")}
         searchLabel={t("search")}
+        signOutLabel={t("signOut")}
+        soonLabel={t("soon")}
         themeLabel={t("theme")}
+        userAvatarLabel={t("userAvatar")}
+        compactAtTablet
+        className="hidden md:flex"
       />
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </main>
 
-      <CmdK />
       <GlobalProviders />
     </div>
   )

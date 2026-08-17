@@ -1,14 +1,36 @@
-import { prisma } from "@/lib/db/client"
-import { ActivityAction } from "@prisma/client"
+import { getRequestContext } from "@/lib/context"
+import type { ActivityAction, PrismaClient } from "@prisma/client"
+
+type ActivityClient = {
+  activity: Pick<PrismaClient["activity"], "create">
+}
+
+async function getDefaultActivityClient(): Promise<ActivityClient> {
+  const { prisma } = await import("@/lib/db/client")
+  return prisma
+}
 
 export async function writeActivity(
   contractId: string,
   userId: string | null,
   action: ActivityAction,
   detail?: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  db?: ActivityClient,
 ) {
-  return prisma.activity.create({
+  const activityClient = db ?? await getDefaultActivityClient()
+  const request = getRequestContext()
+  const auditMetadata = {
+    ...(metadata ?? {}),
+    ...(request
+      ? {
+          requestSource: request.source,
+          requestId: request.requestId,
+        }
+      : {}),
+  }
+
+  return activityClient.activity.create({
     data: {
       contractId,
       userId,
@@ -16,7 +38,7 @@ export async function writeActivity(
       action,
       detail,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      metadata: metadata as any,
+      metadata: Object.keys(auditMetadata).length > 0 ? (auditMetadata as any) : undefined,
     },
   })
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { LOCALES, DEFAULT_LOCALE } from "@/lib/i18n/config"
+import { applySecurityHeaders, isTrustedMutationOrigin, requestIdFrom } from "@/lib/security/request"
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = [
@@ -29,9 +30,19 @@ function ensureLocaleCookie(req: NextRequest, res: NextResponse) {
   return res
 }
 
+function finalize(req: NextRequest, res: NextResponse, requestId: string) {
+  applySecurityHeaders(res.headers)
+  res.headers.set("x-request-id", requestId)
+  res.headers.append("Vary", "Cookie")
+  if (req.nextUrl.pathname.startsWith("/api/") || req.cookies.has("better-auth.session_token") || req.cookies.has("__Secure-better-auth.session_token")) {
+    res.headers.set("Cache-Control", "no-store")
+  }
+  return res
+}
+
 export function middleware(req: NextRequest) {
   // Propagate or generate a request ID for log correlation
-  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID()
+  const requestId = requestIdFrom(req.headers.get("x-request-id"))
 
   const { pathname } = req.nextUrl
 
@@ -43,9 +54,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/favicon")
 
   if (isPublic) {
-    const res = ensureLocaleCookie(req, NextResponse.next())
-    res.headers.set("x-request-id", requestId)
-    return res
+    return finalize(req, ensureLocaleCookie(req, NextResponse.next()), requestId)
   }
 
   // Allow API routes that carry a Bearer token — the route handler's
@@ -54,9 +63,7 @@ export function middleware(req: NextRequest) {
   // /login before the route handler ever runs, making API key auth dead.
   const authHeader = req.headers.get("Authorization")
   if (pathname.startsWith("/api/") && authHeader?.startsWith("Bearer ")) {
-    const res = ensureLocaleCookie(req, NextResponse.next())
-    res.headers.set("x-request-id", requestId)
-    return res
+    return finalize(req, ensureLocaleCookie(req, NextResponse.next()), requestId)
   }
 
   // Check for Better Auth session cookie
@@ -64,17 +71,17 @@ export function middleware(req: NextRequest) {
     req.cookies.get("better-auth.session_token")?.value ||
     req.cookies.get("__Secure-better-auth.session_token")?.value
 
+  if (!isTrustedMutationOrigin(req.method, req.headers.get("origin"), req.nextUrl.origin, Boolean(sessionToken))) {
+    return finalize(req, ensureLocaleCookie(req, NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 })), requestId)
+  }
+
   if (!sessionToken) {
     const loginUrl = new URL("/login", req.url)
     loginUrl.searchParams.set("callbackUrl", pathname)
-    const res = ensureLocaleCookie(req, NextResponse.redirect(loginUrl))
-    res.headers.set("x-request-id", requestId)
-    return res
+    return finalize(req, ensureLocaleCookie(req, NextResponse.redirect(loginUrl)), requestId)
   }
 
-  const res = ensureLocaleCookie(req, NextResponse.next())
-  res.headers.set("x-request-id", requestId)
-  return res
+  return finalize(req, ensureLocaleCookie(req, NextResponse.next()), requestId)
 }
 
 export const config = {

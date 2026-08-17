@@ -61,6 +61,8 @@ interface ExtractionResult {
   paymentTerms?: string | null
   governingLaw?: string | null
   autoRenewal?: boolean
+  renewalDate?: string | null
+  noticePeriodDays?: number | null
   description?: string | null
   confidence?: Record<string, number>
   error?: string
@@ -68,7 +70,7 @@ interface ExtractionResult {
 }
 
 const SYSTEM_PROMPT =
-  "Extract key contract metadata from the following contract text. Return a JSON object with these exact keys: title (string), contractType (one of: NDA, MSA, SOW, EMPLOYMENT, VENDOR, CUSTOMER, OTHER), counterpartyName (string), startDate (ISO date string or null), endDate (ISO date string or null), value (number or null), currency (one of: USD, EUR, GBP, JPY, OTHER), paymentTerms (string or null), governingLaw (string or null), autoRenewal (boolean), description (1-2 sentence summary). Also include a confidence object with keys matching the above fields and values 0-1. Return only valid JSON, no markdown."
+  "Extract key contract metadata from the following contract text. Return a JSON object with these exact keys: title (string), contractType (one of: NDA, MSA, SOW, EMPLOYMENT, VENDOR, CUSTOMER, OTHER), counterpartyName (string), startDate (ISO date string or null), endDate (ISO date string or null), renewalDate (ISO date string or null), noticePeriodDays (integer or null), value (number or null), currency (one of: USD, EUR, GBP, JPY, OTHER), paymentTerms (string or null), governingLaw (string or null), autoRenewal (boolean), description (1-2 sentence summary). Also include a confidence object with keys matching the above fields and values 0-1. Return only valid JSON, no markdown."
 
 async function runAiExtraction(
   contractText: string,
@@ -164,6 +166,16 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const extracted = await runAiExtraction(contractText, ctx.organizationId)
+    // Preserve deterministic facts even when the model omits a regular clause.
+    // This keeps the create-time preview authoritative when the background
+    // extractor is intentionally skipped to avoid a duplicate AI call.
+    const renewalClause = contractText.match(/[^.\n]{0,180}(?:automatically\s+renews?|auto[- ]renews?)[^.\n]{0,220}/i)
+    if (renewalClause && extracted.autoRenewal == null) extracted.autoRenewal = true
+    const noticeClause = contractText.match(/[^.\n]{0,180}(?:\b(\d{1,3})\s+days?\s+(?:written\s+)?notice|notice\s+of\s+(\d{1,3})\s+days?)[^.\n]{0,180}/i)
+    if (noticeClause && extracted.noticePeriodDays == null) {
+      const days = Number(noticeClause[1] ?? noticeClause[2])
+      if (Number.isInteger(days)) extracted.noticePeriodDays = days
+    }
     if (!extracted.error) {
       captureServerEvent(ctx.userId, "ai_extraction_run", {
         organizationId: ctx.organizationId,

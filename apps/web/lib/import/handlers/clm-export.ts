@@ -9,7 +9,7 @@ import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
-import { createImportedContract } from "../create-contract"
+import { createImportedContractForRow, recordImportRowFailure } from "../create-contract"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { parseImportDate, parseCurrency, parseNumber } from "../parse-utils"
 import { safeUnzipSync } from "../zip-safety"
@@ -155,6 +155,14 @@ async function runContractBook(
   for (let i = 0; i < head.length; i++) {
     const rowIndex = i + 1
     const row = head[i]
+    const existing = await db.importRow.findFirst({
+      where: { jobId: job.id, rowIndex, status: "success" },
+      select: { id: true },
+    })
+    if (existing) {
+      succeeded += 1
+      continue
+    }
     try {
       const title = (row.Title ?? "").trim()
       if (!title) throw new Error("title: required (Title column)")
@@ -182,7 +190,7 @@ async function runContractBook(
         }
       }
 
-      const contractId = await createImportedContract(
+      await createImportedContractForRow(
         {
           title: title.slice(0, 500),
           counterpartyName: row.Counterparty?.trim() || undefined,
@@ -194,24 +202,13 @@ async function runContractBook(
           file,
         },
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef: title },
       )
-
-      // Upsert on (jobId, rowIndex) — a retry re-processes the same
-      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: title, status: "success", contractId },
-        update: { sourceRef: title, status: "success", contractId, errorMessage: null },
-      })
       succeeded += 1
     } catch (err) {
       const sourceRef = row.Title ?? `row_${rowIndex}`
       const errorMessage = (err as Error).message || "unknown_error"
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef, status: "failed", errorMessage },
-        update: { sourceRef, status: "failed", errorMessage, contractId: null },
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef }, errorMessage)
       failed += 1
     }
   }
@@ -331,6 +328,14 @@ async function runDocuSign(
   for (let i = 0; i < head.length; i++) {
     const rowIndex = i + 1
     const doc = head[i]
+    const existing = await db.importRow.findFirst({
+      where: { jobId: job.id, rowIndex, status: "success" },
+      select: { id: true },
+    })
+    if (existing) {
+      succeeded += 1
+      continue
+    }
     try {
       const meta = doc.metadata!
       const title = (meta.documentName || doc.dir.split("/").pop() || "Untitled").slice(0, 500)
@@ -364,7 +369,7 @@ async function runDocuSign(
         }
       }
 
-      const contractId = await createImportedContract(
+      await createImportedContractForRow(
         {
           title,
           counterpartyName: counterparty,
@@ -376,23 +381,12 @@ async function runDocuSign(
           file,
         },
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef: doc.dir },
       )
-
-      // Upsert on (jobId, rowIndex) — a retry re-processes the same
-      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "success", contractId },
-        update: { sourceRef: doc.dir, status: "success", contractId, errorMessage: null },
-      })
       succeeded += 1
     } catch (err) {
       const errorMessage = (err as Error).message || "unknown_error"
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: doc.dir, status: "failed", errorMessage },
-        update: { sourceRef: doc.dir, status: "failed", errorMessage, contractId: null },
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef: doc.dir }, errorMessage)
       failed += 1
     }
   }

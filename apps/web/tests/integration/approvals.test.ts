@@ -454,6 +454,44 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
     expect(prisma.contract.update).not.toHaveBeenCalled()
   })
 
+  it("does not activate the required chain when an optional approval is approved", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract,
+      status: "PENDING_APPROVAL",
+    } as any)
+    vi.mocked(prisma.approval.findUnique).mockResolvedValueOnce({
+      ...mockApproval,
+      assignedToId: "user-1",
+      required: false,
+    } as any)
+    vi.mocked(prisma.approval.update).mockResolvedValueOnce({
+      ...mockApproval,
+      status: "approved",
+      required: false,
+      decidedAt: new Date(),
+    } as any)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+
+    const req = new Request(
+      "http://localhost/api/contracts/contract-1/approvals/approval-1",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "approved" }),
+      },
+    )
+    const res = await requestContext.run(mockCtx, () =>
+      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.approval.findFirst).not.toHaveBeenCalled()
+    expect(prisma.approval.findMany).not.toHaveBeenCalled()
+    expect(prisma.approval.count).not.toHaveBeenCalled()
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+  })
+
   it("rejects an approval and writes REJECTED activity", async () => {
     const { writeActivity } = await import("@/lib/db/activity")
 

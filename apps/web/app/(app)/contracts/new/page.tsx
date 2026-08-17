@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { buildExtractionSeedPayload } from "@/lib/ai/extraction-seed"
 
 // ---- Constants ----
 
@@ -24,7 +25,7 @@ const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "OTHER"] as const
 
 // ---- Types ----
 
-type PageState = "upload" | "extracting" | "review"
+type PageState = "upload" | "review"
 
 interface FormData {
   title: string
@@ -36,6 +37,8 @@ interface FormData {
   currency: string
   paymentTerms: string
   autoRenewal: boolean
+  renewalDate: string
+  noticePeriodDays: string
   governingLaw: string
   description: string
 }
@@ -50,6 +53,8 @@ const defaultFormData: FormData = {
   currency: "USD",
   paymentTerms: "",
   autoRenewal: false,
+  renewalDate: "",
+  noticePeriodDays: "",
   governingLaw: "",
   description: "",
 }
@@ -65,6 +70,8 @@ interface ExtractionResult {
   paymentTerms?: string | null
   governingLaw?: string | null
   autoRenewal?: boolean
+  renewalDate?: string | null
+  noticePeriodDays?: number | null
   description?: string | null
   confidence?: Record<string, number>
   error?: string
@@ -192,7 +199,7 @@ function UploadScreen({
                 onClick={() => onFileSelected(pendingFile)}
                 className="w-full"
               >
-                Analyze with AI →
+                Continue to review →
               </Button>
             </div>
           ) : (
@@ -232,35 +239,13 @@ function UploadScreen({
 
 // ---- Extracting Screen ----
 
-function ExtractingScreen() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 animate-pulse">
-        <Sparkles className="h-8 w-8 text-primary" />
-      </div>
-      <div className="text-center space-y-1.5">
-        <h2 className="text-xl font-semibold text-foreground">
-          Analyzing your contract...
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          AI is extracting key fields. This takes a few seconds.
-        </p>
-      </div>
-      <div className="flex gap-1.5 mt-2">
-        <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.3s]" />
-        <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.15s]" />
-        <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce" />
-      </div>
-    </div>
-  )
-}
-
 // ---- Review Screen ----
 
 function ReviewScreen({
   file,
   formData,
   confidence,
+  aiExtracting,
   submitting,
   onFormChange,
   onToggleRenewal,
@@ -271,6 +256,7 @@ function ReviewScreen({
   file: File
   formData: FormData
   confidence: Record<string, number>
+  aiExtracting: boolean
   submitting: boolean
   onFormChange: (key: keyof FormData, value: string) => void
   onToggleRenewal: () => void
@@ -489,7 +475,12 @@ function ReviewScreen({
               </span>
             </div>
 
-            {Object.keys(confidence).length > 0 ? (
+            {aiExtracting ? (
+              <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                Reading the document in the background. You can keep editing.
+              </div>
+            ) : Object.keys(confidence).length > 0 ? (
               <div className="space-y-2.5 pt-1">
                 {Object.entries(confidence).map(([field, val]) => (
                   <ConfidenceBar key={field} label={field} value={val} />
@@ -560,21 +551,28 @@ export default function NewContractPage() {
   const [file, setFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<FormData>(defaultFormData)
   const [confidence, setConfidence] = useState<Record<string, number>>({})
+  const [aiExtracting, setAiExtracting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [previewCompleted, setPreviewCompleted] = useState(false)
+  const touchedFieldsRef = useRef<Set<keyof FormData>>(new Set())
+  const aiFieldsRef = useRef<Set<keyof FormData>>(new Set())
+  const extractionAbortRef = useRef<AbortController | null>(null)
 
   function updateField(key: keyof FormData, value: string) {
+    touchedFieldsRef.current.add(key)
     setFormData((prev) => ({ ...prev, [key]: value }))
   }
 
   function toggleRenewal() {
+    touchedFieldsRef.current.add("autoRenewal")
     setFormData((prev) => ({ ...prev, autoRenewal: !prev.autoRenewal }))
   }
 
-  async function handleFileSelected(selectedFile: File) {
-    setFile(selectedFile)
-    setPageState("extracting")
-
-    const fileNameWithoutExt = selectedFile.name.replace(/\.[^.]+$/, "")
+  async function requestExtraction(selectedFile: File, fallbackTitle: string) {
+    const controller = new AbortController()
+    extractionAbortRef.current?.abort()
+    extractionAbortRef.current = controller
+    setAiExtracting(true)
 
     try {
       const fd = new globalThis.FormData()
@@ -584,49 +582,95 @@ export default function NewContractPage() {
         method: "POST",
         body: fd,
         credentials: "include",
+        signal: controller.signal,
       })
 
       const extracted: ExtractionResult = await res.json()
+      const extractedValues: Partial<FormData> = {
+        title: extracted.title ?? undefined,
+        contractType: extracted.contractType ?? undefined,
+        counterpartyName: extracted.counterpartyName ?? undefined,
+        startDate: extracted.startDate?.slice(0, 10) ?? undefined,
+        endDate: extracted.endDate?.slice(0, 10) ?? undefined,
+        value: extracted.value != null ? String(extracted.value) : undefined,
+        currency: extracted.currency ?? undefined,
+        paymentTerms: extracted.paymentTerms ?? undefined,
+        autoRenewal: extracted.autoRenewal,
+        renewalDate: extracted.renewalDate?.slice(0, 10) ?? undefined,
+        noticePeriodDays: extracted.noticePeriodDays != null ? String(extracted.noticePeriodDays) : undefined,
+        governingLaw: extracted.governingLaw ?? undefined,
+        description: extracted.description ?? undefined,
+      }
 
-      setFormData({
-        title: extracted.title ?? titleCaseFromFilename(fileNameWithoutExt),
-        contractType: extracted.contractType ?? "",
-        counterpartyName: extracted.counterpartyName ?? "",
-        startDate: extracted.startDate?.slice(0, 10) ?? "",
-        endDate: extracted.endDate?.slice(0, 10) ?? "",
-        value: extracted.value != null ? String(extracted.value) : "",
-        currency: extracted.currency ?? "USD",
-        paymentTerms: extracted.paymentTerms ?? "",
-        autoRenewal: extracted.autoRenewal ?? false,
-        governingLaw: extracted.governingLaw ?? "",
-        description: extracted.description ?? "",
+      for (const [key, value] of Object.entries(extractedValues) as Array<[keyof FormData, FormData[keyof FormData] | undefined]>) {
+        if (value !== undefined && value !== null && value !== "") {
+          aiFieldsRef.current.add(key)
+        }
+      }
+
+      setFormData((prev) => {
+        const next = { ...prev }
+        for (const [key, value] of Object.entries(extractedValues) as Array<[keyof FormData, FormData[keyof FormData] | undefined]>) {
+          if (value !== undefined && value !== null && value !== "" && !touchedFieldsRef.current.has(key)) {
+            next[key] = value as never
+          }
+        }
+        return next
       })
       setConfidence(extracted.confidence ?? {})
 
       if (extracted.error) {
+        setPreviewCompleted(false)
         toast.warning(
           extracted.partial
-            ? "AI extraction partially failed — fill in missing fields manually."
-            : "AI extraction unavailable — please fill in fields manually.",
+            ? "AI extraction partially failed. You can fill in the remaining fields."
+            : "AI extraction is unavailable. You can fill in the fields manually.",
+        )
+      } else {
+        // Only skip the worker's authoritative extraction when the preview
+        // completed cleanly. Partial/error responses must fall back to the
+        // worker so a transient parser failure cannot leave the contract with
+        // only the user-entered seed values.
+        setPreviewCompleted(true)
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setPreviewCompleted(false)
+        toast.error("AI extraction is unavailable. You can continue manually.")
+        setFormData((prev) =>
+          prev.title ? prev : { ...prev, title: fallbackTitle },
         )
       }
-    } catch {
-      // Network or parse error — degrade gracefully, still go to review
-      toast.error("Could not reach AI extraction. Please fill in fields manually.")
-      setFormData((prev) => ({
-        ...prev,
-        title: titleCaseFromFilename(fileNameWithoutExt),
-      }))
-      setConfidence({})
+    } finally {
+      if (extractionAbortRef.current === controller) {
+        extractionAbortRef.current = null
+        setAiExtracting(false)
+      }
     }
+  }
 
+  function handleFileSelected(selectedFile: File) {
+    setFile(selectedFile)
+    const fileNameWithoutExt = selectedFile.name.replace(/\.[^.]+$/, "")
+    touchedFieldsRef.current.clear()
+    aiFieldsRef.current.clear()
+    setPreviewCompleted(false)
+    setFormData({ ...defaultFormData, title: titleCaseFromFilename(fileNameWithoutExt) })
+    setConfidence({})
     setPageState("review")
+    void requestExtraction(selectedFile, titleCaseFromFilename(fileNameWithoutExt))
   }
 
   function handleChangeFile() {
+    extractionAbortRef.current?.abort()
+    extractionAbortRef.current = null
+    touchedFieldsRef.current.clear()
+    aiFieldsRef.current.clear()
+    setPreviewCompleted(false)
     setFile(null)
     setFormData(defaultFormData)
     setConfidence({})
+    setAiExtracting(false)
     setPageState("upload")
   }
 
@@ -652,6 +696,8 @@ export default function NewContractPage() {
         currency: formData.currency === "OTHER" ? "USD" : (formData.currency || "USD"),
         startDate: formData.startDate ? isoDate(formData.startDate) : undefined,
         endDate: formData.endDate ? isoDate(formData.endDate) : undefined,
+        renewalDate: formData.renewalDate ? isoDate(formData.renewalDate) : undefined,
+        noticePeriodDays: formData.noticePeriodDays ? Number(formData.noticePeriodDays) : undefined,
         governingLaw: formData.governingLaw || undefined,
         autoRenewal: formData.autoRenewal,
         notes: formData.description || undefined,
@@ -672,20 +718,10 @@ export default function NewContractPage() {
       const contract = (await res.json()) as { id: string }
 
       if (file) {
-        const fd = new globalThis.FormData()
-        fd.append("file", file)
-        await fetch(`/api/contracts/${contract.id}/upload`, {
-          method: "POST",
-          body: fd,
-          credentials: "include",
-        })
-
-        // Seed AIExtraction rows immediately from the Pass-1 (extract-preview)
-        // data so the AI Extractions tab is populated the moment the user lands
-        // on the contract detail page — no spinner needed.
-        // The worker's ai_extract job will later enrich these rows with
-        // sourceText / sourcePage via its own upsert (skipDuplicates + updateMany).
-        const seedFields: Array<{ field: string; rawValue: string }> = [
+        // Persist Pass-1 provenance before uploading the file. The upload
+        // enqueues the worker, so doing this first prevents a fast worker from
+        // creating an AI row before a user-edited value is recorded as manual.
+        const seedFields: Array<{ field: keyof FormData; rawValue: string }> = [
           { field: "contractType",     rawValue: formData.contractType },
           { field: "counterpartyName", rawValue: formData.counterpartyName },
           { field: "startDate",        rawValue: formData.startDate },
@@ -694,24 +730,38 @@ export default function NewContractPage() {
           { field: "currency",         rawValue: formData.currency === "OTHER" ? "USD" : formData.currency },
           { field: "governingLaw",     rawValue: formData.governingLaw },
           { field: "autoRenewal",      rawValue: String(formData.autoRenewal) },
+          { field: "renewalDate",      rawValue: formData.renewalDate },
+          { field: "noticePeriodDays", rawValue: formData.noticePeriodDays },
         ]
-        const seedPayload = seedFields
-          .filter(({ rawValue }) => rawValue !== "" && rawValue != null)
-          .map(({ field, rawValue }) => ({
-            field,
-            rawValue,
-            confidence: confidence[field] ?? 0,
-          }))
+        const seedPayload = buildExtractionSeedPayload(
+          seedFields,
+          touchedFieldsRef.current,
+          aiFieldsRef.current,
+          confidence,
+        )
 
         if (seedPayload.length > 0) {
-          await fetch(`/api/contracts/${contract.id}/extractions`, {
+          const seedRes = await fetch(`/api/contracts/${contract.id}/extractions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ extractions: seedPayload }),
             credentials: "include",
-          }).catch(() => {
-            // Non-critical — the worker will populate the tab anyway
           })
+          if (!seedRes.ok) throw new Error("Initial extraction review state could not be saved")
+        }
+
+        const fd = new globalThis.FormData()
+        fd.append("file", file)
+        if (previewCompleted) {
+          fd.append("previewCompleted", "true")
+        }
+        const uploadRes = await fetch(`/api/contracts/${contract.id}/upload`, {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+        })
+        if (!uploadRes.ok) {
+          throw new Error("File upload failed")
         }
       }
 
@@ -747,12 +797,12 @@ export default function NewContractPage() {
       {pageState === "upload" && (
         <UploadScreen onFileSelected={handleFileSelected} />
       )}
-      {pageState === "extracting" && <ExtractingScreen />}
       {pageState === "review" && file && (
         <ReviewScreen
           file={file}
           formData={formData}
           confidence={confidence}
+          aiExtracting={aiExtracting}
           submitting={submitting}
           onFormChange={updateField}
           onToggleRenewal={toggleRenewal}

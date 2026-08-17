@@ -27,30 +27,11 @@ export interface ImportJobDetail {
   rows: ImportRow[]
 }
 
-export const SOURCE_LABEL: Record<ImportSource, string> = {
-  CSV: "Spreadsheet",
-  BATCH_FILES: "Batch Files",
-  GOOGLE_DRIVE: "Google Drive",
-  PANDADOC: "PandaDoc",
-  CLM_EXPORT: "CLM Export",
-}
-
-export const FIELD_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "(ignore)" },
-  { value: "title", label: "Contract title *" },
-  { value: "contractType", label: "Contract type" },
-  { value: "counterpartyName", label: "Counterparty name" },
-  { value: "counterpartyContact", label: "Counterparty email" },
-  { value: "value", label: "Contract value" },
-  { value: "currency", label: "Currency" },
-  { value: "startDate", label: "Start date" },
-  { value: "endDate", label: "End date" },
-  { value: "renewalDate", label: "Renewal date" },
-  { value: "noticePeriodDays", label: "Notice period (days)" },
-  { value: "autoRenewal", label: "Auto-renewal" },
-  { value: "notes", label: "Notes" },
-  { value: "status", label: "Status" },
-]
+export const FIELD_OPTIONS = [
+  "", "title", "contractType", "counterpartyName", "counterpartyContact", "value",
+  "currency", "startDate", "endDate", "renewalDate", "noticePeriodDays", "autoRenewal",
+  "notes", "status",
+] as const
 
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes == null) return "—"

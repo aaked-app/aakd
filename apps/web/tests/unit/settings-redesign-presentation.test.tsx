@@ -1,0 +1,145 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import IntegrationsPage from "@/app/(app)/settings/integrations/page"
+import OrgPage from "@/app/(app)/settings/org/page"
+import ProfilePage from "@/app/(app)/settings/profile/page"
+import ar from "@/messages/ar.json"
+import de from "@/messages/de.json"
+import en from "@/messages/en.json"
+import es from "@/messages/es.json"
+import fr from "@/messages/fr.json"
+
+const catalogs = { en, fr, de, es, ar }
+let locale = "en-US"
+let searchParams = new URLSearchParams()
+const { updateUser, toastError, toastSuccess } = vi.hoisted(() => ({
+  updateUser: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+}))
+
+function message(namespace: string, key: string, values?: Record<string, unknown>) {
+  const catalog = catalogs[locale.split("-")[0] as keyof typeof catalogs]
+  const value = `${namespace}.${key}`.split(".").reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") return undefined
+    return (current as Record<string, unknown>)[segment]
+  }, catalog)
+  if (typeof value !== "string") throw new Error(`Missing message ${locale}.${namespace}.${key}`)
+  return Object.entries(values ?? {}).reduce(
+    (result, [name, replacement]) => result.replaceAll(`{${name}}`, String(replacement)),
+    value,
+  )
+}
+
+vi.mock("next/navigation", () => ({ useSearchParams: () => searchParams }))
+vi.mock("next-intl", () => ({
+  useLocale: () => locale,
+  useTranslations: (namespace: string) =>
+    (key: string, values?: Record<string, unknown>) => message(namespace, key, values),
+}))
+vi.mock("@/lib/auth/client", () => ({
+  useSession: () => ({
+    data: { user: { id: "user-1", name: "Jane Smith", email: "jane@example.com", image: "/avatar.png" } },
+    isPending: false,
+  }),
+  useActiveOrganization: () => ({
+    data: {
+      id: "org-1",
+      name: "Acme",
+      createdAt: "2026-08-17T23:30:00-07:00",
+      members: [{ userId: "user-1", role: "admin" }],
+    },
+  }),
+  organization: { setActive: vi.fn().mockResolvedValue(undefined) },
+  authClient: { updateUser },
+}))
+vi.mock("sonner", () => ({
+  toast: { error: toastError, success: toastSuccess, info: vi.fn() },
+}))
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+
+function fetchFixture(input: RequestInfo | URL) {
+  const url = String(input)
+  if (url === "/api/crm/status") return json({ integrations: [] })
+  if (url === "/api/org/notification-channels") return json({ channels: [] })
+  if (url === "/api/org/members") return json([{ userId: "user-1", role: "admin" }])
+  if (url === "/api/org") return json({ name: "Acme", meta: {}, logo: null })
+  if (url === "/api/ai-status") return json({ provider: null, model: null, hasKey: false, source: null })
+  return json({})
+}
+
+describe("remaining Settings redesign presentation", () => {
+  beforeEach(() => {
+    locale = "en-US"
+    searchParams = new URLSearchParams()
+    updateUser.mockReset()
+    toastError.mockReset()
+    toastSuccess.mockReset()
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => fetchFixture(input)))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it("renders integrations from the Arabic catalog and never echoes an OAuth query error", async () => {
+    locale = "ar"
+    searchParams = new URLSearchParams("error=database_connection_string")
+    render(<IntegrationsPage />)
+
+    expect(screen.getByRole("heading", { name: "التكاملات" })).toBeInTheDocument()
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("تعذر ربط التكامل."))
+    expect(document.body).not.toHaveTextContent("database_connection_string")
+  })
+
+  it("exposes localized integration tabs and 44px interactive targets", async () => {
+    render(<IntegrationsPage />)
+
+    const tablist = screen.getByRole("tablist", { name: "Integration categories" })
+    const crm = screen.getByRole("tab", { name: "CRM" })
+    const storage = screen.getByRole("tab", { name: "Cloud storage" })
+    expect(tablist).toContainElement(crm)
+    expect(crm).toHaveAttribute("aria-selected", "true")
+    expect(crm).toHaveClass("min-h-11")
+    fireEvent.click(storage)
+    expect(storage).toHaveAttribute("aria-selected", "true")
+    expect(await screen.findByRole("button", { name: "Connect Google Drive" })).toHaveClass("min-h-11")
+  })
+
+  it("uses locale-owned UTC organization dates and translated option labels without changing values", async () => {
+    locale = "de-DE"
+    render(<OrgPage />)
+
+    expect(await screen.findByText("18. August 2026")).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Technologie" })).toHaveValue("Technology")
+    expect(screen.getByRole("option", { name: "EST — Ostküste" })).toHaveValue("America/New_York")
+    expect(screen.getByLabelText("Organisationsname")).toHaveClass("min-h-11")
+  })
+
+  it("does not expose profile-provider failures and labels avatar controls", async () => {
+    updateUser.mockResolvedValue({ error: { message: "database_connection_string" } })
+    render(<ProfilePage />)
+
+    expect(screen.getByRole("img", { name: "Profile avatar" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Name")).toHaveClass("min-h-11")
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Updated" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Failed to save changes"))
+    expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
+  })
+
+  it("keeps all redesigned Settings namespaces in five-locale parity", () => {
+    const leafKeys = (value: unknown, prefix = ""): string[] =>
+      value && typeof value === "object" && !Array.isArray(value)
+        ? Object.entries(value).flatMap(([key, child]) => leafKeys(child, prefix ? `${prefix}.${key}` : key))
+        : [prefix]
+    for (const namespace of ["org", "settingsProfile", "members", "settingsIntegrations"] as const) {
+      const expected = leafKeys(en[namespace]).sort()
+      for (const catalog of [fr, de, es, ar]) expect(leafKeys(catalog[namespace]).sort()).toEqual(expected)
+    }
+  })
+})

@@ -15,21 +15,12 @@
 import pino from "pino"
 import { trace } from "@opentelemetry/api"
 
-const isDev = process.env.NODE_ENV !== "production"
-
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? (isDev ? "debug" : "info"),
-  // Pretty-print in development, newline-delimited JSON in production
-  ...(isDev && {
-    transport: {
-      target: "pino-pretty",
-      options: {
-        colorize: true,
-        translateTime: "SYS:standard",
-        ignore: "pid,hostname",
-      },
-    },
-  }),
+  level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV !== "production" ? "debug" : "info"),
+  // Keep logging in-process. A pino-pretty worker transport causes Next.js
+  // dev bundles to spawn a thread-stream worker that cannot resolve reliably,
+  // leading to repeated worker exits, full-page reloads, and multi-second API
+  // delays. JSON logs remain readable in both development and production.
   // Redact sensitive fields from all log output — both top-level and nested
   redact: {
     paths: [

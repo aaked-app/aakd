@@ -1,23 +1,29 @@
-FROM node:20-alpine AS deps
+FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS deps
 RUN npm install -g pnpm@10.33.3
 WORKDIR /app
 # Copy manifests first — cached until a manifest changes
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile \
+  && pnpm --filter web deploy --prod --legacy /prod
 
-FROM node:20-alpine AS runner
+FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 workerjs && adduser --system --uid 1001 --ingroup workerjs workerjs
 # LibreOffice is used by the document.convert worker to convert PDF→DOCX before
 # parsing with mammoth, which preserves tables, headings, and structure.
 RUN apk add --no-cache libreoffice poppler-utils
+# Prisma CLI is needed only while building the generated worker client; keeping
+# it global avoids shipping the full development dependency tree.
+RUN npm install -g prisma@7.8.0
 
-# Root node_modules (pnpm virtual store + hoisted packages)
-COPY --from=deps /app/node_modules ./node_modules
-# Workspace-local node_modules — Docker dereferences symlinks on COPY so these
-# become real files. Gives us binaries like prisma in apps/web/node_modules/.bin
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+# Use a portable production-only dependency tree instead of copying the entire
+# workspace store and development dependencies into the worker image.
+COPY --from=deps /prod/node_modules ./apps/web/node_modules
+# Worker job modules live at /app/worker and resolve packages from the app
+# workspace through this shared runtime dependency path.
+RUN ln -s /app/apps/web/node_modules /app/node_modules
 
 # Copy worker source into apps/web/ so module resolution matches local dev
 COPY apps/web/prisma ./apps/web/prisma
@@ -30,6 +36,9 @@ COPY worker/ ./worker/
 
 # Switch to the web package directory so relative paths + binaries align
 WORKDIR /app/apps/web
-RUN node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
+RUN prisma generate --schema=./prisma/schema.prisma
 
+RUN chown -R workerjs:workerjs /app
+USER workerjs
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "process.kill(1, 0)"
 CMD ["node_modules/.bin/tsx", "--tsconfig", "tsconfig.worker.json", "worker.ts"]

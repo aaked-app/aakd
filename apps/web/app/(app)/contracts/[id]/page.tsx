@@ -78,7 +78,6 @@ import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
-import { EditorTab } from "@/components/editor/editor-tab"
 import { ContractCrmSection } from "@/components/crm/contract-crm-section"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -87,9 +86,10 @@ interface AIExtraction {
   id: string
   field: string
   rawValue: string
-  confidence: number
+  confidence: number | null
   sourceText: string
   sourcePage: number | null
+  extractedBy: string
   status: "pending" | "accepted" | "rejected"
 }
 
@@ -122,6 +122,23 @@ const STATUS_DOT: Record<ContractStatus, string> = {
 
 const CONTRACT_TYPES = ["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"] as const
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "OTHER"] as const
+
+const CONTRACT_TAB_VALUES = [
+  "overview",
+  "documents",
+  "ai-extractions",
+  "approvals",
+  "signing",
+  "editor",
+  "obligations",
+  "risk",
+] as const
+
+type ContractTabValue = (typeof CONTRACT_TAB_VALUES)[number]
+
+function isContractTabValue(value: string | null): value is ContractTabValue {
+  return CONTRACT_TAB_VALUES.includes(value as ContractTabValue)
+}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -269,6 +286,7 @@ function ReviewerPicker({
 
 export default function ContractDetailPage() {
   const tStatuses = useTranslations("contract.statuses")
+  const tWorkspace = useTranslations("contract.workspace")
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -277,10 +295,13 @@ export default function ContractDetailPage() {
 
   const [contract, setContract] = useState<Contract | null>(null)
   const [files, setFiles] = useState<ContractFile[]>([])
+  const [previewFileState, setPreviewFileState] = useState<{ file: ContractFile; url: string } | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [alerts, setAlerts] = useState<ContractAlert[]>([])
   const [extractions, setExtractions] = useState<AIExtraction[]>([])
   const [extractionPolling, setExtractionPolling] = useState(false)
+  const [updatingExtractionId, setUpdatingExtractionId] = useState<string | null>(null)
+  const [rerunningExtraction, setRerunningExtraction] = useState(false)
   const extractionPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [obligations, setObligations] = useState<Obligation[]>([])
@@ -378,8 +399,10 @@ export default function ContractDetailPage() {
   // until data appears (or give up after 90 s).
   useEffect(() => {
     if (loading) return
-    if (extractions.length > 0) {
-      // Data arrived — kill any active poll and clear the indicator
+    if (extractions.length > 0 && contract?.hasExtractedText) {
+      // Both metadata rows and source text are ready — kill any active poll.
+      // Create-with-review seeds rows before the upload worker finishes, so
+      // extractions alone must not stop the text readiness poll.
       if (extractionPollRef.current) {
         clearInterval(extractionPollRef.current)
         extractionPollRef.current = null
@@ -397,13 +420,18 @@ export default function ContractDetailPage() {
     extractionPollRef.current = setInterval(async () => {
       attempts++
       try {
-        const res = await fetch(`/api/contracts/${id}/extractions`)
-        if (res.ok) {
-          const data = await res.json()
-          if ((data.extractions ?? []).length > 0) {
-            setExtractions(data.extractions)
-            // Polling will auto-stop on next effect run because extractions.length > 0
-          }
+        const [extractionsRes, contractRes] = await Promise.all([
+          fetch(`/api/contracts/${id}/extractions`),
+          fetch(`/api/contracts/${id}`),
+        ])
+        if (extractionsRes.ok) {
+          const data = await extractionsRes.json()
+          if ((data.extractions ?? []).length > 0) setExtractions(data.extractions)
+        }
+        if (contractRes.ok) {
+          const data = await contractRes.json()
+          const refreshed = data.contract ?? data
+          setContract((current) => current ? { ...current, hasExtractedText: refreshed.hasExtractedText } : current)
         }
       } catch { /* network hiccup — keep polling */ }
 
@@ -420,7 +448,7 @@ export default function ContractDetailPage() {
         extractionPollRef.current = null
       }
     }
-  }, [loading, extractions.length, files.length, id])
+  }, [loading, extractions.length, files.length, contract?.hasExtractedText, id])
 
   async function changeStatus(newStatus: ContractStatus) {
     try {
@@ -519,12 +547,12 @@ export default function ContractDetailPage() {
     }
   }
 
-  async function previewFile(fileId: string) {
+  async function previewFile(file: ContractFile) {
     try {
-      const res = await fetch(`/api/contracts/${id}/upload?fileId=${fileId}`)
+      const res = await fetch(`/api/contracts/${id}/upload?fileId=${file.id}`)
       if (!res.ok) throw new Error("Preview failed")
       const { url } = await res.json()
-      window.open(url, "_blank", "noopener,noreferrer")
+      setPreviewFileState({ file, url })
     } catch {
       toast.error("Failed to open preview")
     }
@@ -545,6 +573,8 @@ export default function ContractDetailPage() {
   }
 
   async function handleExtraction(extractionId: string, action: "accept" | "reject") {
+    if (updatingExtractionId) return
+    setUpdatingExtractionId(extractionId)
     try {
       const res = await fetch(`/api/contracts/${id}/extractions`, {
         method: "PATCH",
@@ -564,10 +594,14 @@ export default function ContractDetailPage() {
       )
     } catch {
       toast.error("Failed to update extraction")
+    } finally {
+      setUpdatingExtractionId(null)
     }
   }
 
   async function handleRerunExtraction() {
+    if (rerunningExtraction) return
+    setRerunningExtraction(true)
     try {
       const res = await fetch(`/api/contracts/${id}/extractions/rerun`, { method: "POST" })
       if (!res.ok) {
@@ -580,21 +614,8 @@ export default function ContractDetailPage() {
       setExtractions([])
     } catch {
       toast.error("Failed to re-run extraction")
-    }
-  }
-
-  async function handleAcceptAll() {
-    try {
-      const res = await fetch(`/api/contracts/${id}/extractions`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept_all" }),
-      })
-      if (!res.ok) { toast.error("Failed to accept all extractions"); return }
-      setExtractions((prev) => prev.map((e) => ({ ...e, status: "accepted" as const })))
-      toast.success("All extractions accepted")
-    } catch {
-      toast.error("Failed to accept all")
+    } finally {
+      setRerunningExtraction(false)
     }
   }
 
@@ -722,9 +743,27 @@ export default function ContractDetailPage() {
         toast.error(body?.error ?? "Failed to analyze risk")
         return
       }
-      const rd = await res.json()
-      setRiskData(rd)
-      toast.success("Risk analysis complete")
+      const queued = await res.json()
+      if (res.status !== 202 || !queued.jobId) {
+        setRiskData(queued)
+        toast.success("Risk analysis complete")
+        return
+      }
+
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const poll = await fetch(`/api/contracts/${id}/risk-score?jobId=${encodeURIComponent(queued.jobId)}`)
+        const result = await poll.json().catch(() => ({}))
+        if (result.state === "completed") {
+          setRiskData(result)
+          toast.success("Risk analysis complete")
+          return
+        }
+        if (result.state === "failed" || result.state === "not_found") {
+          throw new Error(result.reason ?? "Risk analysis failed")
+        }
+      }
+      throw new Error("Risk analysis timed out")
     } catch {
       toast.error("Failed to analyze risk")
     } finally {
@@ -772,41 +811,53 @@ export default function ContractDetailPage() {
     APPROVAL_REQUESTABLE_STATUSES.includes(contract.status)
   const isAdminOrOwner = currentMember?.role === "admin" || currentMember?.role === "owner"
   const canManage = currentMember?.role === "admin" || currentMember?.role === "legal" || currentMember?.role === "owner"
+  const canAnalyzeRisk = canManage
+  const requestedTab = searchParams.get("tab")
+  const initialTab =
+    isContractTabValue(requestedTab) && (requestedTab !== "signing" || signingEnabled)
+      ? requestedTab
+      : "overview"
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* ── Header section ── */}
-      <div className="px-7 py-3.5 border-b border-border flex-shrink-0">
+      <header className="flex-shrink-0 border-b border-border bg-background px-4 py-4 sm:px-6 xl:px-8">
         {/* Row 1 — Breadcrumb */}
-        <nav className="flex items-center gap-1 mb-2">
+        <nav aria-label={tWorkspace("breadcrumb")} className="mb-3 flex min-w-0 items-center gap-1.5">
           <Link
             href="/contracts"
-            className="text-primary text-[12px] font-medium hover:underline"
+            className="shrink-0 text-xs font-medium text-primary hover:underline"
           >
             Contracts
           </Link>
-          <ChevronRight className="text-muted-foreground" style={{ width: 11, height: 11 }} />
-          <span className="text-muted-foreground text-[12px]">{contract.title}</span>
+          <ChevronRight className="size-3 shrink-0 text-muted-foreground rtl:rotate-180" />
+          <span className="truncate text-xs text-muted-foreground">{contract.title}</span>
         </nav>
 
         {/* Row 2 — Title + actions */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[18px] font-bold tracking-tight text-foreground">{contract.title}</h1>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0 space-y-2">
+            <h1 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{contract.title}</h1>
+            <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={contract.status} />
             {riskData?.riskScore && <RiskBadge level={riskData.riskScore} />}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div
+            role="group"
+            aria-label={tWorkspace("actions")}
+            className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end"
+          >
             {transitions.length > 0 && (
               <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex items-center gap-2 h-8 px-3 pr-2.5 rounded-[var(--radius)] border border-border bg-background text-[13px] font-medium text-foreground hover:bg-muted/70 transition-colors focus:outline-none">
+                <DropdownMenuTrigger className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:flex-none">
                   <span className={cn("size-2 rounded-full shrink-0", STATUS_DOT[contract.status] ?? "bg-zinc-400")} />
-                  Change Status
+                  {tWorkspace("changeStatus")}
                   <ChevronDown className="size-3 opacity-50" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1.5">
                   <div className="px-2 py-1 text-[10.5px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Move to
+                    {tWorkspace("moveTo")}
                   </div>
                   <DropdownMenuSeparator className="my-1" />
                   {transitions.map((s) => {
@@ -832,18 +883,20 @@ export default function ContractDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setApprovalOpen(true)}
+                className="flex-1 sm:flex-none"
               >
                 <ArrowUpRight className="size-3.5" />
-                Send for Approval
+                {tWorkspace("sendForApproval")}
               </Button>
             )}
             {canSendForSignature && (
               <Button
                 size="sm"
                 onClick={sendForSignature}
+                className="flex-1 sm:flex-none"
               >
                 <Pen className="size-3.5" />
-                Send for Signing
+                {tWorkspace("sendForSigning")}
               </Button>
             )}
             {canManage && contract.status !== "ARCHIVED" && (
@@ -851,51 +904,55 @@ export default function ContractDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setArchiveOpen(true)}
+                className="flex-1 sm:flex-none"
               >
                 <Archive className="size-3.5" />
-                Archive
+                {tWorkspace("archive")}
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </header>
 
       {/* ── Tab bar ── */}
       <Tabs
-        defaultValue={searchParams.get("tab") === "editor" ? "editor" : "overview"}
+        defaultValue={initialTab}
         className="flex flex-col flex-1 min-h-0"
       >
-        <TabsList className="h-auto rounded-none border-b-0 bg-transparent p-0 flex gap-0 px-7 border-b border-border flex-shrink-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <TabsList
+          aria-label={tWorkspace("tabs")}
+          className="h-auto w-full flex-shrink-0 justify-start gap-0 overflow-x-auto rounded-none border-b border-border bg-background px-4 p-0 sm:px-6 xl:px-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           <TabsTrigger
             value="overview"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            Overview
+            {tWorkspace("overview")}
           </TabsTrigger>
           <TabsTrigger
             value="documents"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            Files{files.length > 0 && ` (${files.length})`}
+            {tWorkspace("files")}{files.length > 0 && ` (${files.length})`}
           </TabsTrigger>
           <TabsTrigger
             value="ai-extractions"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            AI Extractions
+            {tWorkspace("aiExtractions")}
             {pendingExtractions.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+              <span className="ms-1.5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
                 {pendingExtractions.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="approvals"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            Approvals
+            {tWorkspace("approvals")}
             {pendingApprovals.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white">
+              <span className="ms-1.5 rounded-full bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white">
                 {pendingApprovals.length}
               </span>
             )}
@@ -903,38 +960,37 @@ export default function ContractDetailPage() {
           {signingEnabled && (
             <TabsTrigger
               value="signing"
-              className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+              className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
             >
-              Signing
+              {tWorkspace("signing")}
             </TabsTrigger>
           )}
-          <TabsTrigger
-            value="editor"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
-          >
-            Editor
-          </TabsTrigger>
+          {/* The editor remains available for existing deep links, but is hidden
+              from the primary workflow until authoring is production-ready. */}
           <TabsTrigger
             value="obligations"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            Obligations
+            {tWorkspace("obligations")}
             {activeObligations.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+              <span className="ms-1.5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
                 {activeObligations.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="risk"
-            className="rounded-none border-b-2 border-transparent px-3.5 py-2.5 text-[12.5px] font-normal text-muted-foreground -mb-px data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors cursor-pointer"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
           >
-            Risk
+            {tWorkspace("risk")}
             {riskData?.riskScore === "HIGH" && (
-              <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white">
+              <span className="ms-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white">
                 !
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="editor" className="sr-only">
+            {tWorkspace("editor")}
           </TabsTrigger>
         </TabsList>
 
@@ -942,75 +998,79 @@ export default function ContractDetailPage() {
 
         {/* Overview — 2-column grid */}
         <TabsContent value="overview" className="flex-1 overflow-auto m-0 border-0">
-          <div className="grid grid-cols-[1fr_320px] gap-5 p-7">
+          <div
+            data-testid="contract-overview-layout"
+            className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:p-8"
+          >
             {/* LEFT column */}
             <div className="flex flex-col gap-4">
               {/* Card A — Contract Details */}
-              <div className="p-[18px_20px] rounded-[var(--radius)] border border-border bg-card">
+              <section aria-labelledby="contract-details-heading" className="rounded-xl border border-border bg-card p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3.5">
-                  <p className="text-[13px] font-semibold">Contract Details</p>
+                  <h2 id="contract-details-heading" className="text-sm font-semibold">{tWorkspace("details")}</h2>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                     onClick={() => setEditOpen(true)}
-                    title="Edit contract"
+                    title={tWorkspace("editContract")}
+                    aria-label={tWorkspace("editContract")}
                   >
                     <Pencil style={{ width: 14, height: 14 }} />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-3.5">
+                <div data-testid="contract-detail-grid" className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 2xl:grid-cols-3">
                   {contract.counterpartyName && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Counterparty</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("counterparty")}</p>
                       <p className="text-[13px] font-medium">{contract.counterpartyName}</p>
                     </div>
                   )}
                   {contract.value != null && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Contract Value</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("contractValue")}</p>
                       <p className="text-[13px] font-medium">{contract.currency ?? "USD"} {contract.value.toLocaleString()}</p>
                     </div>
                   )}
                   {contract.startDate && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Start Date</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("startDate")}</p>
                       <p className="text-[13px] font-medium">{format(new Date(contract.startDate), "MMM d, yyyy")}</p>
                     </div>
                   )}
                   {contract.endDate && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">End Date</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("endDate")}</p>
                       <p className="text-[13px] font-medium">{format(new Date(contract.endDate), "MMM d, yyyy")}</p>
                     </div>
                   )}
                   {contract.owner?.name && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Owner</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("owner")}</p>
                       <p className="text-[13px] font-medium">{contract.owner.name}</p>
                     </div>
                   )}
                   {contract.contractType && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Type</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("type")}</p>
                       <p className="text-[13px] font-medium">{contract.contractType}</p>
                     </div>
                   )}
                   {contract.governingLaw && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Governing Law</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("governingLaw")}</p>
                       <p className="text-[13px] font-medium">{contract.governingLaw}</p>
                     </div>
                   )}
                   {contract.noticePeriodDays != null && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Notice Period</p>
-                      <p className="text-[13px] font-medium">{contract.noticePeriodDays} days</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("noticePeriod")}</p>
+                      <p className="text-[13px] font-medium">{contract.noticePeriodDays} {tWorkspace("days")}</p>
                     </div>
                   )}
                   {contract.folder?.name && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Folder</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{tWorkspace("folder")}</p>
                       <p className="text-[13px] font-medium">{contract.folder.name}</p>
                     </div>
                   )}
@@ -1028,6 +1088,7 @@ export default function ContractDetailPage() {
                           type="button"
                           onClick={() => removeTag(tag.id)}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label={tWorkspace("removeTag", { tag: tag.name })}
                         >
                           <X className="size-2.5" />
                         </button>
@@ -1090,7 +1151,7 @@ export default function ContractDetailPage() {
                         className="inline-flex items-center gap-0.5 rounded border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
                       >
                         <Plus className="size-2.5" />
-                        Add tag
+                        {tWorkspace("addTag")}
                       </button>
                     )}
                   </div>
@@ -1129,7 +1190,7 @@ export default function ContractDetailPage() {
                     <p className="whitespace-pre-wrap text-[13px] text-foreground">{contract.notes}</p>
                   </div>
                 )}
-              </div>
+              </section>
 
               {/* Card B — Linked Deals (CRM) */}
               <ContractCrmSection contractId={id} role={currentMember?.role} />
@@ -1172,10 +1233,10 @@ export default function ContractDetailPage() {
             </div>
 
             {/* RIGHT column — Activity panel */}
-            <div className="p-[18px_20px] rounded-[var(--radius)] border border-border bg-card self-start">
-              <p className="text-[13px] font-semibold mb-3.5">Activity</p>
+            <section aria-labelledby="contract-activity-heading" className="self-start rounded-xl border border-border bg-card p-4 sm:p-5">
+              <h2 id="contract-activity-heading" className="mb-3.5 text-sm font-semibold">{tWorkspace("activity")}</h2>
               {activities.length === 0 ? (
-                <p className="text-[12px] text-muted-foreground">No activity yet</p>
+                <p className="text-[12px] text-muted-foreground">{tWorkspace("noActivity")}</p>
               ) : (
                 <div className="space-y-0 max-h-[420px] overflow-y-auto pr-1">
                   {activities.map((activity, idx) => {
@@ -1206,7 +1267,7 @@ export default function ContractDetailPage() {
                   })}
                 </div>
               )}
-            </div>
+            </section>
           </div>
         </TabsContent>
 
@@ -1276,7 +1337,7 @@ export default function ContractDetailPage() {
                             variant="ghost"
                             size="sm"
                             className="size-8 p-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => previewFile(f.id)}
+                            onClick={() => previewFile(f)}
                             title="Preview"
                           >
                             <ExternalLink className="size-4" />
@@ -1335,18 +1396,13 @@ export default function ContractDetailPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">{extractions.length} fields</span>{" "}
-                    extracted by AI
+                    extracted from the document
                     {pendingExtractions.length > 0 && ` · ${pendingExtractions.length} pending review`}
                   </p>
                   <div className="flex items-center gap-2">
-                    {pendingExtractions.length > 0 && (
-                      <Button size="sm" onClick={handleAcceptAll}>
-                        Accept All
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={handleRerunExtraction}>
-                      <RefreshCw className="size-3.5" />
-                      Re-run Extraction
+                    <Button size="sm" variant="outline" onClick={handleRerunExtraction} disabled={rerunningExtraction}>
+                      <RefreshCw className={cn("size-3.5", rerunningExtraction && "animate-spin")} />
+                      {rerunningExtraction ? "Re-running…" : "Re-run Extraction"}
                     </Button>
                   </div>
                 </div>
@@ -1354,7 +1410,7 @@ export default function ContractDetailPage() {
                   {extractions.map((e) => {
                     const accepted = e.status === "accepted"
                     const rejected = e.status === "rejected"
-                    const confidencePct = Math.round(e.confidence * 100)
+                    const confidencePct = e.confidence == null ? null : Math.round(e.confidence * 100)
                     return (
                       <div
                         key={e.id}
@@ -1365,24 +1421,40 @@ export default function ContractDetailPage() {
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{e.field}</p>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
-                              confidencePct >= 90
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-amber-100 text-amber-700",
-                            )}
-                          >
-                            {confidencePct}%
-                          </span>
+                          {confidencePct == null ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shrink-0">
+                              Manual
+                            </span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
+                                confidencePct >= 90
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-amber-100 text-amber-700",
+                              )}
+                            >
+                              {confidencePct}%
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm font-semibold text-foreground mb-3 min-h-[1.25rem]">
                           {e.rawValue ?? "—"}
                         </p>
+                        <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {e.extractedBy === "manual" || e.extractedBy === "user"
+                            ? "Manually entered or edited"
+                            : e.extractedBy === "local" ? "Deterministic local extraction" : "AI extraction"}
+                        </p>
                         {e.sourceText && (
-                          <p className="mb-3 truncate text-xs italic text-muted-foreground">
-                            &quot;{e.sourceText}&quot;
-                          </p>
+                          <blockquote className="mb-3 border-s-2 border-border ps-3 text-xs italic text-muted-foreground">
+                            <p>{e.sourceText}</p>
+                            {e.sourcePage != null && (
+                              <cite className="mt-1 block text-[10px] not-italic text-muted-foreground">
+                                {tWorkspace("sourcePage", { page: e.sourcePage })}
+                              </cite>
+                            )}
+                          </blockquote>
                         )}
                         {!accepted && !rejected && (
                           <div className="flex gap-1.5">
@@ -1391,14 +1463,16 @@ export default function ContractDetailPage() {
                               size="sm"
                               className="h-6 text-xs flex-1"
                               onClick={() => handleExtraction(e.id, "accept")}
+                              disabled={updatingExtractionId !== null}
                             >
-                              Accept
+                              {updatingExtractionId === e.id ? "Saving…" : "Accept"}
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-6 text-xs flex-1"
                               onClick={() => handleExtraction(e.id, "reject")}
+                              disabled={updatingExtractionId !== null}
                             >
                               Reject
                             </Button>
@@ -1771,11 +1845,14 @@ export default function ContractDetailPage() {
 
         {/* Editor */}
         <TabsContent value="editor" className="flex-1 overflow-hidden m-0 border-0 flex flex-col">
-          <EditorTab
-            contractId={contract.id}
-            contractStatus={contract.status}
-            role={currentMember?.role ?? "member"}
-          />
+          <div className="flex h-full items-center justify-center p-8">
+            <div className="max-w-md rounded-[var(--radius)] border border-dashed border-border bg-muted/20 p-6 text-center">
+              <p className="font-semibold text-foreground">{tWorkspace("editorPausedTitle")}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {tWorkspace("editorPausedDescription")}
+              </p>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Obligations */}
@@ -1787,6 +1864,8 @@ export default function ContractDetailPage() {
               members={members}
               contractArchived={contract.status === "ARCHIVED"}
               role={currentMember?.role}
+              hasContractFile={files.length > 0}
+              hasExtractedText={contract.hasExtractedText === true}
               onChange={setObligations}
             />
           </div>
@@ -1807,22 +1886,20 @@ export default function ContractDetailPage() {
                     Analyze this contract to get a full risk breakdown across 6 categories.
                   </p>
                 </div>
-                <Button
-                  onClick={analyzeRisk}
-                  disabled={analyzingRisk || !contract.hasExtractedText}
-                >
-                  {analyzingRisk ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Analyzing…
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="size-4" />
-                      Analyze Risk
-                    </>
-                  )}
-                </Button>
+                {canAnalyzeRisk ? (
+                  <Button
+                    onClick={analyzeRisk}
+                    disabled={analyzingRisk || !contract.hasExtractedText}
+                  >
+                    {analyzingRisk ? (
+                      <><Loader2 className="size-4 animate-spin" />Analyzing…</>
+                    ) : (
+                      <><Shield className="size-4" />Analyze Risk</>
+                    )}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Only legal, admin, or owner members can run risk analysis.</p>
+                )}
                 {!contract.hasExtractedText && (
                   <p className="text-xs text-muted-foreground">Upload a document first to enable risk analysis.</p>
                 )}
@@ -1881,7 +1958,7 @@ export default function ContractDetailPage() {
                       )}
                     </div>
                     <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-                      <Button
+                      {canAnalyzeRisk && <Button
                         size="sm"
                         variant="outline"
                         onClick={analyzeRisk}
@@ -1892,7 +1969,7 @@ export default function ContractDetailPage() {
                         ) : (
                           <><RefreshCw className="size-3.5" /> Re-analyze</>
                         )}
-                      </Button>
+                      </Button>}
                     </div>
                   </div>
 
@@ -2061,6 +2138,55 @@ export default function ContractDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={previewFileState !== null} onOpenChange={(open) => { if (!open) setPreviewFileState(null) }}>
+        <DialogContent className="w-[min(96vw,1100px)] max-w-none gap-0 p-0 overflow-hidden">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle className="truncate pr-8">{previewFileState?.file.filename ?? "Document preview"}</DialogTitle>
+            <DialogDescription>
+              {previewFileState?.file.mimeType === "application/pdf" || previewFileState?.file.filename.toLowerCase().endsWith(".pdf")
+                ? "Previewing the uploaded PDF"
+                : "This file can be downloaded and opened in its native application."}
+            </DialogDescription>
+          </DialogHeader>
+          {previewFileState && (
+            previewFileState.file.mimeType === "application/pdf" || previewFileState.file.filename.toLowerCase().endsWith(".pdf") ? (
+              <iframe
+                src={previewFileState.url}
+                title={`Preview of ${previewFileState.file.filename}`}
+                className="h-[min(75vh,800px)] w-full bg-muted"
+              />
+            ) : (
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+                <FileText className="size-10 text-muted-foreground/50" />
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Browser preview is available for PDFs. Download this DOCX file to review it in Word or LibreOffice.
+                </p>
+                <a
+                  href={previewFileState.url}
+                  download={previewFileState.file.filename}
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Download document
+                </a>
+              </div>
+            )
+          )}
+          {previewFileState && (
+            <div className="flex justify-end border-t border-border px-5 py-3">
+              <a
+                href={previewFileState.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+              >
+                Open in new tab
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Archive Confirmation Dialog */}
       <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>

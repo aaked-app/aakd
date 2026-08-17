@@ -1,7 +1,8 @@
+import crypto from "node:crypto"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { getObligationExtractQueue, obligationExtractQueue } from "@/lib/jobs/queues"
+import { contractExtractQueue, getObligationExtractQueue, obligationExtractQueue } from "@/lib/jobs/queues"
 
 const ROLES_CAN_WRITE = new Set(["owner", "admin", "legal", "member"])
 
@@ -19,7 +20,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   return requestContext.run(ctx, async () => {
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { id: true, organizationId: true, extractedText: true },
+      select: {
+        id: true,
+        organizationId: true,
+        extractedText: true,
+        files: {
+          where: { isLatest: true },
+          orderBy: { version: "desc" },
+          take: 1,
+          select: { id: true, storageKey: true },
+        },
+      },
     })
 
     if (!contract || contract.organizationId !== ctx.organizationId) {
@@ -27,7 +38,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     if (!contract.extractedText) {
-      return Response.json({ error: "no_extracted_text" }, { status: 422 })
+      const latestFile = contract.files?.[0]
+      if (!latestFile) {
+        return Response.json({ error: "no_extracted_text" }, { status: 422 })
+      }
+
+      // A user can reach this action while the upload worker is still
+      // extracting text. Re-queue the same file with a deterministic job ID so
+      // BullMQ deduplicates the recovery request instead of making the user
+      // wait for a stale UI flag or enqueueing duplicate work.
+      await contractExtractQueue.add(
+        "extract",
+        {
+          contractId: contract.id,
+          fileId: latestFile.id,
+          storageKey: latestFile.storageKey,
+          preserveUserFields: true,
+        },
+        { jobId: `contract-text-${latestFile.id}` },
+      )
+      return Response.json({ error: "text_processing", queued: true }, { status: 202 })
     }
 
     // Check that an AI provider is configured
@@ -48,8 +78,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Enqueue — pass extractedText so the worker doesn't need another DB round-trip
     const job = await obligationExtractQueue.add("extract", {
       contractId: contract.id,
+      organizationId: ctx.organizationId,
       extractedText: contract.extractedText.slice(0, 100_000),
       requestedById: ctx.userId,
+      sourceHash: crypto.createHash("sha256").update(contract.extractedText).digest("hex"),
     })
 
     return Response.json({ jobId: job.id })
@@ -80,6 +112,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const job = await queue.getJob(jobId)
 
     if (!job) {
+      const suggestions = await prisma.contractObligationSuggestion.findMany({
+        where: { contractId: params.id, organizationId: ctx.organizationId, status: "pending" },
+        orderBy: { createdAt: "asc" },
+      }) ?? []
+      return suggestions.length > 0
+        ? Response.json({ state: "completed", suggestions })
+        : Response.json({ state: "not_found" })
+    }
+
+    // BullMQ job IDs are global to the queue. Bind the poll to the same
+    // contract and organization before exposing state or return values.
+    const jobData = job.data as { contractId?: string; organizationId?: string } | undefined
+    if (
+      jobData?.contractId !== params.id ||
+      jobData?.organizationId !== ctx.organizationId
+    ) {
       return Response.json({ state: "not_found" })
     }
 

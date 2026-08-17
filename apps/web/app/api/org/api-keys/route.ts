@@ -1,4 +1,4 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { requireWriteScope, resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { generateApiKey } from "@/lib/auth/api-keys"
@@ -8,7 +8,7 @@ import { z } from "zod"
 
 const CreateApiKeySchema = z.object({
   name: z.string().min(1).max(100),
-  scopes: z.array(z.enum(["read", "write"])).default(["read"]),
+  scopes: z.array(z.enum(["read", "text_read", "write"])).default(["read"]),
   expiresAt: z.string().datetime().optional(),
 })
 
@@ -43,6 +43,9 @@ export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
+  const scopeErr = requireWriteScope(ctx)
+  if (scopeErr) return scopeErr
+
   const roleErr = requireRole(ctx.role, "admin")
   if (roleErr) return roleErr
 
@@ -57,6 +60,16 @@ export async function POST(req: Request) {
     const parsed = CreateApiKeySchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    if (
+      ctx.source === "api_key" &&
+      parsed.data.scopes.some((scope) => !ctx.scopes?.includes(scope))
+    ) {
+      return Response.json(
+        { error: "API key cannot delegate scopes it does not have" },
+        { status: 403 },
+      )
     }
 
     // Cap keys per org so a compromised admin can't mint unlimited keys.

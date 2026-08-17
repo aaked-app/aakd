@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { format } from "date-fns"
 import {
   Plug2,
   PlugZap,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/types/crm"
 import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
+import { useLocale, useTranslations } from "next-intl"
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -58,17 +58,19 @@ const CATEGORIES: Category[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 function SoonBadge() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <span className="text-[9px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-      Soon
+      {t("soon")}
     </span>
   )
 }
 
 function ConnectedBadge() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <span className="inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success ring-1 ring-success/30">
-      Connected
+      {t("connected")}
     </span>
   )
 }
@@ -97,6 +99,7 @@ function SoonCard({
   name: string
   description: string
 }) {
+  const t = useTranslations("settingsIntegrations")
   return (
     <div className="rounded-[var(--radius)] border border-border bg-card p-4 flex items-start gap-3 opacity-60">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground text-xs font-bold">
@@ -111,9 +114,10 @@ function SoonCard({
       </div>
       <button
         disabled
-        className="shrink-0 h-7 px-2.5 text-xs font-medium rounded-[var(--radius)] border border-border text-muted-foreground cursor-not-allowed opacity-50"
+        aria-label={t("connectProvider", { provider: name })}
+        className="min-h-11 shrink-0 px-2.5 text-xs font-medium rounded-[var(--radius)] border border-border text-muted-foreground cursor-not-allowed opacity-50"
       >
-        Connect
+        {t("connect")}
       </button>
     </div>
   )
@@ -128,21 +132,24 @@ function CategoryTabs({
   active: Category
   onChange: (c: Category) => void
 }) {
+  const t = useTranslations("settingsIntegrations")
   return (
-    <div className="flex items-center gap-1 border-b border-border pb-0 mb-5 overflow-x-auto">
+    <div role="tablist" aria-label={t("categoriesLabel")} className="flex items-center gap-1 border-b border-border pb-0 mb-5 overflow-x-auto">
       {CATEGORIES.map((c) => (
         <button
           key={c}
           type="button"
+          role="tab"
+          aria-selected={active === c}
           onClick={() => onChange(c)}
           className={cn(
-            "shrink-0 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+            "min-h-11 shrink-0 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
             active === c
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          {c}
+          {t(`categories.${c}`)}
         </button>
       ))}
     </div>
@@ -152,6 +159,7 @@ function CategoryTabs({
 // ─── E-Signature Section ──────────────────────────────────────────────────
 
 function ESignatureSection() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <div className="space-y-4">
       <div className="rounded-[var(--radius)] border border-border bg-card p-5">
@@ -166,7 +174,7 @@ function ESignatureSection() {
                 <ConnectedBadge />
               </div>
               <p className="text-xs text-muted-foreground">
-                Open-source e-signature for contract signing
+                {t("docuSealDescription")}
               </p>
             </div>
           </div>
@@ -175,11 +183,11 @@ function ESignatureSection() {
             variant="outline"
             onClick={() =>
               toast.info(
-                "DocuSeal is configured via environment variables. See the self-hosting guide.",
+                t("docuSealConfigured"),
               )
             }
           >
-            Configure
+            {t("configure")}
           </Button>
         </div>
       </div>
@@ -190,22 +198,23 @@ function ESignatureSection() {
 // ─── Cloud Storage Section ────────────────────────────────────────────────
 
 function CloudStorageSection() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <div className="space-y-3">
       <SoonCard
         logo="GD"
         name="Google Drive"
-        description="Import contracts directly from your Google Drive folders."
+        description={t("descriptions.googleDrive")}
       />
       <SoonCard
         logo="DB"
         name="Dropbox"
-        description="Sync and import contracts from Dropbox."
+        description={t("descriptions.dropbox")}
       />
       <SoonCard
         logo="OD"
         name="OneDrive"
-        description="Connect to Microsoft OneDrive for contract storage."
+        description={t("descriptions.oneDrive")}
       />
     </div>
   )
@@ -220,12 +229,13 @@ function CommunicationSection({
   slackCount: number
   teamsCount: number
 }) {
+  const t = useTranslations("settingsIntegrations")
   function channelBadge(count: number) {
     if (count > 0) {
-      const label = `${count} channel${count === 1 ? "" : "s"}`
+      const label = t(count === 1 ? "channelCountOne" : "channelCountMany", { count })
       return <StatusBadge label={label} variant="success" />
     }
-    return <StatusBadge label="Not configured" variant="muted" />
+    return <StatusBadge label={t("notConfigured")} variant="muted" />
   }
 
   return (
@@ -240,13 +250,13 @@ function CommunicationSection({
             {channelBadge(slackCount)}
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            Receive contract event notifications in your Slack channels.
+            {t("descriptions.slack")}
           </p>
           <Link
             href="/settings/notifications"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+            className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
           >
-            Configure in Notifications
+            {t("configureNotifications")}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
@@ -261,13 +271,13 @@ function CommunicationSection({
             {channelBadge(teamsCount)}
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            Receive contract event notifications in Microsoft Teams channels.
+            {t("descriptions.teams")}
           </p>
           <Link
             href="/settings/notifications"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+            className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
           >
-            Configure in Notifications
+            {t("configureNotifications")}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
@@ -279,17 +289,18 @@ function CommunicationSection({
 // ─── Accounting Section ───────────────────────────────────────────────────
 
 function AccountingSection() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <div className="space-y-3">
       <SoonCard
         logo="QB"
         name="QuickBooks"
-        description="Sync contract values and billing data with QuickBooks."
+        description={t("descriptions.quickBooks")}
       />
       <SoonCard
         logo="XR"
         name="Xero"
-        description="Connect contract financials to your Xero accounting."
+        description={t("descriptions.xero")}
       />
     </div>
   )
@@ -298,6 +309,7 @@ function AccountingSection() {
 // ─── Developer Section ────────────────────────────────────────────────────
 
 function DeveloperSection() {
+  const t = useTranslations("settingsIntegrations")
   return (
     <div className="space-y-3">
       <div className="rounded-[var(--radius)] border border-border bg-card p-4 flex items-start gap-3">
@@ -310,13 +322,13 @@ function DeveloperSection() {
             <ConnectedBadge />
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            Receive real-time HTTP notifications for contract events.
+            {t("descriptions.webhooks")}
           </p>
           <Link
             href="/settings/notifications#webhooks"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+            className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
           >
-            Manage Webhooks
+            {t("manageWebhooks")}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
@@ -328,16 +340,16 @@ function DeveloperSection() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <h3 className="text-sm font-semibold">REST API</h3>
-            <StatusBadge label="Active" variant="success" />
+            <StatusBadge label={t("active")} variant="success" />
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            Access Aakd programmatically using Bearer API keys.
+            {t("descriptions.restApi")}
           </p>
           <Link
             href="/settings/api-keys"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+            className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
           >
-            Manage API Keys
+            {t("manageApiKeys")}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
@@ -345,12 +357,12 @@ function DeveloperSection() {
       <SoonCard
         logo="ZP"
         name="Zapier"
-        description="Connect Aakd to 5,000+ apps via Zapier automation."
+        description={t("descriptions.zapier")}
       />
       <SoonCard
         logo="MK"
         name="Make (Integromat)"
-        description="Build powerful workflows with Aakd and Make."
+        description={t("descriptions.make")}
       />
     </div>
   )
@@ -379,6 +391,8 @@ function CrmSection({
   onSaveSettings: (p: CrmProvider) => void
   onUpdateSetting: (p: CrmProvider, key: keyof ProviderSettings, val: string) => void
 }) {
+  const t = useTranslations("settingsIntegrations")
+  const locale = useLocale()
   if (loading) {
     return (
       <div className="space-y-4">
@@ -420,25 +434,24 @@ function CrmSection({
                         : "inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground/80 ring-1 ring-border"
                     }
                   >
-                    {connected ? "Connected" : "Not connected"}
+                    {connected ? t("connected") : t("notConnected")}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{meta.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t(`providerDescriptions.${meta.id}`)}</p>
                 {connected && integration && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Connected by{" "}
-                    <span className="text-foreground">{integration.connectedBy.name}</span>
+                    {t("connectedBy", { name: integration.connectedBy.name })}
                     {integration.connectedAt && (
                       <>
-                        {" "}on{" "}
+                        {" "}{t("onDate")}{" "}
                         <span className="text-foreground">
-                          {format(new Date(integration.connectedAt), "MMM d, yyyy")}
+                          {new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(integration.connectedAt))}
                         </span>
                       </>
                     )}
                     {integration.portalId && (
                       <>
-                        {" "}· portal <span className="font-mono">{integration.portalId}</span>
+                        {" "}· {t("portal")} <span className="font-mono">{integration.portalId}</span>
                       </>
                     )}
                   </p>
@@ -449,21 +462,22 @@ function CrmSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-red-200 text-red-600 hover:bg-red-50"
                     onClick={() => onDisconnectClick(meta.id)}
                     disabled={!canManage}
-                    title={!canManage ? "Admin or legal role required" : undefined}
+                    title={!canManage ? t("manageRoleRequired") : undefined}
+                    className="min-h-11 border-red-200 text-red-600 hover:bg-red-50"
                   >
-                    Disconnect
+                    {t("disconnect")}
                   </Button>
                 ) : (
                   <Button
                     size="sm"
                     onClick={() => onConnect(meta.id)}
                     disabled={!canManage}
-                    title={!canManage ? "Admin or legal role required" : undefined}
+                    title={!canManage ? t("manageRoleRequired") : undefined}
+                    className="min-h-11"
                   >
-                    Connect
+                    {t("connect")}
                   </Button>
                 )}
               </div>
@@ -476,18 +490,19 @@ function CrmSection({
                     htmlFor={`${meta.id}-auto`}
                     className="text-xs font-medium text-foreground"
                   >
-                    Auto-create stage
+                    {t("autoCreateStage")}
                   </Label>
                   <Input
                     id={`${meta.id}-auto`}
-                    placeholder="e.g. Negotiation"
+                    placeholder={t("negotiationPlaceholder")}
+                    className="min-h-11"
                     value={providerSettings.autoCreateStage}
                     onChange={(e) =>
                       onUpdateSetting(meta.id, "autoCreateStage", e.target.value)
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    When a deal reaches this stage, a draft contract is created.
+                    {t("autoCreateDescription")}
                   </p>
                 </div>
                 <div className="space-y-1.5">
@@ -495,18 +510,19 @@ function CrmSection({
                     htmlFor={`${meta.id}-sync`}
                     className="text-xs font-medium text-foreground"
                   >
-                    Sync target stage
+                    {t("syncTargetStage")}
                   </Label>
                   <Input
                     id={`${meta.id}-sync`}
                     placeholder={defaultStage(meta.id)}
+                    className="min-h-11"
                     value={providerSettings.syncOnActiveStage}
                     onChange={(e) =>
                       onUpdateSetting(meta.id, "syncOnActiveStage", e.target.value)
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Stage to set on the deal when the contract becomes active.
+                    {t("syncTargetDescription")}
                   </p>
                 </div>
                 <div className="sm:col-span-2 flex justify-end">
@@ -515,14 +531,15 @@ function CrmSection({
                     variant="outline"
                     onClick={() => onSaveSettings(meta.id)}
                     disabled={savingProvider === meta.id}
+                    className="min-h-11"
                   >
                     {savingProvider === meta.id ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Saving
+                        {t("saving")}
                       </>
                     ) : (
-                      "Save settings"
+                      t("saveSettings")
                     )}
                   </Button>
                 </div>
@@ -548,6 +565,7 @@ function defaultStage(provider: CrmProvider) {
 export default function IntegrationsPage() {
   const searchParams = useSearchParams()
   const { data: session } = useSession()
+  const t = useTranslations("settingsIntegrations")
   const [loading, setLoading] = useState(true)
   const [integrations, setIntegrations] = useState<CrmIntegrationStatus[]>([])
   const [confirmDisconnect, setConfirmDisconnect] = useState<CrmProvider | null>(null)
@@ -577,7 +595,7 @@ export default function IntegrationsPage() {
       setSettings(next)
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return
-      toast.error("Failed to load integrations")
+      toast.error(t("loadFailed"))
     } finally {
       setLoading(false)
     }
@@ -621,10 +639,16 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     const connected = searchParams.get("connected")
-    if (connected) toast.success(`${connected.toLowerCase()} connected successfully`)
+    const provider = CRM_PROVIDERS.find((item) => item.id === connected?.toUpperCase())
+    if (provider) toast.success(t("connectedSuccess", { provider: provider.name }))
     const error = searchParams.get("error")
-    if (error) toast.error(`Failed to connect: ${error}`)
-  }, [searchParams])
+    const errorMessages: Record<string, string> = {
+      missing_params: t("oauthErrors.missingParams"),
+      state_mismatch: t("oauthErrors.stateMismatch"),
+      exchange_failed: t("oauthErrors.exchangeFailed"),
+    }
+    if (error) toast.error(errorMessages[error] ?? t("connectFailed"))
+  }, [searchParams, t])
 
   const canManage = roleLoaded && (role === "admin" || role === "legal")
 
@@ -639,11 +663,11 @@ export default function IntegrationsPage() {
         method: "DELETE",
       })
       if (!res.ok && res.status !== 204) throw new Error("disconnect")
-      toast.success(`${provider} disconnected`)
+      toast.success(t("disconnectedSuccess", { provider: CRM_PROVIDERS.find((item) => item.id === provider)?.name ?? provider }))
       setConfirmDisconnect(null)
       fetchStatus()
     } catch {
-      toast.error("Failed to disconnect")
+      toast.error(t("disconnectFailed"))
     } finally {
       setDisconnecting(false)
     }
@@ -663,10 +687,10 @@ export default function IntegrationsPage() {
         }),
       })
       if (!res.ok) throw new Error("save")
-      toast.success("Settings saved")
+      toast.success(t("settingsSaved"))
       fetchStatus()
     } catch {
-      toast.error("Failed to save settings")
+      toast.error(t("settingsSaveFailed"))
     } finally {
       setSavingProvider(null)
     }
@@ -688,9 +712,9 @@ export default function IntegrationsPage() {
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-7 py-4 border-b border-border shrink-0">
         <div>
-          <h1 className="text-xl font-semibold">Integrations</h1>
+          <h1 className="text-xl font-semibold">{t("title")}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Connect Aakd to the tools your team already uses.
+            {t("subtitle")}
           </p>
         </div>
       </div>
@@ -731,10 +755,9 @@ export default function IntegrationsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disconnect {confirmDisconnect}?</DialogTitle>
+            <DialogTitle>{t("disconnectTitle", { provider: CRM_PROVIDERS.find((item) => item.id === confirmDisconnect)?.name ?? "" })}</DialogTitle>
             <DialogDescription>
-              Disconnecting will remove all deal links for this integration. Existing
-              contracts are not affected.
+              {t("disconnectDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -742,16 +765,17 @@ export default function IntegrationsPage() {
               variant="outline"
               onClick={() => setConfirmDisconnect(null)}
               disabled={disconnecting}
+              className="min-h-11"
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               variant="outline"
-              className="border-red-200 text-red-600 hover:bg-red-50"
+              className="min-h-11 border-red-200 text-red-600 hover:bg-red-50"
               onClick={() => confirmDisconnect && disconnect(confirmDisconnect)}
               disabled={disconnecting}
             >
-              {disconnecting ? "Disconnecting..." : "Disconnect"}
+              {disconnecting ? t("disconnecting") : t("disconnect")}
             </Button>
           </DialogFooter>
         </DialogContent>

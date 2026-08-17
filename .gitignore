@@ -13,10 +13,21 @@ dist/
 .codex/
 apps/web/.claude/
 
-# Keep reviewed project-local Spec Kit skills; ignore future agent-local data.
-.agents/*
-!.agents/skills/
-!.agents/skills/**
+# Internal planning and research — keep out of the public distribution
+AGENTS.md
+CLAUDE.md
+.claude/
+.gstack/
+research/
+specs/
+
+# Local browser/build output
+.playwright-mcp/
+apps/web/.next-stale-*/
+apps/web/playwright-report/
+apps/web/test-results/
+docs/media/aakd-workflow.webm
+docs/media/aakd-demo-final.png
 
 # Python artifacts
 .pytest_cache/
@@ -34,3 +45,6 @@ yarn.lock
 
 # QA test state — may contain credentials, never commit
 reports/test-state.json
+
+# Local production backup exports
+backups/

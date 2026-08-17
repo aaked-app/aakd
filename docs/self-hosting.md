@@ -1,6 +1,6 @@
-# Self-Hosting ClauseFlow
+# Self-Hosting Aakd
 
-ClauseFlow is fully self-hostable. This guide covers deploying the complete stack on your own infrastructure using Docker Compose.
+Aakd is self-hostable. This guide covers deploying the complete stack on your own infrastructure using Docker Compose.
 
 ---
 
@@ -14,11 +14,29 @@ ClauseFlow is fully self-hostable. This guide covers deploying the complete stac
 
 ## Quick Start
 
+Before starting a deployment, you can validate both Compose files and the required secret interpolation without changing your local environment:
+
+```bash
+bash scripts/validate-self-hosting.sh
+```
+
+This checks configuration only. It does not start or modify containers.
+
+For the complete local Phase 0 engineering verification, including the
+application tests and production build, run from the repository root:
+
+```bash
+bash scripts/verify-phase-0.sh
+```
+
+The verifier does not create customer evidence and does not replace the
+disposable Compose or MCP HTTP replay records in `research/gates/`.
+
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/clauseflow.git
-cd clauseflow
+git clone https://github.com/aaked-app/aakd.git ~/aakd
+cd ~/aakd
 ```
 
 ### 2. Configure environment variables
@@ -58,8 +76,8 @@ This starts:
 - **PostgreSQL 16** with the `pgvector` extension (required for semantic search)
 - **Redis 7** for BullMQ job queues
 - **MinIO** for S3-compatible file storage (contracts, uploaded files)
-- **ClauseFlow app** — Next.js 14 web application on port 3000
-- **ClauseFlow worker** — BullMQ background worker (text extraction, AI, alerts, email)
+- **Aakd app** — Next.js 14 web application on port 3000
+- **Aakd worker** — BullMQ background worker (text extraction, AI, alerts, email)
 
 ### 4. Run database migrations
 
@@ -73,6 +91,48 @@ docker compose exec app npx prisma migrate deploy
 
 Navigate to `http://localhost:3000` (or your configured URL). Create your first account — the first registered user becomes the org admin.
 
+## Production install in one command
+
+For a public Ubuntu VM, use the checked-in installer. It generates the required secrets, validates the production Compose file, builds the app and worker, starts the complete stack, and waits for `/api/health` before reporting success. It requires a reviewed, exact 40-character Git commit SHA so that it never deploys a floating branch.
+
+```bash
+cd ~/aakd
+chmod +x scripts/*.sh
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/deploy.sh
+```
+
+Before running it:
+
+1. Point your domain's DNS record to the VM.
+2. Allow inbound TCP ports 80 and 443 in the cloud firewall/security list.
+3. Leave `CONFIGURE_FIREWALL=false` unless you explicitly want the installer to modify host iptables rules.
+
+The installer can run without AI, email, or DocuSeal API credentials. Add those values to `.env.prod` and restart the relevant services when you need those features. Keep `.env.prod` private and backed up separately from the repository.
+
+To update an existing deployment, use a new reviewed commit SHA:
+
+```bash
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
+```
+
+To check service health and create a downloadable database backup:
+
+```bash
+bash scripts/doctor.sh
+bash scripts/backup.sh
+```
+
+The bundled scheduled backup retains PostgreSQL dumps on the same host for
+seven days. It does not cover MinIO contract files, DocuSeal data, or
+`.env.prod`; configure encrypted off-host copies and complete a restore drill
+before describing recovery as verified.
+
+Restore requires both an explicit flag and typing `RESTORE` because it replaces the current database schema:
+
+```bash
+bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
+```
+
 ---
 
 ## Environment Variables
@@ -84,7 +144,7 @@ Navigate to `http://localhost:3000` (or your configured URL). Create your first 
 | `DATABASE_URL` | PostgreSQL connection string. Set automatically by Docker Compose. |
 | `POSTGRES_PASSWORD` | Postgres password. Generate: `openssl rand -base64 24` |
 | `BETTER_AUTH_SECRET` | Auth signing secret. Generate: `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | Full URL of your ClauseFlow instance (e.g. `https://clm.yourcompany.com`) |
+| `BETTER_AUTH_URL` | Full URL of your Aakd instance (e.g. `https://clm.yourcompany.com`) |
 | `NEXT_PUBLIC_APP_URL` | Same as `BETTER_AUTH_URL` — used for client-side links |
 | `REDIS_URL` | Redis connection string. Set automatically by Docker Compose. |
 
@@ -104,7 +164,7 @@ For **MinIO** (self-hosted): set `STORAGE_ENDPOINT=http://minio:9000` and choose
 
 ### AI Providers (optional — features degrade gracefully without)
 
-ClauseFlow supports three AI backends. Set `AI_PROVIDER` to select one, or leave it empty to auto-detect from which key is present.
+Aakd supports three AI backends. Set `AI_PROVIDER` to select one, or leave it empty to auto-detect from which key is present.
 
 | Variable | Description |
 |---|---|
@@ -117,7 +177,7 @@ ClauseFlow supports three AI backends. Set `AI_PROVIDER` to select one, or leave
 | `OLLAMA_MODEL` | Model name. Default: `llama3` |
 | `OLLAMA_EMBEDDING_MODEL` | **Must produce 1536-dim vectors.** Default: `mxbai-embed-large`. Do NOT use `nomic-embed-text` (768-dim — will fail). |
 
-> **BYOK (Bring Your Own Key):** ClauseFlow never stores your AI API keys beyond your own `.env` file. You control costs entirely. AI features (extraction, Q&A, semantic search) work out of the box once a key is configured. The app runs without any AI key — AI features are gracefully disabled.
+> **BYOK (Bring Your Own Key):** Aakd never stores your AI API keys beyond your own `.env` file. You control costs entirely. AI features (extraction, Q&A, semantic search) work once a key is configured. The app runs without any AI key, with AI features disabled.
 
 ### Email / SMTP (optional)
 
@@ -200,20 +260,14 @@ To run AI features entirely on your own hardware with no external API calls:
 
 ---
 
-## Updating ClauseFlow
+## Updating Aakd
 
 To update to a new version:
 
 ```bash
-# Pull the latest code
-git pull origin main
-
-# Rebuild and restart containers
-docker compose pull
-docker compose up -d --build
-
-# Run any new migrations
-docker compose exec app npx prisma migrate deploy
+# Run one reviewed release commit. Automatic updates refuse migrations until a
+# pre-update recovery point and restore procedure have been verified.
+AAKD_REF=<reviewed-40-character-commit-sha> bash scripts/update.sh
 ```
 
 ---
@@ -249,7 +303,7 @@ pnpm worker:dev
 
 ### Reverse proxy and TLS
 
-Run ClauseFlow behind a reverse proxy (nginx, Caddy, Traefik) with TLS. The app listens on port 3000.
+Run Aakd behind a reverse proxy (nginx, Caddy, Traefik) with TLS. The app listens on port 3000.
 
 Example Caddy config:
 ```
@@ -272,7 +326,7 @@ STORAGE_ACCESS_KEY=your-strong-access-key
 STORAGE_SECRET_KEY=your-strong-secret-key
 ```
 
-Do not expose MinIO ports (9000, 9001) publicly. Only the ClauseFlow app and worker containers need access.
+Do not expose MinIO ports (9000, 9001) publicly. Only the Aakd app and worker containers need access.
 
 ### Redis security
 
@@ -280,7 +334,14 @@ Set `REDIS_PASSWORD` in `.env` for production deployments. Do not expose Redis p
 
 ### DocuSeal webhook secret
 
-Always set `DOCUSEAL_WEBHOOK_SECRET` in production. Without it, the webhook handler accepts all incoming requests.
+Always set `DOCUSEAL_WEBHOOK_SECRET` in production. Without it, the webhook handler rejects incoming requests and signing status updates will not be processed.
+
+### OpenTelemetry
+
+The production Compose stack does not include an OpenTelemetry collector. Keep
+`OTEL_ENABLED=false` unless you provide an OTLP endpoint reachable from both
+the app and worker containers. The default service names are `clauseflow-app`
+and `clauseflow-worker`.
 
 ---
 

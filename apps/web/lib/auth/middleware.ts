@@ -1,12 +1,13 @@
-import { createHash, randomUUID } from "crypto"
+import { createHash } from "crypto"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth/config"
 import { prisma } from "@/lib/db/client"
 import type { RequestContext } from "@/lib/context"
+import { requestIdFrom } from "@/lib/security/request"
 
 export async function resolveAuth(req: Request): Promise<RequestContext | null> {
   // Read the request ID from the incoming request header (set by Next.js middleware)
-  const requestId = req.headers.get("x-request-id") ?? randomUUID()
+  const requestId = requestIdFrom(req.headers.get("x-request-id"))
 
   // Path 1: Better Auth session (browser)
   try {
@@ -43,7 +44,8 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
   } catch {}
 
   // Path 2: API key (Bearer token for agents)
-  const bearer = req.headers.get("Authorization")?.replace("Bearer ", "").trim()
+  const authorization = req.headers.get("Authorization")
+  const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
   if (bearer?.startsWith("cf_live_")) {
     const lookupHash = createHash("sha256").update(bearer).digest("hex")
     const apiKey = await prisma.apiKey.findUnique({

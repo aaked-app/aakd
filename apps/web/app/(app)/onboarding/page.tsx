@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Server } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Server, FileUp, Sparkles } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { useSession, useActiveOrganization } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,22 +52,22 @@ function OpenAILogo() {
 
 type Provider = "anthropic" | "openai" | "ollama"
 
-const PROVIDER_META: Record<Provider, { name: string; subtitle: string }> = {
-  anthropic: { name: "Anthropic", subtitle: "Claude models" },
-  openai: { name: "OpenAI", subtitle: "GPT models" },
-  ollama: { name: "Ollama", subtitle: "Local / self-hosted" },
+const PROVIDER_META: Record<Provider, { name: string; subtitleKey: string }> = {
+  anthropic: { name: "Anthropic", subtitleKey: "provider.anthropic.subtitle" },
+  openai: { name: "OpenAI", subtitleKey: "provider.openai.subtitle" },
+  ollama: { name: "Ollama", subtitleKey: "provider.ollama.subtitle" },
 }
 
-const CLOUD_MODELS: Record<"anthropic" | "openai", { value: string; label: string }[]> = {
+const CLOUD_MODELS: Record<"anthropic" | "openai", { value: string; labelKey: string }[]> = {
   anthropic: [
-    { value: "claude-haiku-4-5", label: "Claude Haiku (fastest)" },
-    { value: "claude-sonnet-4-5", label: "Claude Sonnet (balanced)" },
-    { value: "claude-opus-4-5", label: "Claude Opus (most capable)" },
+    { value: "claude-haiku-4-5", labelKey: "models.anthropic.haiku" },
+    { value: "claude-sonnet-4-5", labelKey: "models.anthropic.sonnet" },
+    { value: "claude-opus-4-5", labelKey: "models.anthropic.opus" },
   ],
   openai: [
-    { value: "gpt-4o-mini", label: "GPT-4o Mini (fastest)" },
-    { value: "gpt-4o", label: "GPT-4o (balanced)" },
-    { value: "gpt-4-turbo", label: "GPT-4 Turbo (powerful)" },
+    { value: "gpt-4o-mini", labelKey: "models.openai.mini" },
+    { value: "gpt-4o", labelKey: "models.openai.standard" },
+    { value: "gpt-4-turbo", labelKey: "models.openai.turbo" },
   ],
 }
 
@@ -81,21 +82,24 @@ function ProviderCard({
   provider,
   selected,
   onClick,
+  subtitle,
 }: {
   provider: Provider
   selected: boolean
   onClick: () => void
+  subtitle: string
 }) {
   const meta = PROVIDER_META[provider]
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={cn(
-        "flex flex-col items-center gap-3 p-4 rounded-[var(--radius)] border-2 transition-all cursor-pointer w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "flex min-h-20 w-full items-center gap-3 rounded-[var(--radius)] border p-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[480px]:min-h-28 min-[480px]:flex-col min-[480px]:justify-center min-[480px]:text-center",
         selected
-          ? "border-primary bg-primary/5 text-primary"
-          : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/40",
+          ? "border-primary bg-primary/5 text-primary shadow-sm"
+          : "border-border bg-background text-foreground hover:border-primary/40 hover:bg-muted/40",
       )}
     >
       <div className={cn("transition-colors", selected ? "text-primary" : "text-foreground/70")}>
@@ -103,9 +107,9 @@ function ProviderCard({
         {provider === "openai" && <OpenAILogo />}
         {provider === "ollama" && <Server className="h-7 w-7" />}
       </div>
-      <div className="text-center">
+      <div className="min-w-0 min-[480px]:text-center">
         <p className="text-sm font-semibold leading-tight">{meta.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{meta.subtitle}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
       </div>
     </button>
   )
@@ -118,6 +122,7 @@ type Status = "idle" | "testing" | "tested-ok" | "tested-fail" | "saving"
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  const t = useTranslations("onboarding")
   const router = useRouter()
   const { data: session, isPending } = useSession()
   const { data: activeOrg, isPending: orgPending } = useActiveOrganization()
@@ -178,11 +183,11 @@ export default function OnboardingPage() {
         setStatus("tested-ok")
       } else {
         setStatus("tested-fail")
-        setErrorMsg(data.error ?? "Connection test failed")
+        setErrorMsg(data.error ?? t("feedback.failed"))
       }
     } catch {
       setStatus("tested-fail")
-      setErrorMsg("Network error — could not reach the validation endpoint")
+      setErrorMsg(t("feedback.testNetworkError"))
     }
   }
 
@@ -203,13 +208,13 @@ export default function OnboardingPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setStatus("tested-fail")
-        setErrorMsg((data as { error?: string }).error ?? "Failed to save configuration")
+        setErrorMsg((data as { error?: string }).error ?? t("feedback.saveFailed"))
         return
       }
       router.push("/dashboard")
     } catch {
       setStatus("tested-fail")
-      setErrorMsg("Network error — could not save configuration")
+      setErrorMsg(t("feedback.saveNetworkError"))
     }
   }
 
@@ -224,219 +229,240 @@ export default function OnboardingPage() {
   const apiKeyPlaceholder = provider === "anthropic" ? "sk-ant-api03-..." : "sk-proj-..."
 
   return (
-    <div className="flex min-h-screen items-start justify-center pt-16 pb-8 px-4">
-      <div className="w-full max-w-lg space-y-8">
+    <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:py-14">
+      <header className="max-w-2xl space-y-2">
+        <p className="text-sm font-medium text-primary">{t("eyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          {t("title")}
+        </h1>
+        <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+          {t("subtitle")}
+        </p>
+      </header>
 
-        {/* Header */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Welcome to Aakd
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Your organisation is ready. Connect an AI provider to unlock powerful contract features.
+      <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
+        <section
+          aria-labelledby="first-contract-title"
+          className="min-w-0 rounded-xl border border-primary/25 bg-primary/5 p-5 shadow-sm sm:p-6"
+        >
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <FileUp className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="mt-5 space-y-2">
+            <h2 id="first-contract-title" className="text-lg font-semibold text-foreground">
+              {t("firstContract.title")}
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {t("firstContract.description")}
+            </p>
+          </div>
+          <Link
+            href="/contracts/new"
+            onClick={() => localStorage.setItem("cf_onboarding_done", "1")}
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
+          >
+            {t("actions.upload")}
+          </Link>
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">
+            {t("firstContract.formats")}
           </p>
-        </div>
+        </section>
 
-        {/* Feature list */}
-        <div className="rounded-[var(--radius)] border border-border bg-card p-5 space-y-2">
-          <p className="text-sm font-medium text-foreground mb-3">Set up AI to unlock:</p>
-          <ul className="space-y-1.5 text-sm text-muted-foreground">
-            {[
-              "Contract extraction and Q&A",
-              "Risk scoring (LOW / MEDIUM / HIGH)",
-              "Obligation detection",
-            ].map((feat) => (
-              <li key={feat} className="flex items-center gap-2">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                {feat}
+        <section
+          aria-labelledby="ai-setup-title"
+          className="min-w-0 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="ai-setup-title" className="text-lg font-semibold text-foreground">
+                  {t("ai.title")}
+                </h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {t("ai.optional")}
+                </span>
+              </div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {t("ai.description")}
+              </p>
+            </div>
+          </div>
+
+          <ul className="mt-5 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+            {["extraction", "risk", "obligations"].map((feature) => (
+              <li key={feature} className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>{t(`ai.features.${feature}`)}</span>
               </li>
             ))}
           </ul>
-        </div>
 
-        {/* Provider selector — 3-column grid */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium text-foreground">AI Provider</Label>
-          <div className="grid grid-cols-3 gap-3">
-            {(["anthropic", "openai", "ollama"] as Provider[]).map((p) => (
-              <ProviderCard
-                key={p}
-                provider={p}
-                selected={provider === p}
-                onClick={() => switchProvider(p)}
-              />
-            ))}
-          </div>
-        </div>
+          <div className="my-6 border-t border-border" />
 
-        {/* Ollama-specific fields */}
-        {provider === "ollama" ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="ollama-url" className="text-sm font-medium text-foreground">
-                Ollama base URL
-              </Label>
-              <Input
-                id="ollama-url"
-                type="url"
-                placeholder="http://localhost:11434"
-                value={ollamaUrl}
-                onChange={(e) => { setOllamaUrl(e.target.value); resetFeedback() }}
-                className="font-mono text-sm"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                Default is <code className="font-mono">http://localhost:11434</code>. Change this
-                if Ollama runs on a different host or port.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ollama-model" className="text-sm font-medium text-foreground">
-                Model name
-              </Label>
-              <Input
-                id="ollama-model"
-                type="text"
-                placeholder="llama3.2, mistral, mxbai-embed-large, ..."
-                value={ollamaModel}
-                onChange={(e) => { setOllamaModel(e.target.value); resetFeedback() }}
-                className="font-mono text-sm"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter any model you have pulled locally with{" "}
-                <code className="font-mono">ollama pull &lt;model&gt;</code>.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Cloud model selector */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground">Model</Label>
-              <Select
-                value={model}
-                onValueChange={(v) => { if (v) { setModel(v); resetFeedback() } }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLOUD_MODELS[provider as "anthropic" | "openai"].map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* API Key input */}
-            <div className="space-y-2">
-              <Label htmlFor="api-key" className="text-sm font-medium text-foreground">
-                API Key
-              </Label>
-              <div className="relative">
-                <Input
-                  id="api-key"
-                  type={showKey ? "text" : "password"}
-                  placeholder={apiKeyPlaceholder}
-                  value={apiKey}
-                  onChange={(e) => { setApiKey(e.target.value); resetFeedback() }}
-                  className="pr-10 font-mono text-sm"
-                  autoComplete="off"
-                  spellCheck={false}
+          <fieldset className="min-w-0">
+            <legend className="text-sm font-medium text-foreground">{t("provider.legend")}</legend>
+            <div className="mt-3 grid grid-cols-1 gap-3 min-[480px]:grid-cols-3">
+              {(["anthropic", "openai", "ollama"] as Provider[]).map((p) => (
+                <ProviderCard
+                  key={p}
+                  provider={p}
+                  selected={provider === p}
+                  subtitle={t(PROVIDER_META[p].subtitleKey)}
+                  onClick={() => switchProvider(p)}
                 />
-                <button
-                  type="button"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? "Hide key" : "Show key"}
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              ))}
             </div>
+          </fieldset>
+
+          <div className="mt-6 min-w-0">
+            {provider === "ollama" ? (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="ollama-url">{t("fields.ollamaUrl")}</Label>
+                  <Input
+                    id="ollama-url"
+                    type="url"
+                    placeholder="http://localhost:11434"
+                    value={ollamaUrl}
+                    onChange={(e) => { setOllamaUrl(e.target.value); resetFeedback() }}
+                    className="h-11 min-w-0 font-mono text-sm"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <p className="break-words text-xs leading-5 text-muted-foreground">
+                    {t("fields.ollamaUrlHelp")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ollama-model">{t("fields.ollamaModel")}</Label>
+                  <Input
+                    id="ollama-model"
+                    type="text"
+                    placeholder="llama3.2, mistral, mxbai-embed-large, ..."
+                    value={ollamaModel}
+                    onChange={(e) => { setOllamaModel(e.target.value); resetFeedback() }}
+                    className="h-11 min-w-0 font-mono text-sm"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <p className="break-words text-xs leading-5 text-muted-foreground">
+                    {t("fields.ollamaModelHelp")} <code className="font-mono">ollama pull &lt;model&gt;</code>.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-model">{t("fields.model")}</Label>
+                  <Select
+                    value={model}
+                    onValueChange={(v) => { if (v) { setModel(v); resetFeedback() } }}
+                  >
+                    <SelectTrigger id="ai-model" className="h-11 w-full min-w-0">
+                      <SelectValue placeholder={t("fields.selectModel")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CLOUD_MODELS[provider as "anthropic" | "openai"].map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {t(item.labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="api-key">{t("fields.apiKey")}</Label>
+                  <div className="relative min-w-0">
+                    <Input
+                      id="api-key"
+                      type={showKey ? "text" : "password"}
+                      placeholder={apiKeyPlaceholder}
+                      value={apiKey}
+                      onChange={(e) => { setApiKey(e.target.value); resetFeedback() }}
+                      className="h-11 min-w-0 pe-11 font-mono text-sm"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      className="absolute end-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => setShowKey((value) => !value)}
+                      aria-label={showKey ? t("actions.hideKey") : t("actions.showKey")}
+                    >
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Inline feedback */}
-        {status === "tested-ok" && (
-          <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            Connection successful
+          {status === "tested-ok" && (
+            <p role="status" aria-live="polite" className="mt-5 flex items-start gap-2 text-sm text-green-700 dark:text-green-400">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {t("feedback.success")}
+            </p>
+          )}
+          {status === "tested-fail" && (
+            <p role="alert" aria-live="assertive" className="mt-5 flex items-start gap-2 break-words text-sm text-destructive">
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {errorMsg || t("feedback.failed")}
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTest}
+              disabled={!canTest}
+              className="h-11 w-full sm:w-auto sm:min-w-36"
+            >
+              {status === "testing" ? (
+                <>
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                  {t("actions.testing")}
+                </>
+              ) : t("actions.test")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={!canSave}
+              className="h-11 w-full sm:w-auto sm:min-w-36"
+            >
+              {status === "saving" ? (
+                <>
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                  {t("actions.saving")}
+                </>
+              ) : t("actions.save")}
+            </Button>
+          </div>
+
+          <p className="mt-5 break-words text-xs leading-5 text-muted-foreground">
+            {provider === "ollama" ? t("security.ollama") : t("security.cloud")} {t("security.changePrefix")}{" "}
+            <Link href="/settings/org" className="font-medium underline underline-offset-4 hover:text-foreground">
+              {t("security.settingsLink")}
+            </Link>
+            {t("security.suffix")}
           </p>
-        )}
-        {status === "tested-fail" && (
-          <p className="flex items-center gap-1.5 text-sm text-destructive">
-            <XCircle className="h-4 w-4 shrink-0" />
-            {errorMsg || "Connection test failed"}
-          </p>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleTest}
-            disabled={!canTest}
-            className="min-w-[140px]"
-          >
-            {status === "testing" ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test connection"
-            )}
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="min-w-[140px]"
-          >
-            {status === "saving" ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save & continue"
-            )}
-          </Button>
-        </div>
-
-        {/* Skip link */}
-        <div className="text-center">
-          <Link
-            href="/dashboard"
-            onClick={() => localStorage.setItem("cf_onboarding_done", "1")}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
-          >
-            Skip for now
-          </Link>
-        </div>
-
-        {/* Security note */}
-        <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          {provider === "ollama"
-            ? "Your Ollama URL is encrypted at rest. No data leaves your server."
-            : "Your key is encrypted at rest and never logged."}{" "}
-          You can change it anytime in{" "}
-          <Link
-            href="/settings/org"
-            className="underline underline-offset-4 hover:text-foreground transition-colors"
-          >
-            Settings &rarr; Organisation
-          </Link>
-          .
-        </p>
+        </section>
       </div>
-    </div>
+
+      <div className="mt-6 text-center">
+        <Link
+          href="/dashboard"
+          onClick={() => localStorage.setItem("cf_onboarding_done", "1")}
+          className="inline-flex min-h-11 items-center justify-center px-3 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t("actions.skip")}
+        </Link>
+      </div>
+    </main>
   )
 }

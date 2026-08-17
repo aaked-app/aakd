@@ -1,17 +1,19 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { logger } from "@/lib/logger"
 
 export async function GET(req: Request) {
+  const ctx = await resolveAuth(req)
+  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const roleError = requireRole(ctx.role, "member")
+  if (roleError) return roleError
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
   if (!process.env.GOOGLE_CLIENT_ID) {
     return Response.json({ error: "google_drive_not_configured" }, { status: 503 })
   }
-
-  const ctx = await resolveAuth(req)
-  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
-  const scopeError = requireWriteScope(ctx)
-  if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

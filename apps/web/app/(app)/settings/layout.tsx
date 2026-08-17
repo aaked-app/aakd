@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import {
   Building2,
   Users,
-  CreditCard,
   Key,
   ClipboardList,
   Plug2,
@@ -42,7 +41,6 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         { label: t("members"),           href: "/settings/members",       icon: Users },
         { label: t("apiKeys"),           href: "/settings/api-keys",      icon: Key },
         { label: t("auditLog"),          href: "/settings/audit-log",     icon: ClipboardList },
-        { label: t("billing"),           href: "/settings/billing",       icon: CreditCard, disabled: true },
       ],
     },
     {
@@ -67,9 +65,29 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     },
   ]
 
+  const activeItem = SETTINGS_GROUPS.flatMap((group) => group.items).find(
+    ({ href }) => pathname === href || pathname.startsWith(`${href}/`),
+  )
+
   return (
-    <div className="flex min-h-full">
-      <nav className="w-52 shrink-0 border-r border-border bg-muted p-2 flex flex-col">
+    <div className="flex min-h-full min-w-0 flex-col md:flex-row">
+      <div className="border-b border-border bg-muted p-3 md:hidden">
+        <label htmlFor="settings-section" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+          {t("settingsSection")}
+        </label>
+        <select
+          id="settings-section"
+          aria-label={t("settingsNavigation")}
+          value={activeItem?.href ?? "/settings/profile"}
+          onChange={(event) => { window.location.href = event.target.value }}
+          className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {SETTINGS_GROUPS.flatMap((group) => group.items).map(({ href, label }) => (
+            <option key={href} value={href}>{label}</option>
+          ))}
+        </select>
+      </div>
+      <nav aria-label={t("settingsNavigation")} className="hidden w-52 shrink-0 border-e border-border bg-muted p-2 md:flex md:flex-col">
         {SETTINGS_GROUPS.map((group) => (
           <div key={group.title}>
             <p className="px-[10px] pt-3 pb-1 text-[10px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
@@ -86,7 +104,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                     >
                       <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
                       <span>{label}</span>
-                      <span className="ml-auto text-[9px] font-semibold bg-muted-foreground/20 text-muted-foreground px-1.5 py-0.5 rounded-full">
+                      <span className="ms-auto text-[9px] font-semibold bg-muted-foreground/20 text-muted-foreground px-1.5 py-0.5 rounded-full">
                         Soon
                       </span>
                     </div>
@@ -124,7 +142,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           </div>
         </div>
       </nav>
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import crypto from "node:crypto"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { requireRole } from "@/lib/auth/roles"
 import { storage } from "@/lib/storage"
 import { parseCsv, suggestColumnMapping } from "@/lib/types/import-helpers"
 import { logger } from "@/lib/logger"
@@ -10,6 +11,8 @@ const MAX_ROWS = 1000
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const roleError = requireRole(ctx.role, "member")
+  if (roleError) return roleError
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
 

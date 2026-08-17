@@ -98,3 +98,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
       - run: pnpm build
+
+  self-hosting:
+    name: Self-hosting configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose files and deployment scripts
+        run: |
+          bash -n scripts/deploy.sh scripts/update.sh scripts/doctor.sh scripts/backup.sh scripts/restore.sh scripts/validate-self-hosting.sh
+          bash scripts/validate-self-hosting.sh

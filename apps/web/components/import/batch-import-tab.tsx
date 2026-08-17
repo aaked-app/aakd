@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Dropzone } from "./dropzone"
 import { ImportProgressView } from "./import-progress-view"
 import { formatBytes } from "./types"
+import { useTranslations } from "next-intl"
 
 const MAX_FILES = 50
 const MAX_SINGLE_FILE = 50 * 1024 * 1024
 const MAX_TOTAL = 500 * 1024 * 1024
 
 export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) {
+  const t = useTranslations("import.batch")
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -20,26 +22,26 @@ export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) 
   function selectFiles(picked: File[]) {
     if (picked.length === 1 && picked[0].name.toLowerCase().endsWith(".zip")) {
       if (picked[0].size > MAX_TOTAL) {
-        toast.error(`ZIP exceeds 500 MB limit (${formatBytes(picked[0].size)})`)
+        toast.error(t("zipTooLarge", { size: formatBytes(picked[0].size) }))
         return
       }
       setFiles(picked)
       return
     }
     if (picked.length > MAX_FILES) {
-      toast.error(`Maximum ${MAX_FILES} files`)
+      toast.error(t("tooManyFiles", { count: MAX_FILES }))
       return
     }
     let total = 0
     for (const f of picked) {
       if (f.size > MAX_SINGLE_FILE) {
-        toast.error(`${f.name} exceeds 50 MB`)
+        toast.error(t("fileTooLarge", { name: f.name }))
         return
       }
       total += f.size
     }
     if (total > MAX_TOTAL) {
-      toast.error(`Total size exceeds 500 MB (${formatBytes(total)})`)
+      toast.error(t("totalTooLarge", { size: formatBytes(total) }))
       return
     }
     setFiles(picked)
@@ -61,12 +63,12 @@ export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) 
       const res = await fetch("/api/import/batch", { method: "POST", body: fd })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error ?? `Upload failed (${res.status})`)
+        throw new Error(errBody.error ?? t("uploadStatusError", { status: res.status }))
       }
       const data = await res.json()
       setJobId(data.jobId)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to start batch import")
+      toast.error(e instanceof Error ? e.message : t("startFailed"))
     } finally {
       setUploading(false)
     }
@@ -84,8 +86,7 @@ export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) 
   return (
     <div className="space-y-4">
       <div className="text-sm text-zinc-600">
-        Upload a ZIP containing PDFs or Word docs, or drag up to {MAX_FILES} individual files.
-        Each file becomes a contract in DRAFT status. Max 500 MB total.
+        {t("description", { count: MAX_FILES })}
       </div>
 
       <Dropzone
@@ -94,7 +95,7 @@ export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) 
         selected={files}
         onClear={() => setFiles([])}
         onFiles={selectFiles}
-        hint={`PDF or DOCX files (or one ZIP). Max ${MAX_FILES} files, 50 MB each, 500 MB total.`}
+        hint={t("hint", { count: MAX_FILES })}
       />
 
       {files.length > 0 && (
@@ -102,10 +103,10 @@ export function BatchImportTab({ onJobCreated }: { onJobCreated?: () => void }) 
           <Button onClick={startImport} disabled={uploading}>
             {uploading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Uploading...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("uploading")}
               </>
             ) : (
-              `Upload and Import ${files.length === 1 && files[0].name.toLowerCase().endsWith(".zip") ? "ZIP" : `${files.length} file${files.length === 1 ? "" : "s"}`}`
+              files.length === 1 && files[0].name.toLowerCase().endsWith(".zip") ? t("uploadZip") : t("uploadFiles", { count: files.length })
             )}
           </Button>
         </div>

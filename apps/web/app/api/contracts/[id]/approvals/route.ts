@@ -51,7 +51,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 const PostSchema = z.object({
   assignedToId: z.string().min(1),
   message: z.string().optional(),
-  step: z.number().int().positive().optional(),
   required: z.boolean().default(true).optional(),
 })
 
@@ -128,57 +127,65 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       select: USER_SELECT,
     })
 
-    // Only count "pending" *required* approvals to determine whether we're in an
-    // active cycle. Optional approvals are always "pending" and must not push a
-    // new required approver to a higher step or falsely signal an active chain.
-    const pendingCount = await prisma.approval.count({
-      where: { contractId: params.id, status: "pending", required: true },
-    })
-    const hasActivePending = pendingCount > 0
-
-    // Determine step — caller override takes precedence; otherwise auto-assign.
-    // Only count steps from *required* approvals so optional approvers (step 0)
-    // never pollute the sequential numbering.
-    const stepAgg = await prisma.approval.aggregate({
-      where: { contractId: params.id, required: true },
-      _max: { step: true },
-    })
-    const nextStep = body.step ?? (hasActivePending ? (stepAgg._max.step ?? 0) + 1 : 1)
-
-    // Starting fresh: delete any stale "waiting" approvals left over from a
-    // previous rejected cycle so activatedNext can't accidentally resurrect them.
-    if (nextStep === 1) {
-      await prisma.approval.deleteMany({
-        where: { contractId: params.id, status: { in: ["waiting", "rejected"] } },
-      })
-    }
-
-    // If this is not the first step (i.e. there's already a pending/active
-    // approval in front of it) start in "waiting" so only the current active
-    // reviewer gets notified. The PATCH handler activates the next step.
-    // Required approvers follow the sequential chain (waiting if not first).
-    // Optional approvers are always notified immediately (pending) and sit at
-    // step 0 — outside the sequential chain — so they never shift the counter.
     const isRequired = body.required ?? true
-    const approvalStatus = (!isRequired || nextStep === 1) ? "pending" : "waiting"
-    // Optional approvers use step 0 (out-of-band); required ones use nextStep.
-    const assignedStep = isRequired ? nextStep : 0
+    // Calculate the chain position and create the approval in one transaction.
+    // This prevents two concurrent requests from assigning the same step.
+    let approval: Awaited<ReturnType<typeof prisma.approval.create>>
+    let approvalStatus: string
+    try {
+      ({ approval, approvalStatus } = await prisma.$transaction(async (tx) => {
+      const duplicate = await tx.approval.findFirst({
+        where: {
+          contractId: params.id,
+          assignedToId: body.assignedToId,
+          status: { in: ["pending", "waiting"] },
+        },
+      })
+      if (duplicate) throw new Error("duplicate_active_approval")
 
-    // Create the approval record
-    const approval = await prisma.approval.create({
-      data: {
-        contractId: params.id,
-        requestedById: ctx.userId,
-        assignedToId: body.assignedToId,
-        status: approvalStatus,
-        required: isRequired,
-        step: assignedStep,
-      },
-      include: {
-        requestedBy: { select: USER_SELECT },
-        assignedTo: { select: USER_SELECT },
-      },
-    })
+      const pendingCount = await tx.approval.count({
+        where: { contractId: params.id, status: "pending", required: true },
+      })
+      const hasActivePending = pendingCount > 0
+      const stepAgg = await tx.approval.aggregate({
+        where: { contractId: params.id, required: true },
+        _max: { step: true },
+      })
+      const nextStep = hasActivePending ? (stepAgg._max.step ?? 0) + 1 : 1
+
+      if (nextStep === 1) {
+        await tx.approval.deleteMany({
+          where: { contractId: params.id, status: { in: ["waiting", "rejected"] } },
+        })
+      }
+
+      const approvalStatus = (!isRequired || nextStep === 1) ? "pending" : "waiting"
+      const assignedStep = isRequired ? nextStep : 0
+      const approval = await tx.approval.create({
+        data: {
+          contractId: params.id,
+          requestedById: ctx.userId,
+          assignedToId: body.assignedToId,
+          status: approvalStatus,
+          required: isRequired,
+          step: assignedStep,
+        },
+        include: {
+          requestedBy: { select: USER_SELECT },
+          assignedTo: { select: USER_SELECT },
+        },
+      })
+        return { approval, approvalStatus }
+      }))
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === "duplicate_active_approval") {
+        return Response.json(
+          { error: "This person already has an active approval on this contract" },
+          { status: 409 },
+        )
+      }
+      throw error
+    }
 
     // Write audit activity
     await writeActivity(

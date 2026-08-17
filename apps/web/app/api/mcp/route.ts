@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -20,6 +21,17 @@ interface McpRequest {
   id: string | number
   method: string
   params?: unknown
+}
+
+/** MCP mutations must enforce both the organization role and API-key scope.
+ * Session authentication alone must never turn a viewer into a writer. */
+function canWriteMcp(ctx: { role: string; source: "session" | "api_key"; scopes?: string[] }) {
+  return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("write") === true)
+}
+
+/** Contract text is a separate capability from metadata reads. */
+function canReadContractText(ctx: { role: string; source: "session" | "api_key"; scopes?: string[] }) {
+  return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("text_read") === true)
 }
 
 function jsonRpcResult(id: string | number, result: unknown) {
@@ -483,9 +495,34 @@ async function toolGetContract(
 
   const contract = await prisma.contract.findUnique({
     where: { id: parsed.data.id },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      contractType: true,
+      status: true,
+      ownerId: true,
+      counterpartyName: true,
+      counterpartyContact: true,
+      value: true,
+      currency: true,
+      governingLaw: true,
+      startDate: true,
+      endDate: true,
+      renewalDate: true,
+      noticePeriodDays: true,
+      autoRenewal: true,
+      notes: true,
+      organizationId: true,
+      folderId: true,
+      riskScore: true,
+      riskScoredAt: true,
+      docusealSubmissionId: true,
+      signingUrl: true,
+      signingStatus: true,
+      createdAt: true,
+      updatedAt: true,
       owner: { select: { id: true, name: true, email: true } },
-      tags: true,
+      tags: { select: { id: true, name: true, color: true } },
       files: {
         where: { isLatest: true },
         select: { id: true, filename: true, mimeType: true, sizeBytes: true, version: true, createdAt: true },
@@ -494,9 +531,7 @@ async function toolGetContract(
         select: {
           id: true,
           field: true,
-          rawValue: true,
           confidence: true,
-          sourceText: true,
           sourcePage: true,
           extractedBy: true,
           status: true,
@@ -513,7 +548,16 @@ async function toolGetContract(
     return toolError(id, "Error: Contract not found")
   }
 
-  return toolSuccess(id, contract)
+  const { organizationId: _organizationId, extractedText: _extractedText, ...safeContract } =
+    contract as typeof contract & { extractedText?: string | null }
+  const safeExtractions = safeContract.extractions.map((extraction) =>
+    Object.fromEntries(
+      Object.entries(extraction).filter(
+        ([key]) => key !== "rawValue" && key !== "sourceText",
+      ),
+    ),
+  )
+  return toolSuccess(id, { ...safeContract, extractions: safeExtractions })
 }
 
 async function toolCreateContract(
@@ -581,9 +625,25 @@ async function toolListContracts(
   const [contracts, total] = await Promise.all([
     prisma.contract.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        contractType: true,
+        status: true,
+        ownerId: true,
+        counterpartyName: true,
+        value: true,
+        currency: true,
+        endDate: true,
+        renewalDate: true,
+        autoRenewal: true,
+        riskScore: true,
+        riskScoredAt: true,
+        signingStatus: true,
+        createdAt: true,
+        updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
-        tags: true,
+        tags: { select: { id: true, name: true, color: true } },
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * limit,
@@ -781,7 +841,49 @@ async function toolListObligations(
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   })
 
-  return toolSuccess(id, { obligations, count: obligations.length })
+  return toolSuccess(id, { obligations: obligations.map(toSafeObligation), count: obligations.length })
+}
+
+function toSafeObligation(obligation: {
+  id: string
+  contractId: string
+  title: string
+  description?: string | null
+  clauseReference?: string | null
+  priority: string
+  status: string
+  dueDate: Date | string
+  assignee?: { id: string; name: string | null } | null
+  subTasks?: Array<{
+    id: string
+    title: string
+    isCompleted: boolean
+    completedAt: Date | string | null
+    createdAt: Date | string
+    updatedAt: Date | string
+  }>
+}) {
+  return {
+    id: obligation.id,
+    contractId: obligation.contractId,
+    title: obligation.title,
+    description: obligation.description ?? null,
+    clauseReference: obligation.clauseReference ?? null,
+    priority: obligation.priority,
+    status: obligation.status,
+    dueDate: obligation.dueDate,
+    assignee: obligation.assignee
+      ? { id: obligation.assignee.id, name: obligation.assignee.name }
+      : null,
+    subTasks: (obligation.subTasks ?? []).map((subTask) => ({
+      id: subTask.id,
+      title: subTask.title,
+      isCompleted: subTask.isCompleted,
+      completedAt: subTask.completedAt,
+      createdAt: subTask.createdAt,
+      updatedAt: subTask.updatedAt,
+    })),
+  }
 }
 
 async function toolCreateObligation(
@@ -862,7 +964,7 @@ async function toolCreateObligation(
     obligationId: obligation.id,
   })
 
-  return toolSuccess(id, obligation)
+  return toolSuccess(id, toSafeObligation(obligation))
 }
 
 async function toolUpdateObligation(
@@ -916,7 +1018,7 @@ async function toolUpdateObligation(
     obligationId: obligation.id,
   })
 
-  return toolSuccess(id, obligation)
+  return toolSuccess(id, toSafeObligation(obligation))
 }
 
 // ── M8 Analytics ─────────────────────────────────────────────────────────
@@ -1122,13 +1224,29 @@ async function toolListImportJobs(
     prisma.importJob.count({ where }),
   ])
 
-  return toolSuccess(id, { jobs, total, page, limit })
+  return toolSuccess(id, {
+    jobs: jobs.map((job) => ({
+      id: job.id,
+      source: job.source,
+      status: job.status,
+      totalRows: job.totalRows,
+      succeededRows: job.succeededRows,
+      failedRows: job.failedRows,
+      createdAt: job.createdAt,
+      completedAt: job.completedAt,
+      createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
+    })),
+    total,
+    page,
+    limit,
+  })
 }
 
 async function toolGetImportJob(
   args: unknown,
   orgId: string,
   id: string | number,
+  includeSensitiveRows: boolean,
 ): Promise<Response> {
   const parsed = GetImportJobSchema.safeParse(args)
   if (!parsed.success) {
@@ -1163,7 +1281,29 @@ async function toolGetImportJob(
     },
   })
 
-  return toolSuccess(id, { job, rows, rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null })
+  return toolSuccess(id, {
+    job: {
+      id: job.id,
+      source: job.source,
+      status: job.status,
+      totalRows: job.totalRows,
+      succeededRows: job.succeededRows,
+      failedRows: job.failedRows,
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
+    },
+    rows: rows.map((row) => ({
+      id: row.id,
+      rowIndex: row.rowIndex,
+      status: row.status,
+      contractId: row.contractId,
+      sourceRef: includeSensitiveRows ? row.sourceRef : null,
+      errorMessage: includeSensitiveRows ? row.errorMessage : null,
+    })),
+    rowsNote: job.totalRows > FULL_ROW_THRESHOLD ? "Only failed rows shown for large jobs" : null,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1178,7 +1318,6 @@ export async function GET(req: Request) {
     name: "Aakd MCP",
     protocol: "json-rpc-2.0",
     endpoint: "/api/mcp",
-    organizationId: ctx.organizationId,
     tools: TOOLS,
   })
 }
@@ -1187,9 +1326,16 @@ export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
 
+  const contentLength = Number(req.headers.get("content-length") ?? "0")
+  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
+    return new Response("Request body too large", { status: 413 })
+  }
+
   let body: unknown
   try {
-    body = await req.json()
+    const rawBody = await req.text()
+    if (rawBody.length > 1_000_000) return new Response("Request body too large", { status: 413 })
+    body = JSON.parse(rawBody) as unknown
   } catch {
     return new Response("Invalid JSON", { status: 400 })
   }
@@ -1260,8 +1406,8 @@ export async function POST(req: Request) {
         case "get_contract":
           return toolGetContract(toolArgs, ctx.organizationId, id)
         case "create_contract":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolCreateContract(toolArgs, ctx.organizationId, ctx.userId, id)
         case "list_contracts":
@@ -1269,18 +1415,21 @@ export async function POST(req: Request) {
         case "semantic_search":
           return toolSemanticSearch(toolArgs, ctx.organizationId, id)
         case "ask_contract":
+          if (!canReadContractText(ctx)) {
+            return toolError(id, "Error: Contract text access requires a member role and the text_read scope")
+          }
           return toolAskContract(toolArgs, ctx.organizationId, id)
         // M7 Obligations
         case "list_obligations":
           return toolListObligations(toolArgs, ctx.organizationId, id)
         case "create_obligation":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolCreateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
         case "update_obligation":
-          if (ctx.scopes && !ctx.scopes.includes("write")) {
-            return toolError(id, "Error: API key is read-only — write scope required")
+          if (!canWriteMcp(ctx)) {
+            return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolUpdateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
         // M8 Analytics
@@ -1291,9 +1440,15 @@ export async function POST(req: Request) {
           return toolListCrmLinks(toolArgs, ctx.organizationId, id)
         // M10 Import
         case "list_import_jobs":
+          if (!hasRole(ctx.role, "member")) {
+            return toolError(id, "Error: Import access requires a member role")
+          }
           return toolListImportJobs(toolArgs, ctx.organizationId, id)
         case "get_import_job":
-          return toolGetImportJob(toolArgs, ctx.organizationId, id)
+          if (!hasRole(ctx.role, "member")) {
+            return toolError(id, "Error: Import access requires a member role")
+          }
+          return toolGetImportJob(toolArgs, ctx.organizationId, id, canReadContractText(ctx))
         default:
           return toolError(id, `Error: Unknown tool "${toolName}"`)
       }

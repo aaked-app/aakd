@@ -6,7 +6,8 @@ import type { ImportJob } from "@prisma/client"
 
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
-import { createImportedContract, sanitizeFilename } from "../create-contract"
+import { createImportedContractForRow, recordImportRowFailure, sanitizeFilename } from "../create-contract"
+import { readBoundedResponseBody } from "../bounded-response"
 import { detectFileKind, mimeForKind } from "../magic-bytes"
 import { downloadDriveFile } from "../gdrive-client"
 import { safeUnzipSync, ZipBombError } from "../zip-safety"
@@ -41,28 +42,97 @@ interface FileLike {
   buffer: Buffer
   filename: string
   sourceRef: string
+  errorMessage?: string
+}
+
+interface NormalizedManifestEntry {
+  filename: string
+  storageKey: string
+  sizeBytes: number
+}
+
+export function normalizeBatchManifest(
+  value: unknown,
+  context: { organizationId: string; jobId: string },
+): NormalizedManifestEntry[] {
+  const entries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object" && Array.isArray((value as { files?: unknown }).files)
+      ? (value as { files: unknown[] }).files
+      : null
+  if (!entries) throw new Error("manifest_invalid")
+  if (entries.length === 0 || entries.length > MAX_FILES) throw new Error("manifest_invalid")
+
+  const expectedPrefix = `imports/${context.organizationId}/${context.jobId}/files/`
+  const seenKeys = new Set<string>()
+
+  return entries.map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("manifest_invalid")
+    const candidate = entry as { filename?: unknown; storageKey?: unknown; key?: unknown; sizeBytes?: unknown }
+    const filename = candidate.filename
+    const storageKey = candidate.storageKey ?? candidate.key
+    const sizeBytes = candidate.sizeBytes
+    if (
+      typeof filename !== "string" ||
+      !filename.trim() ||
+      typeof storageKey !== "string" ||
+      !storageKey.startsWith(expectedPrefix) ||
+      seenKeys.has(storageKey) ||
+      typeof sizeBytes !== "number" ||
+      !Number.isInteger(sizeBytes) ||
+      sizeBytes < 0 ||
+      sizeBytes > MAX_FILE_BYTES
+    ) {
+      throw new Error("manifest_invalid")
+    }
+    seenKeys.add(storageKey)
+    return { filename, storageKey, sizeBytes }
+  })
 }
 
 async function processFiles(
   job: ImportJob,
   ctx: ImportProcessContext,
-  files: FileLike[],
+  files: Iterable<FileLike> | AsyncIterable<FileLike>,
 ): Promise<void> {
   const db = getWorkerPrisma()
   let succeeded = 0
   let failed = 0
-  const skippedTail: FileLike[] = []
+  let totalRows = 0
 
-  // Spec: max 50 valid entries per batch — extras are recorded as `skipped`.
-  const head = files.slice(0, MAX_FILES)
-  if (files.length > MAX_FILES) {
-    skippedTail.push(...files.slice(MAX_FILES))
-  }
-
-  for (let i = 0; i < head.length; i++) {
-    const rowIndex = i + 1
-    const f = head[i]
+  for await (const f of files) {
+    totalRows += 1
+    const rowIndex = totalRows
+    if (rowIndex > MAX_FILES) {
+      await db.importRow.upsert({
+        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
+        create: {
+          jobId: job.id,
+          rowIndex,
+          sourceRef: f.sourceRef,
+          status: "skipped",
+          errorMessage: "batch_limit_exceeded",
+        },
+        update: {
+          sourceRef: f.sourceRef,
+          status: "skipped",
+          errorMessage: "batch_limit_exceeded",
+        },
+      })
+      continue
+    }
+    const existing = await db.importRow.findFirst({
+      where: { jobId: job.id, rowIndex, status: "success" },
+      select: { id: true },
+    })
+    if (existing) {
+      succeeded += 1
+      continue
+    }
     try {
+      if (f.errorMessage) {
+        throw new Error(f.errorMessage)
+      }
       if (f.buffer.length > MAX_FILE_BYTES) {
         throw new Error("file_too_large")
       }
@@ -72,7 +142,7 @@ async function processFiles(
       }
       const titleBase = stripExtension(f.filename).replace(/[_\-]+/g, " ").trim() || "Untitled"
 
-      const contractId = await createImportedContract(
+      await createImportedContractForRow(
         {
           title: titleBase.slice(0, 500),
           file: {
@@ -83,23 +153,12 @@ async function processFiles(
           },
         },
         { organizationId: ctx.organizationId, ownerId: ctx.createdById },
+        { jobId: job.id, rowIndex, sourceRef: f.sourceRef },
       )
-
-      // Upsert on (jobId, rowIndex) — a retry re-processes the same
-      // rowIndex, and ImportRow has a unique(jobId, rowIndex) constraint.
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: f.sourceRef, status: "success", contractId },
-        update: { sourceRef: f.sourceRef, status: "success", contractId, errorMessage: null },
-      })
       succeeded += 1
     } catch (err) {
       const errorMessage = (err as Error).message || "unknown_error"
-      await db.importRow.upsert({
-        where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-        create: { jobId: job.id, rowIndex, sourceRef: f.sourceRef, status: "failed", errorMessage },
-        update: { sourceRef: f.sourceRef, status: "failed", errorMessage, contractId: null },
-      })
+      await recordImportRowFailure({ jobId: job.id, rowIndex, sourceRef: f.sourceRef }, errorMessage)
       failed += 1
     }
 
@@ -112,29 +171,10 @@ async function processFiles(
     }
   }
 
-  for (let i = 0; i < skippedTail.length; i++) {
-    const rowIndex = MAX_FILES + i + 1
-    await db.importRow.upsert({
-      where: { jobId_rowIndex: { jobId: job.id, rowIndex } },
-      create: {
-        jobId: job.id,
-        rowIndex,
-        sourceRef: skippedTail[i].sourceRef,
-        status: "skipped",
-        errorMessage: "batch_limit_exceeded",
-      },
-      update: {
-        sourceRef: skippedTail[i].sourceRef,
-        status: "skipped",
-        errorMessage: "batch_limit_exceeded",
-      },
-    })
-  }
-
   await db.importJob.update({
     where: { id: job.id },
     data: {
-      totalRows: files.length,
+      totalRows,
       succeededRows: succeeded,
       failedRows: failed,
     },
@@ -179,17 +219,18 @@ async function handleZip(job: ImportJob, ctx: ImportProcessContext): Promise<voi
     throw new Error(`zip_extract_failed: ${(err as Error).message}`)
   }
 
-  const candidates: FileLike[] = Object.entries(entries).map(([path, content]) => ({
-    buffer: Buffer.from(content),
-    filename: basename(path),
-    sourceRef: path,
-  }))
-
-  if (candidates.length === 0) {
+  const paths = Object.keys(entries)
+  if (paths.length === 0) {
     throw new Error("no_valid_files_in_zip")
   }
-
-  await processFiles(job, ctx, candidates)
+  function* candidates(): Generator<FileLike> {
+    for (const path of paths) {
+      const content = entries[path]
+      delete entries[path]
+      yield { buffer: Buffer.from(content), filename: basename(path), sourceRef: path }
+    }
+  }
+  await processFiles(job, ctx, candidates())
 }
 
 function shouldSkipEntry(path: string): boolean {
@@ -214,35 +255,35 @@ async function handleManifest(job: ImportJob, ctx: ImportProcessContext): Promis
   if (!res.ok) {
     throw new Error(`Failed to download manifest from storage: ${res.status}`)
   }
-  const manifest = (await res.json()) as Array<{ key: string; filename: string }>
-  if (!Array.isArray(manifest)) {
-    throw new Error("manifest_invalid")
-  }
+  const manifest = normalizeBatchManifest(await res.json(), {
+    organizationId: ctx.organizationId,
+    jobId: job.id,
+  })
 
-  const files: FileLike[] = []
-  for (const entry of manifest) {
-    if (!entry?.key || !entry?.filename) continue
-    const dlUrl = await storage.getSignedDownloadUrl(entry.key, 600)
-    const dlRes = await fetch(dlUrl)
-    if (!dlRes.ok) {
-      // Tag this entry as failed without aborting the run — manifest entries
-      // are independent.
-      files.push({
-        buffer: Buffer.alloc(0),
-        filename: entry.filename,
-        sourceRef: entry.key,
-      })
-      continue
+  async function* files(): AsyncGenerator<FileLike> {
+    for (const entry of manifest) {
+      const dlUrl = await storage.getSignedDownloadUrl(entry.storageKey, 600)
+      const dlRes = await fetch(dlUrl)
+      if (!dlRes.ok) {
+        // Tag this entry as failed without aborting the run — manifest entries
+        // are independent.
+        yield { buffer: Buffer.alloc(0), filename: entry.filename, sourceRef: entry.storageKey }
+        continue
+      }
+      try {
+        const buffer = await readBoundedResponseBody(dlRes)
+        yield { buffer, filename: entry.filename, sourceRef: entry.storageKey }
+      } catch (err) {
+        yield {
+          buffer: Buffer.alloc(0),
+          filename: entry.filename,
+          sourceRef: entry.storageKey,
+          errorMessage: (err as Error).message || "download_failed",
+        }
+      }
     }
-    const buffer = Buffer.from(await dlRes.arrayBuffer())
-    files.push({ buffer, filename: entry.filename, sourceRef: entry.key })
   }
-
-  if (files.length === 0) {
-    throw new Error("manifest_empty")
-  }
-
-  await processFiles(job, ctx, files)
+  await processFiles(job, ctx, files())
 }
 
 // ─── Google Drive path ───────────────────────────────────────────────────────
@@ -265,32 +306,30 @@ async function handleGoogleDrive(job: ImportJob, ctx: ImportProcessContext): Pro
   if (!integration) {
     throw new Error("google_drive_not_connected")
   }
+  const connectedIntegration = integration
 
   const fileIds = job.driveFileIds.split(",").map((s) => s.trim()).filter(Boolean)
-  const files: FileLike[] = []
-
-  for (const fileId of fileIds) {
-    try {
-      const dl = await downloadDriveFile(integration, fileId)
-      files.push({
-        buffer: dl.buffer,
-        filename: sanitizeFilename(dl.name),
-        sourceRef: `drive:${fileId}`,
-      })
-    } catch (err) {
-      // Record an immediate failure row — we can't add it via processFiles
-      // because that path expects a buffer.
-      files.push({
-        buffer: Buffer.alloc(0),
-        filename: `drive_${fileId}.bin`,
-        sourceRef: `drive:${fileId}:${(err as Error).message}`,
-      })
-    }
-  }
-
-  if (files.length === 0) {
+  if (fileIds.length === 0) {
     throw new Error("no_files_selected")
   }
-
-  await processFiles(job, ctx, files)
+  async function* files(): AsyncGenerator<FileLike> {
+    for (const fileId of fileIds) {
+      try {
+        const dl = await downloadDriveFile(connectedIntegration, fileId)
+        yield {
+          buffer: dl.buffer,
+          filename: sanitizeFilename(dl.name),
+          sourceRef: `drive:${fileId}`,
+        }
+      } catch (err) {
+        // Record an immediate failure row through the normal per-file path.
+        yield {
+          buffer: Buffer.alloc(0),
+          filename: `drive_${fileId}.bin`,
+          sourceRef: `drive:${fileId}:${(err as Error).message}`,
+        }
+      }
+    }
+  }
+  await processFiles(job, ctx, files())
 }

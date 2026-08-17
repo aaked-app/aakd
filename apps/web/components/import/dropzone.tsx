@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { Upload, FileText, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "./types"
+import { useTranslations } from "next-intl"
 
 interface DropzoneProps {
   accept: string
@@ -15,6 +16,7 @@ interface DropzoneProps {
 }
 
 export function Dropzone({ accept, multiple, onFiles, selected, onClear, hint }: DropzoneProps) {
+  const t = useTranslations("import.dropzone")
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -37,11 +39,11 @@ export function Dropzone({ accept, multiple, onFiles, selected, onClear, hint }:
               </div>
             ))}
             {selected.length > 5 && (
-              <p className="text-xs text-zinc-500">+ {selected.length - 5} more files</p>
+              <p className="text-xs text-zinc-500">{t("moreFiles", { count: selected.length - 5 })}</p>
             )}
             {selected.length > 1 && (
               <p className="text-xs text-zinc-500 pt-1 border-t border-zinc-200">
-                {selected.length} files · {formatBytes(totalSize)} total
+                {t("fileSummary", { count: selected.length, size: formatBytes(totalSize) })}
               </p>
             )}
           </div>
@@ -50,6 +52,7 @@ export function Dropzone({ accept, multiple, onFiles, selected, onClear, hint }:
               type="button"
               onClick={onClear}
               className="text-zinc-400 hover:text-zinc-600 transition-colors shrink-0"
+              aria-label={t("clear")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -61,6 +64,9 @@ export function Dropzone({ accept, multiple, onFiles, selected, onClear, hint }:
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={t(multiple ? "chooseFiles" : "chooseFile")}
       className={cn(
         "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 cursor-pointer transition-colors hover:bg-zinc-100 hover:border-zinc-400",
         dragging && "border-indigo-400 bg-indigo-50"
@@ -76,14 +82,20 @@ export function Dropzone({ accept, multiple, onFiles, selected, onClear, hint }:
         handle(e.dataTransfer.files)
       }}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          inputRef.current?.click()
+        }
+      }}
     >
       <div className="flex size-10 items-center justify-center rounded-full bg-white border border-zinc-200">
         <Upload className="h-5 w-5 text-zinc-400" />
       </div>
       <div className="text-center">
         <p className="text-sm text-zinc-600">
-          Drag and drop {multiple ? "files" : "a file"} here, or{" "}
-          <span className="text-indigo-600 font-medium">click to browse</span>
+          {t(multiple ? "promptMultiple" : "promptSingle")} {" "}
+          <span className="text-indigo-600 font-medium">{t("browse")}</span>
         </p>
         {hint && <p className="text-xs text-zinc-500 mt-1">{hint}</p>}
       </div>

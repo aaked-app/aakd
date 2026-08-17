@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useTranslations } from "next-intl"
+import posthog from "posthog-js"
 
 export default function CreateOrgPage() {
   const router = useRouter()
@@ -36,11 +37,18 @@ export default function CreateOrgPage() {
           (result.error as { status?: number }).status === 409
         toast.error(
           isSlugConflict
-            ? "An organisation with that name already exists. Please choose a different name."
-            : msg || t("createOrgFailed"),
+            ? t("orgNameConflict")
+            : t("createOrgFailed"),
         )
       } else {
         await organization.setActive({ organizationId: result.data.id })
+        // Keep workspace activation aggregate-only and never send the org ID.
+        // PostHog is consent-aware and telemetry must never block onboarding.
+        try {
+          posthog.capture("workspace_created")
+        } catch {
+          // Telemetry failures must not interrupt the first-run path.
+        }
         router.push("/onboarding")
       }
     } catch {
@@ -56,7 +64,7 @@ export default function CreateOrgPage() {
         <h1 className="text-xl font-semibold text-zinc-900">{t("createOrgTitle")}</h1>
         <p className="text-sm text-zinc-500">{t("createOrgSubtitle")}</p>
       </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="name">{t("orgName")}</Label>
           <Input
@@ -66,6 +74,9 @@ export default function CreateOrgPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+            disabled={loading}
+            autoComplete="organization"
+            className="h-11"
           />
           {name && (
             <p className="text-xs text-zinc-500">
@@ -73,14 +84,14 @@ export default function CreateOrgPage() {
             </p>
           )}
         </div>
-        <Button type="submit" className="w-full" disabled={loading || !name.trim()}>
+        <Button type="submit" className="h-11 w-full" disabled={loading || !name.trim()}>
           {loading ? t("creating") : t("createOrg")}
         </Button>
       </form>
       <p className="mt-4 text-center text-sm text-zinc-500">
-        Joining an existing team?{" "}
-        <Link href="/dashboard" className="text-indigo-600 hover:underline">
-          Skip — accept an invitation instead
+        {t("joinExistingTeam")} {" "}
+        <Link href="/dashboard" className="inline-flex min-h-11 items-center text-primary hover:underline">
+          {t("acceptInvitationInstead")}
         </Link>
       </p>
     </>
