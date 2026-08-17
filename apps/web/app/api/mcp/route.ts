@@ -1326,9 +1326,16 @@ export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
 
+  const contentLength = Number(req.headers.get("content-length") ?? "0")
+  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
+    return new Response("Request body too large", { status: 413 })
+  }
+
   let body: unknown
   try {
-    body = await req.json()
+    const rawBody = await req.text()
+    if (rawBody.length > 1_000_000) return new Response("Request body too large", { status: 413 })
+    body = JSON.parse(rawBody) as unknown
   } catch {
     return new Response("Invalid JSON", { status: 400 })
   }

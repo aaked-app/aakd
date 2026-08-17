@@ -66,14 +66,14 @@ services:
       /bin/sh -c "
       /usr/bin/mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD;
       /usr/bin/mc mb local/clauseflow --ignore-existing;
-      /usr/bin/mc anonymous set download local/clauseflow/public 2>/dev/null || true;
       exit 0;
       "
     restart: "no"
 
   # ── DocuSeal (self-hosted e-signatures) ──────────────────────────────────
   docuseal:
-    image: docuseal/docuseal:latest
+    # The deployer must choose a reviewed immutable tag or digest.
+    image: ${DOCUSEAL_IMAGE:?DOCUSEAL_IMAGE must be set to a reviewed DocuSeal tag or digest}
     volumes:
       - docusealdata:/data
     environment:

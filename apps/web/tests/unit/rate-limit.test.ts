@@ -18,6 +18,13 @@ describe("rateLimit() — in-memory fallback", () => {
     if (ORIGINAL_REDIS_URL !== undefined) process.env.REDIS_URL = ORIGINAL_REDIS_URL
   })
 
+  it("fails closed in production when Redis is unavailable", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    const result = await rateLimit("production-key", 5, 60_000)
+    expect(result).toEqual({ allowed: false, retryAfter: 60 })
+    vi.unstubAllEnvs()
+  })
+
   it("allows the first request", async () => {
     const result = await rateLimit("test-key", 5, 60_000)
     expect(result.allowed).toBe(true)
