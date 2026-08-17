@@ -25,7 +25,7 @@ if "${COMPOSE[@]}" config --quiet >/dev/null 2>&1; then pass "Production Compose
 for service in app worker db redis minio; do
   if "${COMPOSE[@]}" ps --status running --services | grep -qx "$service"; then pass "$service container is running"; else fail "$service container is not running"; fi
 done
-if "${COMPOSE[@]}" exec -T app wget -q --spider http://localhost:3000/api/health >/dev/null 2>&1; then pass "Application health endpoint responds"; else fail "Application health endpoint does not respond"; fi
+if "${COMPOSE[@]}" exec -T app node -e "fetch(process.env.INTERNAL_APP_URL + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" >/dev/null 2>&1; then pass "Application health endpoint responds"; else fail "Application health endpoint does not respond"; fi
 
 REDIS_PASSWORD=""
 while IFS='=' read -r key value; do [ "$key" = REDIS_PASSWORD ] && REDIS_PASSWORD="$value"; done < .env.prod
