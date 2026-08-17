@@ -78,6 +78,18 @@ bash scripts/restore.sh backups/aakd-YYYYMMDD-HHMMSS.sql.gz --yes-really-restore
 
 For the full production checklist, backups, TLS, storage, email and troubleshooting, see [the self-hosting guide](docs/self-hosting.md) and [the Oracle Cloud walkthrough](docs/deploy-oracle-cloud.md).
 
+## Verify a Phase 0 release
+
+Run the reproducible local engineering checks before publishing a release:
+
+```bash
+bash scripts/verify-phase-0.sh
+```
+
+This validates Compose configuration, typecheck, lint, the complete test suite,
+and the production build. It does not claim customer adoption or replace the
+documented disposable Compose and MCP HTTP replays.
+
 ---
 
 ## Screenshots

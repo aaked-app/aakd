@@ -22,6 +22,16 @@ bash scripts/validate-self-hosting.sh
 
 This checks configuration only. It does not start or modify containers.
 
+For the complete local Phase 0 engineering verification, including the
+application tests and production build, run from the repository root:
+
+```bash
+bash scripts/verify-phase-0.sh
+```
+
+The verifier does not create customer evidence and does not replace the
+disposable Compose or MCP HTTP replay records in `research/gates/`.
+
 ### 1. Clone the repository
 
 ```bash
