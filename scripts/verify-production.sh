@@ -31,7 +31,9 @@ done
 "${COMPOSE[@]}" exec -T db pg_isready -U postgres -d clauseflow >/dev/null
 "${COMPOSE[@]}" exec -T redis redis-cli -a "$(awk -F= '$1 == "REDIS_PASSWORD" { print substr($0, index($0, "=") + 1); exit }' .env.prod)" ping | grep -qx PONG
 "${COMPOSE[@]}" run --rm --no-deps createbuckets >/dev/null
-"${COMPOSE[@]}" logs --tail=200 worker | grep -Fq '[worker] ClauseFlow BullMQ worker started'
+WORKER_CONTAINER="$("${COMPOSE[@]}" ps -q worker)"
+WORKER_STARTED_AT="$(docker inspect --format '{{.State.StartedAt}}' "$WORKER_CONTAINER")"
+docker logs --since "$WORKER_STARTED_AT" "$WORKER_CONTAINER" 2>&1 | grep -Fq '[worker] ClauseFlow BullMQ worker started'
 
 for hostname in "$DOMAIN" "sign.$DOMAIN"; do
   curl --fail --silent --show-error --max-time 15 "https://$hostname/" >/dev/null
