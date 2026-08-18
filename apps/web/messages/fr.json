@@ -976,7 +976,7 @@
       "lPrivacy": "Confidentialité",
       "lTerms": "Conditions"
     },
-    "heroNew": { "eyebrow": "Gestion open source du cycle de vie des contrats", "title": "Pilotez le cycle de vie de vos contrats avec preuves, responsabilité et contrôle.", "subtitle": "Réunissez vos contrats dans un espace auto-hébergé. Vérifiez les informations contractuelles citées, assignez les obligations et gardez approbations, renouvellements et activité visibles pour les responsables.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, citée et vérifiée par des personnes." },
+    "heroNew": { "eyebrow": "Gestion open source du cycle de vie des contrats", "title": "Pilotez le cycle de vie de vos contrats avec preuves, responsabilité et contrôle.", "subtitle": "Réunissez vos contrats dans un espace auto-hébergé, que vous travailliez seul, dirigiez une petite équipe ou coordonniez une organisation plus grande. Vérifiez les informations contractuelles citées, assignez les obligations et gardez approbations, renouvellements et activité visibles pour les responsables.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, citée et vérifiée par des personnes." },
     "proof": {
       "diagramLabel": "Exemple statique d’opérations contractuelles", "filename": "Contrat de services Northwind · PDF", "verified": "Source vérifiée",
       "extraction": { "label": "Extraction citée", "title": "Rapport de service trimestriel", "source": "Page 8 · Section 4.2", "status": "Prêt à vérifier" },
