@@ -1,12 +1,22 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useTranslations } from "next-intl"
-import { format, differenceInCalendarDays } from "date-fns"
+import { useLocale, useTranslations } from "next-intl"
+import { differenceInCalendarDays } from "date-fns"
 import { Check, CheckSquare, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { ObligationSheet } from "./obligation-sheet"
 import { SubTaskList } from "./subtask-list"
@@ -56,6 +66,12 @@ function isDueDateUrgent(dueDate: string, status: ObligationStatus): boolean {
   return days <= 3
 }
 
+function formatActionDate(value: string, locale: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(date)
+}
+
 export function ObligationList({
   contractId,
   obligations,
@@ -67,6 +83,7 @@ export function ObligationList({
   onChange,
 }: Props) {
   const t = useTranslations("obligations")
+  const locale = useLocale()
   const STATUS_FILTERS: ReadonlyArray<{ key: "ALL" | ObligationStatus; label: string }> = [
     { key: "ALL",         label: t("filterAll") },
     { key: "PENDING",     label: t("status.PENDING") },
@@ -82,6 +99,8 @@ export function ObligationList({
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
   const [reviewingIdx, setReviewingIdx] = useState<number | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<Obligation | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const extractionRequestRef = useRef(false)
   const autoExtractionAttemptedRef = useRef(false)
   const [jobId, setJobId] = useState<string | null>(() => {
@@ -122,7 +141,7 @@ export function ObligationList({
           if (!cancelled) {
             const s = data.suggestions ?? []
             if (s.length === 0) {
-              toast.info("No obligations found in this contract.")
+              toast.info(t("noAiSuggestionsFound"))
             } else {
               setSuggestions(s)
             }
@@ -133,7 +152,7 @@ export function ObligationList({
           }
         } else if (data.state === "failed" || data.state === "not_found") {
           if (!cancelled) {
-            toast.error("Obligation extraction failed. Please try again.")
+            toast.error(t("extractionFailed"))
             setExtracting(false)
             extractionRequestRef.current = false
             localStorage.removeItem(`obligation_extract_job_${contractId}`)
@@ -143,7 +162,7 @@ export function ObligationList({
         // "active" → keep polling
       } catch {
         if (!cancelled) {
-          toast.error("Failed to check extraction status.")
+          toast.error(t("extractionStatusFailed"))
           setExtracting(false)
           extractionRequestRef.current = false
           localStorage.removeItem(`obligation_extract_job_${contractId}`)
@@ -159,7 +178,7 @@ export function ObligationList({
       cancelled = true
       clearInterval(interval)
     }
-  }, [jobId, contractId])
+  }, [jobId, contractId, t])
 
   async function extractWithAI() {
     // State updates are asynchronous. Keep a synchronous guard as well so a
@@ -167,7 +186,7 @@ export function ObligationList({
     // reaches the button.
     if (extractionRequestRef.current) return
     if (!hasContractFile) {
-      toast.error("Upload a PDF or DOCX first.")
+      toast.error(t("uploadSourceFirst"))
       return
     }
     extractionRequestRef.current = true
@@ -178,20 +197,38 @@ export function ObligationList({
       const res = await fetch(`/api/contracts/${contractId}/obligations/extract`, { method: "POST" })
       const body = await res.json().catch(() => ({}))
       if (res.status === 202 || body.error === "text_processing") {
-        toast.info("Your document is still being prepared. Try again in a moment.")
+        toast.info(t("documentPreparationInProgress"))
+        // The upload worker owns text extraction. Keep the user in one flow
+        // instead of requiring a second click while that job is active.
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2_000))
+          const contractRes = await fetch(`/api/contracts/${contractId}`)
+          if (!contractRes.ok) continue
+          const contractData = await contractRes.json().catch(() => ({})) as {
+            contract?: { hasExtractedText?: boolean }
+            hasExtractedText?: boolean
+          }
+          const ready = contractData.contract?.hasExtractedText === true || contractData.hasExtractedText === true
+          if (ready) {
+            extractionRequestRef.current = false
+            await extractWithAI()
+            return
+          }
+        }
+        toast.info(t("documentPreparationDelayed"))
         setExtracting(false)
         extractionRequestRef.current = false
         return
       }
       if (res.status === 422) {
         if (body.error === "no_extracted_text") {
-          toast.error("Upload a PDF or DOCX first.")
+          toast.error(t("uploadSourceFirst"))
         } else if (body.error === "text_processing") {
-          toast.info("Your document is still being prepared. Try again in a moment.")
+          toast.info(t("documentPreparationInProgress"))
         } else if (body.error === "no_ai_provider") {
-          toast.error("No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.")
+          toast.error(t("aiNotConfigured"))
         } else {
-          toast.error("Could not extract obligations.")
+          toast.error(t("extractionFailed"))
         }
         setExtracting(false)
         extractionRequestRef.current = false
@@ -204,7 +241,7 @@ export function ObligationList({
       setJobId(id)
       // polling effect takes it from here
     } catch {
-      toast.error("Failed to extract obligations.")
+      toast.error(t("extractionFailed"))
       setExtracting(false)
       extractionRequestRef.current = false
     }
@@ -268,47 +305,50 @@ export function ObligationList({
       if (!res.ok) throw new Error()
       const next = await res.json()
       applyChange(next)
-      toast.success("Obligation completed")
+      toast.success(t("obligationCompleted"))
     } catch {
-      toast.error("Failed to mark complete")
+      toast.error(t("markCompleteFailed"))
     }
   }
 
   async function remove(ob: Obligation) {
-    if (!confirm(`Delete obligation "${ob.title}"? This cannot be undone.`)) return
+    setDeleting(true)
     try {
       const res = await fetch(`/api/contracts/${contractId}/obligations/${ob.id}`, {
         method: "DELETE",
       })
       if (!res.ok) throw new Error()
       onChange(obligations.filter((o) => o.id !== ob.id))
-      toast.success("Obligation deleted")
+      toast.success(t("deleteSuccess"))
+      setDeleteCandidate(null)
     } catch {
-      toast.error("Failed to delete obligation")
+      toast.error(t("deleteError"))
+    } finally {
+      setDeleting(false)
     }
   }
 
   if (obligations.length === 0 && suggestions.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
-        <CheckSquare className="size-10 text-muted-foreground/40" />
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">No obligations yet</p>
+          <CheckSquare className="size-10 text-muted-foreground/40" />
+          <div className="text-center">
+          <p className="text-sm font-medium text-foreground">{t("actionQueueEmptyTitle")}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Track deliverables, payments, and commitments here.
+            {t("actionQueueEmptyDescription")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {canCreate && (
             <Button size="sm" variant="outline" onClick={extractWithAI} disabled={extracting || !hasContractFile}>
               {extracting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Prepare document" : "Extract with AI"}
+              {extracting ? t("extracting") : !hasContractFile ? t("uploadSourceFirst") : !hasExtractedText ? t("prepareDocument") : t("extractWithAi")}
             </Button>
           )}
           {canCreate && (
-            <Button size="sm" onClick={openCreate}>
+            <Button size="sm" onClick={openCreate} className="min-h-11">
               <Plus className="size-4" />
-              Add Obligation
+              {t("addObligation")}
             </Button>
           )}
         </div>
@@ -377,13 +417,13 @@ export function ObligationList({
               ) : (
                 <Sparkles className="size-4" />
               )}
-              {extracting ? "Extracting…" : !hasContractFile ? "Upload a document" : !hasExtractedText ? "Prepare document" : "Extract with AI"}
+              {extracting ? t("extracting") : !hasContractFile ? t("uploadSourceFirst") : !hasExtractedText ? t("prepareDocument") : t("extractWithAi")}
             </Button>
           )}
           {canCreate && (
-            <Button size="sm" onClick={openCreate}>
+            <Button size="sm" onClick={openCreate} className="min-h-11">
               <Plus className="size-4" />
-              Add Obligation
+              {t("addObligation")}
             </Button>
           )}
         </div>
@@ -414,7 +454,7 @@ export function ObligationList({
         <div className="rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
-              AI found {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""} — review before creating
+              {t("aiSuggestionsRequireReview", { count: suggestions.length })}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -425,7 +465,7 @@ export function ObligationList({
                   setJobId(null)
                 }}
                 className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Dismiss all suggestions"
+                aria-label={t("dismissAllSuggestions")}
               >
                 <X className="size-4" />
               </button>
@@ -461,10 +501,10 @@ export function ObligationList({
                               : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {Math.round(s.confidence * 100)}% confidence
-                      </span>
-                      <span>{dueDate ? `Due ~${format(dueDate, "MMM d, yyyy")}` : "Date needs review"}</span>
-                      <span className="capitalize">{s.priority.toLowerCase()} priority</span>
+                      {t("confidence", { value: Math.round(s.confidence * 100) })}
+                    </span>
+                      <span>{dueDate ? t("suggestedDueOn", { date: formatActionDate(dueDate.toISOString(), locale) }) : t("dateNeedsReview")}</span>
+                      <span>{t(`priority.${s.priority}`)}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -479,7 +519,7 @@ export function ObligationList({
                         setSheetOpen(true)
                       }}
                     >
-                      {reviewingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : "Review"}
+                      {reviewingIdx === idx ? <Loader2 className="size-3 animate-spin" /> : t("reviewSuggestion")}
                     </Button>
                     <button
                       type="button"
@@ -487,7 +527,7 @@ export function ObligationList({
                         setDismissedIds((prev) => new Set(prev).add(idx))
                         toast("Suggestion dismissed", {
                           action: {
-                            label: "Undo",
+                            label: t("undo"),
                             onClick: () =>
                               setDismissedIds((prev) => {
                                 const next = new Set(prev)
@@ -499,7 +539,7 @@ export function ObligationList({
                         })
                       }}
                       className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="Dismiss suggestion"
+                      aria-label={t("dismissSuggestion")}
                     >
                       <X className="size-3" />
                     </button>
@@ -514,7 +554,7 @@ export function ObligationList({
       {/* List */}
       {visible.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground py-8">
-          No obligations match this filter.
+          {t("noObligationsFilter")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -530,7 +570,7 @@ export function ObligationList({
                 <div className="flex items-start gap-3">
                   <span
                     className={cn("mt-1.5 size-2 shrink-0 rounded-full", PRIORITY_DOT[ob.priority])}
-                    title={`${ob.priority} priority`}
+                    title={t(`priority.${ob.priority}`)}
                   />
 
                   <div className="min-w-0 flex-1">
@@ -547,7 +587,7 @@ export function ObligationList({
                           STATUS_BADGE[ob.status],
                         )}
                       >
-                        {ob.status.replace("_", " ")}
+                        {t(`status.${ob.status}`)}
                       </span>
                     </div>
 
@@ -558,7 +598,7 @@ export function ObligationList({
                           dueUrgent ? "text-destructive" : "text-foreground/70",
                         )}
                       >
-                        Due {format(new Date(ob.dueDate), "MMM d, yyyy")}
+                        {t("dueOn", { date: formatActionDate(ob.dueDate, locale) })}
                       </span>
                       {ob.assignee && (
                         <span className="inline-flex items-center gap-1">
@@ -583,7 +623,7 @@ export function ObligationList({
                       <div className="mt-3">
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>
-                            {subDone} / {subTotal} tasks
+                            {t("subtaskProgress", { completed: subDone, total: subTotal })}
                           </span>
                         </div>
                         <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
@@ -613,7 +653,7 @@ export function ObligationList({
                         type="button"
                         onClick={() => openEdit(ob)}
                         className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                        aria-label="Edit obligation"
+                        aria-label={t("editObligation")}
                       >
                         <Pencil className="size-4" />
                       </button>
@@ -622,7 +662,7 @@ export function ObligationList({
                           type="button"
                           onClick={() => complete(ob)}
                           className="rounded p-1.5 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:text-emerald-300 transition-colors"
-                          aria-label="Mark complete"
+                          aria-label={t("markComplete")}
                         >
                           <Check className="size-4" />
                         </button>
@@ -630,9 +670,9 @@ export function ObligationList({
                       {canDelete && (
                         <button
                           type="button"
-                          onClick={() => remove(ob)}
+                          onClick={() => setDeleteCandidate(ob)}
                           className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          aria-label="Delete obligation"
+                          aria-label={t("deleteObligation")}
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -665,6 +705,25 @@ export function ObligationList({
           }
         }}
       />
+      <AlertDialog open={deleteCandidate !== null} onOpenChange={(open) => !open && !deleting && setDeleteCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteCandidate ? t("deleteConfirm", { title: deleteCandidate.title }) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || !deleteCandidate}
+              onClick={() => deleteCandidate && remove(deleteCandidate)}
+            >
+              {deleting ? t("deleting") : t("confirmDelete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

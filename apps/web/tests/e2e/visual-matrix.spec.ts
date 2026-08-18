@@ -188,6 +188,49 @@ test.describe("Priority 1 seeded visual matrix", () => {
   for (const route of priorityOne) {
     test(route.name, async ({ page }, testInfo) => verifyRoute(page, testInfo, route))
   }
+
+  test("contract-detail operational tabs", async ({ page }, testInfo) => {
+    const errors: string[] = []
+    const serverErrors: string[] = []
+    page.on("pageerror", (error) => errors.push(error.message))
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text())
+    })
+    page.on("response", (response) => {
+      if (response.status() >= 500) serverErrors.push(`${response.status()} ${response.url()}`)
+    })
+    await verifyRoute(page, testInfo, {
+      name: "contract-detail-tabs",
+      path: `/contracts/${seededContractId}`,
+      heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" },
+    })
+
+    const locale = localeFor(testInfo)
+    const tabs: Array<{ tab: string; heading: string }> = [
+      { tab: "files", heading: "filesTitle" },
+      { tab: "review", heading: "reviewTitle" },
+      { tab: "approvals", heading: "approvalsTitle" },
+      { tab: "actionsTab", heading: "actionsTitle" },
+      { tab: "risk", heading: "riskTitle" },
+    ]
+
+    for (const item of tabs) {
+      const tabLabel = messageAt(locale, `contract.workspace.${item.tab}`)
+      await page.getByRole("tab", { name: tabLabel }).click()
+      await expect(page.getByRole("heading", {
+        level: 2,
+        name: messageAt(locale, `contract.workspace.${item.heading}`),
+      })).toBeVisible()
+      const widths = await page.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        document: document.documentElement.scrollWidth,
+      }))
+      expect(widths.document).toBeLessThanOrEqual(widths.viewport)
+    }
+
+    expect(serverErrors).toEqual([])
+    expect(errors).toEqual([])
+  })
 })
 
 test.describe("Phase 1 Action Journey visual proof", () => {

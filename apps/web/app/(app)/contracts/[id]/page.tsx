@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
@@ -78,7 +78,6 @@ import { FileUploadZone } from "@/components/file-upload-zone"
 import { RelativeTime } from "@/components/relative-time"
 import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
-import { ContractCrmSection } from "@/components/crm/contract-crm-section"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -91,6 +90,29 @@ interface AIExtraction {
   sourcePage: number | null
   extractedBy: string
   status: "pending" | "accepted" | "rejected"
+}
+
+function WorkspaceTabIntro({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p>
+        <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl">{title}</h2>
+        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+      {action ? <div className="flex shrink-0 flex-wrap gap-2">{action}</div> : null}
+    </div>
+  )
 }
 
 const ALL_STATUSES: ContractStatus[] = [
@@ -178,11 +200,15 @@ function ReviewerPicker({
   members,
   currentUserId,
   onChange,
+  chooseReviewerLabel,
+  noEligibleReviewersLabel,
 }: {
   value: string
   members: OrgMember[]
   currentUserId?: string
   onChange: (id: string) => void
+  chooseReviewerLabel: string
+  noEligibleReviewersLabel: string
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -221,7 +247,7 @@ function ReviewerPicker({
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
               {initials(selected)}
             </div>
-            <span className="flex-1 text-left font-medium truncate">
+            <span className="flex-1 text-start font-medium truncate">
               {selected.user.name ?? selected.user.email}
             </span>
             {selected.user.name && (
@@ -235,7 +261,7 @@ function ReviewerPicker({
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/30">
               <User className="h-3.5 w-3.5 text-muted-foreground/40" />
             </div>
-            <span className="flex-1 text-left text-muted-foreground">Choose a reviewer…</span>
+            <span className="flex-1 text-start text-muted-foreground">{chooseReviewerLabel}</span>
           </>
         )}
         <ChevronDown
@@ -248,11 +274,11 @@ function ReviewerPicker({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-[60] bg-background border border-border rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute top-[calc(100%+4px)] inset-x-0 z-[60] bg-background border border-border rounded-lg shadow-lg overflow-hidden">
           <div className="max-h-52 overflow-y-auto">
             {eligible.length === 0 ? (
               <p className="px-3 py-4 text-sm text-center text-muted-foreground">
-                No other members in this organization.
+                {noEligibleReviewersLabel}
               </p>
             ) : (
               eligible.map((m) => (
@@ -265,7 +291,7 @@ function ReviewerPicker({
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
                     {initials(m)}
                   </div>
-                  <div className="flex-1 text-left min-w-0">
+                  <div className="flex-1 text-start min-w-0">
                     <p className="font-medium truncate">{m.user.name ?? m.user.email}</p>
                     {m.user.name && (
                       <p className="text-xs text-muted-foreground truncate">{m.user.email}</p>
@@ -342,6 +368,17 @@ export default function ContractDetailPage() {
   const formatContractValue = (value: number, currency: string | null | undefined) => currency
     ? new Intl.NumberFormat(locale, { style: "currency", currency }).format(value)
     : new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
+
+  function openEdit() {
+    setEditForm(contract ?? {})
+    setEditOpen(true)
+  }
+
+  function closeEdit() {
+    setEditOpen(false)
+    setEditForm(contract ?? {})
+  }
+
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     setLoadError(false)
@@ -868,11 +905,45 @@ export default function ContractDetailPage() {
     : isActionLedgerUiEnabled() && nextAction
       ? { href: `/actions/${nextAction.id}`, label: tActions("openAction"), detail: nextAction.title }
       : null
+  const workflowReadiness = [
+    {
+      tab: tWorkspace("files"),
+      detail: files.length > 0 ? tWorkspace("fileCount", { count: files.length }) : tWorkspace("noFiles"),
+      href: `/contracts/${id}?tab=documents`,
+    },
+    {
+      tab: tWorkspace("review"),
+      detail: pendingExtractions.length > 0
+        ? tWorkspace("pendingSuggestions", { count: pendingExtractions.length })
+        : tWorkspace("allSuggestionsReviewed"),
+      href: `/contracts/${id}?tab=ai-extractions`,
+    },
+    {
+      tab: tWorkspace("approvals"),
+      detail: pendingApprovals.length > 0
+        ? tWorkspace("pendingApprovalsCount", { count: pendingApprovals.length })
+        : tWorkspace("noApprovals"),
+      href: `/contracts/${id}?tab=approvals`,
+    },
+    {
+      tab: tWorkspace("actionsTab"),
+      detail: activeObligations.length > 0
+        ? tWorkspace("activeActions", { count: activeObligations.length })
+        : tWorkspace("noActiveActions"),
+      href: `/contracts/${id}?tab=obligations`,
+    },
+    {
+      tab: tWorkspace("risk"),
+      detail: riskData?.riskScore ? tWorkspace("riskAnalysisAvailable") : tWorkspace("noRiskAnalysis"),
+      href: `/contracts/${id}?tab=risk`,
+    },
+  ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-muted/[0.18]">
       {/* ── Header section ── */}
-      <header className="flex-shrink-0 border-b border-border bg-background px-4 py-4 sm:px-6 xl:px-8">
+      <header className="flex-shrink-0 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-sm sm:px-6 xl:px-8">
+        <div className="mx-auto w-full max-w-[1440px]">
         {/* Row 1 — Breadcrumb */}
         <nav aria-label={tWorkspace("breadcrumb")} className="mb-3 flex min-w-0 items-center gap-1.5">
           <Link
@@ -965,9 +1036,10 @@ export default function ContractDetailPage() {
             )}
           </div>
         </div>
+        </div>
       </header>
 
-      {primaryWorkspaceAction ? <section className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3 sm:mx-6 xl:mx-8" aria-label={tActions("nextStep")}><div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{tActions("nextStep")}</p><p className="truncate text-sm font-semibold">{primaryWorkspaceAction.detail}</p></div><Link href={primaryWorkspaceAction.href} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{primaryWorkspaceAction.label}<ArrowUpRight className="ms-1 size-3.5 rtl:-scale-x-100" /></Link></section> : null}
+      {primaryWorkspaceAction ? <section className="mx-auto mt-3 flex w-[calc(100%-2rem)] max-w-[1392px] flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.035] p-3.5 sm:w-[calc(100%-3rem)] xl:w-[calc(100%-4rem)]" aria-label={tActions("nextStep")}><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{tActions("nextStep")}</p><p className="mt-1 truncate text-sm font-semibold text-foreground">{primaryWorkspaceAction.detail}</p></div><Link href={primaryWorkspaceAction.href} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">{primaryWorkspaceAction.label}<ArrowUpRight className="ms-1 size-3.5 rtl:-scale-x-100" /></Link></section> : null}
 
       {/* ── Tab bar ── */}
       <Tabs
@@ -1053,10 +1125,37 @@ export default function ContractDetailPage() {
 
         {/* Overview — 2-column grid */}
         <TabsContent value="overview" className="flex-1 overflow-auto m-0 border-0">
-          <div
-            data-testid="contract-overview-layout"
-            className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:p-8"
-          >
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("summaryEyebrow")}
+              title={tWorkspace("summaryTitle")}
+              description={tWorkspace("summaryDescription")}
+            />
+            <section aria-labelledby="workflow-readiness-heading" className="rounded-xl border border-border bg-card p-4 sm:p-5">
+              <div className="mb-4">
+                <h2 id="workflow-readiness-heading" className="text-sm font-semibold text-foreground">
+                  {tWorkspace("workflowReadiness")}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">{tWorkspace("workflowReadinessDescription")}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 xl:grid-cols-5">
+                {workflowReadiness.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-label={tWorkspace("openTab", { tab: item.tab })}
+                    className="min-h-20 bg-card p-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset"
+                  >
+                    <p className="text-xs font-medium text-foreground">{item.tab}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+            <div
+              data-testid="contract-overview-layout"
+              className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]"
+            >
             {/* LEFT column */}
             <div className="flex flex-col gap-4">
               {/* Card A — Contract Details */}
@@ -1067,7 +1166,7 @@ export default function ContractDetailPage() {
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => setEditOpen(true)}
+                    onClick={openEdit}
                     title={tWorkspace("editContract")}
                     aria-label={tWorkspace("editContract")}
                   >
@@ -1154,7 +1253,7 @@ export default function ContractDetailPage() {
                         <Input
                           autoFocus
                           className="h-6 w-28 text-xs px-2"
-                          placeholder="Tag name..."
+                          placeholder={tWorkspace("tagNamePlaceholder")}
                           value={tagInput}
                           onChange={(e) => setTagInput(e.target.value)}
                           onKeyDown={(e) => {
@@ -1169,7 +1268,7 @@ export default function ContractDetailPage() {
                           onBlur={() => { if (!tagInput.trim()) { setAddingTag(false) } }}
                         />
                         {tagInput && (
-                          <div className="absolute left-0 top-full z-10 mt-1 w-40 rounded-md border border-border bg-card shadow-md">
+                          <div className="absolute start-0 top-full z-10 mt-1 w-40 rounded-md border border-border bg-card shadow-md">
                             {allTags
                               .filter(t =>
                                 t.name.toLowerCase().includes(tagInput.toLowerCase()) &&
@@ -1181,7 +1280,7 @@ export default function ContractDetailPage() {
                                   key={t.id}
                                   type="button"
                                   onMouseDown={(e) => { e.preventDefault(); addTag(t.id) }}
-                                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-muted-foreground/[0.08]"
+                                className="w-full px-3 py-1.5 text-start text-xs hover:bg-muted-foreground/[0.08]"
                                 >
                                   {t.name}
                                 </button>
@@ -1191,7 +1290,7 @@ export default function ContractDetailPage() {
                               <button
                                 type="button"
                                 onMouseDown={(e) => { e.preventDefault(); createAndAddTag(tagInput) }}
-                                className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted-foreground/[0.08]"
+                                className="w-full px-3 py-1.5 text-start text-xs text-muted-foreground hover:bg-muted-foreground/[0.08]"
                               >
                                 + Create &quot;{tagInput}&quot;
                               </button>
@@ -1241,18 +1340,15 @@ export default function ContractDetailPage() {
                 {/* Notes */}
                 {contract.notes && (
                   <div className="mt-3.5 pt-3.5 border-t border-border">
-                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Notes</p>
+                    <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{tWorkspace("notes")}</p>
                     <p className="whitespace-pre-wrap text-[13px] text-foreground">{contract.notes}</p>
                   </div>
                 )}
               </section>
 
-              {/* Card B — Linked Deals (CRM) */}
-              <ContractCrmSection contractId={id} role={currentMember?.role} />
-
-              {/* Card C — Signing Status */}
+              {/* Signing status */}
               <div className="p-[18px_20px] rounded-[var(--radius)] border border-border bg-card">
-                <p className="text-[13px] font-semibold mb-2.5">Signing Status</p>
+                <p className="mb-2.5 text-[13px] font-semibold">{tWorkspace("signingStatus")}</p>
                 {contract.signingStatus ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">DocuSeal</span>
@@ -1264,13 +1360,13 @@ export default function ContractDetailPage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                       >
-                        Open signing link <ExternalLink className="size-3" />
+                        {tWorkspace("openSigningLink")} <ExternalLink className="size-3" />
                       </a>
                     )}
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <p className="text-[13px] text-muted-foreground">No signing configured</p>
+                    <p className="text-[13px] text-muted-foreground">{tWorkspace("noSigningConfigured")}</p>
                     {canSendForSignature && (
                       <Button
                         variant="ghost"
@@ -1278,7 +1374,7 @@ export default function ContractDetailPage() {
                         onClick={sendForSignature}
                       >
                         <Pen className="size-3.5" />
-                        Send for Signing
+                        {tWorkspace("sendForSigning")}
                       </Button>
                     )}
                   </div>
@@ -1293,14 +1389,14 @@ export default function ContractDetailPage() {
               {activities.length === 0 ? (
                 <p className="text-[12px] text-muted-foreground">{tWorkspace("noActivity")}</p>
               ) : (
-                <div className="space-y-0 max-h-[420px] overflow-y-auto pr-1">
+                <div className="space-y-0 max-h-[420px] overflow-y-auto pe-1">
                   {activities.map((activity, idx) => {
                     const isLast = idx === activities.length - 1
                     return (
                       <div key={activity.id} className="flex gap-2.5 py-2 relative">
                         {/* Connector line */}
                         {!isLast && (
-                          <div className="absolute left-[11px] top-8 bottom-0 w-px bg-border" />
+                          <div className="absolute start-[11px] top-8 bottom-0 w-px bg-border" />
                         )}
                         {/* Icon circle */}
                         <div className="w-[22px] h-[22px] rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px] font-semibold z-10">
@@ -1323,26 +1419,35 @@ export default function ContractDetailPage() {
                 </div>
               )}
             </section>
+            </div>
           </div>
         </TabsContent>
 
         {/* Files */}
         <TabsContent value="documents" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("filesEyebrow")}
+              title={tWorkspace("filesTitle")}
+              description={tWorkspace("filesDescription")}
+              action={
+                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setUploadOpen(true)}>
+                  <Upload className="size-4" />
+                  {tWorkspace("uploadFile")}
+                </Button>
+              }
+            />
             <div className="rounded-[var(--radius)] border border-border bg-card p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-foreground">Documents</h3>
-                <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
-                  <Upload className="size-4" />
-                  Upload File
-                </Button>
+                <h3 className="text-sm font-medium text-foreground">{tWorkspace("fileVersions")}</h3>
               </div>
               {files.length === 0 ? (
                 <div className="flex flex-col items-center py-8 gap-3">
                   <div className="flex size-10 items-center justify-center rounded-full bg-muted">
                     <FileText className="size-5 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-muted-foreground">No files uploaded yet</p>
+                  <p className="text-sm text-muted-foreground">{tWorkspace("noFiles")}</p>
+                  <p className="max-w-sm text-center text-xs leading-5 text-muted-foreground">{tWorkspace("noFilesDescription")}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1370,7 +1475,7 @@ export default function ContractDetailPage() {
                             <p className="truncate text-sm font-medium text-foreground">{f.filename}</p>
                             {f.isLatest && (
                               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                                Current
+                                {tWorkspace("currentVersion")}
                               </span>
                             )}
                             {!f.isLatest && f.version && (
@@ -1391,27 +1496,30 @@ export default function ContractDetailPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="size-8 p-0 text-muted-foreground hover:text-foreground"
+                            className="min-h-11 min-w-11 p-0 text-muted-foreground hover:text-foreground"
                             onClick={() => previewFile(f)}
-                            title="Preview"
+                            title={tWorkspace("previewFile")}
+                            aria-label={tWorkspace("previewFile")}
                           >
                             <ExternalLink className="size-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="size-8 p-0 text-muted-foreground hover:text-foreground"
+                            className="min-h-11 min-w-11 p-0 text-muted-foreground hover:text-foreground"
                             onClick={() => downloadFile(f.id, f.filename)}
-                            title="Download"
+                            title={tWorkspace("downloadFile")}
+                            aria-label={tWorkspace("downloadFile")}
                           >
                             <Download className="size-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="size-8 p-0 text-muted-foreground hover:text-destructive"
+                            className="min-h-11 min-w-11 p-0 text-muted-foreground hover:text-destructive"
                             onClick={() => deleteFile(f.id)}
-                            title="Delete"
+                            title={tWorkspace("deleteFile")}
+                            aria-label={tWorkspace("deleteFile")}
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -1427,7 +1535,18 @@ export default function ContractDetailPage() {
 
         {/* AI Extractions */}
         <TabsContent value="ai-extractions" className="flex-1 overflow-auto m-0 border-0">
-          <div className="mx-auto w-full max-w-[1440px] p-4 sm:p-6 xl:p-8">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("reviewEyebrow")}
+              title={tWorkspace("reviewTitle")}
+              description={tWorkspace("reviewDescription")}
+              action={
+                <Button size="sm" variant="outline" className="min-h-11" onClick={handleRerunExtraction} disabled={rerunningExtraction}>
+                  <RefreshCw className={cn("size-3.5", rerunningExtraction && "animate-spin")} />
+                  {rerunningExtraction ? tWorkspace("rerunningExtraction") : tWorkspace("rerunExtraction")}
+                </Button>
+              }
+            />
             {extractions.length === 0 ? (
               <div className="rounded-[var(--radius)] border border-border bg-card p-5">
                 {extractionPolling ? (
@@ -1448,9 +1567,9 @@ export default function ContractDetailPage() {
               </div>
             ) : (
               <>
-                <div className="mb-5 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-foreground">{tWorkspace("review")}</h2>
+                    <h3 className="text-base font-semibold text-foreground">{tWorkspace("reviewSuggestions")}</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {pendingExtractions.length > 0
                         ? tWorkspace("pendingSuggestions", { count: pendingExtractions.length })
@@ -1459,12 +1578,6 @@ export default function ContractDetailPage() {
                     <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
                       {tWorkspace("reviewGuidance")}
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="min-h-11" onClick={handleRerunExtraction} disabled={rerunningExtraction}>
-                      <RefreshCw className={cn("size-3.5", rerunningExtraction && "animate-spin")} />
-                      {rerunningExtraction ? tWorkspace("rerunningExtraction") : tWorkspace("rerunExtraction")}
-                    </Button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -1559,44 +1672,49 @@ export default function ContractDetailPage() {
 
         {/* Approvals */}
         <TabsContent value="approvals" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("approvalsEyebrow")}
+              title={tWorkspace("approvalsTitle")}
+              description={tWorkspace("approvalsDescription")}
+              action={canRequestApproval ? (
+                <Button size="sm" className="min-h-11" onClick={() => setApprovalOpen(true)}>
+                  <UserCheck className="size-4" />
+                  {tWorkspace("requestApproval")}
+                </Button>
+              ) : undefined}
+            />
             <div className="rounded-[var(--radius)] border border-border bg-card p-5">
               {approvals.some(a => a.status === "rejected") && (() => {
                 const iWasTheReviewer = approvals.some(a => a.status === "rejected" && a.assignedToId === session?.user?.id)
                 if (iWasTheReviewer) return (
                   <div className="mb-4 flex items-start gap-3 rounded-[var(--radius)] border border-zinc-200 bg-muted/60 px-4 py-3">
                     <AlertCircle className="size-4 text-zinc-400 shrink-0 mt-0.5" />
-                    <p className="text-sm text-zinc-600">You rejected this approval. The requester has been notified.</p>
+                    <p className="text-sm text-zinc-600">{tWorkspace("approvalRejectedByYou")}</p>
                   </div>
                 )
                 return (
                   <div className="mb-4 flex items-start gap-3 rounded-[var(--radius)] border border-amber-200 bg-amber-50 px-4 py-3">
                     <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-amber-900">Approval was rejected</p>
-                      <p className="text-xs text-amber-700 mt-0.5">Address the reviewer&apos;s feedback, then re-submit for approval.</p>
+                      <p className="text-sm font-medium text-amber-900">{tWorkspace("approvalRejected")}</p>
+                      <p className="text-xs text-amber-700 mt-0.5">{tWorkspace("approvalRejectedDescription")}</p>
                     </div>
                     {canRequestApproval && (
                       <Button size="sm" onClick={() => setApprovalOpen(true)} className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white border-0">
-                        Re-submit
+                        {tWorkspace("resubmitApproval")}
                       </Button>
                     )}
                   </div>
                 )
               })()}
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-medium text-foreground">Approval Workflow</h3>
-                {canRequestApproval && (
-                  <Button size="sm" onClick={() => setApprovalOpen(true)}>
-                    <UserCheck className="size-4" />
-                    Request Approval
-                  </Button>
-                )}
+                <h3 className="text-sm font-medium text-foreground">{tWorkspace("approvalSteps")}</h3>
               </div>
 
               {approvals.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-muted-foreground">No approvals requested yet</p>
+                  <p className="text-sm text-muted-foreground">{tWorkspace("noApprovalRequests")}</p>
                   {!canRequestApproval && currentMember && (() => {
                     const roleAllowed = ["admin", "legal", "owner"].includes(currentMember.role)
                     return (
@@ -1699,7 +1817,7 @@ export default function ContractDetailPage() {
                                     render={
                                       <button
                                         type="button"
-                                        title="Cancel approval request"
+                                        title={tWorkspace("cancelApprovalRequest")}
                                         className="text-muted-foreground hover:text-destructive transition-colors"
                                       >
                                         <X className="size-3.5" />
@@ -1708,15 +1826,15 @@ export default function ContractDetailPage() {
                                   />
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>Cancel approval request?</AlertDialogTitle>
+                                      <AlertDialogTitle>{tWorkspace("cancelApprovalRequestTitle")}</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        This will withdraw the approval request. The approver will no longer be able to review it.
+                                        {tWorkspace("cancelApprovalRequestDescription")}
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                      <AlertDialogCancel>Keep it</AlertDialogCancel>
+                                      <AlertDialogCancel>{tWorkspace("keepApprovalRequest")}</AlertDialogCancel>
                                       <AlertDialogAction onClick={() => cancelApproval(approval.id)}>
-                                        Cancel request
+                                        {tWorkspace("cancelApprovalRequest")}
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
@@ -1819,7 +1937,19 @@ export default function ContractDetailPage() {
 
         {/* Signing */}
         {signingEnabled && <TabsContent value="signing" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("signingEyebrow")}
+              title={tWorkspace("signingTitle")}
+              description={tWorkspace("signingDescription")}
+              action={
+                <Link href={`/contracts/${id}/signing`}>
+                  <Button size="sm" variant="outline" className="min-h-11">
+                    {tWorkspace("manageSigning")}
+                  </Button>
+                </Link>
+              }
+            />
             <div className="rounded-[var(--radius)] border border-border bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1828,26 +1958,21 @@ export default function ContractDetailPage() {
                   </span>
                   <p className="text-sm font-medium text-foreground">
                     {contract.signingStatus === "completed"
-                      ? "All signatures collected"
+                      ? tWorkspace("allSignaturesCollected")
                       : contract.signingStatus === "sent"
-                      ? "Awaiting signatures"
-                      : "Signing not started"}
+                      ? tWorkspace("awaitingSignatures")
+                      : tWorkspace("signingNotStarted")}
                   </p>
                 </div>
-                <Link href={`/contracts/${id}/signing`}>
-                  <Button size="sm" variant="outline">
-                    Manage Signing
-                  </Button>
-                </Link>
               </div>
 
               {contract.signingStatus && (
                 <>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs text-muted-foreground">Signature progress</p>
+                      <p className="text-xs text-muted-foreground">{tWorkspace("signatureProgress")}</p>
                       <p className="text-xs font-medium text-foreground">
-                        {contract.signingStatus === "completed" ? "100%" : contract.signingStatus === "sent" ? "In progress" : "0%"}
+                        {contract.signingStatus === "completed" ? "100%" : contract.signingStatus === "sent" ? tWorkspace("inProgress") : "0%"}
                       </p>
                     </div>
                     <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -1865,7 +1990,7 @@ export default function ContractDetailPage() {
                           {contract.owner?.name.charAt(0).toUpperCase() ?? "?"}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-foreground">{contract.owner?.name ?? "Owner"}</p>
+                          <p className="text-sm font-medium text-foreground">{contract.owner?.name ?? tWorkspace("owner")}</p>
                           <p className="text-xs text-muted-foreground">{contract.owner?.email ?? ""}</p>
                         </div>
                       </div>
@@ -1878,12 +2003,12 @@ export default function ContractDetailPage() {
               {!contract.signingStatus && (
                 <div className="flex flex-col items-center py-8 gap-3">
                   <p className="text-sm text-muted-foreground">
-                    This contract has not been sent for signature yet.
+                    {tWorkspace("notSentForSigning")}
                   </p>
                   {canSendForSignature && (
                     <Button size="sm" onClick={sendForSignature}>
                       <Send className="size-4" />
-                      Send for Signature
+                      {tWorkspace("sendForSigning")}
                     </Button>
                   )}
                 </div>
@@ -1896,7 +2021,7 @@ export default function ContractDetailPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                 >
-                  Open signing link <ExternalLink className="size-3.5" />
+                  {tWorkspace("openSigningLink")} <ExternalLink className="size-3.5" />
                 </a>
               )}
             </div>
@@ -1918,7 +2043,12 @@ export default function ContractDetailPage() {
 
         {/* Obligations */}
         <TabsContent value="obligations" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("actionsEyebrow")}
+              title={tWorkspace("actionsTitle")}
+              description={tWorkspace("actionsDescription")}
+            />
             <ObligationList
               contractId={contract.id}
               obligations={obligations}
@@ -1934,7 +2064,22 @@ export default function ContractDetailPage() {
 
         {/* Risk */}
         <TabsContent value="risk" className="flex-1 overflow-auto m-0 border-0">
-          <div className="p-7 space-y-5">
+          <div className="mx-auto w-full max-w-[1440px] space-y-5 p-4 sm:p-6 xl:p-8">
+            <WorkspaceTabIntro
+              eyebrow={tWorkspace("riskEyebrow")}
+              title={tWorkspace("riskTitle")}
+              description={tWorkspace("riskDescription")}
+              action={canAnalyzeRisk ? (
+                <Button
+                  size="sm"
+                  className="min-h-11"
+                  onClick={analyzeRisk}
+                  disabled={analyzingRisk || !contract.hasExtractedText}
+                >
+                  {analyzingRisk ? <><Loader2 className="size-4 animate-spin" />{tWorkspace("analyzingRisk")}</> : <><Shield className="size-4" />{riskData?.riskScore ? tWorkspace("reanalyzeRisk") : tWorkspace("analyzeRisk")}</>}
+                </Button>
+              ) : undefined}
+            />
             {!riskData?.riskScore ? (
               /* Empty state */
               <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -1942,27 +2087,20 @@ export default function ContractDetailPage() {
                   <Shield className="size-7 text-muted-foreground" strokeWidth={1.5} />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold text-foreground">No risk analysis yet</p>
+                  <p className="font-semibold text-foreground">{tWorkspace("noRiskAnalysisYet")}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Analyze this contract to get a full risk breakdown across 6 categories.
+                    {tWorkspace("noRiskAnalysisDescription")}
                   </p>
                 </div>
-                {canAnalyzeRisk ? (
-                  <Button
-                    onClick={analyzeRisk}
-                    disabled={analyzingRisk || !contract.hasExtractedText}
-                  >
-                    {analyzingRisk ? (
-                      <><Loader2 className="size-4 animate-spin" />Analyzing…</>
-                    ) : (
-                      <><Shield className="size-4" />Analyze Risk</>
-                    )}
-                  </Button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Only legal, admin, or owner members can run risk analysis.</p>
+                {!canAnalyzeRisk && (
+                  <p className="text-xs text-muted-foreground">{tWorkspace("riskPermissions")}</p>
                 )}
                 {!contract.hasExtractedText && (
-                  <p className="text-xs text-muted-foreground">Upload a document first to enable risk analysis.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {files.length > 0
+                      ? tWorkspace("riskProcessing")
+                      : tWorkspace("riskNeedsSource")}
+                  </p>
                 )}
               </div>
             ) : (() => {
@@ -1974,12 +2112,12 @@ export default function ContractDetailPage() {
               } | null
               const categories = details?.categories ?? {}
               const CATEGORY_LABELS: Record<string, string> = {
-                liability: "Liability",
-                termination: "Termination",
-                autoRenewal: "Auto Renewal",
-                ipOwnership: "IP Ownership",
-                paymentTerms: "Payment Terms",
-                governingLaw: "Governing Law",
+                liability: tWorkspace("riskLiability"),
+                termination: tWorkspace("riskTermination"),
+                autoRenewal: tWorkspace("riskAutoRenewal"),
+                ipOwnership: tWorkspace("riskIpOwnership"),
+                paymentTerms: tWorkspace("riskPaymentTerms"),
+                governingLaw: tWorkspace("riskGoverningLaw"),
               }
               return (
                 <>
@@ -1987,7 +2125,7 @@ export default function ContractDetailPage() {
                   <div className="rounded-[var(--radius)] border border-border bg-card p-6">
                     <div className="flex items-start justify-between gap-6 flex-wrap">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">Overall Risk</p>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{tWorkspace("riskOverall")}</p>
                         <RiskBadge level={riskData.riskScore} size="md" />
                         {details?.summary && (
                           <p className="mt-3 max-w-lg text-sm text-foreground/80 leading-relaxed">
@@ -1996,14 +2134,14 @@ export default function ContractDetailPage() {
                         )}
                         {riskData.riskScoredAt && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Analyzed <RelativeTime date={riskData.riskScoredAt} />
+                            {tWorkspace("riskAnalyzed")} <RelativeTime date={riskData.riskScoredAt} />
                           </p>
                         )}
                       </div>
                       {/* Score gauge */}
                       {details?.score != null && (
                         <div className="flex flex-col items-center gap-1">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Score</p>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">{tWorkspace("riskScore")}</p>
                           <div
                             className={cn(
                               "flex size-16 items-center justify-center rounded-full text-2xl font-bold",
@@ -2014,23 +2152,9 @@ export default function ContractDetailPage() {
                           >
                             {details.score}
                           </div>
-                          <p className="text-xs text-muted-foreground">/ 100</p>
+                          <p className="text-xs text-muted-foreground">{tWorkspace("riskScoreOutOf")}</p>
                         </div>
                       )}
-                    </div>
-                    <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-                      {canAnalyzeRisk && <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={analyzeRisk}
-                        disabled={analyzingRisk}
-                      >
-                        {analyzingRisk ? (
-                          <><Loader2 className="size-3.5 animate-spin" /> Analyzing…</>
-                        ) : (
-                          <><RefreshCw className="size-3.5" /> Re-analyze</>
-                        )}
-                      </Button>}
                     </div>
                   </div>
 
@@ -2044,10 +2168,10 @@ export default function ContractDetailPage() {
                           key={key}
                           className={cn(
                             "rounded-[var(--radius)] border border-border bg-card p-4",
-                            "border-l-4",
-                            cat.level === "HIGH" ? "border-l-red-500" :
-                            cat.level === "MEDIUM" ? "border-l-amber-500" :
-                            "border-l-emerald-500",
+                            "border-s-4",
+                            cat.level === "HIGH" ? "border-s-red-500" :
+                            cat.level === "MEDIUM" ? "border-s-amber-500" :
+                            "border-s-emerald-500",
                           )}
                         >
                           <div className="flex items-center justify-between mb-2">
@@ -2074,129 +2198,208 @@ export default function ContractDetailPage() {
       </Tabs>
 
       {/* Edit Sheet */}
-      <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Edit Contract</SheetTitle>
+      <Sheet open={editOpen} onOpenChange={(open) => (open ? openEdit() : closeEdit())}>
+        <SheetContent className="w-full gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-5 py-5 sm:px-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              {tWorkspace("editRecordEyebrow")}
+            </p>
+            <SheetTitle className="mt-2 text-xl tracking-[-0.025em]">{tWorkspace("editContract")}</SheetTitle>
+            <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+              {tWorkspace("editRecordDescription")}
+            </p>
           </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input
-                value={editForm.title ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
-              />
+          <form
+            aria-label={tWorkspace("editContract")}
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveEdit()
+            }}
+          >
+            <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6 sm:px-7">
+              <section aria-labelledby="edit-core-details">
+                <h3 id="edit-core-details" className="text-sm font-semibold text-foreground">
+                  {tWorkspace("coreDetails")}
+                </h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-title">{tWorkspace("title")}</Label>
+                    <Input
+                      id="contract-title"
+                      className="min-h-11"
+                      value={editForm.title ?? ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-type">{tWorkspace("contractType")}</Label>
+                    <Select
+                      value={editForm.contractType ?? null}
+                      onValueChange={(v) =>
+                        setEditForm((p) => ({ ...p, contractType: v as typeof p.contractType }))
+                      }
+                    >
+                      <SelectTrigger id="contract-type" className="min-h-11 w-full">
+                        <SelectValue placeholder={tWorkspace("selectType")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONTRACT_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </section>
+
+              <section aria-labelledby="edit-counterparty-details" className="border-t border-border pt-6">
+                <h3 id="edit-counterparty-details" className="text-sm font-semibold text-foreground">
+                  {tWorkspace("counterpartyDetails")}
+                </h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="counterparty-name">{tWorkspace("counterpartyName")}</Label>
+                    <Input
+                      id="counterparty-name"
+                      className="min-h-11"
+                      value={editForm.counterpartyName ?? ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, counterpartyName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="counterparty-email">{tWorkspace("counterpartyEmail")}</Label>
+                    <Input
+                      id="counterparty-email"
+                      className="min-h-11"
+                      type="email"
+                      value={editForm.counterpartyContact ?? ""}
+                      onChange={(e) =>
+                        setEditForm((p) => ({ ...p, counterpartyContact: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section aria-labelledby="edit-term-value" className="border-t border-border pt-6">
+                <h3 id="edit-term-value" className="text-sm font-semibold text-foreground">
+                  {tWorkspace("termAndValue")}
+                </h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-value">{tWorkspace("value")}</Label>
+                    <Input
+                      id="contract-value"
+                      className="min-h-11"
+                      type="number"
+                      value={editForm.value ?? ""}
+                      onChange={(e) =>
+                        setEditForm((p) => ({
+                          ...p,
+                          value: e.target.value ? Number(e.target.value) : null,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-currency">{tWorkspace("currency")}</Label>
+                    <Select
+                      value={editForm.currency ?? "USD"}
+                      onValueChange={(v) => setEditForm((p) => ({ ...p, currency: v }))}
+                    >
+                      <SelectTrigger id="contract-currency" className="min-h-11 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CURRENCIES.map((currency) => (
+                          <SelectItem key={currency} value={currency}>{currency}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-start-date">{tWorkspace("startDate")}</Label>
+                    <Input
+                      id="contract-start-date"
+                      className="min-h-11"
+                      type="date"
+                      value={editForm.startDate ? editForm.startDate.slice(0, 10) : ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, startDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-end-date">{tWorkspace("endDate")}</Label>
+                    <Input
+                      id="contract-end-date"
+                      className="min-h-11"
+                      type="date"
+                      value={editForm.endDate ? editForm.endDate.slice(0, 10) : ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, endDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-renewal-date">{tWorkspace("renewalDate")}</Label>
+                    <Input
+                      id="contract-renewal-date"
+                      className="min-h-11"
+                      type="date"
+                      value={editForm.renewalDate ? editForm.renewalDate.slice(0, 10) : ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, renewalDate: e.target.value || null }))}
+                    />
+                  </div>
+                  <label className="flex min-h-11 items-start gap-3 rounded-md border border-border p-3 sm:mt-6">
+                    <input
+                      id="contract-renewal-reminders"
+                      type="checkbox"
+                      className="mt-1 size-4 accent-primary"
+                      checked={editForm.renewalReminderEnabled !== false}
+                      onChange={(e) => setEditForm((p) => ({ ...p, renewalReminderEnabled: e.target.checked }))}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{tWorkspace("renewals")}</span>
+                      <span className="block text-xs text-muted-foreground">{tWorkspace("autoRenewalDescription")}</span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <section aria-labelledby="edit-additional-details" className="border-t border-border pt-6">
+                <h3 id="edit-additional-details" className="text-sm font-semibold text-foreground">
+                  {tWorkspace("additionalDetails")}
+                </h3>
+                <div className="mt-4 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-governing-law">{tWorkspace("governingLaw")}</Label>
+                    <Input
+                      id="contract-governing-law"
+                      className="min-h-11"
+                      value={editForm.governingLaw ?? ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, governingLaw: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contract-notes">{tWorkspace("notes")}</Label>
+                    <Textarea
+                      id="contract-notes"
+                      className="min-h-32 resize-y"
+                      rows={5}
+                      value={editForm.notes ?? ""}
+                      onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
-            <div className="space-y-1.5">
-              <Label>Contract Type</Label>
-              <Select
-                value={editForm.contractType ?? null}
-                onValueChange={(v) =>
-                  setEditForm((p) => ({ ...p, contractType: v as typeof p.contractType }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTRACT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Counterparty Name</Label>
-                <Input
-                  value={editForm.counterpartyName ?? ""}
-                  onChange={(e) => setEditForm((p) => ({ ...p, counterpartyName: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Counterparty Email</Label>
-                <Input
-                  type="email"
-                  value={editForm.counterpartyContact ?? ""}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, counterpartyContact: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Value</Label>
-                <Input
-                  type="number"
-                  value={editForm.value ?? ""}
-                  onChange={(e) =>
-                    setEditForm((p) => ({
-                      ...p,
-                      value: e.target.value ? Number(e.target.value) : null,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Currency</Label>
-                <Select
-                  value={editForm.currency ?? "USD"}
-                  onValueChange={(v) => setEditForm((p) => ({ ...p, currency: v }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={editForm.startDate ? editForm.startDate.slice(0, 10) : ""}
-                  onChange={(e) => setEditForm((p) => ({ ...p, startDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={editForm.endDate ? editForm.endDate.slice(0, 10) : ""}
-                  onChange={(e) => setEditForm((p) => ({ ...p, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Governing Law</Label>
-              <Input
-                value={editForm.governingLaw ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, governingLaw: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea
-                rows={4}
-                value={editForm.notes ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button onClick={saveEdit} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
+            <footer className="flex flex-col-reverse gap-2 border-t border-border bg-background px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+              <Button className="min-h-11 sm:order-2" type="submit" disabled={saving}>
+                {saving ? tWorkspace("savingChanges") : tWorkspace("saveChanges")}
               </Button>
-              <Button variant="outline" onClick={() => setEditOpen(false)}>
-                Cancel
+              <Button className="min-h-11" type="button" variant="outline" onClick={closeEdit}>
+                {tWorkspace("cancel")}
               </Button>
-            </div>
-          </div>
+            </footer>
+          </form>
         </SheetContent>
       </Sheet>
 
@@ -2204,7 +2407,7 @@ export default function ContractDetailPage() {
       <Dialog open={previewFileState !== null} onOpenChange={(open) => { if (!open) setPreviewFileState(null) }}>
         <DialogContent className="w-[min(96vw,1100px)] max-w-none gap-0 p-0 overflow-hidden">
           <DialogHeader className="border-b border-border px-5 py-4">
-            <DialogTitle className="truncate pr-8">{previewFileState?.file.filename ?? "Document preview"}</DialogTitle>
+            <DialogTitle className="truncate pe-8">{previewFileState?.file.filename ?? tWorkspace("documentPreview")}</DialogTitle>
             <DialogDescription>
               {previewFileState?.file.mimeType === "application/pdf" || previewFileState?.file.filename.toLowerCase().endsWith(".pdf")
                 ? "Previewing the uploaded PDF"
@@ -2256,21 +2459,21 @@ export default function ContractDetailPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-1">
               <Archive className="h-5 w-5 text-destructive" />
             </div>
-            <DialogTitle>Archive this contract?</DialogTitle>
+            <DialogTitle>{tWorkspace("archiveContractTitle")}</DialogTitle>
             <DialogDescription>
-              Archived contracts are removed from your active list. You can unarchive at any time from the contract detail page.
+              {tWorkspace("archiveContractDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-2">
             <DialogClose render={<Button variant="outline" disabled={archiving} />}>
-              Cancel
+              {tWorkspace("cancel")}
             </DialogClose>
             <Button
               variant="destructive"
               onClick={deleteContract}
               disabled={archiving}
             >
-              {archiving ? "Archiving…" : "Archive contract"}
+              {archiving ? tWorkspace("archiving") : tWorkspace("archiveContract")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2280,16 +2483,16 @@ export default function ContractDetailPage() {
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload File</DialogTitle>
+            <DialogTitle>{tWorkspace("uploadFile")}</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4">
             <FileUploadZone onFileSelect={setUploadFile} />
             <div className="flex gap-3">
               <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
-                {uploading ? "Uploading..." : "Upload"}
+                {uploading ? tWorkspace("uploading") : tWorkspace("upload")}
               </Button>
               <Button variant="outline" onClick={() => setUploadOpen(false)}>
-                Cancel
+                {tWorkspace("cancel")}
               </Button>
             </div>
           </div>
@@ -2306,9 +2509,9 @@ export default function ContractDetailPage() {
               <Shield className="h-[18px] w-[18px] text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-[15px] font-semibold">Request Approval</DialogTitle>
+              <DialogTitle className="text-[15px] font-semibold">{tWorkspace("approvalRequestTitle")}</DialogTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Ask a team member to review and approve this contract.
+                {tWorkspace("approvalRequestDescription")}
               </p>
             </div>
             <button
@@ -2326,24 +2529,26 @@ export default function ContractDetailPage() {
             {/* Reviewer picker */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-2">
-                Reviewer <span className="text-rose-400">*</span>
+                {tWorkspace("reviewer")} <span className="text-rose-400">*</span>
               </p>
               <ReviewerPicker
                 value={approvalAssigneeId}
                 members={members}
                 currentUserId={session?.user?.id}
-                onChange={(id) => setApprovalAssigneeId(id)}
+              onChange={(id) => setApprovalAssigneeId(id)}
+              chooseReviewerLabel={tWorkspace("chooseReviewer")}
+              noEligibleReviewersLabel={tWorkspace("noEligibleReviewers")}
               />
             </div>
 
             {/* Message */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-2">
-                Message <span className="font-normal normal-case tracking-normal text-muted-foreground/50">(optional)</span>
+                {tWorkspace("message")} <span className="font-normal normal-case tracking-normal text-muted-foreground/50">{tWorkspace("optional")}</span>
               </p>
               <Textarea
                 rows={3}
-                placeholder="Any context or notes for the reviewer…"
+                placeholder={tWorkspace("approvalMessagePlaceholder")}
                 value={approvalMessage}
                 onChange={(e) => setApprovalMessage(e.target.value)}
                 className="text-sm resize-none"
@@ -2353,11 +2558,11 @@ export default function ContractDetailPage() {
             {/* Required approver toggle */}
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-3.5 py-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Required approver</p>
+                <p className="text-sm font-medium text-foreground">{tWorkspace("requiredApprover")}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                   {approvalRequired
-                    ? "Must approve before the contract can move forward."
-                    : "FYI only — their decision won't block the workflow."}
+                    ? tWorkspace("requiredApproverDescription")
+                    : tWorkspace("optionalApproverDescription")}
                 </p>
               </div>
               <button
@@ -2389,7 +2594,7 @@ export default function ContractDetailPage() {
               onClick={() => { setApprovalOpen(false); setApprovalRequired(true) }}
               className="min-w-[80px]"
             >
-              Cancel
+              {tWorkspace("cancel")}
             </Button>
             <Button
               size="sm"
@@ -2397,7 +2602,7 @@ export default function ContractDetailPage() {
               disabled={!approvalAssigneeId || requestingApproval}
               className="min-w-[130px]"
             >
-              {requestingApproval ? "Requesting…" : "Request Approval"}
+              {requestingApproval ? tWorkspace("requestingApproval") : tWorkspace("requestApproval")}
             </Button>
           </DialogFooter>
 
