@@ -33,7 +33,7 @@ done
 "${COMPOSE[@]}" run --rm --no-deps createbuckets >/dev/null
 WORKER_CONTAINER="$("${COMPOSE[@]}" ps -q worker)"
 WORKER_STARTED_AT="$(docker inspect --format '{{.State.StartedAt}}' "$WORKER_CONTAINER")"
-docker logs --since "$WORKER_STARTED_AT" "$WORKER_CONTAINER" 2>&1 | grep -Fq '[worker] ClauseFlow BullMQ worker started'
+docker logs --since "$WORKER_STARTED_AT" "$WORKER_CONTAINER" 2>&1 | grep -F '[worker] ClauseFlow BullMQ worker started' >/dev/null
 
 for hostname in "$DOMAIN" "sign.$DOMAIN"; do
   curl --fail --silent --show-error --max-time 15 "https://$hostname/" >/dev/null
