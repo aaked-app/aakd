@@ -3,13 +3,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react"
 import Link from "next/link"
-import { Settings2, Plus, ArrowUpRight, FileText, Clock3, CircleAlert } from "lucide-react"
-import { useSession } from "@/lib/auth/client"
+import { Settings2, Plus, ArrowUpRight, FileText, Upload, ScanText, UserCheck, ShieldCheck } from "lucide-react"
+import { useActiveOrganization, useSession } from "@/lib/auth/client"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Contract } from "@/lib/types"
@@ -29,10 +30,16 @@ type LoadState = "loading" | "ready" | "error"
 type DashboardAction = {
   id: string
   title: string
+  kind?: string
   status: string
   dueDate: string | null
   assignee: { id: string; name: string } | null
   contract: { id: string; title: string; counterpartyName: string | null }
+  sourcePage?: number | null
+  hasCitation?: boolean
+  confidence?: number | null
+  reviewStatus?: string
+  evidenceCount?: number
 }
 
 function isFiniteCount(value: unknown): value is number {
@@ -89,7 +96,9 @@ function hasDashboardActionShape(value: unknown): value is DashboardAction {
   return typeof action.id === "string" && typeof action.title === "string" &&
     typeof action.status === "string" && (action.dueDate == null || typeof action.dueDate === "string") &&
     Boolean(action.contract && typeof action.contract.id === "string" && typeof action.contract.title === "string") &&
-    (action.assignee == null || (typeof action.assignee.id === "string" && typeof action.assignee.name === "string"))
+    (action.assignee == null || (typeof action.assignee.id === "string" && typeof action.assignee.name === "string")) &&
+    (action.sourcePage == null || (typeof action.sourcePage === "number" && Number.isInteger(action.sourcePage) && action.sourcePage > 0)) &&
+    (action.confidence == null || typeof action.confidence === "number")
 }
 
 function subscribeToDesktop(onChange: () => void) {
@@ -164,75 +173,13 @@ function StatCard({
   )
 }
 
-// ─── Renewal bar chart ────────────────────────────────────────────────────────
-
-function RenewalChart({
-  monthlyVolume,
-  locale,
-  chartLabel,
-  noDataLabel,
-}: {
-  monthlyVolume: Array<{ month: string; count: number }>
-  locale: string
-  chartLabel: (summary: string) => string
-  noDataLabel: string
-}) {
-  const slice = monthlyVolume.slice(-8)
-  if (slice.length === 0) {
-    return <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">{noDataLabel}</div>
-  }
-  const max = Math.max(...slice.map((d) => d.count), 1)
-  const barW = 28, gap = 10, chartH = 100
-  const points = slice.map((item) => {
-    const date = new Date(`${item.month}-01T00:00:00.000Z`)
-    const month = Number.isNaN(date.getTime())
-      ? item.month
-      : new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(date)
-    return { ...item, label: month }
-  })
-  const summary = points
-    .map((item) => `${item.label}: ${new Intl.NumberFormat(locale).format(item.count)}`)
-    .join(", ")
-
-  return (
-    <div>
-      <svg
-        width="100%"
-        viewBox={`0 0 ${slice.length * (barW + gap) - gap} ${chartH + 28}`}
-        className="block"
-        role="img"
-        aria-label={chartLabel(summary)}
-      >
-        {points.map((d, i) => {
-          const barH = Math.max(4, (d.count / max) * chartH)
-          const x = i * (barW + gap)
-          const isHigh = d.count === max && d.count > 0
-          return (
-            <g key={d.month}>
-              <rect x={x} y={chartH - barH} width={barW} height={barH} rx={3}
-                fill={isHigh ? "hsl(38 85% 52%)" : "hsl(148 58% 30%)"} opacity={isHigh ? 1 : 0.75} />
-              {d.count > 0 && (
-                <text x={x + barW / 2} y={chartH - barH - 5} textAnchor="middle"
-                  fontSize={10} fontWeight={600} fill="hsl(215 35% 11%)" className="dark:fill-[hsl(210_25%_96%)]">
-                  {d.count}
-                </text>
-              )}
-              <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={10} fill="hsl(215 8% 45%)">
-                {d.label}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: session } = useSession()
+  const { data: activeOrganization } = useActiveOrganization()
   const t = useTranslations("dashboard")
+  const tActions = useTranslations("actionQueue")
   const locale = useLocale()
   const isDesktop = useSyncExternalStore(
     subscribeToDesktop,
@@ -304,17 +251,33 @@ export default function DashboardPage() {
     }
   }, [loadDashboard])
 
-  const hour       = new Date().getHours()
-  const greeting   = hour < 12 ? t("greeting.morning") : hour < 17 ? t("greeting.afternoon") : t("greeting.evening")
-  const fullName   = session?.user?.name ?? session?.user?.email ?? t("teamFallback")
-  const firstName  = fullName.split(" ")[0]
+  const role = useMemo(() => {
+    const userId = session?.user?.id
+    if (!userId) return "viewer"
+    return activeOrganization?.members?.find((member) => member.userId === userId)?.role ?? "viewer"
+  }, [activeOrganization?.members, session?.user?.id])
+  const canCreateContract = role !== "viewer"
 
-  const activeCount   = analytics?.byStatus.find((s) => s.status === "ACTIVE")?.count ?? 0
   const expiringCount = analytics?.expiringSoon.next30 ?? 0
   const overdueCount = analytics?.obligations?.overdue ?? null
   const dueSoonCount = analytics?.obligations?.dueSoon ?? null
 
   const totalContracts = analytics?.byStatus.reduce((sum, s) => sum + s.count, 0) ?? null
+  const pendingApprovals = analytics?.approvalFunnel.pending ?? null
+
+  const nextStepFor = (action: DashboardAction) => {
+    if (action.status === "STALE") return t("nextSteps.reviewChangedSource")
+    if (action.status === "BLOCKED") return t("nextSteps.resolveBlocker")
+    if (action.status === "PENDING_REVIEW" || action.status === "PROPOSED") return t("nextSteps.reviewSuggestion")
+    if (!action.assignee) return t("nextSteps.assignOwner")
+    return t("nextSteps.continueAction")
+  }
+
+  const provenanceFor = (action: DashboardAction) => {
+    if (action.sourcePage != null) return t("citedPage", { page: action.sourcePage })
+    if (action.hasCitation) return t("cited")
+    return t("sourceUnavailable")
+  }
 
   return (
     <main className="flex min-h-full flex-col" dir={locale.startsWith("ar") ? "rtl" : "ltr"}>
@@ -322,7 +285,7 @@ export default function DashboardPage() {
         <div className="min-w-0">
           {loadState === "loading"
             ? <Skeleton className="h-6 w-48 mb-1" />
-            : <h1 className="text-[18px] font-bold tracking-tight leading-snug">{greeting}, {firstName}</h1>
+            : <h1 className="text-[18px] font-bold tracking-tight leading-snug">{t("title")}</h1>
           }
           <p className="text-[12.5px] text-muted-foreground mt-0.5">
             {t("subtitle")}
@@ -337,13 +300,13 @@ export default function DashboardPage() {
           >
             <Settings2 className="h-[15px] w-[15px]" />
           </Link>
-          <Link
-            href="/contracts/new"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("newContract")}
-          </Link>
+          {canCreateContract ? <Link
+              href="/contracts/new"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("newContract")}
+            </Link> : null}
         </div>
       </header>
 
@@ -381,38 +344,95 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : totalContracts === 0 ? (
-        <section className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
-          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius)] border border-primary/20 bg-primary/10">
-              <FileText className="h-8 w-8 text-primary" aria-hidden="true" />
+        <section className="flex flex-1 items-start bg-[#f7f6f2] px-4 py-8 sm:px-6 lg:px-7 lg:py-12">
+          <div className="mx-auto grid w-full max-w-5xl overflow-hidden border border-zinc-200 bg-white lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="flex flex-col justify-between border-b border-zinc-200 p-6 sm:p-8 lg:border-b-0 lg:border-e lg:p-10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("firstRunEyebrow")}</p>
+                <h2 className="mt-3 max-w-md text-2xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-3xl">{t("uploadFirstTitle")}</h2>
+                <p className="mt-3 max-w-md text-sm leading-6 text-zinc-600">{t("uploadFirst")}</p>
+              </div>
+              <div className="mt-8">
+                <Link
+                  href="/contracts/new"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  {t("uploadContract")}
+                </Link>
+                <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-zinc-500">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-800" aria-hidden="true" />
+                  {t("firstRunTrust")}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">{t("uploadFirstTitle")}</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t("uploadFirst")}</p>
+            <div className="p-6 sm:p-8 lg:p-10">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">{t("firstRunWorkflow")}</p>
+                <span className="border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">{t("firstRunReviewBadge")}</span>
+              </div>
+              <ol aria-label={t("firstRunWorkflow")} className="divide-y divide-zinc-200 border-y border-zinc-200">
+                {[
+                  [Upload, t("firstRunUploadTitle"), t("firstRunUploadDescription")],
+                  [ScanText, t("firstRunReviewTitle"), t("firstRunReviewDescription")],
+                  [UserCheck, t("firstRunOwnTitle"), t("firstRunOwnDescription")],
+                ].map(([Icon, title, description], index) => {
+                  const StepIcon = Icon as typeof Upload
+                  return (
+                    <li key={String(title)} className="grid grid-cols-[36px_1fr] gap-3 py-4">
+                      <span className="flex size-9 items-center justify-center border border-zinc-200 bg-[#f7f6f2] text-zinc-700">
+                        <StepIcon className="size-4" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[11px] font-semibold tabular-nums text-zinc-400">0{index + 1}</span>
+                          <h3 className="text-sm font-semibold text-zinc-950">{String(title)}</h3>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-zinc-600">{String(description)}</p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
             </div>
-            <Link
-              href="/contracts/new"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("uploadContract")}
-            </Link>
           </div>
         </section>
       ) : (
         <div className="flex flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:px-7">
-          {isActionLedgerUiEnabled() ? <section className="rounded-[var(--radius)] border border-primary/20 bg-card p-4 sm:p-5" aria-labelledby="agreement-work-heading">
-            <div className="flex items-start justify-between gap-3">
-              <div><h2 id="agreement-work-heading" className="text-base font-semibold">{t("agreementWork")}</h2><p className="mt-1 text-xs text-muted-foreground">{t("agreementWorkDescription")}</p></div>
-              <Link href="/actions?view=my_work" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary">{t("viewActionQueue")}<ArrowUpRight className="size-3 rtl:-scale-x-100" /></Link>
+          {isActionLedgerUiEnabled() ? <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-card" aria-labelledby="agreement-work-heading">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
+              <div><h2 id="agreement-work-heading" className="text-base font-semibold">{t("priorityAgreementWork")}</h2><p className="mt-1 text-xs text-muted-foreground">{t("priorityAgreementWorkDescription")}</p></div>
+              <Link href="/actions?view=my_work" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("viewActionQueue")}<ArrowUpRight className="size-3 rtl:-scale-x-100" /></Link>
             </div>
-            {actions.length === 0 ? <p className="mt-4 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{t("noAgreementWork")}</p> : <ol className="mt-4 grid gap-2">{actions.map((action) => <li key={action.id}><Link href={`/actions/${action.id}`} className="flex min-h-11 flex-col gap-1 rounded-lg border p-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0"><span className="block font-medium">{action.title}</span><span className="block truncate text-xs text-muted-foreground">{action.contract.title} · {action.assignee?.name ?? t("unassigned")}</span></span><span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">{action.status === "STALE" || action.status === "BLOCKED" ? <CircleAlert className="size-4 text-destructive" /> : <Clock3 className="size-4" />}{action.dueDate ? formatDate(action.dueDate, locale) : t("conditionBased")}</span></Link></li>)}</ol>}
+            {actions.length === 0 ? <p className="m-4 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{t("noAgreementWork")}</p> : <ol className="divide-y divide-border">{actions.map((action) => {
+              const confidence = action.confidence != null && Number.isFinite(action.confidence) && action.confidence >= 0 && action.confidence <= 1
+                ? t("suggestionConfidence", { value: Math.round(action.confidence * 100) })
+                : null
+              return <li key={action.id} className="px-4 py-4 sm:px-5"><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                    <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-foreground">{action.kind ? tActions(`kinds.${action.kind}`) : t("action")}</span>
+                    <span className={action.status === "STALE" || action.status === "BLOCKED" ? "text-destructive" : "text-muted-foreground"}>{action.status ? tActions(`statuses.${action.status}`) : t("action")}</span>
+                  </div>
+                  <p className="mt-2 font-medium text-foreground">{action.title}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{action.contract.title}{action.contract.counterpartyName ? ` · ${action.contract.counterpartyName}` : ""}</p>
+                  <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{action.dueDate ? formatDate(action.dueDate, locale) : t("conditionBased")}</span>
+                    <span>{action.assignee?.name ?? t("unassigned")}</span>
+                    <span>{provenanceFor(action)}</span>
+                    <span>{action.reviewStatus === "reviewed" ? t("humanReviewed") : t("reviewRequired")}</span>
+                    {confidence ? <span>{confidence}</span> : null}
+                  </div>
+                </div>
+                <Link href={`/actions/${action.id}`} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {nextStepFor(action)}<ArrowUpRight className="size-3 rtl:-scale-x-100" aria-hidden="true" />
+                </Link>
+              </div></li>
+            })}</ol>}
           </section> : null}
-          <section aria-labelledby="workspace-summary-heading">
-            <h2 id="workspace-summary-heading" className="sr-only">{t("workspaceSummary")}</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard title={t("activeContracts")} value={activeCount} sub={t("totalInPortfolio")} locale={locale} />
-              <StatCard title={t("expiringSoon")} value={expiringCount} sub={t("workspaceScope")} locale={locale} />
+          <section aria-labelledby="workspace-signals-heading">
+            <div className="mb-2 flex items-center justify-between"><h2 id="workspace-signals-heading" className="text-sm font-semibold">{t("workspaceSignals")}</h2><span className="text-xs text-muted-foreground">{t("workspaceScope")}</span></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title={t("overdueObligations")}
                 value={overdueCount}
@@ -427,14 +447,16 @@ export default function DashboardPage() {
                 locale={locale}
                 unavailableLabel={t("obligationsUnavailable")}
               />
+              <StatCard title={t("expiringSoon")} value={expiringCount} sub={t("workspaceScope")} locale={locale} />
+              <StatCard title={t("pendingApprovals")} value={pendingApprovals} sub={t("needsAttention")} locale={locale} />
             </div>
           </section>
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-h-0 flex-1">
             <section className="flex min-w-0 flex-col" aria-labelledby="recent-contracts-heading">
               <div className="mb-2.5 flex items-start justify-between gap-3">
                 <div>
-                  <h2 id="recent-contracts-heading" className="text-sm font-semibold">{t("recentContracts")}</h2>
+                  <h2 id="recent-contracts-heading" className="text-sm font-semibold">{t("recentlyUpdatedContracts")}</h2>
                   <p className="mt-0.5 text-xs text-muted-foreground">{t("recentContractsDescription")}</p>
                 </div>
                 <Link href="/contracts" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -524,16 +546,6 @@ export default function DashboardPage() {
               )}
             </section>
 
-            <section className="flex flex-col rounded-[var(--radius)] border border-border bg-card px-5 py-4" aria-labelledby="contracts-added-heading">
-              <h2 id="contracts-added-heading" className="text-[13px] font-semibold">{t("contractsAdded")}</h2>
-              <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{t("contractsAddedDescription")}</p>
-              <RenewalChart
-                monthlyVolume={analytics?.monthlyVolume ?? []}
-                locale={locale}
-                chartLabel={(summary) => t("chartSummary", { summary })}
-                noDataLabel={t("noData")}
-              />
-            </section>
           </div>
         </div>
       )}

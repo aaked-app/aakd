@@ -138,6 +138,7 @@
   },
   "workspace": {
     "breadcrumb": "Contract navigation",
+    "contracts": "Contracts",
     "actions": "Contract actions",
     "tabs": "Contract workspace",
     "changeStatus": "Change status",
@@ -146,6 +147,14 @@
     "sendForSigning": "Send for signing",
     "archive": "Archive",
     "overview": "Overview",
+    "summary": "Summary",
+    "review": "Review",
+    "actionsTab": "Actions",
+    "reviewSuggestions": "Review suggestions",
+    "pendingSuggestions": "{count} suggestion(s) need review",
+    "allSuggestionsReviewed": "All suggested details have been reviewed",
+    "reviewApproval": "Review approval",
+    "pendingApproval": "An approval decision is waiting for you",
     "files": "Files",
     "aiExtractions": "AI extractions",
     "approvals": "Approvals",
@@ -171,7 +180,26 @@
     "addTag": "Add tag",
     "sourcePage": "Source page {page}",
     "editorPausedTitle": "Document editing is paused",
-    "editorPausedDescription": "Phase 0 focuses on uploading, reviewing and tracking executed contracts. The original document remains available from the Documents tab."
+    "editorPausedDescription": "Phase 0 focuses on uploading, reviewing and tracking executed contracts. The original document remains available from the Documents tab.",
+    "loadFailed": "This contract could not be loaded.",
+    "loadFailedDescription": "No contract data was changed. Check your connection and try again.",
+    "retry": "Retry",
+    "backToContracts": "Back to contracts",
+    "reviewGuidance": "Review each suggestion against its cited source. Accepting updates only that field.",
+    "extractionInProgress": "Document analysis is in progress…",
+    "extractionInProgressDescription": "Suggestions will appear here with their source text and confidence.",
+    "noExtractions": "No suggestions are available yet. Upload a document to create reviewable suggestions.",
+    "rerunExtraction": "Run extraction again",
+    "rerunningExtraction": "Running…",
+    "manual": "Manual",
+    "manualEntry": "Manually entered or edited",
+    "localExtraction": "Deterministic local extraction",
+    "aiAssistedSuggestion": "AI-assisted suggestion",
+    "saving": "Saving…",
+    "accept": "Accept",
+    "reject": "Reject",
+    "accepted": "Accepted",
+    "rejected": "Rejected"
   }
   },
   "auth": {
@@ -185,6 +213,12 @@
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
     "loginSubtitle": "Enter your credentials to continue",
+    "accessEyebrow": "Workspace access",
+    "workspaceEyebrow": "Workspace setup",
+    "shell": {
+      "asideLabel": "Workspace setup", "eyebrow": "Private contract operations", "title": "A clear path from account to accountable contract work.", "description": "Set up the workspace, add the signed source, and review suggested details before anyone acts on them.",
+      "progressLabel": "Setup progress", "stepAccount": "Account", "stepWorkspace": "Workspace", "stepAgreement": "First agreement", "controlNote": "Your contract workspace stays under your control.", "mobileContext": "Secure access to your contract workspace", "footer": "Human review remains required before suggested contract details become trusted workspace data."
+    },
     "signingIn": "Signing in...",
     "createOne": "Create one",
     "signInFailed": "Sign in failed",
@@ -561,6 +595,8 @@
     "deleteSelectedOne": "Delete {count} obligation",
     "deleteSelectedMany": "Delete {count} obligations",
     "deleteSelectedConfirm": "Delete the selected {count} obligation(s)? This cannot be undone.",
+    "deleteSelectedTitle": "Delete selected obligations?",
+    "cancel": "Cancel",
     "clearSelection": "Clear",
     "closeDetails": "Close details",
     "openInContractLabel": "Open in contract",
@@ -731,7 +767,30 @@
     "uploadFirstTitle": "Upload your first contract",
     "uploadFirst": "Add a PDF or DOCX to start organizing agreement work.",
     "uploadContract": "Upload contract",
+    "firstRunEyebrow": "First agreement", "firstRunWorkflow": "How the workspace starts", "firstRunReviewBadge": "Human review",
+    "firstRunUploadTitle": "Upload the signed source", "firstRunUploadDescription": "Add one PDF or DOCX and keep the original attached to its record.",
+    "firstRunReviewTitle": "Review cited details", "firstRunReviewDescription": "Check suggested dates, parties, and terms before they become trusted data.",
+    "firstRunOwnTitle": "Assign the next work", "firstRunOwnDescription": "Give each important follow-up an owner, deadline, and evidence trail.",
+    "firstRunTrust": "Suggested details stay reviewable; Aakd does not silently make them authoritative.",
     "noRecentContracts": "No recent contracts to show.",
+    "recentlyUpdatedContracts": "Recently updated contracts",
+    "workspaceSignals": "Workspace signals",
+    "priorityAgreementWork": "Priority agreement work",
+    "priorityAgreementWorkDescription": "The five highest-priority open actions across this workspace.",
+    "action": "Action",
+    "citedPage": "Cited · page {page}",
+    "cited": "Cited",
+    "sourceUnavailable": "Source unavailable",
+    "humanReviewed": "Human reviewed",
+    "reviewRequired": "Review required",
+    "suggestionConfidence": "Suggestion confidence: {value}%",
+    "nextSteps": {
+      "reviewChangedSource": "Review changed source",
+      "resolveBlocker": "Resolve blocker",
+      "reviewSuggestion": "Review suggestion",
+      "assignOwner": "Assign owner",
+      "continueAction": "Continue action"
+    },
     "agreementWork": "Your agreement work",
     "agreementWorkDescription": "The five highest-priority open actions across this workspace.",
     "viewActionQueue": "View action queue",
@@ -813,7 +872,12 @@
     "pageOf": "Page {page} of {totalPages}",
     "noContracts": "No contracts yet",
     "noContractsFilter": "No contracts match your filters.",
-    "createFirst": "Create your first contract to get started.",
+    "createFirst": "Build your contract repository by adding the first agreement.",
+    "repositorySetup": "Repository setup", "repositoryWorkflow": "Repository workflow",
+    "repositoryUploadTitle": "Add an agreement", "repositoryUploadDescription": "Upload the signed PDF or DOCX as the permanent source record.",
+    "repositoryReviewTitle": "Review cited details", "repositoryReviewDescription": "Confirm suggested terms and dates against the source before trusting them.",
+    "repositoryOrganizeTitle": "Track ownership", "repositoryOrganizeDescription": "Keep owners, deadlines, renewals, and follow-up evidence with the agreement.",
+    "repositoryTrust": "Suggested details remain reviewable before they become workspace truth.",
     "view": "View",
     "archiveAction": "Archive",
     "failedToLoad": "Failed to load contracts",
@@ -821,11 +885,14 @@
     "failedToArchive": "Failed to archive",
     "contractArchived": "Contract archived",
     "create": {
-      "dropTitle": "Drop your contract here", "uploadHint": "PDF or DOCX · Max 50 MB · AI will extract key fields automatically", "continueReview": "Continue to review", "browseFiles": "Browse files", "removeFile": "Remove file",
+      "workspaceEyebrow": "Contract intake", "pageTitle": "Add an agreement to the workspace", "pageDescription": "Upload the signed source, review suggested details, then create the contract record.",
+      "workflowLabel": "Contract intake progress", "stepUpload": "Upload agreement", "stepReview": "Review details", "stepCreate": "Create record",
+      "dropTitle": "Drop your contract here", "uploadHint": "PDF or DOCX · Max 50 MB", "continueReview": "Continue to review", "browseFiles": "Browse files", "removeFile": "Remove file",
+      "intakeGuidance": "Contract intake guidance", "beforeUpload": "Before you upload", "acceptedFiles": "Source formats", "acceptedFilesDescription": "PDF or DOCX, up to 50 MB. File validation still happens before storage.", "reviewControl": "Review boundary", "reviewControlDescription": "Suggested details remain editable and require your review.", "uploadPrivacy": "The original file stays attached to the contract record.",
       "basicInformation": "Basic information", "contractTitle": "Contract title", "contractTitlePlaceholder": "Service Agreement Q1 2026", "contractType": "Contract type", "selectType": "Select type", "description": "Description", "descriptionPlaceholder": "Brief summary of this contract…",
       "parties": "Parties", "counterpartyName": "Counterparty name", "counterpartyPlaceholder": "Acme Corporation", "timeline": "Timeline", "startDate": "Start date", "endDate": "End date",
       "financial": "Financial", "contractValue": "Contract value", "currency": "Currency", "paymentTerms": "Payment terms", "paymentTermsPlaceholder": "Net 30", "autoRenewal": "Auto-renewal", "autoRenewalDescription": "Contract renews automatically at expiry", "toggleAutoRenewal": "Toggle auto-renewal", "governingLaw": "Governing law", "governingLawPlaceholder": "State of Delaware",
-      "aiExtraction": "AI extraction", "poweredByAi": "Powered by AI", "aiReading": "Reading the document in the background. You can keep editing.", "noConfidence": "No confidence data available.", "reviewExtractedValues": "Values pre-filled from your document. Review and correct as needed.", "changeFile": "Change file",
+      "aiExtraction": "AI extraction", "poweredByAi": "Powered by AI", "extractionReview": "Suggested details", "reviewStatus": "Review required", "sourceAttached": "Source attached", "readingDocument": "Reading document", "continueWithoutExtraction": "Continue without extraction", "manualMode": "Manual review", "aiReading": "Reading the document in the background. You can keep editing.", "noConfidence": "No suggested details are available yet.", "reviewExtractedValues": "Review every suggested value before creating the record.", "changeFile": "Change file",
       "back": "Back", "creating": "Creating…", "createContract": "Create contract", "partialExtractionWarning": "AI extraction partially failed. You can fill in the remaining fields.", "extractionUnavailable": "AI extraction is unavailable. You can fill in the fields manually.", "continueManually": "AI extraction is unavailable. You can continue manually.", "titleRequired": "Contract title is required", "createFailed": "Failed to create contract", "reviewStateSaveFailed": "Initial extraction review state could not be saved", "fileUploadFailed": "File upload failed", "created": "Contract created",
       "fields": { "title": "Title", "contractType": "Contract type", "counterpartyName": "Counterparty", "startDate": "Start date", "endDate": "End date", "value": "Value", "currency": "Currency", "paymentTerms": "Payment terms", "governingLaw": "Governing law", "autoRenewal": "Auto-renewal", "renewalDate": "Renewal date", "noticePeriodDays": "Notice period", "description": "Description" }
     }
@@ -847,6 +914,8 @@
     "saving": "Saving...",
     "orgUpdated": "Organization updated",
     "failedToUpdate": "Failed to update organization",
+    "loadFailed": "Organization settings could not be loaded. Existing workspace data is unchanged.",
+    "retry": "Retry",
     "orgLogo": "Organization Logo",
     "remove": "Remove",
     "clickToUpload": "Click to upload or drag and drop",
@@ -855,6 +924,7 @@
     "aiConfig": "AI Configuration",
     "provider": "Provider",
     "model": "Model",
+    "aiModelHelp": "Enter any model ID supported by the selected provider.",
     "notConfigured": "Not configured",
     "aiConfigHint": "Set AI_PROVIDER and the corresponding API key in your environment to enable AI extraction and Q&A.",
     "aiRemoveFailed": "Failed to remove the organization AI key",
@@ -891,6 +961,8 @@
     "sending": "Sending...",
     "inviteSent": "Invitation sent to {email}",
     "failedToLoad": "Failed to load members",
+    "loadError": "Team members could not be loaded. Existing workspace access has not changed.",
+    "retry": "Retry",
     "failedToInvite": "Failed to send invitation",
     "failedToChangeRole": "Failed to update role",
     "roleUpdated": "Role updated",
@@ -911,7 +983,7 @@
     "docuSealDescription": "Open-source e-signature for contract signing", "docuSealConfigured": "DocuSeal is configured through environment variables. See the self-hosting guide.",
     "descriptions": { "googleDrive": "Import contracts directly from your Google Drive folders.", "dropbox": "Sync and import contracts from Dropbox.", "oneDrive": "Connect to Microsoft OneDrive for contract storage.", "slack": "Receive contract event notifications in your Slack channels.", "teams": "Receive contract event notifications in Microsoft Teams channels.", "quickBooks": "Sync contract values and billing data with QuickBooks.", "xero": "Connect contract financials to your Xero accounting.", "webhooks": "Receive real-time HTTP notifications for contract events.", "restApi": "Access Aakd programmatically using Bearer API keys.", "zapier": "Connect Aakd to 5,000+ apps through Zapier automation.", "make": "Build workflows with Aakd and Make." },
     "providerDescriptions": { "HUBSPOT": "Connect HubSpot to link deals and sync contract status.", "SALESFORCE": "Connect Salesforce to link opportunities and sync contract status.", "PIPEDRIVE": "Connect Pipedrive to link deals and sync contract status." },
-    "connectedBy": "Connected by {name}", "onDate": "on", "portal": "portal", "manageRoleRequired": "Administrator or legal role required", "autoCreateStage": "Auto-create stage", "negotiationPlaceholder": "e.g. Negotiation", "autoCreateDescription": "When a deal reaches this stage, a draft contract is created.", "syncTargetStage": "Sync target stage", "syncTargetDescription": "Stage to set on the deal when the contract becomes active.", "saving": "Saving…", "saveSettings": "Save settings", "loadFailed": "Failed to load integrations", "connectedSuccess": "{provider} connected successfully", "connectFailed": "Could not connect the integration.", "oauthErrors": { "missingParams": "The authorization response was incomplete.", "stateMismatch": "The authorization request could not be verified.", "exchangeFailed": "The provider did not complete authorization." }, "disconnectedSuccess": "{provider} disconnected", "disconnectFailed": "Failed to disconnect", "settingsSaved": "Settings saved", "settingsSaveFailed": "Failed to save settings", "disconnectTitle": "Disconnect {provider}?", "disconnectDescription": "Disconnecting removes all deal links for this integration. Existing contracts are not affected.", "cancel": "Cancel"
+    "connectedBy": "Connected by {name}", "onDate": "on", "portal": "portal", "manageRoleRequired": "Administrator or legal role required", "autoCreateStage": "Auto-create stage", "negotiationPlaceholder": "e.g. Negotiation", "autoCreateDescription": "When a deal reaches this stage, a draft contract is created.", "syncTargetStage": "Sync target stage", "syncTargetDescription": "Stage to set on the deal when the contract becomes active.", "saving": "Saving…", "saveSettings": "Save settings", "loadFailed": "Failed to load integrations", "loadErrorDescription": "Could not load integrations. Existing connections are unchanged.", "retry": "Retry", "connectedSuccess": "{provider} connected successfully", "connectFailed": "Could not connect the integration.", "oauthErrors": { "missingParams": "The authorization response was incomplete.", "stateMismatch": "The authorization request could not be verified.", "exchangeFailed": "The provider did not complete authorization." }, "disconnectedSuccess": "{provider} disconnected", "disconnectFailed": "Failed to disconnect", "settingsSaved": "Settings saved", "settingsSaveFailed": "Failed to save settings", "disconnectTitle": "Disconnect {provider}?", "disconnectDescription": "Disconnecting removes all deal links for this integration. Existing contracts are not affected.", "cancel": "Cancel"
   },
   "apiKeys": {
     "title": "API Keys",
@@ -968,7 +1040,7 @@
     "firstContract": { "title": "Start with your first contract", "description": "Upload a contract and begin reviewing it right away. AI setup is optional and can be completed later in Settings.", "formats": "PDF and DOCX files are supported." },
     "ai": { "title": "Configure AI assistance", "optional": "Optional", "description": "Connect a provider for the existing extraction and review tools. You can skip this and return at any time.", "features": { "extraction": "Contract extraction and Q&A", "risk": "Risk scoring (LOW / MEDIUM / HIGH)", "obligations": "Obligation detection" } },
     "provider": { "legend": "AI provider", "anthropic": { "subtitle": "Claude models" }, "openai": { "subtitle": "GPT models" }, "ollama": { "subtitle": "Local / self-hosted" } },
-    "fields": { "model": "Model", "selectModel": "Select a model", "apiKey": "API key", "ollamaUrl": "Ollama base URL", "ollamaUrlHelp": "The default is http://localhost:11434. Change it if Ollama runs on a different host or port.", "ollamaModel": "Model name", "ollamaModelHelp": "Enter any model you have pulled locally with" },
+    "fields": { "model": "Model", "selectModel": "Select a model", "modelHelp": "Enter any model ID supported by your provider. The value is tested before saving.", "apiKey": "API key", "ollamaUrl": "Ollama base URL", "ollamaUrlHelp": "The default is http://localhost:11434. Change it if Ollama runs on a different host or port.", "ollamaModel": "Model name", "ollamaModelHelp": "Enter any model you have pulled locally with" },
     "models": { "anthropic": { "haiku": "Claude Haiku (fastest)", "sonnet": "Claude Sonnet (balanced)", "opus": "Claude Opus (most capable)" }, "openai": { "mini": "GPT-4o Mini (fastest)", "standard": "GPT-4o (balanced)", "turbo": "GPT-4 Turbo (powerful)" } },
     "actions": { "upload": "Upload a contract", "skip": "Skip for now", "test": "Test connection", "save": "Save & continue", "testing": "Testing...", "saving": "Saving...", "showKey": "Show key", "hideKey": "Hide key" },
     "feedback": { "success": "Connection successful", "failed": "Connection test failed", "testNetworkError": "Network error — could not reach the validation endpoint", "saveFailed": "Failed to save configuration", "saveNetworkError": "Network error — could not save configuration" },
@@ -1105,8 +1177,8 @@
     },
     "heroNew": {
       "eyebrow": "Open-source contract lifecycle management",
-      "title": "Run your contract lifecycle with evidence, ownership, and control.",
-      "subtitle": "Bring agreements into one self-hosted workspace—whether you work solo, run a small team, or coordinate a larger organization. Review cited contract intelligence, assign obligation work, and keep approvals, renewals, and activity visible to the people accountable for them.",
+      "title": "Turn agreements into reviewed, owned action.",
+      "subtitle": "One contract workspace for solo operators, small teams, and larger organizations. Review cited terms, assign the work they create, and keep every consequential step accountable.",
       "primaryCta": "Create workspace",
       "secondaryCta": "View on GitHub",
       "qualifier": "Self-hostable AGPL core. AI is optional, cited, and reviewed by people."
@@ -1142,8 +1214,8 @@
     },
     "operations": {
       "eyebrow": "Operational proof",
-      "title": "Built for contract operations",
-      "subtitle": "Keep the agreement, the reviewed intelligence, and the work it creates in one accountable system.",
+      "title": "Give every obligation an owner and an ending.",
+      "subtitle": "Move from a reviewed term to accountable follow-up without losing the agreement, source, deadline, or completion evidence.",
       "items": {
         "0": {
           "title": "One contract record",
@@ -1164,31 +1236,31 @@
       }
     },
     "lifecycle": {
-      "eyebrow": "One connected lifecycle",
+      "eyebrow": "Contract operations workflow",
       "title": "From agreement to accountable action.",
       "subtitle": "A clear operating sequence keeps source, review, ownership, and history connected.",
       "items": {
         "0": {
-          "title": "Centralize",
-          "description": "Add an agreement and keep its source, versions, and metadata together."
+          "title": "Upload agreement",
+          "description": "Keep the original document, versions, and contract record together."
         },
         "1": {
-          "title": "Review",
-          "description": "Verify cited extraction and proposed follow-up against the agreement."
+          "title": "Review source",
+          "description": "Check every consequential suggestion against its exact excerpt and page."
         },
         "2": {
-          "title": "Operate",
-          "description": "Assign obligations and move approvals or signing forward."
+          "title": "Assign action",
+          "description": "Confirm the owner, deadline, and required evidence before work moves."
         },
         "3": {
-          "title": "Prove",
-          "description": "Keep activity, ownership, and contract history visible."
+          "title": "Prove completion",
+          "description": "Record evidence and preserve a clear, attributable activity history."
         }
       }
     },
     "trust": {
       "eyebrow": "Reviewable by design",
-      "title": "Trust starts with the document, not the answer.",
+      "title": "Review the source before the work moves.",
       "subtitle": "Aakd keeps consequential suggestions connected to their exact source and puts authorized people in control of what becomes trusted state.",
       "items": {
         "0": { "title": "Source before answer", "description": "Review the excerpt and page that support a suggestion instead of accepting a detached summary." },
@@ -1212,7 +1284,7 @@
     },
     "capabilities": {
       "eyebrow": "Professional CLM breadth",
-      "title": "A complete contract workspace, revealed progressively.",
+      "title": "Professional CLM, without the theatre.",
       "subtitle": "Start with one cited action. Reach the broader lifecycle tools when the work calls for them.",
       "items": {
         "0": { "status": "Available", "title": "Repository and search", "description": "Store PDF and DOCX agreements, organize versions and find contract content." },

@@ -129,6 +129,17 @@ describe("remaining Settings redesign presentation", () => {
     expect(await screen.findByRole("button", { name: "Connect Google Drive" })).toHaveClass("min-h-11")
   })
 
+  it("shows a localized retry state rather than an empty CRM panel after a failed status request", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/crm/status") return json({ error: "unavailable" }, 500)
+      return fetchFixture(input)
+    }))
+    render(<IntegrationsPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load integrations. Existing connections are unchanged.")
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+  })
+
   it.each([
     ["owner", true],
     ["admin", true],
@@ -187,6 +198,19 @@ describe("remaining Settings redesign presentation", () => {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Updated" } })
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Failed to save changes"))
+    expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
+  })
+
+  it("keeps the avatar picker open and reports a safe error when the profile provider rejects", async () => {
+    updateUser.mockRejectedValueOnce(new Error("database_connection_string"))
+    render(<ProfilePage />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Change avatar" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Preset avatar 1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Failed to update avatar"))
+    expect(screen.getByRole("dialog", { name: "Choose avatar" })).toBeInTheDocument()
     expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
   })
 

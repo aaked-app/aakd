@@ -81,16 +81,16 @@ function formatCurrency(
   fallback: string,
 ) {
   if (value == null || !Number.isFinite(value)) return fallback
-  const code = currency ?? "USD"
+  if (!currency) return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: code,
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
   } catch {
-    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${code}`
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${currency}`
   }
 }
 

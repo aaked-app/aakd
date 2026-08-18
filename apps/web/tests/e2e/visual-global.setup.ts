@@ -13,7 +13,10 @@ import {
 } from "./visual-fixture"
 
 export default async function visualGlobalSetup(_config: FullConfig) {
-  loadEnvConfig(process.cwd())
+  // Playwright runs this setup from apps/web, while local development secrets
+  // deliberately live at the repository root. Load that root explicitly so
+  // fixture seeding uses the same local database as the app under test.
+  loadEnvConfig(path.resolve(process.cwd(), "../.."))
   assertVisualFixtureEnabled(process.env)
   // Playwright transpiles required TypeScript modules, while native dynamic
   // import bypasses that transform. Keep this load after Next has populated env.

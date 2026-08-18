@@ -90,9 +90,10 @@ function RegisterForm() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{t("register")}</h1>
-        <p className="text-sm text-zinc-500">
+      <div className="mb-7">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("register")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
           {callbackURL ? t("registerSubtitleInviteSecure") : t("registerSubtitle")}
         </p>
       </div>

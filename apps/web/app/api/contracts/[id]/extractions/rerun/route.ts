@@ -43,6 +43,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await getContractAiExtractQueue().add("ai_extract", {
       contractId: params.id,
+      organizationId: ctx.organizationId,
       extractedText: contract.extractedText,
     })
 

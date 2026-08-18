@@ -48,6 +48,7 @@ The defensible compound is:
 - progressive usability instead of consulting-first implementation;
 - governing agreement relationships and reviewed facts;
 - cited, owned actions and completion evidence;
+- role-scoped Team Briefs that safely carry reviewed commitments to delivery teams;
 - correction propagation that stops stale execution;
 - contract-native recipes with safe failure;
 - vendor-neutral, permissioned agent access;
@@ -296,6 +297,9 @@ organizations and passes the payment and repeat-use gates.
 - owners, approvers and escalation;
 - due dates, event triggers and recurring actions;
 - completion evidence and immutable history;
+- human-published, role-scoped Team Briefs derived from reviewed facts and actions;
+- explicit fulfilment states: not started, in progress, self-attested, evidence submitted, verified, blocked/exception and overdue;
+- daily exception views for unacknowledged, due, blocked, missing-evidence and provably stale work;
 - stale-state detection after changes;
 - safe delivery to existing task, calendar, CRM and communication tools;
 - operational and audit-ready reporting.
@@ -333,6 +337,7 @@ Core resources and tools should include:
 - reviewed facts with source and freshness;
 - rights, obligations, actions and approvals;
 - governing-document and change-impact queries;
+- Team-Brief-grounded explanations, summaries and work proposals for authorized recipients;
 - recipe simulation;
 - action proposals and approval requests;
 - execution of previously approved actions;
@@ -443,7 +448,7 @@ unsupported compliance claims.
 
 **Outcome:** one agreement becomes one reviewed, owned and useful action with minimal setup.
 
-**Features:** unified action queue, exact citation, confidence/review, owner, deadline, condition, completion evidence, one work-tool output, progressive access to the wider CLM, read-first Agent Gateway, fine-grained scopes, privacy-safe summaries, action proposals and approval requests.
+**Features:** unified action queue; exact citation; confidence/review; owner, deadline and condition; completion evidence; explicit fulfilment and exception states; human-published Team Briefs for one named, least-privileged audience; daily exception views; one work-tool output; progressive access to the wider CLM; read-first Agent Gateway; fine-grained scopes; privacy-safe summaries; action proposals and approval requests. A Team Brief presents reviewed facts and actions—it is never a new source of contractual truth, an automated team-routing mechanism or a generic functional-access model.
 
 **Differentiation:** fast value plus no forced migration, sources, human review, progressive UX, OSS/self-hosting and safe agent retrieval. A cited action list alone is not unique.
 
@@ -463,7 +468,9 @@ unsupported compliance claims.
 
 **Outcome:** organizations adapt repeated contract work without consulting-heavy implementation.
 
-**Features:** proven recipes, typed triggers/conditions/actions/approvals, dry-run, idempotency, retries, permissions, audit, stable events/API/MCP, recipe packaging, one evidence-selected integration, pause/resume approvals and approved agent execution.
+**Features:** proven recipes; typed triggers, conditions, actions and approvals; dry-run; idempotency; retries; permissions; audit; stable events/API/MCP; recipe packaging; one evidence-selected integration; pause/resume approvals; approved agent execution; and reusable, Team-Brief-grounded agent skills that can explain reviewed requirements, surface missing evidence, and propose drafts or work items for their authorized audience.
+
+Team-agent skills receive only policy-minimized, reviewed and source-cited context. They may not make legal decisions, expose excluded terms, silently alter fulfilment state, or create consequential external actions without the required approval.
 
 **Differentiation:** “n8n for contracts” with governing context, citations, permissions, approvals and recoverable failure.
 
@@ -564,6 +571,7 @@ Do not claim nobody else has graphs, obligations, citations, workflows, agents o
 - Default to contract-first and action-first.
 - Do not require infrastructure configuration before value.
 - Show meaning, exact source, confidence/review, owner and next step for consequential results.
+- Make Team Brief audiences, excluded information and the distinction between contract source, reviewed result and AI suggestion understandable.
 - Reveal advanced features in context instead of making them competing products.
 - Design empty, loading, error, uncertainty and missing-configuration states.
 - A non-legal operator should understand the result without CLM jargon.
@@ -786,9 +794,10 @@ No session silently changes the ICP, geography, OSS constitution, product primit
 2. Harden MCP/API before promoting agent readiness.
 3. Build the representative US/UK corpus and benchmark.
 4. Deliver one unified reviewed-action journey.
-5. Validate the ICP through episodes, corpora, paid pilots and repeat use.
-6. Build only reusable agreement/fact/action/privacy foundations during validation.
-7. Make the repository independently understandable, runnable and contributable.
+5. Validate whether one human-published Team Brief improves a costly contract handoff for the selected ICP.
+6. Validate the ICP through episodes, corpora, paid pilots and repeat use.
+7. Build only reusable agreement/fact/action/privacy foundations during validation.
+8. Make the repository independently understandable, runnable and contributable.
 
 The company vision is a full open Agreement Operations platform. The operating focus is proving one trusted contract outcome and the foundations that make it safely extensible.
 

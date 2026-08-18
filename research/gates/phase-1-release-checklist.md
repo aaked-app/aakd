@@ -8,10 +8,12 @@ Status: engineering implementation complete locally; release rehearsal blocked b
 - Prisma schema validates and the Phase 1 migration is present.
 - TypeScript typecheck passes.
 - ESLint completes with warnings only. Existing image and hook warnings remain.
-- Full web test suite: 85 files and 1,389 tests passed.
+- Full web test suite: 94 files and 1,453 tests passed.
 - Focused action, extraction, obligation and MCP tests pass: 148 tests.
 - Organization-isolation suite passes: 11 tests.
 - Production build compiles and reaches page-data collection.
+- CI includes an isolated PostgreSQL/pgvector migration job that applies the
+  complete Prisma migration chain to an empty database.
 - Supported locale JSON files parse successfully.
 - Action writes require authentication, organization scope, member role and API-key write scope.
 - AI-derived actions retain source text/page/confidence/review state when available.
@@ -22,7 +24,9 @@ Status: engineering implementation complete locally; release rehearsal blocked b
 
 ## Not yet verified
 
-- Applying the migration to an empty or existing PostgreSQL database. The local run has no `DATABASE_URL`.
+- Applying the migration to an existing production-like PostgreSQL database.
+  The CI migration job covers an empty PostgreSQL/pgvector database; the local
+  run has no `DATABASE_URL`.
 - Clean Docker/Compose replay with PostgreSQL, Redis, object storage and worker.
 - A real configured email provider receiving the cited action output.
 - The 100-document product benchmark and customer evidence gates in the Phase 1 scorecard.

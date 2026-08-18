@@ -23,6 +23,14 @@ const intl = vi.hoisted(() => {
       failedToLoad: "Failed to load contracts",
       retry: "Retry",
       noContracts: "No contracts",
+      createFirst: "Build your contract repository by adding the first agreement.",
+      newContract: "New contract",
+      repositorySetup: "Repository setup",
+      repositoryWorkflow: "Repository workflow",
+      repositoryUploadTitle: "Add an agreement",
+      repositoryReviewTitle: "Review cited details",
+      repositoryOrganizeTitle: "Track ownership",
+      repositoryTrust: "Suggested details remain reviewable before they become workspace truth.",
     },
     de: {
       title: "Verträge",
@@ -275,6 +283,26 @@ describe("ContractsPage responsive contract representations", () => {
 
     expect(await screen.findAllByText("Recovered agreement")).toHaveLength(2)
     expect(contractsAttempts).toBe(2)
+  })
+
+  it("turns the empty repository into a guided, reviewable setup state", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/org/members") {
+        return new Response(JSON.stringify([{ userId: "user-1", role: "member" }]))
+      }
+      return new Response(JSON.stringify({ contracts: [], total: 0 }))
+    }))
+
+    render(<ContractsPage />)
+
+    expect(await screen.findByText("Repository setup")).toBeInTheDocument()
+    const workflow = screen.getByRole("list", { name: "Repository workflow" })
+    expect(within(workflow).getByText("Add an agreement")).toBeInTheDocument()
+    expect(within(workflow).getByText("Review cited details")).toBeInTheDocument()
+    expect(within(workflow).getByText("Track ownership")).toBeInTheDocument()
+    expect(screen.getByText("Suggested details remain reviewable before they become workspace truth.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "New contract" }))
+    expect(push).toHaveBeenCalledWith("/contracts/new")
   })
 
   it("ignores a superseded response and keeps the newer request loading until it settles", async () => {

@@ -90,7 +90,7 @@ describe("POST /api/org/ai-config", () => {
   })
 
   it("upserts config and never stores raw key", async () => {
-    const saved = { provider: "anthropic", model: null }
+    const saved = { provider: "anthropic", model: "claude-haiku-4-5" }
     vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue(saved as any)
 
     const { POST } = await import("@/app/api/org/ai-config/route")
@@ -98,7 +98,7 @@ describe("POST /api/org/ai-config", () => {
       new Request("http://localhost/api/org/ai-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "anthropic", apiKey: "sk-ant-real-key" }),
+        body: JSON.stringify({ provider: "anthropic", apiKey: "sk-ant-real-key", model: "claude-sonnet-new" }),
       }),
     )
 
@@ -108,6 +108,7 @@ describe("POST /api/org/ai-config", () => {
     expect(encrypt).toHaveBeenCalledWith("sk-ant-real-key")
     const upsertCall = vi.mocked(prisma.orgAiConfig.upsert).mock.calls[0][0]
     expect(upsertCall.create.encryptedKey).toBe("enc:sk-ant-real-key")
+    expect(upsertCall.create.model).toBe("claude-sonnet-new")
     expect(upsertCall.create).not.toHaveProperty("apiKey")
   })
 

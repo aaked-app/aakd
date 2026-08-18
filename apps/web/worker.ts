@@ -39,6 +39,7 @@ import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 import { chunkText } from "@/lib/ai/chunking"
 import { extractLocalFields } from "@/lib/ai/local-extract"
 import { analyzeContractRisk } from "@/lib/ai/risk"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
@@ -299,7 +300,7 @@ function getTextLimitForProvider(): number {
 const extractWorker = new Worker<ContractExtractJobData>(
   "contract.extract",
   async (job: Job<ContractExtractJobData>) => {
-    const { contractId, fileId, storageKey, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId, fileId, storageKey, preserveUserFields, skipAiExtraction } = job.data
 
     logger.info({ jobId: job.id, contractId, fileId }, "[extract] processing job")
 
@@ -309,6 +310,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
     const existingContract = await getWorkerPrisma().contract.findUnique({
       where: { id: contractId },
       select: {
+        organizationId: true,
         extractedText: true,
         files: {
           where: { isLatest: true },
@@ -424,6 +426,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // is always populated even when the LLM extractor fails or is missing.
       await contractEmbedQueue.add("embed", {
         contractId,
+        organizationId: organizationId ?? existingContract?.organizationId,
         extractedText,
         preserveUserFields,
         ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
@@ -460,13 +463,9 @@ extractWorker.on("failed", (job, err) =>
 // Set AI_PROVIDER=anthropic|openai|ollama in .env.local
 // Defaults to anthropic if ANTHROPIC_API_KEY is set, then openai, then ollama.
 
-async function callExtractionLLM(text: string): Promise<string | null> {
-  const provider = process.env.AI_PROVIDER?.toLowerCase() || (
-    process.env.ANTHROPIC_API_KEY ? "anthropic"
-      : process.env.OPENAI_API_KEY     ? "openai"
-      : process.env.OLLAMA_BASE_URL    ? "ollama"
-      : null
-  )
+async function callExtractionLLM(text: string, organizationId: string): Promise<string | null> {
+  const aiConfig = await resolveAiConfig(organizationId)
+  const provider = aiConfig.provider
 
   if (!provider) {
     logger.warn("[ai_extract] no AI provider configured — set AI_PROVIDER or one of ANTHROPIC_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL")
@@ -474,9 +473,9 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) { logger.warn("[ai_extract] AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set"); return null }
-    const msg = await getAnthropic().messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    if (!aiConfig.apiKey) { logger.warn("[ai_extract] Anthropic key is not configured"); return null }
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+      model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
       system: EXTRACTION_SYSTEM_PROMPT,
@@ -487,9 +486,9 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "openai") {
-    if (!process.env.OPENAI_API_KEY) { logger.warn("[ai_extract] AI_PROVIDER=openai but OPENAI_API_KEY is not set"); return null }
-    const res = await getOpenAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    if (!aiConfig.apiKey) { logger.warn("[ai_extract] OpenAI key is not configured"); return null }
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+      model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
       messages: [
@@ -501,8 +500,8 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "ollama") {
-    const base = (process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/$/, "")
-    const model = process.env.OLLAMA_MODEL ?? "llama3"
+    const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
+    const model = aiConfig.model ?? "llama3"
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -540,7 +539,12 @@ function localExtractionJson(text: string): string {
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
   "contract.ai_extract",
   async (job: Job<ContractAiExtractJobData>) => {
-    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+
+    const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
+      where: { id: contractId },
+      select: { organizationId: true },
+    }))?.organizationId ?? ""
 
     logger.info({ jobId: job.id, contractId }, "[ai_extract] processing job")
 
@@ -557,7 +561,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     let rawJson: string
     let extractionMethod = "ai"
     try {
-      const result = await callExtractionLLM(textToAnalyze)
+      const result = await callExtractionLLM(textToAnalyze, organizationId)
       if (result === null) {
         rawJson = localExtractionJson(textToAnalyze)
         extractionMethod = "local"
@@ -848,7 +852,12 @@ riskScoreWorker.on("failed", (job, err) => logger.error({ err, jobId: job?.id },
 const embedWorker = new Worker<ContractEmbedJobData>(
   "contract.embed",
   async (job: Job<ContractEmbedJobData>) => {
-    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+
+    const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
+      where: { id: contractId },
+      select: { organizationId: true },
+    }))?.organizationId ?? ""
 
     logger.info({ jobId: job.id, contractId }, "[embed] processing job")
 
@@ -869,7 +878,7 @@ const embedWorker = new Worker<ContractEmbedJobData>(
         return
       }
       try {
-        await contractAiExtractQueue.add("ai_extract", { contractId, extractedText, preserveUserFields })
+        await contractAiExtractQueue.add("ai_extract", { contractId, organizationId, extractedText, preserveUserFields })
       } catch (err) {
         logger.error(
           { err, contractId },
@@ -1156,23 +1165,16 @@ Return ONLY a valid JSON array. Each item must have this exact shape:
 
 Return ONLY the JSON array. No explanation, no markdown fences. Max 20 obligations.`
 
-async function callObligationLLM(text: string): Promise<string | null> {
-  const provider =
-    process.env.AI_PROVIDER?.toLowerCase() ||
-    (process.env.ANTHROPIC_API_KEY
-      ? "anthropic"
-      : process.env.OPENAI_API_KEY
-        ? "openai"
-        : process.env.OLLAMA_BASE_URL
-          ? "ollama"
-          : null)
+async function callObligationLLM(text: string, organizationId: string): Promise<string | null> {
+  const aiConfig = await resolveAiConfig(organizationId)
+  const provider = aiConfig.provider
 
   if (!provider) return null
 
   if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) return null
-    const msg = await getAnthropic().messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    if (!aiConfig.apiKey) return null
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+      model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
       system: OBLIGATION_EXTRACTION_PROMPT,
@@ -1183,9 +1185,9 @@ async function callObligationLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "openai") {
-    if (!process.env.OPENAI_API_KEY) return null
-    const res = await getOpenAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    if (!aiConfig.apiKey) return null
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+      model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
       messages: [
@@ -1197,8 +1199,8 @@ async function callObligationLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "ollama") {
-    const base = (process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/$/, "")
-    const model = process.env.OLLAMA_MODEL ?? "llama3"
+    const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
+    const model = aiConfig.model ?? "llama3"
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1225,7 +1227,7 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
     const { contractId, organizationId, extractedText, sourceHash, requestedById } = job.data
     logger.info({ jobId: job.id, contractId }, "[obligations.extract] processing job")
 
-    const raw = await callObligationLLM(extractedText)
+    const raw = await callObligationLLM(extractedText, organizationId)
     if (!raw) throw new Error("no_ai_provider")
 
     let suggestions: unknown

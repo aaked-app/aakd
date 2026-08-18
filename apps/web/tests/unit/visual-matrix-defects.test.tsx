@@ -52,7 +52,7 @@ describe("visual matrix defect regressions", () => {
     render(<NewContractPage />)
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("عقد جديد")
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("أضف عقدًا إلى مساحة العمل")
     expect(screen.getByRole("heading", { name: "أفلت عقدك هنا" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "تصفح الملفات" })).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent("Drop your contract here")

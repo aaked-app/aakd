@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, DragEvent, ChangeEvent } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { ArrowLeft, Upload, Sparkles, FileText, Loader2 } from "lucide-react"
+import { ArrowLeft, Upload, FileText, Loader2, ShieldCheck, ScanText, Check, PenLine } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -97,12 +97,7 @@ function formatFileSize(bytes: number): string {
 
 function ConfidenceBar({ label, value }: { label: string; value: number }) {
   const pct = Math.round(value * 100)
-  const color =
-    pct >= 90
-      ? "bg-emerald-500"
-      : pct >= 70
-        ? "bg-amber-400"
-        : "bg-rose-400"
+  const color = pct >= 90 ? "bg-primary" : "bg-amber-500"
 
   return (
     <div className="space-y-1">
@@ -112,9 +107,9 @@ function ConfidenceBar({ label, value }: { label: string; value: number }) {
         </span>
         <span className="text-xs font-medium text-foreground">{pct}%</span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+      <div className="h-1.5 w-full overflow-hidden bg-zinc-100">
         <div
-          className={cn("h-full rounded-full transition-all", color)}
+          className={cn("h-full transition-all", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -164,30 +159,32 @@ function UploadScreen({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-      <div className="w-full max-w-xl">
+    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:py-12">
+      <div className="min-w-0 border border-zinc-200 bg-white p-5 sm:p-8">
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={cn(
-            "border-2 border-dashed rounded-xl p-16 text-center transition-colors cursor-default",
+            "border border-dashed p-8 text-center transition-colors sm:p-12",
             isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border bg-card hover:border-primary/50 hover:bg-muted/30",
+              ? "border-primary bg-emerald-50/40"
+              : "border-zinc-300 bg-[#faf9f6] hover:border-primary",
           )}
         >
-          <Upload className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-foreground">
+          <span className="mx-auto mb-5 flex size-10 items-center justify-center border border-zinc-200 bg-white text-zinc-700">
+            <Upload className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="text-xl font-semibold tracking-[-0.02em] text-zinc-950">
             {t("dropTitle")}
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-2 text-sm text-zinc-600">
             {t("uploadHint")}
           </p>
 
           {pendingFile ? (
             <div className="mt-6 space-y-3">
-              <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 px-4 py-2.5">
+              <div className="flex items-center justify-center gap-2 border border-zinc-200 bg-white px-4 py-3">
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm font-medium truncate max-w-[260px]">
                   {pendingFile.name}
@@ -198,7 +195,7 @@ function UploadScreen({
               </div>
               <Button
                 onClick={() => onFileSelected(pendingFile)}
-                className="w-full"
+                className="min-h-11 w-full"
               >
                 {t("continueReview")}
               </Button>
@@ -206,7 +203,7 @@ function UploadScreen({
           ) : (
             <Button
               variant="default"
-              className="mt-6"
+              className="mt-6 min-h-11"
               onClick={() => inputRef.current?.click()}
             >
               {t("browseFiles")}
@@ -218,22 +215,32 @@ function UploadScreen({
             type="file"
             accept=".pdf,.docx"
             className="hidden"
+            aria-label={t("browseFiles")}
             onChange={handleInputChange}
           />
         </div>
 
         {pendingFile && (
-          <p
-            className="mt-3 text-center text-xs text-muted-foreground underline cursor-pointer"
+          <button
+            type="button"
+            className="mt-3 min-h-11 w-full text-center text-xs font-medium text-zinc-600 underline"
             onClick={() => {
               setPendingFile(null)
               if (inputRef.current) inputRef.current.value = ""
             }}
           >
             {t("removeFile")}
-          </p>
+          </button>
         )}
       </div>
+      <aside className="border border-zinc-200 bg-white p-6" aria-label={t("intakeGuidance")}>
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">{t("beforeUpload")}</p>
+        <dl className="mt-5 divide-y divide-zinc-200 border-y border-zinc-200 text-sm">
+          <div className="py-4"><dt className="font-medium text-zinc-950">{t("acceptedFiles")}</dt><dd className="mt-1 text-xs leading-5 text-zinc-600">{t("acceptedFilesDescription")}</dd></div>
+          <div className="py-4"><dt className="font-medium text-zinc-950">{t("reviewControl")}</dt><dd className="mt-1 text-xs leading-5 text-zinc-600">{t("reviewControlDescription")}</dd></div>
+        </dl>
+        <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-zinc-500"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-800" aria-hidden="true" />{t("uploadPrivacy")}</p>
+      </aside>
     </div>
   )
 }
@@ -247,23 +254,27 @@ function ReviewScreen({
   formData,
   confidence,
   aiExtracting,
+  manualReview,
   submitting,
   onFormChange,
   onToggleRenewal,
   onBack,
   onSubmit,
   onChangeFile,
+  onContinueManually,
 }: {
   file: File
   formData: FormData
   confidence: Record<string, number>
   aiExtracting: boolean
+  manualReview: boolean
   submitting: boolean
   onFormChange: (key: keyof FormData, value: string) => void
   onToggleRenewal: () => void
   onBack: () => void
   onSubmit: () => void
   onChangeFile: () => void
+  onContinueManually: () => void
 }) {
   const typeT = useTranslations("contract.types")
   const t = useTranslations("contracts.create")
@@ -279,13 +290,13 @@ function ReviewScreen({
   const fileExt = file.name.split(".").pop()?.toUpperCase() ?? "FILE"
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pb-24">
+    <div className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
       {/* Two-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-6 mt-6">
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* ---- Left column: editable form ---- */}
         <div className="space-y-6">
           {/* Basic Information */}
-          <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <section className="space-y-4 border border-zinc-200 bg-white p-5 sm:p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {t("basicInformation")}
             </h3>
@@ -296,6 +307,7 @@ function ReviewScreen({
               </Label>
               <Input
                 id="title"
+                className="min-h-11"
                 value={formData.title}
                 onChange={(e) => onFormChange("title", e.target.value)}
                 placeholder={t("contractTitlePlaceholder")}
@@ -308,7 +320,7 @@ function ReviewScreen({
                 value={formData.contractType}
                 onValueChange={(v) => onFormChange("contractType", v ?? "")}
               >
-                <SelectTrigger id="contractType" className="w-full">
+                <SelectTrigger id="contractType" className="min-h-11 w-full">
                   <SelectValue placeholder={t("selectType")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -334,7 +346,7 @@ function ReviewScreen({
           </section>
 
           {/* Parties */}
-          <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <section className="space-y-4 border border-zinc-200 bg-white p-5 sm:p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {t("parties")}
             </h3>
@@ -343,6 +355,7 @@ function ReviewScreen({
               <Label htmlFor="counterpartyName">{t("counterpartyName")}</Label>
               <Input
                 id="counterpartyName"
+                className="min-h-11"
                 value={formData.counterpartyName}
                 onChange={(e) => onFormChange("counterpartyName", e.target.value)}
                 placeholder={t("counterpartyPlaceholder")}
@@ -351,17 +364,18 @@ function ReviewScreen({
           </section>
 
           {/* Timeline */}
-          <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <section className="space-y-4 border border-zinc-200 bg-white p-5 sm:p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {t("timeline")}
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="startDate">{t("startDate")}</Label>
                 <Input
                   id="startDate"
                   type="date"
+                  className="min-h-11"
                   value={formData.startDate}
                   onChange={(e) => onFormChange("startDate", e.target.value)}
                 />
@@ -371,6 +385,7 @@ function ReviewScreen({
                 <Input
                   id="endDate"
                   type="date"
+                  className="min-h-11"
                   value={formData.endDate}
                   onChange={(e) => onFormChange("endDate", e.target.value)}
                 />
@@ -379,17 +394,18 @@ function ReviewScreen({
           </section>
 
           {/* Financial */}
-          <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <section className="space-y-4 border border-zinc-200 bg-white p-5 sm:p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {t("financial")}
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="value">{t("contractValue")}</Label>
                 <Input
                   id="value"
                   type="number"
+                  className="min-h-11"
                   min="0"
                   step="0.01"
                   value={formData.value}
@@ -403,7 +419,7 @@ function ReviewScreen({
                   value={formData.currency}
                   onValueChange={(v) => onFormChange("currency", v ?? "USD")}
                 >
-                  <SelectTrigger id="currency" className="w-full">
+                  <SelectTrigger id="currency" className="min-h-11 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -421,6 +437,7 @@ function ReviewScreen({
               <Label htmlFor="paymentTerms">{t("paymentTerms")}</Label>
               <Input
                 id="paymentTerms"
+                className="min-h-11"
                 value={formData.paymentTerms}
                 onChange={(e) => onFormChange("paymentTerms", e.target.value)}
                 placeholder={t("paymentTermsPlaceholder")}
@@ -438,18 +455,21 @@ function ReviewScreen({
               <button
                 type="button"
                 onClick={onToggleRenewal}
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none",
-                  formData.autoRenewal ? "bg-primary" : "bg-muted",
-                )}
+                className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={t("toggleAutoRenewal")}
+                aria-pressed={formData.autoRenewal}
               >
-                <span
+                <span className={cn(
+                  "relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors",
+                  formData.autoRenewal ? "bg-primary" : "bg-muted",
+                )}>
+                  <span
                   className={cn(
                     "pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm ring-0 transition-transform",
-                    formData.autoRenewal ? "translate-x-4" : "translate-x-0",
+                    formData.autoRenewal ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0",
                   )}
-                />
+                  />
+                </span>
               </button>
             </div>
 
@@ -457,6 +477,7 @@ function ReviewScreen({
               <Label htmlFor="governingLaw">{t("governingLaw")}</Label>
               <Input
                 id="governingLaw"
+                className="min-h-11"
                 value={formData.governingLaw}
                 onChange={(e) => onFormChange("governingLaw", e.target.value)}
                 placeholder={t("governingLawPlaceholder")}
@@ -467,19 +488,17 @@ function ReviewScreen({
 
         {/* ---- Right column: AI confidence sidebar ---- */}
         <div className="space-y-4">
-          {/* AI Extraction card */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3 sticky top-6">
+          <div className="sticky top-6 space-y-3 border border-zinc-200 bg-white p-5">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-foreground">{t("aiExtraction")}</span>
-              <span className="ml-auto inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                {t("poweredByAi")}
+              {aiExtracting ? <Loader2 className="size-4 shrink-0 animate-spin text-amber-700" aria-hidden="true" /> : manualReview ? <PenLine className="size-4 shrink-0 text-zinc-600" aria-hidden="true" /> : <ScanText className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+              <span className="text-sm font-semibold text-zinc-950">{t("extractionReview")}</span>
+              <span className="ms-auto border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
+                {manualReview ? t("manualMode") : aiExtracting ? t("readingDocument") : t("reviewStatus")}
               </span>
             </div>
 
             {aiExtracting ? (
               <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 {t("aiReading")}
               </div>
             ) : Object.keys(confidence).length > 0 ? (
@@ -497,10 +516,15 @@ function ReviewScreen({
             <p className="text-xs text-muted-foreground pt-1 border-t border-border">
               {t("reviewExtractedValues")}
             </p>
+            {aiExtracting && (
+              <Button type="button" variant="outline" className="min-h-11 w-full" onClick={onContinueManually}>
+                {t("continueWithoutExtraction")}
+              </Button>
+            )}
           </div>
 
           {/* File card */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="space-y-3 border border-zinc-200 bg-white p-5">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium truncate flex-1">{file.name}</span>
@@ -509,10 +533,11 @@ function ReviewScreen({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+            <p className="flex items-center gap-2 text-xs font-medium text-emerald-800"><Check className="size-3.5" aria-hidden="true" />{t("sourceAttached")}</p>
             <button
               type="button"
               onClick={onChangeFile}
-              className="text-xs text-primary underline hover:no-underline"
+              className="inline-flex min-h-11 items-center text-xs text-primary underline hover:no-underline"
             >
               {t("changeFile")}
             </button>
@@ -521,13 +546,14 @@ function ReviewScreen({
       </div>
 
       {/* ---- Bottom action bar ---- */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-white">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={onBack}>
+          <Button type="button" variant="outline" className="min-h-11" onClick={onBack}>
             {t("back")}
           </Button>
           <Button
             type="button"
+            className="min-h-11"
             onClick={onSubmit}
             disabled={submitting || !formData.title.trim()}
           >
@@ -557,6 +583,7 @@ export default function NewContractPage() {
   const [aiExtracting, setAiExtracting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [previewCompleted, setPreviewCompleted] = useState(false)
+  const [manualReview, setManualReview] = useState(false)
   const touchedFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const aiFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const extractionAbortRef = useRef<AbortController | null>(null)
@@ -635,6 +662,7 @@ export default function NewContractPage() {
         // worker so a transient parser failure cannot leave the contract with
         // only the user-entered seed values.
         setPreviewCompleted(true)
+        setManualReview(false)
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -658,6 +686,7 @@ export default function NewContractPage() {
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
     setPreviewCompleted(false)
+    setManualReview(false)
     setFormData({ ...defaultFormData, title: titleCaseFromFilename(fileNameWithoutExt) })
     setConfidence({})
     setPageState("review")
@@ -670,11 +699,20 @@ export default function NewContractPage() {
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
     setPreviewCompleted(false)
+    setManualReview(false)
     setFile(null)
     setFormData(defaultFormData)
     setConfidence({})
     setAiExtracting(false)
     setPageState("upload")
+  }
+
+  function handleContinueManually() {
+    extractionAbortRef.current?.abort()
+    extractionAbortRef.current = null
+    setAiExtracting(false)
+    setPreviewCompleted(false)
+    setManualReview(true)
   }
 
   async function handleSubmit() {
@@ -780,21 +818,33 @@ export default function NewContractPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Page header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen bg-[#f7f6f2]">
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+          <div className="flex items-center gap-3">
           <Link
             href="/contracts"
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex min-h-11 items-center gap-1.5 text-sm text-zinc-600 transition-colors hover:text-zinc-950"
           >
             <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
             {t("title")}
           </Link>
-          <span className="text-muted-foreground">/</span>
-          <h1 className="text-sm font-medium text-foreground">{t("newContract")}</h1>
+          </div>
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("create.workspaceEyebrow")}</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-3xl">{t("create.pageTitle")}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{t("create.pageDescription")}</p>
+            </div>
+            <ol aria-label={t("create.workflowLabel")} className="grid grid-cols-3 border border-zinc-200 bg-[#faf9f6]">
+              {[t("create.stepUpload"), t("create.stepReview"), t("create.stepCreate")].map((step, index) => {
+                const active = pageState === "upload" ? index === 0 : index === 1
+                return <li key={step} className={cn("min-w-0 border-e border-zinc-200 px-3 py-2.5 text-xs last:border-e-0 sm:min-w-32", active ? "bg-white font-semibold text-zinc-950" : "text-zinc-500")}><span className="me-1.5 text-[10px] tabular-nums">0{index + 1}</span>{step}</li>
+              })}
+            </ol>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Page content */}
       {pageState === "upload" && (
@@ -806,12 +856,14 @@ export default function NewContractPage() {
           formData={formData}
           confidence={confidence}
           aiExtracting={aiExtracting}
+          manualReview={manualReview}
           submitting={submitting}
           onFormChange={updateField}
           onToggleRenewal={toggleRenewal}
           onBack={handleChangeFile}
           onSubmit={handleSubmit}
           onChangeFile={handleChangeFile}
+          onContinueManually={handleContinueManually}
         />
       )}
     </div>

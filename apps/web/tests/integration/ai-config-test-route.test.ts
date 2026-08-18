@@ -70,6 +70,25 @@ describe("POST /api/org/ai-config/test — ollama SSRF guard", () => {
     expect(fetchSpy).toHaveBeenCalledOnce()
   })
 
+  it("passes the selected Ollama model through to the installed-model check", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ models: [{ name: "qwen3:8b" }] }), { status: 200 }),
+    )
+    const { POST } = await import("@/app/api/org/ai-config/test/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/org/ai-config/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "ollama", baseUrl: "http://192.168.1.10:11434", model: "qwen3:8b" }),
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).valid).toBe(true)
+    expect(fetchSpy).toHaveBeenCalledOnce()
+  })
+
   it("returns 403 for a 'legal' role — endpoint is admin-only", async () => {
     mockCtx = legalCtx
     const { POST } = await import("@/app/api/org/ai-config/test/route")

@@ -281,6 +281,16 @@ describe("renewals responsive attention queue", () => {
     expect(table.textContent).toContain("not valid")
   })
 
+  it("does not present a recorded value as USD when the source has no currency", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("uncurried", 8, { currency: null, value: 1234 })])))
+    const view = render(<RenewalsPage />)
+
+    const table = await screen.findByRole("table", { name: message("renewals", "resultsLabel") })
+    expect(within(table).getByText(new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(1234))).toBeInTheDocument()
+    expect(table.textContent).not.toContain("$")
+    view.unmount()
+  })
+
   it("renders the distinct localized empty state", async () => {
     render(<RenewalsPage />)
 

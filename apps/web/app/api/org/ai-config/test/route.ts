@@ -6,9 +6,9 @@ import { validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
 import { z } from "zod"
 
 const TestSchema = z.discriminatedUnion("provider", [
-  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1) }),
-  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1) }),
-  z.object({ provider: z.literal("ollama"), baseUrl: z.string().url() }),
+  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1), model: z.string().trim().min(1).optional() }),
+  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1), model: z.string().trim().min(1).optional() }),
+  z.object({ provider: z.literal("ollama"), baseUrl: z.string().url(), model: z.string().trim().min(1).optional() }),
 ])
 
 export async function POST(req: Request) {
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
   try {
     if (provider === "ollama") {
-      const { baseUrl } = parsed.data as { provider: "ollama"; baseUrl: string }
+      const { baseUrl, model } = parsed.data as { provider: "ollama"; baseUrl: string; model?: string }
       let tagsUrl: string
       try {
         tagsUrl = new URL("/api/tags", baseUrl).toString()
@@ -66,6 +66,12 @@ export async function POST(req: Request) {
 
       const res = await fetch(tagsUrl, { signal: AbortSignal.timeout(5_000) })
       if (res.ok) {
+        if (!model) return Response.json({ valid: true })
+        const data = (await res.json().catch(() => ({}))) as { models?: Array<{ name?: string; model?: string }> }
+        const available = new Set((data.models ?? []).flatMap((item) => [item.name, item.model].filter(Boolean)))
+        if (!available.has(model)) {
+          return Response.json({ valid: false, error: `Ollama model "${model}" is not installed` })
+        }
         return Response.json({ valid: true })
       }
       return Response.json({
@@ -75,6 +81,7 @@ export async function POST(req: Request) {
     }
 
     const apiKey = (parsed.data as { apiKey: string }).apiKey
+    const model = (parsed.data as { model?: string }).model?.trim()
 
     if (provider === "anthropic") {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -85,10 +92,11 @@ export async function POST(req: Request) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5",
+          model: model || "claude-haiku-4-5",
           max_tokens: 1,
           messages: [{ role: "user", content: "hi" }],
         }),
+        signal: AbortSignal.timeout(8_000),
       })
 
       if (res.ok || res.status === 400) {
@@ -123,10 +131,11 @@ export async function POST(req: Request) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: model || "gpt-4o-mini",
           max_tokens: 1,
           messages: [{ role: "user", content: "hi" }],
         }),
+        signal: AbortSignal.timeout(8_000),
       })
 
       if (res.ok) {

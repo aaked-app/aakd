@@ -138,6 +138,7 @@
   },
   "workspace": {
     "breadcrumb": "Navigation du contrat",
+    "contracts": "Contrats",
     "actions": "Actions du contrat",
     "tabs": "Espace de travail du contrat",
     "changeStatus": "Modifier le statut",
@@ -146,6 +147,14 @@
     "sendForSigning": "Envoyer pour signature",
     "archive": "Archiver",
     "overview": "Aperçu",
+    "summary": "Résumé",
+    "review": "Révision",
+    "actionsTab": "Actions",
+    "reviewSuggestions": "Réviser les suggestions",
+    "pendingSuggestions": "{count} suggestion(s) à réviser",
+    "allSuggestionsReviewed": "Tous les détails suggérés ont été révisés",
+    "reviewApproval": "Réviser l’approbation",
+    "pendingApproval": "Une décision d’approbation vous attend",
     "files": "Fichiers",
     "aiExtractions": "Extractions IA",
     "approvals": "Approbations",
@@ -171,7 +180,26 @@
     "addTag": "Ajouter une étiquette",
     "sourcePage": "Page source {page}",
     "editorPausedTitle": "La modification des documents est suspendue",
-    "editorPausedDescription": "La phase 0 se concentre sur le dépôt, la revue et le suivi des contrats signés. Le document original reste disponible dans l’onglet Documents."
+    "editorPausedDescription": "La phase 0 se concentre sur le dépôt, la revue et le suivi des contrats signés. Le document original reste disponible dans l’onglet Documents.",
+    "loadFailed": "Impossible de charger ce contrat.",
+    "loadFailedDescription": "Aucune donnée du contrat n’a été modifiée. Vérifiez votre connexion et réessayez.",
+    "retry": "Réessayer",
+    "backToContracts": "Retour aux contrats",
+    "reviewGuidance": "Vérifiez chaque suggestion avec sa source citée. L’acceptation ne met à jour que ce champ.",
+    "extractionInProgress": "L’analyse du document est en cours…",
+    "extractionInProgressDescription": "Les suggestions apparaîtront ici avec leur texte source et leur niveau de confiance.",
+    "noExtractions": "Aucune suggestion n’est encore disponible. Importez un document pour créer des suggestions à vérifier.",
+    "rerunExtraction": "Relancer l’extraction",
+    "rerunningExtraction": "Exécution…",
+    "manual": "Manuel",
+    "manualEntry": "Saisi ou modifié manuellement",
+    "localExtraction": "Extraction locale déterministe",
+    "aiAssistedSuggestion": "Suggestion assistée par IA",
+    "saving": "Enregistrement…",
+    "accept": "Accepter",
+    "reject": "Rejeter",
+    "accepted": "Accepté",
+    "rejected": "Rejeté"
   }
   },
   "auth": {
@@ -185,6 +213,8 @@
     "noAccount": "Vous n'avez pas de compte ?",
     "hasAccount": "Vous avez déjà un compte ?",
     "loginSubtitle": "Entrez vos identifiants pour continuer",
+    "accessEyebrow": "Accès à l’espace", "workspaceEyebrow": "Configuration de l’espace",
+    "shell": { "asideLabel": "Configuration de l’espace", "eyebrow": "Opérations contractuelles privées", "title": "Un parcours clair du compte au suivi responsable des contrats.", "description": "Configurez l’espace, ajoutez la source signée et vérifiez les données suggérées avant toute action.", "progressLabel": "Progression de la configuration", "stepAccount": "Compte", "stepWorkspace": "Espace de travail", "stepAgreement": "Premier contrat", "controlNote": "Votre espace contractuel reste sous votre contrôle.", "mobileContext": "Accès sécurisé à votre espace contractuel", "footer": "Une vérification humaine reste requise avant que les données suggérées deviennent fiables." },
     "signingIn": "Connexion en cours...",
     "createOne": "Créer un compte",
     "signInFailed": "Échec de la connexion",
@@ -476,6 +506,8 @@
     "deleteSelectedOne": "Supprimer {count} obligation",
     "deleteSelectedMany": "Supprimer {count} obligations",
     "deleteSelectedConfirm": "Supprimer les {count} obligations sélectionnées ? Cette action est irréversible.",
+    "deleteSelectedTitle": "Supprimer les obligations sélectionnées ?",
+    "cancel": "Annuler",
     "clearSelection": "Effacer",
     "closeDetails": "Fermer les détails",
     "openInContractLabel": "Ouvrir dans le contrat",
@@ -646,7 +678,26 @@
     "uploadFirstTitle": "Téléversez votre premier contrat",
     "uploadFirst": "Ajoutez un fichier PDF ou DOCX pour commencer à organiser le travail contractuel.",
     "uploadContract": "Téléverser un contrat",
+    "firstRunEyebrow": "Premier contrat", "firstRunWorkflow": "Démarrage de l’espace", "firstRunReviewBadge": "Vérification humaine", "firstRunUploadTitle": "Téléverser la source signée", "firstRunUploadDescription": "Ajoutez un PDF ou DOCX et conservez l’original avec sa fiche.", "firstRunReviewTitle": "Vérifier les données citées", "firstRunReviewDescription": "Contrôlez les dates, parties et clauses suggérées avant de les valider.", "firstRunOwnTitle": "Attribuer la prochaine action", "firstRunOwnDescription": "Associez un responsable, une échéance et une preuve à chaque suivi important.", "firstRunTrust": "Les données suggérées restent vérifiables et ne deviennent jamais fiables silencieusement.",
     "noRecentContracts": "Aucun contrat récent à afficher.",
+    "recentlyUpdatedContracts": "Contrats récemment mis à jour",
+    "workspaceSignals": "Signaux de l’espace de travail",
+    "priorityAgreementWork": "Actions contractuelles prioritaires",
+    "priorityAgreementWorkDescription": "Les cinq actions ouvertes les plus prioritaires de cet espace de travail.",
+    "action": "Action",
+    "citedPage": "Cité · page {page}",
+    "cited": "Cité",
+    "sourceUnavailable": "Source indisponible",
+    "humanReviewed": "Vérifié par une personne",
+    "reviewRequired": "Vérification requise",
+    "suggestionConfidence": "Confiance de la suggestion : {value} %",
+    "nextSteps": {
+      "reviewChangedSource": "Vérifier la source modifiée",
+      "resolveBlocker": "Résoudre le blocage",
+      "reviewSuggestion": "Vérifier la suggestion",
+      "assignOwner": "Attribuer un responsable",
+      "continueAction": "Continuer l’action"
+    },
     "agreementWork": "Vos actions contractuelles",
     "agreementWorkDescription": "Les cinq actions ouvertes les plus prioritaires de cet espace de travail.",
     "viewActionQueue": "Voir la file d’actions",
@@ -706,7 +757,8 @@
     "pageOf": "Page {page} sur {totalPages}",
     "noContracts": "Aucun contrat",
     "noContractsFilter": "Aucun contrat ne correspond à vos filtres.",
-    "createFirst": "Créez votre premier contrat pour commencer.",
+    "createFirst": "Construisez votre référentiel en ajoutant le premier contrat.",
+    "repositorySetup": "Configuration du référentiel", "repositoryWorkflow": "Parcours du référentiel", "repositoryUploadTitle": "Ajouter un contrat", "repositoryUploadDescription": "Téléversez le PDF ou DOCX signé comme source permanente.", "repositoryReviewTitle": "Vérifier les données citées", "repositoryReviewDescription": "Confirmez les clauses et dates suggérées avec la source.", "repositoryOrganizeTitle": "Suivre les responsabilités", "repositoryOrganizeDescription": "Conservez responsables, échéances, renouvellements et preuves avec le contrat.", "repositoryTrust": "Les données suggérées restent vérifiables avant de devenir fiables.",
     "view": "Voir",
     "archiveAction": "Archiver",
     "failedToLoad": "Impossible de charger les contrats",
@@ -714,10 +766,12 @@
     "failedToArchive": "Échec de l'archivage",
     "contractArchived": "Contrat archivé",
     "create": {
-      "dropTitle": "Déposez votre contrat ici", "uploadHint": "PDF ou DOCX · 50 Mo maximum · L’IA extraira automatiquement les champs clés", "continueReview": "Continuer vers la vérification", "browseFiles": "Parcourir les fichiers", "removeFile": "Retirer le fichier",
+      "workspaceEyebrow": "Réception du contrat", "pageTitle": "Ajouter un contrat à l’espace", "pageDescription": "Téléversez la source signée, vérifiez les données suggérées, puis créez la fiche.", "workflowLabel": "Progression de la réception", "stepUpload": "Téléverser le contrat", "stepReview": "Vérifier les données", "stepCreate": "Créer la fiche",
+      "dropTitle": "Déposez votre contrat ici", "uploadHint": "PDF ou DOCX · 50 Mo maximum", "continueReview": "Continuer vers la vérification", "browseFiles": "Parcourir les fichiers", "removeFile": "Retirer le fichier",
+      "intakeGuidance": "Guide de réception", "beforeUpload": "Avant le téléversement", "acceptedFiles": "Formats source", "acceptedFilesDescription": "PDF ou DOCX, jusqu’à 50 Mo. Le fichier est validé avant stockage.", "reviewControl": "Limite de confiance", "reviewControlDescription": "Les données suggérées restent modifiables et nécessitent votre vérification.", "uploadPrivacy": "Le fichier original reste joint à la fiche du contrat.",
       "basicInformation": "Informations générales", "contractTitle": "Titre du contrat", "contractTitlePlaceholder": "Contrat de services T1 2026", "contractType": "Type de contrat", "selectType": "Sélectionner un type", "description": "Description", "descriptionPlaceholder": "Résumé du contrat…", "parties": "Parties", "counterpartyName": "Nom de la contrepartie", "counterpartyPlaceholder": "Société Acme", "timeline": "Calendrier", "startDate": "Date de début", "endDate": "Date de fin",
       "financial": "Données financières", "contractValue": "Valeur du contrat", "currency": "Devise", "paymentTerms": "Conditions de paiement", "paymentTermsPlaceholder": "30 jours nets", "autoRenewal": "Renouvellement automatique", "autoRenewalDescription": "Le contrat est renouvelé automatiquement à son échéance", "toggleAutoRenewal": "Activer ou désactiver le renouvellement automatique", "governingLaw": "Droit applicable", "governingLawPlaceholder": "Droit français",
-      "aiExtraction": "Extraction par IA", "poweredByAi": "Propulsé par l’IA", "aiReading": "Le document est lu en arrière-plan. Vous pouvez continuer à le modifier.", "noConfidence": "Aucune donnée de confiance disponible.", "reviewExtractedValues": "Valeurs préremplies depuis votre document. Vérifiez-les et corrigez-les si nécessaire.", "changeFile": "Changer de fichier", "back": "Retour", "creating": "Création…", "createContract": "Créer le contrat",
+      "aiExtraction": "Extraction par IA", "poweredByAi": "Propulsé par l’IA", "extractionReview": "Données suggérées", "reviewStatus": "Vérification requise", "sourceAttached": "Source jointe", "readingDocument": "Lecture du document", "continueWithoutExtraction": "Continuer sans extraction", "manualMode": "Vérification manuelle", "aiReading": "Le document est lu en arrière-plan. Vous pouvez continuer à le modifier.", "noConfidence": "Aucune donnée suggérée disponible pour le moment.", "reviewExtractedValues": "Vérifiez chaque valeur suggérée avant de créer la fiche.", "changeFile": "Changer de fichier", "back": "Retour", "creating": "Création…", "createContract": "Créer le contrat",
       "partialExtractionWarning": "L’extraction par IA a partiellement échoué. Vous pouvez renseigner les champs restants.", "extractionUnavailable": "L’extraction par IA est indisponible. Vous pouvez renseigner les champs manuellement.", "continueManually": "L’extraction par IA est indisponible. Vous pouvez continuer manuellement.", "titleRequired": "Le titre du contrat est obligatoire", "createFailed": "Impossible de créer le contrat", "reviewStateSaveFailed": "L’état initial de vérification de l’extraction n’a pas pu être enregistré", "fileUploadFailed": "Échec de l’import du fichier", "created": "Contrat créé",
       "fields": { "title": "Titre", "contractType": "Type de contrat", "counterpartyName": "Contrepartie", "startDate": "Date de début", "endDate": "Date de fin", "value": "Valeur", "currency": "Devise", "paymentTerms": "Conditions de paiement", "governingLaw": "Droit applicable", "autoRenewal": "Renouvellement automatique", "renewalDate": "Date de renouvellement", "noticePeriodDays": "Délai de préavis", "description": "Description" }
     }
@@ -739,6 +793,8 @@
     "saving": "Enregistrement...",
     "orgUpdated": "Organisation mise à jour",
     "failedToUpdate": "Échec de la mise à jour de l'organisation",
+    "loadFailed": "Les paramètres de l’organisation n’ont pas pu être chargés. Les données existantes de l’espace de travail restent inchangées.",
+    "retry": "Réessayer",
     "orgLogo": "Logo de l'organisation",
     "remove": "Supprimer",
     "clickToUpload": "Cliquez pour téléverser ou glissez-déposez",
@@ -747,6 +803,7 @@
     "aiConfig": "Configuration de l'IA",
     "provider": "Fournisseur",
     "model": "Modèle",
+    "aiModelHelp": "Saisissez l’identifiant de n’importe quel modèle pris en charge par le fournisseur sélectionné.",
     "notConfigured": "Non configuré",
     "aiConfigHint": "Définissez AI_PROVIDER et la clé API correspondante dans votre environnement pour activer l'extraction IA.",
     "aiRemoveFailed": "Impossible de supprimer la clé IA de l’organisation",
@@ -780,6 +837,8 @@
     "sending": "Envoi...",
     "inviteSent": "Invitation envoyée à {email}",
     "failedToLoad": "Impossible de charger les membres",
+    "loadError": "Les membres de l’équipe n’ont pas pu être chargés. Les accès existants à l’espace de travail restent inchangés.",
+    "retry": "Réessayer",
     "failedToInvite": "Échec de l'envoi de l'invitation",
     "failedToChangeRole": "Échec de la mise à jour du rôle",
     "roleUpdated": "Rôle mis à jour",
@@ -795,7 +854,7 @@
     "actions": { "changeRole": "Modifier le rôle du membre", "removeMember": "Retirer le membre", "resendInvitation": "Renvoyer l’invitation", "cancelInvitation": "Annuler l’invitation" }
   },
   "settingsIntegrations": {
-    "title": "Intégrations", "subtitle": "Connectez Aakd aux outils déjà utilisés par votre équipe.", "categoriesLabel": "Catégories d’intégrations", "categories": { "CRM": "CRM", "E-Signature": "Signature électronique", "Cloud Storage": "Stockage cloud", "Communication": "Communication", "Accounting": "Comptabilité", "Developer": "Développement" }, "soon": "Bientôt", "connected": "Connecté", "notConnected": "Non connecté", "notConfigured": "Non configuré", "active": "Actif", "connect": "Connecter", "disconnect": "Déconnecter", "disconnecting": "Déconnexion…", "configure": "Configurer", "connectProvider": "Connecter {provider}", "configureNotifications": "Configurer dans Notifications", "manageWebhooks": "Gérer les webhooks", "manageApiKeys": "Gérer les clés API", "channelCountOne": "{count} canal", "channelCountMany": "{count} canaux", "docuSealDescription": "Signature électronique open source pour les contrats", "docuSealConfigured": "DocuSeal est configuré avec des variables d’environnement. Consultez le guide d’auto-hébergement.", "descriptions": { "googleDrive": "Importez des contrats directement depuis Google Drive.", "dropbox": "Synchronisez et importez des contrats depuis Dropbox.", "oneDrive": "Connectez Microsoft OneDrive pour stocker les contrats.", "slack": "Recevez les notifications de contrats dans Slack.", "teams": "Recevez les notifications de contrats dans Microsoft Teams.", "quickBooks": "Synchronisez les valeurs de contrats avec QuickBooks.", "xero": "Connectez les finances des contrats à Xero.", "webhooks": "Recevez des notifications HTTP en temps réel.", "restApi": "Accédez à Aakd avec des clés API Bearer.", "zapier": "Connectez Aakd à plus de 5 000 applications via Zapier.", "make": "Créez des flux avec Aakd et Make." }, "providerDescriptions": { "HUBSPOT": "Connectez HubSpot pour lier les transactions et synchroniser les contrats.", "SALESFORCE": "Connectez Salesforce pour lier les opportunités et synchroniser les contrats.", "PIPEDRIVE": "Connectez Pipedrive pour lier les transactions et synchroniser les contrats." }, "connectedBy": "Connecté par {name}", "onDate": "le", "portal": "portail", "manageRoleRequired": "Rôle administrateur ou juridique requis", "autoCreateStage": "Étape de création automatique", "negotiationPlaceholder": "p. ex. Négociation", "autoCreateDescription": "Un brouillon est créé quand une transaction atteint cette étape.", "syncTargetStage": "Étape cible", "syncTargetDescription": "Étape appliquée lorsque le contrat devient actif.", "saving": "Enregistrement…", "saveSettings": "Enregistrer les paramètres", "loadFailed": "Impossible de charger les intégrations", "connectedSuccess": "{provider} connecté avec succès", "connectFailed": "Impossible de connecter l’intégration.", "oauthErrors": { "missingParams": "La réponse d’autorisation était incomplète.", "stateMismatch": "La demande d’autorisation n’a pas pu être vérifiée.", "exchangeFailed": "Le fournisseur n’a pas terminé l’autorisation." }, "disconnectedSuccess": "{provider} déconnecté", "disconnectFailed": "Échec de la déconnexion", "settingsSaved": "Paramètres enregistrés", "settingsSaveFailed": "Impossible d’enregistrer les paramètres", "disconnectTitle": "Déconnecter {provider} ?", "disconnectDescription": "La déconnexion supprime les liens de transactions. Les contrats existants restent inchangés.", "cancel": "Annuler"
+    "title": "Intégrations", "subtitle": "Connectez Aakd aux outils déjà utilisés par votre équipe.", "categoriesLabel": "Catégories d’intégrations", "categories": { "CRM": "CRM", "E-Signature": "Signature électronique", "Cloud Storage": "Stockage cloud", "Communication": "Communication", "Accounting": "Comptabilité", "Developer": "Développement" }, "soon": "Bientôt", "connected": "Connecté", "notConnected": "Non connecté", "notConfigured": "Non configuré", "active": "Actif", "connect": "Connecter", "disconnect": "Déconnecter", "disconnecting": "Déconnexion…", "configure": "Configurer", "connectProvider": "Connecter {provider}", "configureNotifications": "Configurer dans Notifications", "manageWebhooks": "Gérer les webhooks", "manageApiKeys": "Gérer les clés API", "channelCountOne": "{count} canal", "channelCountMany": "{count} canaux", "docuSealDescription": "Signature électronique open source pour les contrats", "docuSealConfigured": "DocuSeal est configuré avec des variables d’environnement. Consultez le guide d’auto-hébergement.", "descriptions": { "googleDrive": "Importez des contrats directement depuis Google Drive.", "dropbox": "Synchronisez et importez des contrats depuis Dropbox.", "oneDrive": "Connectez Microsoft OneDrive pour stocker les contrats.", "slack": "Recevez les notifications de contrats dans Slack.", "teams": "Recevez les notifications de contrats dans Microsoft Teams.", "quickBooks": "Synchronisez les valeurs de contrats avec QuickBooks.", "xero": "Connectez les finances des contrats à Xero.", "webhooks": "Recevez des notifications HTTP en temps réel.", "restApi": "Accédez à Aakd avec des clés API Bearer.", "zapier": "Connectez Aakd à plus de 5 000 applications via Zapier.", "make": "Créez des flux avec Aakd et Make." }, "providerDescriptions": { "HUBSPOT": "Connectez HubSpot pour lier les transactions et synchroniser les contrats.", "SALESFORCE": "Connectez Salesforce pour lier les opportunités et synchroniser les contrats.", "PIPEDRIVE": "Connectez Pipedrive pour lier les transactions et synchroniser les contrats." }, "connectedBy": "Connecté par {name}", "onDate": "le", "portal": "portail", "manageRoleRequired": "Rôle administrateur ou juridique requis", "autoCreateStage": "Étape de création automatique", "negotiationPlaceholder": "p. ex. Négociation", "autoCreateDescription": "Un brouillon est créé quand une transaction atteint cette étape.", "syncTargetStage": "Étape cible", "syncTargetDescription": "Étape appliquée lorsque le contrat devient actif.", "saving": "Enregistrement…", "saveSettings": "Enregistrer les paramètres", "loadFailed": "Impossible de charger les intégrations", "loadErrorDescription": "Impossible de charger les intégrations. Les connexions existantes restent inchangées.", "retry": "Réessayer", "connectedSuccess": "{provider} connecté avec succès", "connectFailed": "Impossible de connecter l’intégration.", "oauthErrors": { "missingParams": "La réponse d’autorisation était incomplète.", "stateMismatch": "La demande d’autorisation n’a pas pu être vérifiée.", "exchangeFailed": "Le fournisseur n’a pas terminé l’autorisation." }, "disconnectedSuccess": "{provider} déconnecté", "disconnectFailed": "Échec de la déconnexion", "settingsSaved": "Paramètres enregistrés", "settingsSaveFailed": "Impossible d’enregistrer les paramètres", "disconnectTitle": "Déconnecter {provider} ?", "disconnectDescription": "La déconnexion supprime les liens de transactions. Les contrats existants restent inchangés.", "cancel": "Annuler"
   },
   "apiKeys": {
     "title": "Clés API",
@@ -852,7 +911,7 @@
     "firstContract": { "title": "Commencez par votre premier contrat", "description": "Importez un contrat et commencez immédiatement sa révision. La configuration de l’IA est facultative et peut être effectuée plus tard dans les paramètres.", "formats": "Les fichiers PDF et DOCX sont pris en charge." },
     "ai": { "title": "Configurer l’assistance IA", "optional": "Facultatif", "description": "Connectez un fournisseur aux outils d’extraction et de révision existants. Vous pouvez ignorer cette étape et y revenir à tout moment.", "features": { "extraction": "Extraction de contrats et questions-réponses", "risk": "Évaluation des risques (FAIBLE / MOYEN / ÉLEVÉ)", "obligations": "Détection des obligations" } },
     "provider": { "legend": "Fournisseur d’IA", "anthropic": { "subtitle": "Modèles Claude" }, "openai": { "subtitle": "Modèles GPT" }, "ollama": { "subtitle": "Local / auto-hébergé" } },
-    "fields": { "model": "Modèle", "selectModel": "Sélectionner un modèle", "apiKey": "Clé API", "ollamaUrl": "URL de base Ollama", "ollamaUrlHelp": "La valeur par défaut est http://localhost:11434. Modifiez-la si Ollama s’exécute sur un autre hôte ou port.", "ollamaModel": "Nom du modèle", "ollamaModelHelp": "Saisissez un modèle récupéré localement avec" },
+    "fields": { "model": "Modèle", "selectModel": "Sélectionner un modèle", "modelHelp": "Saisissez l’identifiant d’un modèle pris en charge. La valeur sera testée avant l’enregistrement.", "apiKey": "Clé API", "ollamaUrl": "URL de base Ollama", "ollamaUrlHelp": "La valeur par défaut est http://localhost:11434. Modifiez-la si Ollama s’exécute sur un autre hôte ou port.", "ollamaModel": "Nom du modèle", "ollamaModelHelp": "Saisissez un modèle récupéré localement avec" },
     "models": { "anthropic": { "haiku": "Claude Haiku (le plus rapide)", "sonnet": "Claude Sonnet (équilibré)", "opus": "Claude Opus (le plus performant)" }, "openai": { "mini": "GPT-4o Mini (le plus rapide)", "standard": "GPT-4o (équilibré)", "turbo": "GPT-4 Turbo (puissant)" } },
     "actions": { "upload": "Importer un contrat", "skip": "Ignorer pour le moment", "test": "Tester la connexion", "save": "Enregistrer et continuer", "testing": "Test en cours...", "saving": "Enregistrement...", "showKey": "Afficher la clé", "hideKey": "Masquer la clé" },
     "feedback": { "success": "Connexion réussie", "failed": "Échec du test de connexion", "testNetworkError": "Erreur réseau — impossible d’atteindre le point de validation", "saveFailed": "Échec de l’enregistrement de la configuration", "saveNetworkError": "Erreur réseau — impossible d’enregistrer la configuration" },
@@ -976,7 +1035,7 @@
       "lPrivacy": "Confidentialité",
       "lTerms": "Conditions"
     },
-    "heroNew": { "eyebrow": "Gestion open source du cycle de vie des contrats", "title": "Pilotez le cycle de vie de vos contrats avec preuves, responsabilité et contrôle.", "subtitle": "Réunissez vos contrats dans un espace auto-hébergé, que vous travailliez seul, dirigiez une petite équipe ou coordonniez une organisation plus grande. Vérifiez les informations contractuelles citées, assignez les obligations et gardez approbations, renouvellements et activité visibles pour les responsables.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, citée et vérifiée par des personnes." },
+    "heroNew": { "eyebrow": "Gestion open source du cycle de vie des contrats", "title": "Transformez les contrats en actions vérifiées et attribuées.", "subtitle": "Un espace contractuel unique pour les indépendants, les petites équipes et les grandes organisations. Vérifiez les clauses citées, attribuez le travail qu’elles créent et gardez chaque étape importante sous contrôle.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, citée et vérifiée par des personnes." },
     "proof": {
       "diagramLabel": "Exemple statique d’opérations contractuelles", "filename": "Contrat de services Northwind · PDF", "verified": "Source vérifiée",
       "extraction": { "label": "Extraction citée", "title": "Rapport de service trimestriel", "source": "Page 8 · Section 4.2", "status": "Prêt à vérifier" },
@@ -984,19 +1043,19 @@
       "activity": "Responsable assigné · vérification enregistrée",
       "access": { "title": "Contexte API/MCP limité", "items": { "0": "Source citée", "1": "Vérification humaine", "2": "Historique d’activité" } }
     },
-    "operations": { "eyebrow": "Preuve opérationnelle", "title": "Conçu pour les opérations contractuelles", "subtitle": "Réunissez le contrat, les informations vérifiées et le travail qu’il génère dans un système responsable.", "items": {
+    "operations": { "eyebrow": "Preuve opérationnelle", "title": "Donnez à chaque obligation un responsable et une fin.", "subtitle": "Passez d’une clause vérifiée à un suivi responsable sans perdre le contrat, la source, l’échéance ni la preuve d’exécution.", "items": {
       "0": { "title": "Un dossier contractuel", "description": "Stockez les contrats PDF et DOCX, leurs versions et leur texte source consultable." },
       "1": { "title": "Informations citées", "description": "Vérifiez les champs, risques et obligations proposés à partir des preuves sources." },
       "2": { "title": "Suivi responsable", "description": "Suivez obligations, renouvellements, approbations et activité avec un responsable nommé." },
       "3": { "title": "Accès agent gouverné", "description": "Donnez aux clients API et MCP un contexte contractuel limité sans leur céder l’autorité de décision." }
     } },
-    "lifecycle": { "eyebrow": "Un cycle de vie connecté", "title": "Du contrat à l’action responsable.", "subtitle": "Une séquence claire relie source, vérification, responsabilité et historique.", "items": {
-      "0": { "title": "Centraliser", "description": "Ajoutez un contrat et conservez ensemble sa source, ses versions et ses métadonnées." },
-      "1": { "title": "Vérifier", "description": "Contrôlez l’extraction citée et le suivi proposé par rapport au contrat." },
-      "2": { "title": "Opérer", "description": "Assignez les obligations et faites progresser les approbations ou la signature." },
-      "3": { "title": "Prouver", "description": "Gardez visibles l’activité, les responsabilités et l’historique du contrat." }
+    "lifecycle": { "eyebrow": "Flux des opérations contractuelles", "title": "Du contrat à l’action responsable.", "subtitle": "Une séquence claire relie source, vérification, responsabilité et historique.", "items": {
+      "0": { "title": "Importer le contrat", "description": "Conservez ensemble le document original, ses versions et son dossier." },
+      "1": { "title": "Vérifier la source", "description": "Contrôlez chaque suggestion importante avec son extrait et sa page exacts." },
+      "2": { "title": "Attribuer l’action", "description": "Confirmez le responsable, l’échéance et la preuve requise avant l’exécution." },
+      "3": { "title": "Prouver l’exécution", "description": "Enregistrez la preuve et conservez un historique d’activité attribuable." }
     } },
-    "trust": { "eyebrow": "Vérifiable par conception", "title": "La confiance commence par le document, pas par la réponse.", "subtitle": "Aakd relie les suggestions importantes à leur source exacte et laisse aux personnes autorisées le contrôle de ce qui devient un fait fiable.", "items": {
+    "trust": { "eyebrow": "Vérifiable par conception", "title": "Vérifiez la source avant de faire avancer le travail.", "subtitle": "Aakd relie les suggestions importantes à leur source exacte et laisse aux personnes autorisées le contrôle de ce qui devient un fait fiable.", "items": {
       "0": { "title": "La source avant la réponse", "description": "Vérifiez l’extrait et la page qui justifient une suggestion plutôt que d’accepter un résumé isolé." },
       "1": { "title": "L’humain garde l’autorité", "description": "L’IA peut suggérer. Les réviseurs autorisés acceptent ou refusent les champs d’extraction et suggestions d’obligations pris en charge avant leur utilisation." },
       "2": { "title": "Le statut de révision reste visible", "description": "Les champs d’extraction pris en charge conservent leur citation source et leur statut de révision visibles." }
@@ -1007,7 +1066,7 @@
       "2": { "title": "Contexte d’extraction cité", "description": "Les champs d’extraction pris en charge conservent le texte source, la page source et le statut de révision." },
       "3": { "title": "Limite d’écriture actuelle", "description": "Les mutations MCP actuelles appliquent les rôles des membres et la portée d’écriture des clés API." }
     }, "caveat": "Aakd ne prétend pas prendre des décisions juridiques autonomes, exécuter des agents sans restriction ni déléguer l’autorité d’approbation. Les contrôles délégués granulaires appartiennent à une phase ultérieure." },
-    "capabilities": { "eyebrow": "Étendue CLM professionnelle", "title": "Un espace contractuel complet, révélé progressivement.", "subtitle": "Commencez par une action citée. Accédez au reste du cycle de vie quand le travail l’exige.", "items": {
+    "capabilities": { "eyebrow": "Étendue CLM professionnelle", "title": "Une CLM professionnelle, sans mise en scène.", "subtitle": "Commencez par une action citée. Accédez au reste du cycle de vie quand le travail l’exige.", "items": {
       "0": { "status": "Disponible", "title": "Référentiel et recherche", "description": "Stockez des contrats PDF et DOCX, organisez les versions et retrouvez le contenu." },
       "1": { "status": "IA facultative", "title": "Intelligence contractuelle citée", "description": "Vérifiez métadonnées, risques, suggestions d’obligations et réponses citées lorsqu’un fournisseur IA est configuré." },
       "2": { "status": "Disponible", "title": "Obligations et renouvellements", "description": "Suivez responsables, échéances, rappels, sous-tâches et état d’exécution." },

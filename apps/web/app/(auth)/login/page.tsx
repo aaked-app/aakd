@@ -51,9 +51,10 @@ function LoginForm() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{t("login")}</h1>
-        <p className="text-sm text-zinc-500">{t("loginSubtitle")}</p>
+      <div className="mb-7">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("login")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">{t("loginSubtitle")}</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -72,7 +73,7 @@ function LoginForm() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">{t("password")}</Label>
-            <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-xs text-indigo-600 hover:underline">
+            <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-xs font-medium text-emerald-800 hover:underline">
               {t("forgotPassword")}
             </Link>
           </div>
@@ -96,7 +97,7 @@ function LoginForm() {
         {t("noAccount")}{" "}
         <Link
           href={callbackURL !== "/dashboard" ? `/register?callbackURL=${encodeURIComponent(callbackURL)}` : "/register"}
-          className="inline-flex min-h-11 items-center text-indigo-600 hover:underline"
+          className="inline-flex min-h-11 items-center font-medium text-emerald-800 hover:underline"
         >
           {t("createOne")}
         </Link>

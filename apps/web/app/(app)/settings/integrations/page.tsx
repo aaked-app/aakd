@@ -573,6 +573,7 @@ export default function IntegrationsPage() {
   const { data: session } = useSession()
   const t = useTranslations("settingsIntegrations")
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [integrations, setIntegrations] = useState<CrmIntegrationStatus[]>([])
   const [confirmDisconnect, setConfirmDisconnect] = useState<CrmProvider | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -585,6 +586,8 @@ export default function IntegrationsPage() {
   const [teamsCount, setTeamsCount] = useState(0)
 
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true)
+    setLoadError(false)
     try {
       const res = await fetch("/api/crm/status", { signal })
       if (!res.ok) throw new Error("status")
@@ -601,6 +604,7 @@ export default function IntegrationsPage() {
       setSettings(next)
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return
+      setLoadError(true)
       toast.error(t("loadFailed"))
     } finally {
       setLoading(false)
@@ -734,7 +738,13 @@ export default function IntegrationsPage() {
         <CategoryTabs active={activeCategory} onChange={setActiveCategory} />
 
         {/* ── Category content ─────────────────────────────────────── */}
-        {activeCategory === "CRM" && (
+        {activeCategory === "CRM" && loadError ? (
+          <section role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+            <h2 className="text-sm font-semibold text-foreground">{t("loadFailed")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("loadErrorDescription")}</p>
+            <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={() => void fetchStatus()}>{t("retry")}</Button>
+          </section>
+        ) : activeCategory === "CRM" ? (
           <CrmSection
             loading={loading}
             integrations={integrations}
@@ -746,7 +756,7 @@ export default function IntegrationsPage() {
             onSaveSettings={saveSettings}
             onUpdateSetting={updateSetting}
           />
-        )}
+        ) : null}
         {activeCategory === "E-Signature" && <ESignatureSection />}
         {activeCategory === "Cloud Storage" && <CloudStorageSection />}
         {activeCategory === "Communication" && (

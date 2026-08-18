@@ -7,6 +7,7 @@ import RegisterPage from "@/app/(auth)/register/page"
 import LoginPage from "@/app/(auth)/login/page"
 import ForgotPasswordPage from "@/app/(auth)/forgot-password/page"
 import ResetPasswordPage from "@/app/(auth)/reset-password/page"
+import AuthLayout from "@/app/(auth)/layout"
 import ar from "@/messages/ar.json"
 import de from "@/messages/de.json"
 import en from "@/messages/en.json"
@@ -53,6 +54,7 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("next-intl", () => ({
+  useLocale: () => locale,
   useTranslations: (namespace: string) =>
     (key: string, values?: Record<string, unknown>) => message(namespace, key, values),
 }))
@@ -95,6 +97,18 @@ describe("authentication presentation", () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it("frames account access as the first step of a private contract workspace", () => {
+    render(<AuthLayout><LoginPage /></AuthLayout>)
+
+    expect(screen.getByTestId("auth-workspace-frame")).toHaveClass("bg-[#f5f4ef]")
+    expect(screen.getByRole("complementary", { name: "Workspace setup" })).toBeInTheDocument()
+    const progress = screen.getByRole("list", { name: "Setup progress" })
+    expect(progress).toHaveTextContent("Account")
+    expect(progress).toHaveTextContent("Workspace")
+    expect(progress).toHaveTextContent("First agreement")
+    expect(screen.getByText("Your contract workspace stays under your control.")).toBeInTheDocument()
   })
 
   it("renders the registration form and announces each translated field error", () => {

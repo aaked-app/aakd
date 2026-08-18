@@ -201,6 +201,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
       await contractExtractQueue.add("extract", {
         contractId: params.id,
+        organizationId: ctx.organizationId,
         fileId: contractFile.id,
         storageKey: key,
         preserveUserFields: true,

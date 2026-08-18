@@ -74,6 +74,25 @@ describe("Settings error, permission, and accessibility behavior", () => {
     expect(container.querySelector("form > .grid")).toHaveClass("grid-cols-1", "sm:grid-cols-2")
   })
 
+  it("does not present a failed team-member request as an empty team", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ error: "failed" }, 500)))
+    render(<MembersPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("members.loadError")
+    expect(screen.getByRole("button", { name: "members.retry" })).toBeInTheDocument()
+  })
+
+  it("keeps known organization data visible but makes a failed settings load explicit and retryable", async () => {
+    orgRole = "admin"
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input) === "/api/org" ? json({ error: "failed" }, 500) : json({ provider: null, model: null }))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<OrgPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("org.loadFailed")
+    fireEvent.click(screen.getByRole("button", { name: "org.retry" }))
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([input]) => String(input) === "/api/org")).toHaveLength(2))
+  })
+
   it.each(["viewer", "legal"])("shows an existing logo without a remove action for %s", async (role) => {
     orgRole = role
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input) === "/api/org" ? json({ name: "Acme", meta: {}, logo: "/logo.png" }) : json({ provider: null, model: null })))

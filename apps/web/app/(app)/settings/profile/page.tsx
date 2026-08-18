@@ -91,7 +91,7 @@ function AvatarPickerDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   currentImage: string | null | undefined
-  onApply: (url: string) => Promise<void>
+  onApply: (url: string) => Promise<boolean>
 }) {
   const t = useTranslations("settingsProfile")
   const [pendingImage, setPendingImage] = useState<string | null>(currentImage ?? null)
@@ -133,8 +133,7 @@ function AvatarPickerDialog({
     if (!pendingImage) return
     setApplying(true)
     try {
-      await onApply(pendingImage)
-      onOpenChange(false)
+      if (await onApply(pendingImage)) onOpenChange(false)
     } finally {
       setApplying(false)
     }
@@ -258,11 +257,17 @@ export default function ProfilePage() {
   }
 
   async function handleApplyAvatar(imageUrl: string) {
-    const result = await authClient.updateUser({ image: imageUrl })
-    if (result.error) {
-      toast.error(t("avatarUpdateFailed"))
-    } else {
+    try {
+      const result = await authClient.updateUser({ image: imageUrl })
+      if (result.error) {
+        toast.error(t("avatarUpdateFailed"))
+        return false
+      }
       toast.success(t("avatarUpdated"))
+      return true
+    } catch {
+      toast.error(t("avatarUpdateFailed"))
+      return false
     }
   }
 

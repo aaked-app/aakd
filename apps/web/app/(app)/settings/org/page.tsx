@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { ImageIcon, Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,11 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
   ollama: "Ollama (self-hosted)",
 }
+
+const DEFAULT_AI_MODELS = {
+  anthropic: "claude-haiku-4-5",
+  openai: "gpt-4o-mini",
+} as const
 
 const TIMEZONES = [
   { value: "UTC", key: "utc" },
@@ -69,30 +74,39 @@ export default function OrgSettingsPage() {
   // AI config inline edit state
   const [showAiForm, setShowAiForm] = useState(false)
   const [aiProvider, setAiProvider] = useState<"anthropic" | "openai">("anthropic")
+  const [aiModel, setAiModel] = useState<string>(DEFAULT_AI_MODELS.anthropic)
   const [aiApiKey, setAiApiKey] = useState("")
   const [showAiKey, setShowAiKey] = useState(false)
   const [aiConfigStatus, setAiConfigStatus] = useState<AiConfigStatus>("idle")
   const [aiConfigError, setAiConfigError] = useState("")
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+  const [orgLoadFailed, setOrgLoadFailed] = useState(false)
 
   useEffect(() => {
     if (activeOrg?.name) setName(activeOrg.name)
   }, [activeOrg])
 
-  useEffect(() => {
-    fetch("/api/org")
-      .then((r) => r.json())
-      .then((data: { name?: string; meta?: Record<string, unknown>; logo?: string | null }) => {
-        if (data.name) setName(data.name)
-        if (data.meta?.domain) setDomain(data.meta.domain as string)
-        if (data.meta?.timezone) setTimezone(data.meta.timezone as string)
-        if (data.meta?.industry) setIndustry(data.meta.industry as string)
-        const persistedLogo = data.logo ?? null
-        setLogoUrl(persistedLogo)
-        setPersistedLogoUrl(persistedLogo)
-      })
-      .catch(() => {})
+  const loadOrganization = useCallback(async () => {
+    setOrgLoadFailed(false)
+    try {
+      const response = await fetch("/api/org")
+      if (!response.ok) throw new Error("organization_unavailable")
+      const data = await response.json() as { name?: string; meta?: Record<string, unknown>; logo?: string | null }
+      if (data.name) setName(data.name)
+      if (data.meta?.domain) setDomain(data.meta.domain as string)
+      if (data.meta?.timezone) setTimezone(data.meta.timezone as string)
+      if (data.meta?.industry) setIndustry(data.meta.industry as string)
+      const persistedLogo = data.logo ?? null
+      setLogoUrl(persistedLogo)
+      setPersistedLogoUrl(persistedLogo)
+    } catch {
+      setOrgLoadFailed(true)
+    }
   }, [])
+
+  useEffect(() => {
+    void loadOrganization()
+  }, [loadOrganization])
 
   useEffect(() => {
     fetch("/api/ai-status")
@@ -160,6 +174,13 @@ export default function OrgSettingsPage() {
         <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
+
+      {orgLoadFailed ? (
+        <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+          <p>{t("loadFailed")}</p>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => void loadOrganization()}>{t("retry")}</Button>
+        </section>
+      ) : null}
 
       {/* General Information card */}
       <div className="rounded-[var(--radius)] border border-border bg-card p-6">
@@ -334,7 +355,7 @@ export default function OrgSettingsPage() {
               {t("serverDefaultDescription")}
             </p>
             {canManageAi && !showAiForm && (
-              <Button variant="outline" size="sm" className="min-h-11" onClick={() => setShowAiForm(true)}>
+              <Button variant="outline" size="sm" className="min-h-11" onClick={() => { setAiProvider((aiStatus.provider === "openai" ? "openai" : "anthropic")); setAiModel(aiStatus.model ?? DEFAULT_AI_MODELS[aiStatus.provider === "openai" ? "openai" : "anthropic"]); setShowAiForm(true) }}>
                 {t("setOrgKey")}
               </Button>
             )}
@@ -360,7 +381,7 @@ export default function OrgSettingsPage() {
             </div>
             {canManageAi && !showAiForm && !showRemoveConfirm && (
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" size="sm" className="min-h-11" onClick={() => setShowAiForm(true)}>{t("change")}</Button>
+                <Button variant="outline" size="sm" className="min-h-11" onClick={() => { setAiProvider((aiStatus.provider === "openai" ? "openai" : "anthropic")); setAiModel(aiStatus.model ?? DEFAULT_AI_MODELS[aiStatus.provider === "openai" ? "openai" : "anthropic"]); setShowAiForm(true) }}>{t("change")}</Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -416,7 +437,7 @@ export default function OrgSettingsPage() {
               </>}
             </p>
             {canManageAi && !showAiForm && (
-              <Button variant="outline" size="sm" className="min-h-11" onClick={() => setShowAiForm(true)}>
+              <Button variant="outline" size="sm" className="min-h-11" onClick={() => { setAiModel(DEFAULT_AI_MODELS[aiProvider]); setShowAiForm(true) }}>
                 {t("setupAi")}
               </Button>
             )}
@@ -445,6 +466,20 @@ export default function OrgSettingsPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-model-settings" className="text-sm font-medium">{t("model")}</Label>
+              <Input
+                id="ai-model-settings"
+                value={aiModel}
+                onChange={(e) => { setAiModel(e.target.value); setAiConfigStatus("idle"); setAiConfigError("") }}
+                placeholder={DEFAULT_AI_MODELS[aiProvider]}
+                className="min-h-11 font-mono text-sm"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground">{t("aiModelHelp")}</p>
             </div>
 
             <div className="space-y-2">
@@ -501,11 +536,11 @@ export default function OrgSettingsPage() {
                     const res = await fetch("/api/org/ai-config/test", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim() }),
+                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim(), model: aiModel.trim() }),
                     })
                     const data = (await res.json()) as { valid: boolean; error?: string }
                     setAiConfigStatus(data.valid ? "tested-ok" : "tested-fail")
-                    if (!data.valid) setAiConfigError(data.error === "Invalid API key" ? t("invalidApiKey") : t("validationFailed"))
+                    if (!data.valid) setAiConfigError(data.error === "Invalid API key" ? t("invalidApiKey") : (data.error ?? t("validationFailed")))
                   } catch {
                     setAiConfigStatus("tested-fail")
                     setAiConfigError(t("networkError"))
@@ -526,7 +561,7 @@ export default function OrgSettingsPage() {
                     const res = await fetch("/api/org/ai-config", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim() }),
+                      body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim(), model: aiModel.trim() }),
                     })
                     if (!res.ok) throw new Error("Save failed")
                     const data = (await res.json()) as { provider: string; model: string | null }

@@ -22,7 +22,7 @@ vi.mock("next-intl", () => ({
 }))
 
 describe("LandingPage", () => {
-  it("makes the CLM category and governed operating model explicit", () => {
+  it("leads with the reviewed-action outcome and names the CLM category", () => {
     render(<LandingPage />)
 
     expect(screen.getByRole("banner")).toBeInTheDocument()
@@ -30,21 +30,21 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Run your contract lifecycle with evidence, ownership, and control.",
+        name: "Turn agreements into reviewed, owned action.",
       }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
     expect(screen.getByText("Open-source contract lifecycle management")).toBeInTheDocument()
     expect(
-      screen.getByText(
-        "Bring agreements into one self-hosted workspace. Review cited contract intelligence, assign obligation work, and keep approvals, renewals, and activity visible to the people accountable for them.",
-      ),
+      screen.getByText(/one contract workspace/i),
     ).toBeInTheDocument()
     expect(
       screen.getByText("Self-hostable AGPL core. AI is optional, cited, and reviewed by people."),
     ).toBeInTheDocument()
 
-    expect(screen.getByRole("heading", { name: "Built for contract operations" })).toBeInTheDocument()
+    expect(screen.getByText(/solo operators, small teams, and larger organizations/i)).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Review the source before the work moves." })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Give every obligation an owner and an ending." })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Useful to agents. Governed by people." })).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -53,12 +53,59 @@ describe("LandingPage", () => {
     ).toBeInTheDocument()
   })
 
+  it("presents the lifecycle as an operational sequence instead of feature cards", () => {
+    render(<LandingPage />)
+
+    const workflow = screen.getByRole("list", { name: "Contract operations workflow" })
+    const steps = within(workflow).getAllByRole("listitem")
+
+    expect(steps).toHaveLength(4)
+    expect(within(steps[0]).getByText("Upload agreement")).toBeInTheDocument()
+    expect(within(steps[1]).getByText("Review source")).toBeInTheDocument()
+    expect(within(steps[2]).getByText("Assign action")).toBeInTheDocument()
+    expect(within(steps[3]).getByText("Prove completion")).toBeInTheDocument()
+  })
+
+  it("uses an enterprise editorial system without decorative AI effects", () => {
+    const { container } = render(<LandingPage />)
+    const classNames = Array.from(container.querySelectorAll("[class]"))
+      .map((element) => element.getAttribute("class") ?? "")
+      .join(" ")
+
+    expect(classNames).not.toMatch(/gradient/i)
+    expect(classNames).not.toMatch(/backdrop-blur|blur-/i)
+    expect(classNames).not.toMatch(/shadow-/i)
+    expect(container.querySelector("table")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Professional CLM, without the theatre." })).toBeInTheDocument()
+  })
+
+  it("keeps the capability matrix contained on narrow and RTL viewports", () => {
+    render(<LandingPage />)
+
+    expect(screen.getByRole("table", { name: "Professional CLM, without the theatre." })).toHaveClass(
+      "hidden",
+      "md:table",
+    )
+    expect(screen.getByRole("list", { name: "Professional CLM, without the theatre." })).toHaveClass(
+      "md:hidden",
+    )
+  })
+
+  it("contains the self-hosting terminal inside the viewport", () => {
+    render(<LandingPage />)
+
+    const section = screen.getByRole("link", { name: "Read the self-hosting guide" }).closest("section")
+    expect(section?.querySelector("pre")).toHaveClass("max-w-full")
+    expect(section?.querySelectorAll(".min-w-0")).toHaveLength(2)
+  })
+
   it("renders the approved Northwind proof as one static, reviewable artifact", () => {
     render(<LandingPage />)
 
     const artifact = screen.getByRole("figure", { name: "Static contract operations example" })
     const proof = within(artifact)
 
+    expect(proof.getByText("Static contract operations example")).toBeVisible()
     expect(proof.getByText("Northwind Services Agreement · PDF")).toBeInTheDocument()
     expect(proof.getByText("Source verified")).toBeInTheDocument()
     expect(proof.getByText("Quarterly service report")).toBeInTheDocument()

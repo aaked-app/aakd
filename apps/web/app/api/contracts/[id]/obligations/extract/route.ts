@@ -3,6 +3,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { contractExtractQueue, getObligationExtractQueue, obligationExtractQueue } from "@/lib/jobs/queues"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 
 const ROLES_CAN_WRITE = new Set(["owner", "admin", "legal", "member"])
 
@@ -51,6 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         "extract",
         {
           contractId: contract.id,
+          organizationId: ctx.organizationId,
           fileId: latestFile.id,
           storageKey: latestFile.storageKey,
           preserveUserFields: true,
@@ -60,18 +62,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "text_processing", queued: true }, { status: 202 })
     }
 
-    // Check that an AI provider is configured
-    const provider =
-      process.env.AI_PROVIDER?.toLowerCase() ||
-      (process.env.ANTHROPIC_API_KEY
-        ? "anthropic"
-        : process.env.OPENAI_API_KEY
-          ? "openai"
-          : process.env.OLLAMA_BASE_URL
-            ? "ollama"
-            : null)
-
-    if (!provider) {
+    // Check both organization BYOK and server-level AI configuration.
+    const aiConfig = await resolveAiConfig(ctx.organizationId)
+    if (!aiConfig.provider) {
       return Response.json({ error: "no_ai_provider" }, { status: 422 })
     }
 

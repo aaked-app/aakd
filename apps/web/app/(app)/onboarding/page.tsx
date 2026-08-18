@@ -8,13 +8,6 @@ import { useSession, useActiveOrganization } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -56,19 +49,6 @@ const PROVIDER_META: Record<Provider, { name: string; subtitleKey: string }> = {
   anthropic: { name: "Anthropic", subtitleKey: "provider.anthropic.subtitle" },
   openai: { name: "OpenAI", subtitleKey: "provider.openai.subtitle" },
   ollama: { name: "Ollama", subtitleKey: "provider.ollama.subtitle" },
-}
-
-const CLOUD_MODELS: Record<"anthropic" | "openai", { value: string; labelKey: string }[]> = {
-  anthropic: [
-    { value: "claude-haiku-4-5", labelKey: "models.anthropic.haiku" },
-    { value: "claude-sonnet-4-5", labelKey: "models.anthropic.sonnet" },
-    { value: "claude-opus-4-5", labelKey: "models.anthropic.opus" },
-  ],
-  openai: [
-    { value: "gpt-4o-mini", labelKey: "models.openai.mini" },
-    { value: "gpt-4o", labelKey: "models.openai.standard" },
-    { value: "gpt-4-turbo", labelKey: "models.openai.turbo" },
-  ],
 }
 
 const DEFAULT_MODEL: Record<"anthropic" | "openai", string> = {
@@ -135,6 +115,7 @@ export default function OnboardingPage() {
   const [ollamaModel, setOllamaModel] = useState("")
   const [status, setStatus] = useState<Status>("idle")
   const [errorMsg, setErrorMsg] = useState("")
+  const [availableModels, setAvailableModels] = useState<string[]>([])
 
   // Role guard — only admin/legal/owner may configure AI
   useEffect(() => {
@@ -154,6 +135,7 @@ export default function OnboardingPage() {
     setErrorMsg("")
     if (p !== "ollama") {
       setModel(DEFAULT_MODEL[p])
+      setAvailableModels([])
     }
   }
 
@@ -170,8 +152,20 @@ export default function OnboardingPage() {
     try {
       const body =
         provider === "ollama"
+          ? { provider, baseUrl: ollamaUrl.trim(), model: ollamaModel.trim() }
+          : { provider, apiKey: apiKey.trim(), model: model.trim() }
+
+      const modelsResponse = await fetch("/api/org/ai-config/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(provider === "ollama"
           ? { provider, baseUrl: ollamaUrl.trim() }
-          : { provider, apiKey: apiKey.trim() }
+          : { provider, apiKey: apiKey.trim() }),
+      })
+      if (modelsResponse.ok) {
+        const modelsData = (await modelsResponse.json()) as { models?: string[] }
+        setAvailableModels(modelsData.models ?? [])
+      }
 
       const res = await fetch("/api/org/ai-config/test", {
         method: "POST",
@@ -357,21 +351,22 @@ export default function OnboardingPage() {
               <div className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="ai-model">{t("fields.model")}</Label>
-                  <Select
+                  <Input
+                    id="ai-model"
+                    type="text"
                     value={model}
-                    onValueChange={(v) => { if (v) { setModel(v); resetFeedback() } }}
-                  >
-                    <SelectTrigger id="ai-model" className="h-11 w-full min-w-0">
-                      <SelectValue placeholder={t("fields.selectModel")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CLOUD_MODELS[provider as "anthropic" | "openai"].map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {t(item.labelKey)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => { setModel(e.target.value); resetFeedback() }}
+                    list="available-ai-models"
+                    className="h-11 w-full min-w-0 font-mono text-sm"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <datalist id="available-ai-models">
+                    {availableModels.map((item) => <option key={item} value={item} />)}
+                  </datalist>
+                  <p className="break-words text-xs leading-5 text-muted-foreground">
+                    {t("fields.modelHelp")}
+                  </p>
                 </div>
 
                 <div className="space-y-2">

@@ -9,6 +9,16 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useActiveOrganization, useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
 import type { Obligation, ObligationPriority, ObligationStatus } from "@/components/obligations/types"
@@ -133,6 +143,7 @@ export default function ObligationsPage() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("All")
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
   const role = useMemo(() => {
     const userId = session?.user?.id
@@ -248,9 +259,13 @@ export default function ObligationsPage() {
 
   async function handleBulkDelete() {
     if (!canDelete || bulkDeleting || checkedIds.size === 0) return
-    const ids = Array.from(checkedIds)
-    if (!window.confirm(t("deleteSelectedConfirm", { count: ids.length }))) return
+    setBulkDeleteConfirmOpen(true)
+  }
+
+  async function confirmBulkDelete() {
+    if (!canDelete || bulkDeleting || checkedIds.size === 0) return
     setBulkDeleting(true)
+    setBulkDeleteConfirmOpen(false)
     const targets = obligations.filter((obligation) => checkedIds.has(obligation.id))
     const results: PromiseSettledResult<Response>[] = []
     for (let index = 0; index < targets.length; index += OBLIGATIONS_PAGE_LIMIT) {
@@ -462,6 +477,21 @@ export default function ObligationsPage() {
           </div>
         </section>
       ) : null}
+
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteSelectedTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("deleteSelectedConfirm", { count: checkedIds.size })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={bulkDeleting} onClick={() => void confirmBulkDelete()}>
+              {t(checkedIds.size === 1 ? "deleteSelectedOne" : "deleteSelectedMany", { count: checkedIds.size })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }

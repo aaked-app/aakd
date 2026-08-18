@@ -40,3 +40,6 @@ reports/test-state.json
 
 # Local production backup exports
 backups/
+.gstack/
+.next-verify-first-use/
+.next-*/
