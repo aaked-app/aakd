@@ -9,20 +9,23 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useTranslations } from "next-intl"
+import { safeCallbackPath } from "@/lib/auth/safe-callback"
+import { authErrorMessageKey } from "@/lib/auth/error-message"
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackURL = searchParams.get("callbackURL") ?? "/dashboard"
+  const callbackURL = safeCallbackPath(searchParams.get("callbackURL")) ?? "/dashboard"
   const t = useTranslations("auth")
-  const te = useTranslations("errors")
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState("")
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setFormError("")
     setLoading(true)
     try {
       const result = await signIn.email({
@@ -31,12 +34,16 @@ function LoginForm() {
         callbackURL,
       })
       if (result.error) {
-        toast.error(t("signInFailed"))
+        const message = t(authErrorMessageKey(result.error))
+        setFormError(message)
+        toast.error(message)
       } else {
         router.push(callbackURL)
       }
-    } catch {
-      toast.error(te("serverError"))
+    } catch (error) {
+      const message = t(authErrorMessageKey(error as { code?: string; message?: string }))
+      setFormError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -80,6 +87,7 @@ function LoginForm() {
             className="min-h-11"
           />
         </div>
+        {formError && <p role="alert" aria-live="polite" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{formError}</p>}
         <Button type="submit" className="min-h-11 w-full" disabled={loading}>
           {loading ? t("signingIn") : t("login")}
         </Button>
