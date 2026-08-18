@@ -2,8 +2,8 @@
 
 **Status:** Founder direction and cross-team source of truth
 **Owner:** Founder/CEO
-**Version:** 1.0
-**Last updated:** 2026-08-17
+**Version:** 1.2
+**Last updated:** 2026-08-18
 **Applies to:** product, engineering, GTM, UI/UX, research, security, documentation, community and partnerships
 
 **Review trigger:** after a roadmap gate, material customer evidence, a founder-approved strategic change or a verified contradiction.
@@ -19,6 +19,7 @@ Read this document with `AGENTS.md` and `CLAUDE.md`. This file owns product dire
 |---|---|
 | 1.0 | Consolidated the full OSS CLM vision, US/UK posture, validation ICP, gate-based roadmap, governed Agent Gateway, privacy/redaction, OSS/Cloud constitution and cross-discipline rules. |
 | 1.1 | Added a continuous community-evidence loop, startup challenger cohorts, handoff/workaround capture, and a rule-based community launch gate. These improve discovery discipline without expanding product scope. |
+| 1.2 | Added Phase 1 Team Briefs, explicit fulfilment and exception semantics, and Phase 3 reusable, permissioned team-agent skills. These sharpen the reviewed-action journey without changing its safety or evidence gates. |
 
 ## Executive snapshot
 
