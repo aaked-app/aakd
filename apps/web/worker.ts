@@ -43,6 +43,8 @@ import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
+import { sendActionDeliveryEmail } from "@/lib/email/action-delivery"
+import { processActionDelivery } from "@/lib/actions/delivery-worker"
 import { sendSlackEvent, sendTeamsEvent } from "@/lib/notifications/webhooks"
 import { decrypt } from "@/lib/notifications/crypto"
 import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
@@ -1392,6 +1394,10 @@ const emailWorker = new Worker<EmailJobData>(
         })
         return
       }
+      if (data.kind === "action_delivery") {
+        await processActionDelivery(data, { db: getWorkerPrisma(), send: sendActionDeliveryEmail })
+        return
+      }
     } catch (err: unknown) {
       // attempts: 1 — failed jobs land in BullMQ's failed queue rather than
       // retrying. SMTP sends are not idempotent, so a retry of a partially-
@@ -1794,13 +1800,15 @@ async function createInAppNotifications(
     case "obligation.due_soon":
     case "obligation.overdue": {
       const obligationTitle = typeof metadata.obligationTitle === "string" ? metadata.obligationTitle : "An obligation"
+      const actionId = typeof metadata.actionId === "string" ? metadata.actionId : null
       const daysUntilDue = typeof metadata.daysUntilDue === "number" ? metadata.daysUntilDue : null
       const title = eventName === "obligation.overdue" ? "Obligation overdue" : "Obligation due soon"
-      const body = eventName === "obligation.overdue"
+      const baseBody = eventName === "obligation.overdue"
         ? `"${obligationTitle}" on "${contractTitle}" is overdue`
         : daysUntilDue != null && daysUntilDue > 0
           ? `"${obligationTitle}" on "${contractTitle}" is due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`
           : `"${obligationTitle}" on "${contractTitle}" is due soon`
+      const body = actionId ? `${baseBody}. Review it at /actions/${actionId}` : baseBody
 
       const members = await db.member.findMany({
         where: { organizationId, role: { in: ["legal", "admin", "owner"] } },
@@ -1812,18 +1820,21 @@ async function createInAppNotifications(
 
       // Also notify the obligation assignee if set and not already notified
       const obligationId = typeof metadata.obligationId === "string" ? metadata.obligationId : null
+      const metadataAssigneeId = typeof metadata.assigneeId === "string" ? metadata.assigneeId : null
       if (obligationId) {
         const ob = await db.contractObligation.findUnique({
           where: { id: obligationId },
           select: { assigneeId: true },
         }).catch(() => null)
-        const assigneeId = ob?.assigneeId ?? null
+        const assigneeId = ob?.assigneeId ?? metadataAssigneeId
         if (assigneeId) {
           const alreadyNotified = members.some(m => m.userId === assigneeId)
           if (!alreadyNotified) {
             await writeNotification(assigneeId, title, body)
           }
         }
+      } else if (metadataAssigneeId && !members.some((m) => m.userId === metadataAssigneeId)) {
+        await writeNotification(metadataAssigneeId, title, body)
       }
       break
     }

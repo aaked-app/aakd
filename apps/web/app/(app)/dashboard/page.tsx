@@ -8,13 +8,14 @@ import {
   useSyncExternalStore,
 } from "react"
 import Link from "next/link"
-import { Settings2, Plus, ArrowUpRight, FileText } from "lucide-react"
+import { Settings2, Plus, ArrowUpRight, FileText, Clock3, CircleAlert } from "lucide-react"
 import { useSession } from "@/lib/auth/client"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Contract } from "@/lib/types"
 import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
 import { useLocale, useTranslations } from "next-intl"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,14 @@ function getInitials(name: string): string {
 const DESKTOP_QUERY = "(min-width: 1024px)"
 
 type LoadState = "loading" | "ready" | "error"
+type DashboardAction = {
+  id: string
+  title: string
+  status: string
+  dueDate: string | null
+  assignee: { id: string; name: string } | null
+  contract: { id: string; title: string; counterpartyName: string | null }
+}
 
 function isFiniteCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -72,6 +81,15 @@ function hasDashboardContractShape(value: unknown): value is Contract {
       (owner.image == null || typeof owner.image === "string")
     )),
   )
+}
+
+function hasDashboardActionShape(value: unknown): value is DashboardAction {
+  if (!value || typeof value !== "object") return false
+  const action = value as Partial<DashboardAction>
+  return typeof action.id === "string" && typeof action.title === "string" &&
+    typeof action.status === "string" && (action.dueDate == null || typeof action.dueDate === "string") &&
+    Boolean(action.contract && typeof action.contract.id === "string" && typeof action.contract.title === "string") &&
+    (action.assignee == null || (typeof action.assignee.id === "string" && typeof action.assignee.name === "string"))
 }
 
 function subscribeToDesktop(onChange: () => void) {
@@ -223,6 +241,7 @@ export default function DashboardPage() {
   )
   const [analytics, setAnalytics]     = useState<AnalyticsSummary | null>(null)
   const [contracts, setContracts]     = useState<Contract[]>([])
+  const [actions, setActions] = useState<DashboardAction[]>([])
   const [loadState, setLoadState]     = useState<LoadState>("loading")
   const requestIdRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
@@ -235,7 +254,7 @@ export default function DashboardPage() {
     setLoadState("loading")
 
     try {
-      const [analyticsResponse, contractsResponse] = await Promise.all([
+      const [analyticsResponse, contractsResponse, actionsResponse] = await Promise.all([
         fetch("/api/analytics/summary", {
           credentials: "include",
           signal: controller.signal,
@@ -244,17 +263,23 @@ export default function DashboardPage() {
           credentials: "include",
           signal: controller.signal,
         }),
+        isActionLedgerUiEnabled()
+          ? fetch("/api/actions?view=dashboard&limit=5", { credentials: "include", signal: controller.signal })
+          : Promise.resolve(new Response(JSON.stringify({ actions: [] }), { status: 200 })),
       ])
-      if (!analyticsResponse.ok || !contractsResponse.ok) throw new Error("dashboard_request_failed")
+      if (!analyticsResponse.ok || !contractsResponse.ok || !actionsResponse.ok) throw new Error("dashboard_request_failed")
 
-      const [analyticsData, contractsData] = await Promise.all([
+      const [analyticsData, contractsData, actionsData] = await Promise.all([
         analyticsResponse.json() as Promise<AnalyticsSummary>,
         contractsResponse.json() as Promise<{ contracts?: Contract[] }>,
+        actionsResponse.json() as Promise<{ actions?: DashboardAction[] }>,
       ])
       if (
         !hasDashboardAnalyticsShape(analyticsData) ||
         !Array.isArray(contractsData?.contracts) ||
-        !contractsData.contracts.every(hasDashboardContractShape)
+        !contractsData.contracts.every(hasDashboardContractShape) ||
+        !Array.isArray(actionsData?.actions) ||
+        !actionsData.actions.every(hasDashboardActionShape)
       ) {
         throw new Error("dashboard_response_invalid")
       }
@@ -262,6 +287,7 @@ export default function DashboardPage() {
 
       setAnalytics(analyticsData)
       setContracts(contractsData.contracts)
+      setActions(actionsData.actions)
       setLoadState("ready")
     } catch {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
@@ -375,6 +401,13 @@ export default function DashboardPage() {
         </section>
       ) : (
         <div className="flex flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:px-7">
+          {isActionLedgerUiEnabled() ? <section className="rounded-[var(--radius)] border border-primary/20 bg-card p-4 sm:p-5" aria-labelledby="agreement-work-heading">
+            <div className="flex items-start justify-between gap-3">
+              <div><h2 id="agreement-work-heading" className="text-base font-semibold">{t("agreementWork")}</h2><p className="mt-1 text-xs text-muted-foreground">{t("agreementWorkDescription")}</p></div>
+              <Link href="/actions?view=my_work" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary">{t("viewActionQueue")}<ArrowUpRight className="size-3 rtl:-scale-x-100" /></Link>
+            </div>
+            {actions.length === 0 ? <p className="mt-4 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{t("noAgreementWork")}</p> : <ol className="mt-4 grid gap-2">{actions.map((action) => <li key={action.id}><Link href={`/actions/${action.id}`} className="flex min-h-11 flex-col gap-1 rounded-lg border p-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0"><span className="block font-medium">{action.title}</span><span className="block truncate text-xs text-muted-foreground">{action.contract.title} · {action.assignee?.name ?? t("unassigned")}</span></span><span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">{action.status === "STALE" || action.status === "BLOCKED" ? <CircleAlert className="size-4 text-destructive" /> : <Clock3 className="size-4" />}{action.dueDate ? formatDate(action.dueDate, locale) : t("conditionBased")}</span></Link></li>)}</ol>}
+          </section> : null}
           <section aria-labelledby="workspace-summary-heading">
             <h2 id="workspace-summary-heading" className="sr-only">{t("workspaceSummary")}</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

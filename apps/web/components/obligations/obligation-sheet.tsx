@@ -12,6 +12,7 @@ import {
   AlignLeft,
   Type,
   Bookmark,
+  CheckSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { cn } from "@/lib/utils"
 import type { Obligation, ObligationPriority } from "./types"
 import type { OrgMember } from "@/lib/types"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ interface FormState {
   assigneeId: string
   clauseReference: string
   reminderDays: number
+  evidenceRequired: "completion_note" | "external_link"
 }
 
 const EMPTY_FORM: FormState = {
@@ -68,6 +71,7 @@ const EMPTY_FORM: FormState = {
   assigneeId: UNASSIGNED,
   clauseReference: "",
   reminderDays: 7,
+  evidenceRequired: "completion_note",
 }
 
 function obligationToForm(o: Obligation): FormState {
@@ -79,6 +83,7 @@ function obligationToForm(o: Obligation): FormState {
     assigneeId: o.assignee?.id ?? UNASSIGNED,
     clauseReference: o.clauseReference ?? "",
     reminderDays: o.reminderDays,
+    evidenceRequired: "completion_note",
   }
 }
 
@@ -203,6 +208,7 @@ export function ObligationSheet({
         reminderDays: form.reminderDays,
         assigneeId: form.assigneeId === UNASSIGNED ? undefined : form.assigneeId,
         suggestionId,
+        evidenceRequired: form.evidenceRequired,
       }
 
       const url = obligation
@@ -307,8 +313,8 @@ export function ObligationSheet({
 
           {/* Priority */}
           <div>
-            <SectionLabel icon={Tag} label={t("priority")} />
-            <div className="flex gap-2" role="radiogroup" aria-label={t("priority")}>
+            <SectionLabel icon={Tag} label={t("priorityLabel")} />
+            <div className="flex gap-2" role="radiogroup" aria-label={t("priorityLabel")}>
               {PRIORITY_OPTIONS.map((opt) => (
                 <label
                   key={opt.value}
@@ -409,6 +415,17 @@ export function ObligationSheet({
               className="min-h-11 text-sm"
             />
           </div>
+
+          {!isEditing && isActionLedgerUiEnabled() && (
+            <div>
+              <SectionLabel icon={CheckSquare} label={t("evidenceRequirement")} htmlFor="obligation-evidence-requirement" required />
+              <select id="obligation-evidence-requirement" className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm" value={form.evidenceRequired} onChange={(event) => update("evidenceRequired", event.target.value as FormState["evidenceRequired"])}>
+                <option value="completion_note">{t("completionNoteEvidence")}</option>
+                <option value="external_link">{t("externalLinkEvidence")}</option>
+              </select>
+              <p className="mt-1.5 text-xs text-muted-foreground">{t("evidenceRequirementHelp")}</p>
+            </div>
+          )}
 
         </div>
 

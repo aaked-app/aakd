@@ -343,11 +343,12 @@ describe("POST /api/contracts/[id]/obligations", () => {
   })
 
   it("returns 201 on happy path and writes activity", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
     vi.mocked(prisma.contractObligation.create).mockResolvedValueOnce(mockObligation as any)
+    vi.mocked(prisma.contractAction.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contractAction.upsert).mockResolvedValueOnce({ id: "action-1" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations", {
@@ -360,13 +361,15 @@ describe("POST /api/contracts/[id]/obligations", () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.id).toBe("obl-1")
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_CREATED",
-      expect.stringContaining("Pay invoice"),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contractId: "contract-1",
+        contractActionId: "action-1",
+        userId: "user-admin",
+        action: "OBLIGATION_CREATED",
+        metadata: expect.objectContaining({ obligationId: "obl-1" }),
+      }),
+    })
   })
 
   it("returns 201 for member role (has write access)", async () => {
@@ -374,6 +377,8 @@ describe("POST /api/contracts/[id]/obligations", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
     vi.mocked(prisma.contractObligation.create).mockResolvedValueOnce(mockObligation as any)
+    vi.mocked(prisma.contractAction.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contractAction.upsert).mockResolvedValueOnce({ id: "action-1" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations", {
@@ -559,17 +564,13 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(200)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_COMPLETED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_COMPLETED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 
   it("returns 200 and writes OBLIGATION_UPDATED activity for non-completion updates", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       ...mockObligation,
@@ -589,13 +590,10 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(200)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_UPDATED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_UPDATED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 })
 
@@ -672,7 +670,6 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
   })
 
   it("returns 204 on successful delete and writes activity", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       ...mockObligation,
@@ -687,13 +684,10 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(204)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_DELETED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_DELETED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 })
 

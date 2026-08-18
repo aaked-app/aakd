@@ -34,6 +34,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-intl", () => ({
   useLocale: () => testLocale,
   useTranslations: () => (key: string, values?: Record<string, string | number>) => {
+    if (key === "priority") {
+      console.error("INSUFFICIENT_PATH: obligationDetail.priority is an object")
+      return key
+    }
     const copy: Record<string, string> = {
       backToContract: "Back to contract",
       statusLabel: "Status",
@@ -55,7 +59,7 @@ vi.mock("next-intl", () => ({
       taskProgress: "{done} of {total} complete",
       details: "Details",
       dueDate: "Due date",
-      priority: "Priority",
+      priorityLabel: "Priority",
       assignee: "Owner",
       unassigned: "Unassigned",
       clauseReference: "Source reference",
@@ -217,11 +221,19 @@ describe("obligation detail responsive action surface", () => {
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-11")
     expect(screen.getByText("Sep 18, 2026")).toBeVisible()
     expect(screen.getByText("Section 4.2")).toBeVisible()
+    expect(screen.getByText("Priority")).toBeVisible()
     expect(screen.getByText("Sub-task created: Collect evidence")).toBeVisible()
     expect(screen.getByText("Collect evidence")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
     expect(screen.queryByText("Another obligation changed")).not.toBeInTheDocument()
     expect(screen.getByText("Showing matching activity from the contract's latest 20 events. Older events may not appear.")).toBeVisible()
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "0 of 1 complete")
+  })
+
+  it("keeps the scalar priority label separate from localized priority values", () => {
+    for (const catalog of [en, fr, de, es, ar]) {
+      expect(typeof catalog.obligationDetail.priorityLabel).toBe("string")
+      expect(Object.keys(catalog.obligationDetail.priority).sort()).toEqual(["HIGH", "LOW", "MEDIUM"])
+    }
   })
 
   it("localizes known structured audit events without translating unknown detail", async () => {
@@ -343,6 +355,7 @@ describe("obligation detail responsive action surface", () => {
   })
 
   it("opens a keyboard-native, labelled obligation editor", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
     render(<ObligationDetailPage />)
     await screen.findByRole("heading", { name: obligation.title })
 
@@ -358,6 +371,8 @@ describe("obligation detail responsive action surface", () => {
     expect(screen.getByLabelText("Title")).toBeRequired()
     expect(screen.getByLabelText("Due date")).toBeRequired()
     expect(screen.getByRole("button", { name: "Close obligation editor" })).toHaveClass("h-11", "w-11")
+    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("INSUFFICIENT_PATH"))
+    consoleError.mockRestore()
   })
 
   it("traps delete confirmation focus and restores it to the trigger on cancel", async () => {

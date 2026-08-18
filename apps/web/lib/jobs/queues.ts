@@ -90,6 +90,19 @@ export type EmailJobData =
       metadata: Record<string, string | number | boolean | null>
       unsubscribeToken: string
     }
+  | {
+      kind: "action_delivery"
+      deliveryId: string
+      to: string
+      recipientName: string
+      actionId: string
+      actionTitle: string
+      actionUrl: string
+      contractTitle: string
+      dueDate: string | null
+      sourceText: string | null
+      sourcePage: number | null
+    }
 
 // ─── M7: Obligation AI extraction ────────────────────────────────────────────
 

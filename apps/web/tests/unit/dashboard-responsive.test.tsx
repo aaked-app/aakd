@@ -102,6 +102,7 @@ function installSuccessfulFetch(overrides?: { analytics?: AnalyticsSummary; cont
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     if (String(input) === "/api/analytics/summary") return json(analytics)
     if (String(input) === "/api/contracts?limit=5") return json({ contracts })
+    if (String(input) === "/api/actions?view=dashboard&limit=5") return json({ actions: [] })
     return new Response(null, { status: 404 })
   })
   vi.stubGlobal("fetch", fetchMock)
@@ -110,12 +111,14 @@ function installSuccessfulFetch(overrides?: { analytics?: AnalyticsSummary; cont
 
 describe("DashboardPage responsive workspace summary", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED = "true"
     locale = "en-US"
     setViewport(true)
     installSuccessfulFetch()
   })
 
   afterEach(() => {
+    delete process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
@@ -130,7 +133,7 @@ describe("DashboardPage responsive workspace summary", () => {
       "/contracts/contract-1",
     )
     expect(screen.queryByRole("list", { name: message("dashboard", "recentContracts") })).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/analytics/summary",
       expect.objectContaining({ credentials: "include", signal: expect.any(AbortSignal) }),
@@ -191,6 +194,7 @@ describe("DashboardPage responsive workspace summary", () => {
         generation += 1
         return generation === 1 ? new Response(null, { status: 503 }) : json(summary)
       }
+      if (String(input) === "/api/actions?view=dashboard&limit=5") return json({ actions: [] })
       return json({ contracts: [contract] })
     }))
     render(<DashboardPage />)
@@ -258,7 +262,7 @@ describe("DashboardPage responsive workspace summary", () => {
     ))
   })
 
-  it("announces loading and aborts both reads when the view is discarded", () => {
+  it("announces loading and aborts all reads when the view is discarded", () => {
     const signals: AbortSignal[] = []
     vi.stubGlobal("fetch", vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.signal) signals.push(init.signal)
@@ -267,10 +271,20 @@ describe("DashboardPage responsive workspace summary", () => {
     const view = render(<DashboardPage />)
 
     expect(screen.getByRole("status", { name: message("dashboard", "loading") })).toHaveAttribute("aria-busy", "true")
-    expect(signals).toHaveLength(2)
+    expect(signals).toHaveLength(3)
 
     view.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
+  })
+
+  it("keeps the legacy stats-first dashboard and skips Action API reads when the UI flag is off", async () => {
+    process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED = "false"
+    const fetchMock = installSuccessfulFetch()
+    render(<DashboardPage />)
+
+    expect(await screen.findByText(message("dashboard", "workspaceSummary"))).toBeInTheDocument()
+    expect(screen.queryByText(message("dashboard", "agreementWork"))).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/actions?view=dashboard&limit=5", expect.anything())
   })
 
   it("renders the first-contract state only after a successful zero-total summary", async () => {

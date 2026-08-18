@@ -32,6 +32,9 @@ export async function PATCH(
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
+  if (ctx.source !== "session") {
+    return Response.json({ error: "human_session_required" }, { status: 403 })
+  }
 
   return requestContext.run(ctx, async () => {
     // Org-scope check on the contract
@@ -63,7 +66,15 @@ export async function PATCH(
       // where two concurrent requests both read "pending" before either updates it.
       const approval = await tx.approval.findUnique({
         where: { id: params.approvalId },
-        select: { id: true, contractId: true, assignedToId: true, status: true, required: true },
+        select: {
+          id: true,
+          contractId: true,
+          actionId: true,
+          actionVersion: true,
+          assignedToId: true,
+          status: true,
+          required: true,
+        },
       })
       if (!approval || approval.contractId !== params.id) {
         preCheckError = Response.json({ error: "Not Found" }, { status: 404 })
@@ -82,12 +93,58 @@ export async function PATCH(
         return { updated: null, advancedTo: null, activatedNext: null, approval: null }
       }
 
+      if (approval.actionId) {
+        if (approval.actionVersion == null) {
+          preCheckError = Response.json({ error: "action_approval_version_missing" }, { status: 409 })
+          return { updated: null, advancedTo: null, activatedNext: null, approval: null }
+        }
+        const actionUpdated = await tx.contractAction.updateMany({
+          where: {
+            id: approval.actionId,
+            contractId: params.id,
+            organizationId: ctx.organizationId,
+            status: "PROPOSED",
+            version: approval.actionVersion,
+          },
+          data: body.decision === "approved"
+            ? {
+                status: "ACKNOWLEDGED",
+                reviewStatus: "reviewed",
+                acknowledgedAt: new Date(),
+                staleAt: null,
+                version: { increment: 1 },
+              }
+            : {
+                status: "BLOCKED",
+                reviewStatus: "reviewed",
+                version: { increment: 1 },
+              },
+        })
+        if (actionUpdated.count !== 1) {
+          preCheckError = Response.json({ error: "action_version_conflict" }, { status: 409 })
+          return { updated: null, advancedTo: null, activatedNext: null, approval: null }
+        }
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            contractActionId: approval.actionId,
+            userId: ctx.userId,
+            action: body.decision === "approved" ? "ACTION_ACKNOWLEDGED" : "ACTION_BLOCKED",
+            detail: body.decision === "approved" ? "Action approval accepted" : "Action approval rejected",
+            metadata: body.comment ? { comment: body.comment } : undefined,
+          },
+        })
+      }
+
       const updated = await tx.approval.update({
         where: { id: params.approvalId },
         data: {
           status: body.decision,
           comment: body.comment ?? null,
           decidedAt: new Date(),
+          ...(approval.actionId && approval.actionVersion != null
+            ? { actionVersion: approval.actionVersion + 1 }
+            : {}),
         },
         include: {
           requestedBy: { select: USER_SELECT },
@@ -100,7 +157,7 @@ export async function PATCH(
 
       // Optional approvals are out-of-band observations. They must never
       // advance the required chain or activate a waiting reviewer.
-      if (body.decision === "approved" && approval.required && contract.status === "PENDING_APPROVAL") {
+      if (!approval.actionId && body.decision === "approved" && approval.required && contract.status === "PENDING_APPROVAL") {
         // Activate the next step in the chain if it exists
         const nextWaiting = await tx.approval.findFirst({
           where: { contractId: params.id, status: "waiting" },
@@ -140,7 +197,7 @@ export async function PATCH(
         }
       }
 
-      if (body.decision === "rejected" && contract.status === "PENDING_APPROVAL") {
+      if (!approval.actionId && body.decision === "rejected" && contract.status === "PENDING_APPROVAL") {
         // Only revert status if this was a required approver
         if (approval.required) {
           await tx.contract.update({
@@ -156,6 +213,11 @@ export async function PATCH(
 
     if (preCheckError) return preCheckError
     if (!updated || !approval) return Response.json({ error: "Not Found" }, { status: 404 })
+
+    // Action approvals are a separate workflow primitive. Their authoritative
+    // state and audit event were committed above; they must never advance the
+    // contract approval chain or enter generic contract notification fanout.
+    if (approval.actionId) return Response.json({ approval: updated })
 
     // Side-effect audit writes — outside the transaction so a write failure
     // here cannot rewind the approval decision.

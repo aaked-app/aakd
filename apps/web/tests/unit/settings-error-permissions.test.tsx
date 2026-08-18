@@ -57,7 +57,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
     const state = await screen.findByText("org.logoReadOnly")
     expect(screen.getByLabelText("org.orgName")).toBeDisabled()
     expect(screen.queryByRole("button", { name: "org.saveChanges" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Set up AI" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "org.setupAi" })).not.toBeInTheDocument()
     expect(screen.queryByText("org.clickToUpload")).not.toBeInTheDocument()
     expect(container.querySelector('input[type="file"]')).not.toBeInTheDocument()
     expect(state.parentElement).not.toHaveClass("cursor-pointer")
@@ -78,7 +78,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
     orgRole = role
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input) === "/api/org" ? json({ name: "Acme", meta: {}, logo: "/logo.png" }) : json({ provider: null, model: null })))
     render(<OrgPage />)
-    expect(await screen.findByRole("img", { name: "Organization logo" })).toHaveAttribute("src", "/logo.png")
+    expect(await screen.findByRole("img", { name: "org.logoAlt" })).toHaveAttribute("src", "/logo.png")
     expect(screen.queryByRole("button", { name: "org.remove" })).not.toBeInTheDocument()
   })
 
@@ -94,11 +94,11 @@ describe("Settings error, permission, and accessibility behavior", () => {
     await screen.findByDisplayValue("Acme")
     expect(Boolean(container.querySelector('input[type="file"]'))).toBe(logo)
     expect(Boolean(screen.queryByRole("button", { name: "org.saveChanges" }))).toBe(general)
-    expect(Boolean(screen.queryByRole("button", { name: "Set up AI" }))).toBe(aiConfig)
+    expect(Boolean(screen.queryByRole("button", { name: "org.setupAi" }))).toBe(aiConfig)
     if (aiConfig) {
-      fireEvent.click(screen.getByRole("button", { name: "Set up AI" }))
-      expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
-      expect(Boolean(screen.queryByRole("button", { name: "Test" }))).toBe(aiTest)
+      fireEvent.click(screen.getByRole("button", { name: "org.setupAi" }))
+      expect(screen.getByRole("button", { name: "org.save" })).toBeInTheDocument()
+      expect(Boolean(screen.queryByRole("button", { name: "org.test" }))).toBe(aiTest)
     }
   })
 
@@ -124,13 +124,13 @@ describe("Settings error, permission, and accessibility behavior", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
     const { container } = render(<OrgPage />)
-    expect(await screen.findByRole("img", { name: "Organization logo" })).toHaveAttribute("src", "/old.png")
+    expect(await screen.findByRole("img", { name: "org.logoAlt" })).toHaveAttribute("src", "/old.png")
     fireEvent.click(screen.getByRole("button", { name: "org.remove" }))
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["logo"], "logo.png", { type: "image/png" })] } })
-    expect(await screen.findByRole("img", { name: "Organization logo" })).toHaveAttribute("src", "/new.png")
+    expect(await screen.findByRole("img", { name: "org.logoAlt" })).toHaveAttribute("src", "/new.png")
     expect(toast.success).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "org.saveChanges" }))
-    await waitFor(() => expect(screen.getByRole("img", { name: "Organization logo" })).toHaveAttribute("src", "/old.png"))
+    await waitFor(() => expect(screen.getByRole("img", { name: "org.logoAlt" })).toHaveAttribute("src", "/old.png"))
     expect(toast.error).toHaveBeenCalledWith("org.failedToUpdate")
     expect(toast.success).not.toHaveBeenCalled()
   })
@@ -152,8 +152,8 @@ describe("Settings error, permission, and accessibility behavior", () => {
     }))
     render(<OrgPage />)
     expect(await screen.findByText("Anthropic")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    fireEvent.click(screen.getByRole("button", { name: "org.remove" }))
+    fireEvent.click(screen.getByRole("button", { name: "org.confirm" }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("org.aiRemoveFailed"))
     expect(screen.getByText("Anthropic")).toBeInTheDocument()
     expect(toast.success).not.toHaveBeenCalled()
@@ -242,5 +242,21 @@ describe("Settings error, permission, and accessibility behavior", () => {
     fireEvent.click(visibleControl)
     expect(await screen.findByRole("option", { name: "members.roles.admin.label" })).toBeInTheDocument()
     expect(screen.queryByRole("option", { name: "admin" })).not.toBeInTheDocument()
+  })
+
+  it("uses a localized invitation fallback without exposing an unknown server error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/org/members" && !init?.method) return json({ members: [
+        { id: "one", userId: "user-1", organizationId: "org-1", role: "owner", createdAt: "2026-01-01T00:00:00Z", user: { name: "Owner", email: "owner@example.com", image: null } },
+      ] })
+      if (String(input) === "/api/org/members/invite" && init?.method === "POST") return json({ error: "database_connection_string" }, 500)
+      return json([])
+    }))
+    render(<MembersPage />)
+    fireEvent.click(await screen.findByRole("button", { name: "members.inviteMember" }))
+    fireEvent.change(screen.getByLabelText("members.emailAddress"), { target: { value: "new@example.com" } })
+    fireEvent.click(screen.getByRole("button", { name: "members.sendInvite" }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("members.failedToInvite"))
+    expect(toast.error).not.toHaveBeenCalledWith("database_connection_string")
   })
 })

@@ -29,6 +29,12 @@ vi.mock("@/lib/jobs/queues", () => ({
   emailQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   notificationFanoutQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
 }))
+vi.mock("@/lib/notifications/fanout", () => ({
+  enqueueNotification: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock("@/lib/notifications/write-in-app", () => ({
+  writeInApp: vi.fn().mockResolvedValue(undefined),
+}))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -260,6 +266,57 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  it.each(["approved", "rejected"] as const)(
+    "decides an action approval as %s without changing contract state or using generic fanout",
+    async (decision) => {
+      const { enqueueNotification } = await import("@/lib/notifications/fanout")
+      const { writeActivity } = await import("@/lib/db/activity")
+      vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+        ...mockContract,
+        status: "PENDING_APPROVAL",
+      } as any)
+      vi.mocked(prisma.approval.findUnique).mockResolvedValueOnce({
+        ...mockApproval,
+        actionId: "action-1",
+        actionVersion: 2,
+        assignedToId: "user-1",
+        required: true,
+      } as any)
+      vi.mocked(prisma.contractAction.updateMany).mockResolvedValueOnce({ count: 1 })
+      vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-1" } as any)
+      vi.mocked(prisma.approval.update).mockResolvedValueOnce({
+        ...mockApproval,
+        actionId: "action-1",
+        status: decision,
+        decidedAt: new Date(),
+      } as any)
+
+      const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+      const res = await requestContext.run(mockCtx, () => PATCH(new Request(
+        "http://localhost/api/contracts/contract-1/approvals/approval-1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision }),
+        },
+      ), { params: { id: "contract-1", approvalId: "approval-1" } }))
+
+      expect(res.status).toBe(200)
+      expect(prisma.contractAction.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: "action-1", version: 2 }),
+      }))
+      expect(prisma.approval.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: "approval-1" },
+        data: expect.objectContaining({ status: decision, actionVersion: 3 }),
+      }))
+      expect(prisma.contract.update).not.toHaveBeenCalled()
+      expect(prisma.approval.findFirst).not.toHaveBeenCalled()
+      expect(prisma.approval.findMany).not.toHaveBeenCalled()
+      expect(enqueueNotification).not.toHaveBeenCalled()
+      expect(writeActivity).not.toHaveBeenCalled()
+    },
+  )
 
   it("returns 401 when unauthenticated", async () => {
     const { resolveAuth } = await import("@/lib/auth/middleware")

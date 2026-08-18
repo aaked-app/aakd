@@ -28,6 +28,7 @@
     "retryOrganization": "Try again",
     "organization": "Organization",
     "obligations": "Obligations",
+    "actions": "Action queue",
     "aiAgents": "AI Agents",
     "aiCreate": "Create with AI",
     "search": "Search...",
@@ -578,7 +579,7 @@
     "partialCountDescription": "Complete total unavailable on this page."
   },
   "obligationDetail": {
-    "backToContract": "Back to contract", "actionsLabel": "Obligation actions", "statusLabel": "Status",
+    "backToContract": "Back to contract", "actionsLabel": "Obligation actions", "statusLabel": "Status", "priorityLabel": "Priority",
     "status": { "PENDING": "Pending", "IN_PROGRESS": "In progress", "COMPLETED": "Completed", "OVERDUE": "Overdue" },
     "priority": { "LOW": "Low", "MEDIUM": "Medium", "HIGH": "High" },
     "start": "Start", "complete": "Complete", "reopen": "Reopen", "edit": "Edit obligation", "delete": "Delete obligation",
@@ -598,7 +599,7 @@
     "editTitle": "Edit obligation", "newTitle": "New obligation", "editSubtitle": "Update the details below and save.", "newSubtitle": "Track a commitment or deliverable from this contract.", "closeEditor": "Close obligation editor",
     "titleField": "Title", "titlePlaceholder": "e.g. Submit quarterly compliance report", "descriptionPlaceholder": "Optional context for whoever owns this obligation…", "clauseReferencePlaceholder": "e.g. Section 4.2",
     "titleRequired": "Title is required", "dueDateRequired": "Due date is required", "obligationLimitError": "Maximum 100 active obligations per contract", "archivedContractError": "Cannot add obligations to an archived contract", "invalidAssigneeError": "Selected owner is not a member of this organization",
-    "updateError": "Failed to update obligation", "createError": "Failed to create obligation", "updateSuccess": "Obligation updated", "createSuccess": "Obligation created", "saving": "Saving…", "saveChanges": "Save changes", "createObligation": "Create obligation"
+    "updateError": "Failed to update obligation", "createError": "Failed to create obligation", "updateSuccess": "Obligation updated", "createSuccess": "Obligation created", "saving": "Saving…", "saveChanges": "Save changes", "createObligation": "Create obligation", "evidenceRequirement": "Completion evidence", "completionNoteEvidence": "Completion note", "externalLinkEvidence": "HTTPS evidence link", "evidenceRequirementHelp": "The owner must provide this evidence before completing the action."
   },
   "renewals": {
     "title": "Renewal watch",
@@ -731,6 +732,11 @@
     "uploadFirst": "Add a PDF or DOCX to start organizing agreement work.",
     "uploadContract": "Upload contract",
     "noRecentContracts": "No recent contracts to show.",
+    "agreementWork": "Your agreement work",
+    "agreementWorkDescription": "The five highest-priority open actions across this workspace.",
+    "viewActionQueue": "View action queue",
+    "noAgreementWork": "No agreement actions need attention.",
+    "conditionBased": "Condition-based",
     "owner": "Owner",
     "unassigned": "Unassigned",
     "tableContract": "Contract",
@@ -739,6 +745,34 @@
     "tableEndDate": "End date",
     "tableStatus": "Status",
     "tableOwner": "Owner"
+  },
+  "actionQueue": {
+    "approvalContext": "Approval context", "approvalUnassigned": "Unassigned reviewer", "approvalRequired": "Required approval", "approvalOptional": "Optional approval", "approvalStep": "Step {step}", "approvalNotRequired": "No approval is required for this action.", "approvalBlocksAction": "Required approval must be granted for this action version before work can continue or an email can be sent.", "approvalStatuses": { "pending": "Pending", "approved": "Approved", "rejected": "Rejected", "waiting": "Waiting" }, "readOnly": "Read-only access", "readOnlyDescription": "You can review this action but cannot change it.",
+    "eyebrow": "Contract operations",
+    "title": "Action queue",
+    "subtitle": "Review, assign and complete the work your agreements require.",
+    "refresh": "Refresh",
+    "filtersLabel": "Action status filters",
+    "views": { "my_work": "My work", "needs_review": "Needs review", "due_soon": "Due soon", "blocked": "Blocked", "completed": "Completed" },
+    "kindFilter": "Action type", "ownerFilter": "Owner", "allKinds": "All action types", "allOwners": "All owners",
+    "open": "Open",
+    "retry": "Retry",
+    "loadError": "Actions could not be loaded. Your data was not changed.",
+    "emptyTitle": "No actions need attention",
+    "emptyDescription": "Upload a contract or review an obligation to create your first cited action.",
+    "page": "Page {page}",
+    "owner": "Owner: {name}",
+    "unassigned": "Unassigned",
+    "confidence": "Confidence: {value}%",
+    "staleNotice": "This action is based on an older contract version and must be reviewed before completion.",
+    "acknowledge": "Acknowledge", "sendReminder": "Send cited email", "openAction": "Review action",
+    "sourceCited": "Source cited", "humanReviewed": "Human reviewed", "evidenceRecorded": "Evidence recorded", "reviewRequired": "Review required", "evidenceNeeded": "Evidence needed",
+    "backToQueue": "Back to action queue", "trustRail": "Action trust status", "sourceAndRequirement": "Source and requirement", "sourceUnavailable": "No source excerpt is available for this manually entered action.", "condition": "Condition",
+    "history": "Action history", "noHistory": "No action history yet.", "recordedByMember": "Workspace member", "noEvidence": "No completion evidence recorded yet.", "nextStep": "Next step", "reviewAndValidate": "Review and validate", "startWork": "Start work", "reopen": "Reopen", "assignment": "Owner", "saveOwner": "Save owner", "blockedWork": "Blocked work", "blockReason": "What is blocking this action?", "markBlocked": "Mark blocked", "completeNeedsEvidence": "Add the required evidence before completing this action.",
+    "reviewSaved": "Source review saved.", "acknowledgedSuccess": "Action acknowledged.", "startedSuccess": "Work started.", "completedSuccess": "Action completed with evidence.", "reopenedSuccess": "Action reopened.", "assignedSuccess": "Owner updated.", "blockedSuccess": "Action marked as blocked.", "evidenceAdded": "Evidence recorded.", "evidenceError": "Evidence could not be recorded. Nothing else changed.", "emailQueued": "The cited email was queued for the assigned member.", "emailError": "The email could not be queued. No other channel was used.", "commandError": "The action could not be updated ({code}). Refresh and try again.",
+    "complete": "Complete", "evidenceTitle": "Evidence", "evidenceInput": "Completion evidence", "evidencePlaceholder": "What proves this action is complete?", "addEvidence": "Add evidence",
+    "statuses": { "PROPOSED": "Proposed", "PENDING_REVIEW": "Needs review", "ACKNOWLEDGED": "Acknowledged", "IN_PROGRESS": "In progress", "COMPLETED": "Completed", "BLOCKED": "Blocked", "STALE": "Needs source review", "DISMISSED": "Dismissed" },
+    "kinds": { "OBLIGATION": "Obligation", "RENEWAL_NOTICE": "Renewal notice", "EXPIRY": "Expiry", "CUSTOM": "Action" }
   },
   "contracts": {
     "title": "Contracts",
@@ -785,7 +819,16 @@
     "failedToLoad": "Failed to load contracts",
     "retry": "Retry",
     "failedToArchive": "Failed to archive",
-    "contractArchived": "Contract archived"
+    "contractArchived": "Contract archived",
+    "create": {
+      "dropTitle": "Drop your contract here", "uploadHint": "PDF or DOCX · Max 50 MB · AI will extract key fields automatically", "continueReview": "Continue to review", "browseFiles": "Browse files", "removeFile": "Remove file",
+      "basicInformation": "Basic information", "contractTitle": "Contract title", "contractTitlePlaceholder": "Service Agreement Q1 2026", "contractType": "Contract type", "selectType": "Select type", "description": "Description", "descriptionPlaceholder": "Brief summary of this contract…",
+      "parties": "Parties", "counterpartyName": "Counterparty name", "counterpartyPlaceholder": "Acme Corporation", "timeline": "Timeline", "startDate": "Start date", "endDate": "End date",
+      "financial": "Financial", "contractValue": "Contract value", "currency": "Currency", "paymentTerms": "Payment terms", "paymentTermsPlaceholder": "Net 30", "autoRenewal": "Auto-renewal", "autoRenewalDescription": "Contract renews automatically at expiry", "toggleAutoRenewal": "Toggle auto-renewal", "governingLaw": "Governing law", "governingLawPlaceholder": "State of Delaware",
+      "aiExtraction": "AI extraction", "poweredByAi": "Powered by AI", "aiReading": "Reading the document in the background. You can keep editing.", "noConfidence": "No confidence data available.", "reviewExtractedValues": "Values pre-filled from your document. Review and correct as needed.", "changeFile": "Change file",
+      "back": "Back", "creating": "Creating…", "createContract": "Create contract", "partialExtractionWarning": "AI extraction partially failed. You can fill in the remaining fields.", "extractionUnavailable": "AI extraction is unavailable. You can fill in the fields manually.", "continueManually": "AI extraction is unavailable. You can continue manually.", "titleRequired": "Contract title is required", "createFailed": "Failed to create contract", "reviewStateSaveFailed": "Initial extraction review state could not be saved", "fileUploadFailed": "File upload failed", "created": "Contract created",
+      "fields": { "title": "Title", "contractType": "Contract type", "counterpartyName": "Counterparty", "startDate": "Start date", "endDate": "End date", "value": "Value", "currency": "Currency", "paymentTerms": "Payment terms", "governingLaw": "Governing law", "autoRenewal": "Auto-renewal", "renewalDate": "Renewal date", "noticePeriodDays": "Notice period", "description": "Description" }
+    }
   },
   "settingsProfile": {
     "title": "My profile", "subtitle": "Manage your saved account details", "personalInformation": "Personal information", "name": "Name", "namePlaceholder": "Your name", "email": "Email", "changeAvatar": "Change avatar", "chooseAvatar": "Choose avatar", "presets": "Presets", "uploadOwn": "Upload your own", "uploading": "Uploading…", "chooseFile": "Choose file", "customUpload": "Custom upload", "applying": "Applying…", "apply": "Apply", "saving": "Saving…", "saveChanges": "Save changes", "saved": "Profile saved", "saveFailed": "Failed to save changes", "avatarAlt": "Profile avatar", "previewAlt": "Avatar preview", "uploadGuidance": "JPEG, PNG, WebP, GIF — max 5 MB", "uploadFailed": "Avatar upload failed", "avatarUpdateFailed": "Failed to update avatar", "avatarUpdated": "Avatar updated", "presetAvatar": "Preset avatar {number}"
@@ -954,8 +997,8 @@
       "mobile": "Mobile navigation",
       "menu": "Open navigation menu",
       "language": "Language",
-      "outcome": "How it works",
-      "trust": "Trust",
+      "outcome": "Contract operations",
+      "trust": "Lifecycle",
       "agentAccess": "Agent access",
       "capabilities": "Capabilities",
       "selfHosting": "Self-hosting",
@@ -1061,39 +1104,86 @@
       "lTerms": "Terms"
     },
     "heroNew": {
-      "eyebrow": "Open source agreement operations",
-      "title": "Know what your agreements require next.",
-      "subtitle": "Turn executed agreements into cited suggestions, reviewed extraction fields and tracked obligations — on infrastructure you control.",
+      "eyebrow": "Open-source contract lifecycle management",
+      "title": "Run your contract lifecycle with evidence, ownership, and control.",
+      "subtitle": "Bring agreements into one self-hosted workspace. Review cited contract intelligence, assign obligation work, and keep approvals, renewals, and activity visible to the people accountable for them.",
       "primaryCta": "Create workspace",
       "secondaryCta": "View on GitHub",
-      "qualifier": "Self-hostable AGPL core. AI is optional, provider-selectable and never the final authority."
+      "qualifier": "Self-hostable AGPL core. AI is optional, cited, and reviewed by people."
     },
     "proof": {
-      "diagramLabel": "Synthetic agreement-to-action example",
-      "synthetic": "Synthetic example",
-      "filename": "Example services agreement · PDF",
-      "source": {
-        "label": "Agreement source",
-        "exact": "Exact source",
-        "excerpt": "Supplier will provide the quarterly service report within ten business days after quarter end.",
-        "page": "Page 8 · Section 4.2"
-      },
-      "suggestion": {
-        "label": "Cited suggestion",
+      "diagramLabel": "Static contract operations example",
+      "filename": "Northwind Services Agreement · PDF",
+      "verified": "Source verified",
+      "extraction": {
+        "label": "Cited extraction",
         "title": "Quarterly service report",
-        "description": "Prepare and deliver the report after each calendar quarter.",
-        "confidence": "High confidence",
-        "review": "Review required"
+        "source": "Page 8 · Section 4.2",
+        "status": "Ready for review"
       },
-      "action": {
-        "label": "Current tracking",
-        "title": "Track the Q3 service report",
+      "obligation": {
+        "label": "Obligation",
+        "title": "Send quarterly service report",
         "ownerLabel": "Owner",
-        "owner": "Commercial operations",
+        "owner": "Operations",
         "dueLabel": "Due",
-        "due": "10 business days after quarter end",
-        "evidenceLabel": "Status",
-        "evidence": "Pending"
+        "due": "Due in 10 days",
+        "status": "Open"
+      },
+      "activity": "Owner assigned · review recorded",
+      "access": {
+        "title": "Scoped API/MCP context",
+        "items": {
+          "0": "Cited source",
+          "1": "Human review",
+          "2": "Activity trail"
+        }
+      }
+    },
+    "operations": {
+      "eyebrow": "Operational proof",
+      "title": "Built for contract operations",
+      "subtitle": "Keep the agreement, the reviewed intelligence, and the work it creates in one accountable system.",
+      "items": {
+        "0": {
+          "title": "One contract record",
+          "description": "Store PDF and DOCX agreements, versions, and searchable source text."
+        },
+        "1": {
+          "title": "Cited intelligence",
+          "description": "Review extracted fields, risks, and obligation suggestions against source evidence."
+        },
+        "2": {
+          "title": "Accountable follow-up",
+          "description": "Track obligations, renewals, approvals, and activity with named ownership."
+        },
+        "3": {
+          "title": "Governed agent access",
+          "description": "Give scoped API and MCP clients contract context without handing them decision authority."
+        }
+      }
+    },
+    "lifecycle": {
+      "eyebrow": "One connected lifecycle",
+      "title": "From agreement to accountable action.",
+      "subtitle": "A clear operating sequence keeps source, review, ownership, and history connected.",
+      "items": {
+        "0": {
+          "title": "Centralize",
+          "description": "Add an agreement and keep its source, versions, and metadata together."
+        },
+        "1": {
+          "title": "Review",
+          "description": "Verify cited extraction and proposed follow-up against the agreement."
+        },
+        "2": {
+          "title": "Operate",
+          "description": "Assign obligations and move approvals or signing forward."
+        },
+        "3": {
+          "title": "Prove",
+          "description": "Keep activity, ownership, and contract history visible."
+        }
       }
     },
     "trust": {
@@ -1107,9 +1197,9 @@
       }
     },
     "agent": {
-      "eyebrow": "Governed agent access",
+      "eyebrow": "Governed contract context",
       "title": "Useful to agents. Governed by people.",
-      "subtitle": "Aakd exposes agreement context through scoped API and MCP interfaces without turning a model into an anonymous decision-maker.",
+      "subtitle": "Aakd exposes scoped contract context through existing API and MCP interfaces. Cited source, organization access, and human review remain part of the workflow.",
       "gatewayTitle": "Agent Gateway",
       "gatewayStatus": "Read-first access model",
       "items": {
@@ -1118,7 +1208,7 @@
         "2": { "title": "Cited extraction context", "description": "Supported extraction fields retain source text, source page and review status." },
         "3": { "title": "Current write boundary", "description": "Current MCP mutations enforce member roles and API-key write scope." }
       },
-      "caveat": "The current MCP surface is being hardened in Phase 0. Granular delegated capabilities and approval controls are later-phase work; Aakd does not claim autonomous legal decisions or unrestricted agent execution."
+      "caveat": "Aakd does not claim autonomous legal decisions, unrestricted agent execution, or delegated approval authority. Granular delegated controls are later-phase work."
     },
     "capabilities": {
       "eyebrow": "Professional CLM breadth",
@@ -1166,7 +1256,7 @@
       "secondary": "View on GitHub"
     },
     "footerNew": {
-      "tagline": "Open-source agreement operations with cited suggestions, human review and deployment control.",
+      "tagline": "Open-source contract lifecycle management with cited intelligence, human review and deployment control.",
       "product": "Product",
       "resources": "Resources",
       "selfHosting": "Self-hosting guide",

@@ -72,7 +72,7 @@ function ImportPageBody() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-5 lg:px-8">
       <div className="max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{t("eyebrow")}</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t("title")}</h1>
@@ -81,12 +81,12 @@ function ImportPageBody() {
         </p>
       </div>
 
-      <ol className="grid gap-3 sm:grid-cols-3" aria-label={t("sequence.label")}>
+      <ol className="grid grid-cols-3 gap-2 sm:gap-3" aria-label={t("sequence.label")}>
         {["choose", "review", "monitor"].map((step, index) => (
-          <li key={step} className="rounded-xl border border-border bg-card p-4">
+          <li key={step} className="min-w-0 rounded-xl border border-border bg-card p-2.5 sm:p-4">
             <span className="text-xs font-semibold text-primary">{index + 1}</span>
-            <p className="mt-1 text-sm font-medium text-foreground">{t(`sequence.${step}.title`)}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(`sequence.${step}.body`)}</p>
+            <p className="mt-1 break-words text-xs font-medium leading-4 text-foreground sm:text-sm">{t(`sequence.${step}.title`)}</p>
+            <p className="sr-only sm:not-sr-only sm:mt-1 sm:text-xs sm:leading-5 sm:text-muted-foreground">{t(`sequence.${step}.body`)}</p>
           </li>
         ))}
       </ol>

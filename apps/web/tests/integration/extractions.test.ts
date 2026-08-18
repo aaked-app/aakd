@@ -335,15 +335,11 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     )
 
     expect(res.status).toBe(200)
-    // First update call: set rawValue and flip extractedBy to "user"
-    expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(1,
+    // The human edit and acceptance are one transactional state change.
+    expect(prisma.aIExtraction.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { rawValue: "2025-06-01", extractedBy: "user" },
+        data: { rawValue: "2025-06-01", extractedBy: "user", status: "accepted" },
       }),
-    )
-    // Second update call: set status accepted
-    expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(2,
-      expect.objectContaining({ data: { status: "accepted" } }),
     )
     // Contract field written with coerced value
     expect(prisma.contract.update).toHaveBeenCalledWith(

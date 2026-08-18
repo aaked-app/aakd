@@ -28,6 +28,7 @@
     "retryOrganization": "Réessayer",
     "organization": "Organisation",
     "obligations": "Obligations",
+    "actions": "File d’actions",
     "aiAgents": "Agents IA",
     "aiCreate": "Créer avec l'IA",
     "search": "Rechercher...",
@@ -493,7 +494,7 @@
     "partialCountDescription": "Total complet indisponible sur cette page."
   },
   "obligationDetail": {
-    "backToContract": "Retour au contrat", "actionsLabel": "Actions de l’obligation", "statusLabel": "Statut",
+    "backToContract": "Retour au contrat", "actionsLabel": "Actions de l’obligation", "statusLabel": "Statut", "priorityLabel": "Priorité",
     "status": { "PENDING": "En attente", "IN_PROGRESS": "En cours", "COMPLETED": "Terminée", "OVERDUE": "En retard" },
     "priority": { "LOW": "Faible", "MEDIUM": "Moyenne", "HIGH": "Élevée" },
     "start": "Démarrer", "complete": "Terminer", "reopen": "Rouvrir", "edit": "Modifier l’obligation", "delete": "Supprimer l’obligation",
@@ -513,7 +514,7 @@
     "editTitle": "Modifier l’obligation", "newTitle": "Nouvelle obligation", "editSubtitle": "Modifiez les détails puis enregistrez.", "newSubtitle": "Suivez un engagement ou un livrable de ce contrat.", "closeEditor": "Fermer l’éditeur d’obligation",
     "titleField": "Titre", "titlePlaceholder": "ex. Envoyer le rapport trimestriel", "descriptionPlaceholder": "Contexte facultatif pour le responsable…", "clauseReferencePlaceholder": "ex. Article 4.2",
     "titleRequired": "Le titre est obligatoire", "dueDateRequired": "L’échéance est obligatoire", "obligationLimitError": "Maximum de 100 obligations actives par contrat", "archivedContractError": "Impossible d’ajouter une obligation à un contrat archivé", "invalidAssigneeError": "Le responsable sélectionné n’est pas membre de cette organisation",
-    "updateError": "Échec de la mise à jour de l’obligation", "createError": "Échec de la création de l’obligation", "updateSuccess": "Obligation mise à jour", "createSuccess": "Obligation créée", "saving": "Enregistrement…", "saveChanges": "Enregistrer", "createObligation": "Créer l’obligation"
+    "updateError": "Échec de la mise à jour de l’obligation", "createError": "Échec de la création de l’obligation", "updateSuccess": "Obligation mise à jour", "createSuccess": "Obligation créée", "saving": "Enregistrement…", "saveChanges": "Enregistrer", "createObligation": "Créer l’obligation", "evidenceRequirement": "Preuve de réalisation", "completionNoteEvidence": "Note de réalisation", "externalLinkEvidence": "Lien HTTPS vers la preuve", "evidenceRequirementHelp": "Le responsable doit fournir cette preuve avant de terminer l’action."
   },
   "renewals": {
     "title": "Suivi des renouvellements",
@@ -646,6 +647,11 @@
     "uploadFirst": "Ajoutez un fichier PDF ou DOCX pour commencer à organiser le travail contractuel.",
     "uploadContract": "Téléverser un contrat",
     "noRecentContracts": "Aucun contrat récent à afficher.",
+    "agreementWork": "Vos actions contractuelles",
+    "agreementWorkDescription": "Les cinq actions ouvertes les plus prioritaires de cet espace de travail.",
+    "viewActionQueue": "Voir la file d’actions",
+    "noAgreementWork": "Aucune action contractuelle ne nécessite votre attention.",
+    "conditionBased": "Selon une condition",
     "owner": "Responsable",
     "unassigned": "Non attribué",
     "tableContract": "Contrat",
@@ -654,6 +660,12 @@
     "tableEndDate": "Date de fin",
     "tableStatus": "Statut",
     "tableOwner": "Responsable"
+  },
+  "actionQueue": {
+    "approvalContext": "Contexte d’approbation", "approvalUnassigned": "Réviseur non attribué", "approvalRequired": "Approbation requise", "approvalOptional": "Approbation facultative", "approvalStep": "Étape {step}", "approvalNotRequired": "Aucune approbation n’est requise pour cette action.", "approvalBlocksAction": "La version actuelle doit être approuvée avant de poursuivre ou d’envoyer un e-mail.", "approvalStatuses": { "pending": "En attente", "approved": "Approuvée", "rejected": "Rejetée", "waiting": "En attente" }, "readOnly": "Accès en lecture seule", "readOnlyDescription": "Vous pouvez consulter cette action, mais pas la modifier.",
+    "eyebrow": "Opérations contractuelles", "title": "File d’actions", "subtitle": "Révisez, attribuez et terminez les actions de vos contrats.", "refresh": "Actualiser", "filtersLabel": "Filtres de statut", "views": { "my_work": "Mon travail", "needs_review": "À réviser", "due_soon": "Bientôt dues", "blocked": "Bloquées", "completed": "Terminées" }, "kindFilter": "Type d’action", "ownerFilter": "Responsable", "allKinds": "Tous les types", "allOwners": "Tous les responsables", "open": "Ouvertes", "retry": "Réessayer", "loadError": "Les actions n’ont pas pu être chargées.", "emptyTitle": "Aucune action à traiter", "emptyDescription": "Importez un contrat ou révisez une obligation.", "page": "Page {page}", "owner": "Responsable : {name}", "unassigned": "Non attribuée", "confidence": "Confiance : {value}%", "staleNotice": "Cette action dépend d’une ancienne version du contrat et doit être révisée.", "acknowledge": "Accuser réception", "complete": "Terminer", "evidenceTitle": "Preuve", "evidenceInput": "Preuve de réalisation", "evidencePlaceholder": "Qu’est-ce qui prouve la réalisation ?", "addEvidence": "Ajouter une preuve", "sendReminder": "Envoyer un rappel",
+    "openAction": "Réviser l’action", "sourceCited": "Source citée", "humanReviewed": "Révision humaine", "evidenceRecorded": "Preuve enregistrée", "reviewRequired": "Révision requise", "evidenceNeeded": "Preuve requise", "backToQueue": "Retour à la file d’actions", "trustRail": "État de confiance", "sourceAndRequirement": "Source et exigence", "sourceUnavailable": "Aucun extrait source n’est disponible pour cette action saisie manuellement.", "condition": "Condition", "history": "Historique de l’action", "noHistory": "Aucun historique pour le moment.", "recordedByMember": "Membre de l’espace", "noEvidence": "Aucune preuve enregistrée.", "nextStep": "Étape suivante", "reviewAndValidate": "Réviser et valider", "startWork": "Commencer", "reopen": "Rouvrir", "assignment": "Responsable", "saveOwner": "Enregistrer le responsable", "blockedWork": "Travail bloqué", "blockReason": "Qu’est-ce qui bloque cette action ?", "markBlocked": "Marquer comme bloquée", "completeNeedsEvidence": "Ajoutez la preuve requise avant de terminer.", "reviewSaved": "Révision de la source enregistrée.", "acknowledgedSuccess": "Action reconnue.", "startedSuccess": "Travail commencé.", "completedSuccess": "Action terminée avec preuve.", "reopenedSuccess": "Action rouverte.", "assignedSuccess": "Responsable mis à jour.", "blockedSuccess": "Action marquée comme bloquée.", "evidenceAdded": "Preuve enregistrée.", "evidenceError": "La preuve n’a pas pu être enregistrée.", "emailQueued": "L’e-mail cité a été mis en file d’attente.", "emailError": "L’e-mail n’a pas pu être mis en file d’attente. Aucun autre canal n’a été utilisé.", "commandError": "L’action n’a pas pu être mise à jour ({code}). Actualisez et réessayez.",
+    "statuses": { "PROPOSED": "Proposée", "PENDING_REVIEW": "À réviser", "ACKNOWLEDGED": "Reconnue", "IN_PROGRESS": "En cours", "COMPLETED": "Terminée", "BLOCKED": "Bloquée", "STALE": "Source à réviser", "DISMISSED": "Ignorée" }, "kinds": { "OBLIGATION": "Obligation", "RENEWAL_NOTICE": "Avis de renouvellement", "EXPIRY": "Expiration", "CUSTOM": "Action" }
   },
   "contracts": {
     "title": "Contrats",
@@ -700,10 +712,18 @@
     "failedToLoad": "Impossible de charger les contrats",
     "retry": "Réessayer",
     "failedToArchive": "Échec de l'archivage",
-    "contractArchived": "Contrat archivé"
+    "contractArchived": "Contrat archivé",
+    "create": {
+      "dropTitle": "Déposez votre contrat ici", "uploadHint": "PDF ou DOCX · 50 Mo maximum · L’IA extraira automatiquement les champs clés", "continueReview": "Continuer vers la vérification", "browseFiles": "Parcourir les fichiers", "removeFile": "Retirer le fichier",
+      "basicInformation": "Informations générales", "contractTitle": "Titre du contrat", "contractTitlePlaceholder": "Contrat de services T1 2026", "contractType": "Type de contrat", "selectType": "Sélectionner un type", "description": "Description", "descriptionPlaceholder": "Résumé du contrat…", "parties": "Parties", "counterpartyName": "Nom de la contrepartie", "counterpartyPlaceholder": "Société Acme", "timeline": "Calendrier", "startDate": "Date de début", "endDate": "Date de fin",
+      "financial": "Données financières", "contractValue": "Valeur du contrat", "currency": "Devise", "paymentTerms": "Conditions de paiement", "paymentTermsPlaceholder": "30 jours nets", "autoRenewal": "Renouvellement automatique", "autoRenewalDescription": "Le contrat est renouvelé automatiquement à son échéance", "toggleAutoRenewal": "Activer ou désactiver le renouvellement automatique", "governingLaw": "Droit applicable", "governingLawPlaceholder": "Droit français",
+      "aiExtraction": "Extraction par IA", "poweredByAi": "Propulsé par l’IA", "aiReading": "Le document est lu en arrière-plan. Vous pouvez continuer à le modifier.", "noConfidence": "Aucune donnée de confiance disponible.", "reviewExtractedValues": "Valeurs préremplies depuis votre document. Vérifiez-les et corrigez-les si nécessaire.", "changeFile": "Changer de fichier", "back": "Retour", "creating": "Création…", "createContract": "Créer le contrat",
+      "partialExtractionWarning": "L’extraction par IA a partiellement échoué. Vous pouvez renseigner les champs restants.", "extractionUnavailable": "L’extraction par IA est indisponible. Vous pouvez renseigner les champs manuellement.", "continueManually": "L’extraction par IA est indisponible. Vous pouvez continuer manuellement.", "titleRequired": "Le titre du contrat est obligatoire", "createFailed": "Impossible de créer le contrat", "reviewStateSaveFailed": "L’état initial de vérification de l’extraction n’a pas pu être enregistré", "fileUploadFailed": "Échec de l’import du fichier", "created": "Contrat créé",
+      "fields": { "title": "Titre", "contractType": "Type de contrat", "counterpartyName": "Contrepartie", "startDate": "Date de début", "endDate": "Date de fin", "value": "Valeur", "currency": "Devise", "paymentTerms": "Conditions de paiement", "governingLaw": "Droit applicable", "autoRenewal": "Renouvellement automatique", "renewalDate": "Date de renouvellement", "noticePeriodDays": "Délai de préavis", "description": "Description" }
+    }
   },
   "settingsProfile": {
-    "title": "Mon profil", "subtitle": "Gérez les informations enregistrées de votre compte", "personalInformation": "Informations personnelles", "name": "Nom", "namePlaceholder": "Votre nom", "email": "E-mail", "changeAvatar": "Modifier l’avatar", "chooseAvatar": "Choisir un avatar", "presets": "Préréglages", "uploadOwn": "Importer le vôtre", "uploading": "Importation…", "chooseFile": "Choisir un fichier", "customUpload": "Import personnalisé", "applying": "Application…", "apply": "Appliquer", "saving": "Enregistrement…", "saveChanges": "Enregistrer", "saved": "Profil enregistré", "saveFailed": "Échec de l’enregistrement"
+    "title": "Mon profil", "subtitle": "Gérez les informations enregistrées de votre compte", "personalInformation": "Informations personnelles", "name": "Nom", "namePlaceholder": "Votre nom", "email": "E-mail", "changeAvatar": "Modifier l’avatar", "chooseAvatar": "Choisir un avatar", "presets": "Préréglages", "uploadOwn": "Importer le vôtre", "uploading": "Importation…", "chooseFile": "Choisir un fichier", "customUpload": "Import personnalisé", "applying": "Application…", "apply": "Appliquer", "saving": "Enregistrement…", "saveChanges": "Enregistrer", "saved": "Profil enregistré", "saveFailed": "Échec de l’enregistrement", "avatarAlt": "Avatar du profil", "previewAlt": "Aperçu de l’avatar", "uploadGuidance": "JPEG, PNG, WebP, GIF — 5 Mo maximum", "uploadFailed": "Échec de l’import de l’avatar", "avatarUpdateFailed": "Impossible de mettre à jour l’avatar", "avatarUpdated": "Avatar mis à jour", "presetAvatar": "Avatar prédéfini {number}"
   },
   "org": {
     "title": "Organisation",
@@ -731,7 +751,8 @@
     "aiConfigHint": "Définissez AI_PROVIDER et la clé API correspondante dans votre environnement pour activer l'extraction IA.",
     "aiRemoveFailed": "Impossible de supprimer la clé IA de l’organisation",
     "loading": "Chargement…",
-    "logoReadOnly": "Aucun logo n’est défini. Un administrateur peut en ajouter un."
+    "logoReadOnly": "Aucun logo n’est défini. Un administrateur peut en ajouter un.",
+    "domainPlaceholder": "votreentreprise.fr", "logoAlt": "Logo de l’organisation", "logoTooLarge": "Le logo doit faire moins de 2 Mo", "logoUploadFailed": "Échec de l’import du logo", "timezones": { "utc": "UTC", "eastern": "EST — Est", "pacific": "PST — Pacifique", "centralEuropean": "CET — Europe centrale", "india": "IST — Inde", "japan": "JST — Japon", "australiaEastern": "AEST — Australie orientale" }, "industries": { "technology": "Technologie", "healthcare": "Santé", "finance": "Finance", "legal": "Juridique", "manufacturing": "Industrie", "retail": "Commerce", "other": "Autre" }, "unknownProvider": "Fournisseur inconnu", "serverDefault": "Valeur du serveur", "serverDefaultDescription": "Les identifiants IA du serveur sont utilisés. Vous pouvez les remplacer ci-dessous par une clé d’organisation.", "setOrgKey": "Définir la clé de l’organisation", "connected": "Connecté", "change": "Modifier", "removeAiKeyPrompt": "Supprimer la clé IA de l’organisation ?", "aiKeyRemoved": "Clé IA supprimée", "confirm": "Confirmer", "cancel": "Annuler", "noAiConfigured": "Aucune clé IA n’est configurée ; les fonctions IA sont désactivées.", "setupAi": "Configurer l’IA", "apiKey": "Clé API", "showApiKey": "Afficher la clé API", "hideApiKey": "Masquer la clé API", "keyValid": "La clé est valide", "validationFailed": "Échec de la validation", "invalidApiKey": "Clé API invalide", "networkError": "Erreur réseau", "testing": "Test…", "test": "Tester", "aiKeySaved": "Clé IA enregistrée", "aiSaveFailed": "Échec de l’enregistrement", "save": "Enregistrer"
   },
   "members": {
     "title": "Membres de l'équipe",
@@ -769,9 +790,12 @@
     "inviteCancelled": "Invitation annulée",
     "failedToCancel": "Échec de l'annulation de l'invitation",
     "remove": "Supprimer",
-    "cancel": "Annuler",
+    "cancel": "Annuler", "emailPlaceholder": "collegue@exemple.fr", "alreadyMember": "Cette personne est déjà membre.", "alreadyInvited": "Une invitation active existe déjà pour cette adresse.", "cannotInviteHigherRole": "Vous ne pouvez pas inviter une personne avec un rôle supérieur au vôtre.", "cannotDemoteLastAdmin": "Le rôle du dernier administrateur ne peut pas être modifié.", "cannotDemoteLastOwner": "Le rôle du dernier propriétaire ne peut pas être modifié.", "ownerRoleRequired": "Seul un propriétaire peut modifier le rôle d’un autre propriétaire.",
     "roles": { "owner": { "label": "Propriétaire", "description": "Contrôle complet de l’espace" }, "admin": { "label": "Administrateur", "description": "Gère les accès à l’espace" }, "legal": { "label": "Juridique", "description": "Examine et gère les contrats" }, "member": { "label": "Membre", "description": "Travaille sur les contrats attribués" }, "viewer": { "label": "Lecteur", "description": "Accès en lecture seule" } },
     "actions": { "changeRole": "Modifier le rôle du membre", "removeMember": "Retirer le membre", "resendInvitation": "Renvoyer l’invitation", "cancelInvitation": "Annuler l’invitation" }
+  },
+  "settingsIntegrations": {
+    "title": "Intégrations", "subtitle": "Connectez Aakd aux outils déjà utilisés par votre équipe.", "categoriesLabel": "Catégories d’intégrations", "categories": { "CRM": "CRM", "E-Signature": "Signature électronique", "Cloud Storage": "Stockage cloud", "Communication": "Communication", "Accounting": "Comptabilité", "Developer": "Développement" }, "soon": "Bientôt", "connected": "Connecté", "notConnected": "Non connecté", "notConfigured": "Non configuré", "active": "Actif", "connect": "Connecter", "disconnect": "Déconnecter", "disconnecting": "Déconnexion…", "configure": "Configurer", "connectProvider": "Connecter {provider}", "configureNotifications": "Configurer dans Notifications", "manageWebhooks": "Gérer les webhooks", "manageApiKeys": "Gérer les clés API", "channelCountOne": "{count} canal", "channelCountMany": "{count} canaux", "docuSealDescription": "Signature électronique open source pour les contrats", "docuSealConfigured": "DocuSeal est configuré avec des variables d’environnement. Consultez le guide d’auto-hébergement.", "descriptions": { "googleDrive": "Importez des contrats directement depuis Google Drive.", "dropbox": "Synchronisez et importez des contrats depuis Dropbox.", "oneDrive": "Connectez Microsoft OneDrive pour stocker les contrats.", "slack": "Recevez les notifications de contrats dans Slack.", "teams": "Recevez les notifications de contrats dans Microsoft Teams.", "quickBooks": "Synchronisez les valeurs de contrats avec QuickBooks.", "xero": "Connectez les finances des contrats à Xero.", "webhooks": "Recevez des notifications HTTP en temps réel.", "restApi": "Accédez à Aakd avec des clés API Bearer.", "zapier": "Connectez Aakd à plus de 5 000 applications via Zapier.", "make": "Créez des flux avec Aakd et Make." }, "providerDescriptions": { "HUBSPOT": "Connectez HubSpot pour lier les transactions et synchroniser les contrats.", "SALESFORCE": "Connectez Salesforce pour lier les opportunités et synchroniser les contrats.", "PIPEDRIVE": "Connectez Pipedrive pour lier les transactions et synchroniser les contrats." }, "connectedBy": "Connecté par {name}", "onDate": "le", "portal": "portail", "manageRoleRequired": "Rôle administrateur ou juridique requis", "autoCreateStage": "Étape de création automatique", "negotiationPlaceholder": "p. ex. Négociation", "autoCreateDescription": "Un brouillon est créé quand une transaction atteint cette étape.", "syncTargetStage": "Étape cible", "syncTargetDescription": "Étape appliquée lorsque le contrat devient actif.", "saving": "Enregistrement…", "saveSettings": "Enregistrer les paramètres", "loadFailed": "Impossible de charger les intégrations", "connectedSuccess": "{provider} connecté avec succès", "connectFailed": "Impossible de connecter l’intégration.", "oauthErrors": { "missingParams": "La réponse d’autorisation était incomplète.", "stateMismatch": "La demande d’autorisation n’a pas pu être vérifiée.", "exchangeFailed": "Le fournisseur n’a pas terminé l’autorisation." }, "disconnectedSuccess": "{provider} déconnecté", "disconnectFailed": "Échec de la déconnexion", "settingsSaved": "Paramètres enregistrés", "settingsSaveFailed": "Impossible d’enregistrer les paramètres", "disconnectTitle": "Déconnecter {provider} ?", "disconnectDescription": "La déconnexion supprime les liens de transactions. Les contrats existants restent inchangés.", "cancel": "Annuler"
   },
   "apiKeys": {
     "title": "Clés API",
@@ -852,7 +876,7 @@
       "getEarlyAccess": "Rejoindre maintenant",
       "viewOnGitHub": "Voir sur GitHub",
       "starOnGitHub": "Étoile sur GitHub",
-      "home": "Accueil Aakd", "primary": "Navigation principale", "mobile": "Navigation mobile", "menu": "Ouvrir le menu", "language": "Langue", "outcome": "Fonctionnement", "trust": "Confiance", "agentAccess": "Accès des agents", "capabilities": "Fonctionnalités", "selfHosting": "Auto-hébergement", "signIn": "Se connecter", "createWorkspace": "Créer un espace"
+      "home": "Accueil Aakd", "primary": "Navigation principale", "mobile": "Navigation mobile", "menu": "Ouvrir le menu", "language": "Langue", "outcome": "Opérations contractuelles", "trust": "Cycle de vie", "agentAccess": "Accès des agents", "capabilities": "Fonctionnalités", "selfHosting": "Auto-hébergement", "signIn": "Se connecter", "createWorkspace": "Créer un espace"
     },
     "hero": {
       "eyebrow": "Open Source · Gratuit · Auto-hébergeable",
@@ -952,24 +976,37 @@
       "lPrivacy": "Confidentialité",
       "lTerms": "Conditions"
     },
-    "heroNew": { "eyebrow": "Opérations contractuelles open source", "title": "Sachez ce que vos contrats exigent ensuite.", "subtitle": "Transformez les contrats signés en suggestions citées, champs d’extraction vérifiés et obligations suivies — sur l’infrastructure que vous contrôlez.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, au choix du fournisseur, et n’est jamais l’autorité finale." },
+    "heroNew": { "eyebrow": "Gestion open source du cycle de vie des contrats", "title": "Pilotez le cycle de vie de vos contrats avec preuves, responsabilité et contrôle.", "subtitle": "Réunissez vos contrats dans un espace auto-hébergé. Vérifiez les informations contractuelles citées, assignez les obligations et gardez approbations, renouvellements et activité visibles pour les responsables.", "primaryCta": "Créer un espace", "secondaryCta": "Voir sur GitHub", "qualifier": "Cœur AGPL auto-hébergeable. L’IA est facultative, citée et vérifiée par des personnes." },
     "proof": {
-      "diagramLabel": "Exemple synthétique du contrat à l’action", "synthetic": "Exemple synthétique", "filename": "Exemple de contrat de services · PDF",
-      "source": { "label": "Source contractuelle", "exact": "Source exacte", "excerpt": "Le fournisseur remettra le rapport de service trimestriel dans les dix jours ouvrés suivant la fin du trimestre.", "page": "Page 8 · Section 4.2" },
-      "suggestion": { "label": "Suggestion citée", "title": "Rapport de service trimestriel", "description": "Préparer et remettre le rapport après chaque trimestre civil.", "confidence": "Confiance élevée", "review": "Vérification requise" },
-      "action": { "label": "Suivi actuel", "title": "Suivre le rapport de service T3", "ownerLabel": "Responsable", "owner": "Opérations commerciales", "dueLabel": "Échéance", "due": "10 jours ouvrés après la fin du trimestre", "evidenceLabel": "Statut", "evidence": "En attente" }
+      "diagramLabel": "Exemple statique d’opérations contractuelles", "filename": "Contrat de services Northwind · PDF", "verified": "Source vérifiée",
+      "extraction": { "label": "Extraction citée", "title": "Rapport de service trimestriel", "source": "Page 8 · Section 4.2", "status": "Prêt à vérifier" },
+      "obligation": { "label": "Obligation", "title": "Envoyer le rapport de service trimestriel", "ownerLabel": "Responsable", "owner": "Opérations", "dueLabel": "Échéance", "due": "Dans 10 jours", "status": "Ouverte" },
+      "activity": "Responsable assigné · vérification enregistrée",
+      "access": { "title": "Contexte API/MCP limité", "items": { "0": "Source citée", "1": "Vérification humaine", "2": "Historique d’activité" } }
     },
+    "operations": { "eyebrow": "Preuve opérationnelle", "title": "Conçu pour les opérations contractuelles", "subtitle": "Réunissez le contrat, les informations vérifiées et le travail qu’il génère dans un système responsable.", "items": {
+      "0": { "title": "Un dossier contractuel", "description": "Stockez les contrats PDF et DOCX, leurs versions et leur texte source consultable." },
+      "1": { "title": "Informations citées", "description": "Vérifiez les champs, risques et obligations proposés à partir des preuves sources." },
+      "2": { "title": "Suivi responsable", "description": "Suivez obligations, renouvellements, approbations et activité avec un responsable nommé." },
+      "3": { "title": "Accès agent gouverné", "description": "Donnez aux clients API et MCP un contexte contractuel limité sans leur céder l’autorité de décision." }
+    } },
+    "lifecycle": { "eyebrow": "Un cycle de vie connecté", "title": "Du contrat à l’action responsable.", "subtitle": "Une séquence claire relie source, vérification, responsabilité et historique.", "items": {
+      "0": { "title": "Centraliser", "description": "Ajoutez un contrat et conservez ensemble sa source, ses versions et ses métadonnées." },
+      "1": { "title": "Vérifier", "description": "Contrôlez l’extraction citée et le suivi proposé par rapport au contrat." },
+      "2": { "title": "Opérer", "description": "Assignez les obligations et faites progresser les approbations ou la signature." },
+      "3": { "title": "Prouver", "description": "Gardez visibles l’activité, les responsabilités et l’historique du contrat." }
+    } },
     "trust": { "eyebrow": "Vérifiable par conception", "title": "La confiance commence par le document, pas par la réponse.", "subtitle": "Aakd relie les suggestions importantes à leur source exacte et laisse aux personnes autorisées le contrôle de ce qui devient un fait fiable.", "items": {
       "0": { "title": "La source avant la réponse", "description": "Vérifiez l’extrait et la page qui justifient une suggestion plutôt que d’accepter un résumé isolé." },
       "1": { "title": "L’humain garde l’autorité", "description": "L’IA peut suggérer. Les réviseurs autorisés acceptent ou refusent les champs d’extraction et suggestions d’obligations pris en charge avant leur utilisation." },
       "2": { "title": "Le statut de révision reste visible", "description": "Les champs d’extraction pris en charge conservent leur citation source et leur statut de révision visibles." }
     } },
-    "agent": { "eyebrow": "Accès agent gouverné", "title": "Utile aux agents. Gouverné par les personnes.", "subtitle": "Aakd expose le contexte contractuel via des interfaces API et MCP limitées, sans transformer un modèle en décideur anonyme.", "gatewayTitle": "Passerelle d’agents", "gatewayStatus": "Modèle d’accès en lecture d’abord", "items": {
+    "agent": { "eyebrow": "Contexte contractuel gouverné", "title": "Utile aux agents. Gouverné par les personnes.", "subtitle": "Aakd expose un contexte contractuel limité via les interfaces API et MCP existantes. La source citée, l’accès de l’organisation et la vérification humaine restent intégrés au processus.", "gatewayTitle": "Passerelle d’agents", "gatewayStatus": "Modèle d’accès en lecture d’abord", "items": {
       "0": { "title": "Limité par permissions", "description": "L’accès suit l’organisation authentifiée, le rôle et la portée de la clé API." },
       "1": { "title": "Résultats minimisés", "description": "Seuls les champs nécessaires sont renvoyés, sans divulgation par défaut du contrat entier." },
       "2": { "title": "Contexte d’extraction cité", "description": "Les champs d’extraction pris en charge conservent le texte source, la page source et le statut de révision." },
       "3": { "title": "Limite d’écriture actuelle", "description": "Les mutations MCP actuelles appliquent les rôles des membres et la portée d’écriture des clés API." }
-    }, "caveat": "La surface MCP actuelle est renforcée en Phase 0. Les capacités déléguées granulaires et les contrôles d’approbation appartiennent à des phases ultérieures ; Aakd ne prétend ni aux décisions juridiques autonomes ni à l’exécution agentique sans restriction." },
+    }, "caveat": "Aakd ne prétend pas prendre des décisions juridiques autonomes, exécuter des agents sans restriction ni déléguer l’autorité d’approbation. Les contrôles délégués granulaires appartiennent à une phase ultérieure." },
     "capabilities": { "eyebrow": "Étendue CLM professionnelle", "title": "Un espace contractuel complet, révélé progressivement.", "subtitle": "Commencez par une action citée. Accédez au reste du cycle de vie quand le travail l’exige.", "items": {
       "0": { "status": "Disponible", "title": "Référentiel et recherche", "description": "Stockez des contrats PDF et DOCX, organisez les versions et retrouvez le contenu." },
       "1": { "status": "IA facultative", "title": "Intelligence contractuelle citée", "description": "Vérifiez métadonnées, risques, suggestions d’obligations et réponses citées lorsqu’un fournisseur IA est configuré." },
@@ -991,6 +1028,6 @@
       "4": { "question": "Aakd inclut-il SSO et certifications entreprise ?", "answer": "Pas actuellement. Rôles, accès limités et journaux d’audit existent ; SSO/SCIM, certifications et assurance entreprise restent des contrôles ultérieurs." }
     } },
     "finalCta": { "title": "Commencez par un contrat et un résultat cité à vérifier.", "subtitle": "Créez un espace ou inspectez le code source avant de décider si Aakd convient à vos opérations contractuelles.", "primary": "Créer un espace", "secondary": "Voir sur GitHub" },
-    "footerNew": { "tagline": "Opérations contractuelles open source avec suggestions citées, vérification humaine et contrôle du déploiement.", "product": "Produit", "resources": "Ressources", "selfHosting": "Guide d’auto-hébergement", "api": "Référence API et MCP", "security": "Politique de sécurité", "copyright": "© 2026 Aakd · AGPL-3.0", "github": "Dépôt GitHub" }
+    "footerNew": { "tagline": "Gestion open source du cycle de vie des contrats avec informations citées, vérification humaine et contrôle du déploiement.", "product": "Produit", "resources": "Ressources", "selfHosting": "Guide d’auto-hébergement", "api": "Référence API et MCP", "security": "Politique de sécurité", "copyright": "© 2026 Aakd · AGPL-3.0", "github": "Dépôt GitHub" }
   }
 }

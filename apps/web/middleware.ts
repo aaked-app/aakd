@@ -9,6 +9,8 @@ const PUBLIC_PATHS = [
   "/register",
   "/create-org",
   "/accept-invitation",
+  "/forgot-password",
+  "/reset-password",
   "/api/auth",
   "/api/health",
   "/api/webhooks",
@@ -49,7 +51,7 @@ export function middleware(req: NextRequest) {
   // Allow public paths and static assets
   const isPublic =
     pathname === "/" ||
-    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
 

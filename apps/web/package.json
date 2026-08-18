@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:visual": "AAKD_VISUAL_FIXTURE=1 playwright test --config=playwright.visual.config.ts",
     "test:isolation": "vitest run --reporter=verbose tests/security/org-isolation.test.ts",
     "worker:dev": "tsx watch --tsconfig tsconfig.worker.json worker.ts",
     "worker:start": "tsx --tsconfig tsconfig.worker.json worker.ts"

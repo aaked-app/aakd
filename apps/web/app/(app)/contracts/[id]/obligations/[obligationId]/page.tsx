@@ -382,7 +382,7 @@ export default function ObligationDetailPage() {
         <aside className="self-start rounded-xl border border-border bg-card p-5 xl:sticky xl:top-6" aria-labelledby="obligation-details-heading"><h2 id="obligation-details-heading" className="text-sm font-semibold text-foreground">{t("details")}</h2><div className="mt-2">
           <MetaRow icon={CalendarDays} label={t("dueDate")}><span className={cn(obligation.status === "OVERDUE" && "font-medium text-rose-700")}>{dueDateFormatter.format(new Date(obligation.dueDate))}</span></MetaRow>
           <MetaRow icon={StatusIcon} label={t("statusLabel")}><span>{t(`status.${obligation.status}`)}</span></MetaRow>
-          <MetaRow icon={Tag} label={t("priority")}><span>{t(`priority.${obligation.priority}`)}</span></MetaRow>
+          <MetaRow icon={Tag} label={t("priorityLabel")}><span>{t(`priority.${obligation.priority}`)}</span></MetaRow>
           <MetaRow icon={User} label={t("assignee")}><span>{obligation.assignee?.name ?? t("unassigned")}</span></MetaRow>
           <MetaRow icon={Tag} label={t("clauseReference")}><span className={cn("break-words [overflow-wrap:anywhere]", !obligation.clauseReference && "text-muted-foreground")}>{obligation.clauseReference || t("sourceUnavailable")}</span></MetaRow>
           <MetaRow icon={Bell} label={t("reminder")}><span>{t(obligation.reminderDays === 1 ? "reminderDaysBeforeOne" : "reminderDaysBeforeMany", { count: obligation.reminderDays })}</span></MetaRow>

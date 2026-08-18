@@ -14,6 +14,7 @@ import {
   ChevronDown,
   RefreshCw,
   Menu,
+  ListChecks,
 } from "lucide-react"
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { GlobalProviders } from "@/components/global-providers"
 import { AakdLogoMark } from "@/components/aakd-logo"
 import { useLocale, useTranslations } from "next-intl"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -309,6 +311,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("contracts"),   href: "/contracts",   icon: FileText },
         { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
         { label: t("obligations"), href: "/obligations", icon: Target },
+        ...(isActionLedgerUiEnabled() ? [{ label: t("actions"), href: "/actions", icon: ListChecks }] : []),
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
       ],
     },

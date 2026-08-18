@@ -1,7 +1,6 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 
@@ -117,13 +116,27 @@ export async function PATCH(
       }
     }
 
+    const linkedAction = await prisma.contractAction.findFirst({
+      where: { organizationId: ctx.organizationId, sourceObligationId: existing.id },
+      select: { id: true, version: true, title: true },
+    })
+    if (linkedAction && data.status !== undefined) {
+      return Response.json(
+        { error: "linked_action_command_required", actionId: linkedAction.id },
+        { status: 409 },
+      )
+    }
+
     const completing = data.status === "COMPLETED" && existing.status !== "COMPLETED"
     const reopening =
       data.status && data.status !== "COMPLETED" && existing.status === "COMPLETED"
 
-    const updated = await prisma.contractObligation.update({
-      where: { id: params.obligationId },
-      data: {
+    let updated
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        const obligation = await tx.contractObligation.update({
+          where: { id: params.obligationId },
+          data: {
         title: data.title,
         description: data.description === undefined ? undefined : data.description,
         clauseReference:
@@ -137,30 +150,54 @@ export async function PATCH(
         status: data.status,
         completedAt: completing ? new Date() : reopening ? null : undefined,
         completedById: completing ? ctx.userId : reopening ? null : undefined,
-      },
-      include: OBLIGATION_INCLUDE,
-    })
-
-    // Audit trail — must not be fire-and-forget
-    if (completing) {
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "OBLIGATION_COMPLETED",
-        `Obligation completed: ${updated.title}`,
-        { obligationId: updated.id },
-      )
-      captureServerEvent(ctx.userId, "obligation_completed")
-    } else {
-      const changedFields = Object.keys(parsed.data).join(", ")
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "OBLIGATION_UPDATED",
-        `Obligation updated: ${updated.title}${changedFields ? ` (${changedFields})` : ""}`,
-        { obligationId: updated.id },
-      )
+          },
+          include: OBLIGATION_INCLUDE,
+        })
+        if (linkedAction) {
+          const synced = await tx.contractAction.updateMany({
+            where: { id: linkedAction.id, organizationId: ctx.organizationId, version: linkedAction.version },
+            data: {
+              title: obligation.title,
+              description: obligation.description,
+              condition: obligation.clauseReference,
+              dueDate: obligation.dueDate,
+              assigneeId: obligation.assigneeId,
+              version: { increment: 1 },
+            },
+          })
+          if (synced.count !== 1) throw new Error("action_version_conflict")
+          await tx.activity.create({
+            data: {
+              contractId: params.id,
+              contractActionId: linkedAction.id,
+              userId: ctx.userId,
+              action: data.assigneeId !== undefined ? "ACTION_ASSIGNED" : "ACTION_REVIEWED",
+              detail: `Linked obligation updated: ${obligation.title}`,
+              metadata: { obligationId: obligation.id, expectedVersion: linkedAction.version },
+            },
+          })
+        }
+        const changedFields = Object.keys(parsed.data).join(", ")
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: completing ? "OBLIGATION_COMPLETED" : "OBLIGATION_UPDATED",
+            detail: completing
+              ? `Obligation completed: ${obligation.title}`
+              : `Obligation updated: ${obligation.title}${changedFields ? ` (${changedFields})` : ""}`,
+            metadata: { obligationId: obligation.id },
+          },
+        })
+        return obligation
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message === "action_version_conflict") {
+        return Response.json({ error: "action_version_conflict" }, { status: 409 })
+      }
+      throw error
     }
+    if (completing) captureServerEvent(ctx.userId, "obligation_completed")
 
     return Response.json(updated)
   })
@@ -196,18 +233,46 @@ export async function DELETE(
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
 
-    await prisma.contractObligation.delete({
-      where: { id: params.obligationId },
+    const linkedAction = await prisma.contractAction.findFirst({
+      where: { organizationId: ctx.organizationId, sourceObligationId: existing.id },
+      select: { id: true, version: true },
     })
-
-    // Audit trail — must not be fire-and-forget
-    await writeActivity(
-      params.id,
-      ctx.userId,
-      "OBLIGATION_DELETED",
-      `Obligation deleted: ${existing.title}`,
-      { obligationId: existing.id },
-    )
+    try {
+      await prisma.$transaction(async (tx) => {
+        if (linkedAction) {
+          const dismissed = await tx.contractAction.updateMany({
+            where: { id: linkedAction.id, organizationId: ctx.organizationId, version: linkedAction.version },
+            data: { sourceObligationId: null, status: "DISMISSED", version: { increment: 1 } },
+          })
+          if (dismissed.count !== 1) throw new Error("action_version_conflict")
+          await tx.activity.create({
+            data: {
+              contractId: params.id,
+              contractActionId: linkedAction.id,
+              userId: ctx.userId,
+              action: "ACTION_DISMISSED",
+              detail: `Source obligation deleted: ${existing.title}`,
+              metadata: { obligationId: existing.id, expectedVersion: linkedAction.version },
+            },
+          })
+        }
+        await tx.contractObligation.delete({ where: { id: params.obligationId } })
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: "OBLIGATION_DELETED",
+            detail: `Obligation deleted: ${existing.title}`,
+            metadata: { obligationId: existing.id },
+          },
+        })
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message === "action_version_conflict") {
+        return Response.json({ error: "action_version_conflict" }, { status: 409 })
+      }
+      throw error
+    }
 
     return new Response(null, { status: 204 })
   })

@@ -129,6 +129,7 @@ function UploadScreen({
 }: {
   onFileSelected: (file: File) => void
 }) {
+  const t = useTranslations("contracts.create")
   const [isDragging, setIsDragging] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -178,10 +179,10 @@ function UploadScreen({
         >
           <Upload className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-foreground">
-            Drop your contract here
+            {t("dropTitle")}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            PDF or DOCX · Max 50 MB · AI will extract key fields automatically
+            {t("uploadHint")}
           </p>
 
           {pendingFile ? (
@@ -199,7 +200,7 @@ function UploadScreen({
                 onClick={() => onFileSelected(pendingFile)}
                 className="w-full"
               >
-                Continue to review →
+                {t("continueReview")}
               </Button>
             </div>
           ) : (
@@ -208,7 +209,7 @@ function UploadScreen({
               className="mt-6"
               onClick={() => inputRef.current?.click()}
             >
-              Browse Files
+              {t("browseFiles")}
             </Button>
           )}
 
@@ -229,7 +230,7 @@ function UploadScreen({
               if (inputRef.current) inputRef.current.value = ""
             }}
           >
-            Remove file
+            {t("removeFile")}
           </p>
         )}
       </div>
@@ -264,15 +265,16 @@ function ReviewScreen({
   onSubmit: () => void
   onChangeFile: () => void
 }) {
-  const t = useTranslations("contract.types")
+  const typeT = useTranslations("contract.types")
+  const t = useTranslations("contracts.create")
   const CONTRACT_TYPES = [
-    { value: "NDA",        label: t("NDA") },
-    { value: "MSA",        label: t("MSA") },
-    { value: "SOW",        label: t("SOW") },
-    { value: "EMPLOYMENT", label: t("EMPLOYMENT") },
-    { value: "VENDOR",     label: t("VENDOR") },
-    { value: "CUSTOMER",   label: t("CUSTOMER") },
-    { value: "OTHER",      label: t("OTHER") },
+    { value: "NDA",        label: typeT("NDA") },
+    { value: "MSA",        label: typeT("MSA") },
+    { value: "SOW",        label: typeT("SOW") },
+    { value: "EMPLOYMENT", label: typeT("EMPLOYMENT") },
+    { value: "VENDOR",     label: typeT("VENDOR") },
+    { value: "CUSTOMER",   label: typeT("CUSTOMER") },
+    { value: "OTHER",      label: typeT("OTHER") },
   ]
   const fileExt = file.name.split(".").pop()?.toUpperCase() ?? "FILE"
 
@@ -285,29 +287,29 @@ function ReviewScreen({
           {/* Basic Information */}
           <section className="rounded-xl border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Basic Information
+              {t("basicInformation")}
             </h3>
 
             <div className="space-y-1.5">
               <Label htmlFor="title">
-                Contract Title <span className="text-destructive">*</span>
+                {t("contractTitle")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => onFormChange("title", e.target.value)}
-                placeholder="Service Agreement Q1 2026"
+                placeholder={t("contractTitlePlaceholder")}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="contractType">Contract Type</Label>
+              <Label htmlFor="contractType">{t("contractType")}</Label>
               <Select
                 value={formData.contractType}
                 onValueChange={(v) => onFormChange("contractType", v ?? "")}
               >
                 <SelectTrigger id="contractType" className="w-full">
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={t("selectType")} />
                 </SelectTrigger>
                 <SelectContent>
                   {CONTRACT_TYPES.map((t) => (
@@ -320,12 +322,12 @@ function ReviewScreen({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t("description")}</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => onFormChange("description", e.target.value)}
-                placeholder="Brief summary of this contract..."
+                placeholder={t("descriptionPlaceholder")}
                 rows={3}
               />
             </div>
@@ -334,16 +336,16 @@ function ReviewScreen({
           {/* Parties */}
           <section className="rounded-xl border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Parties
+              {t("parties")}
             </h3>
 
             <div className="space-y-1.5">
-              <Label htmlFor="counterpartyName">Counterparty Name</Label>
+              <Label htmlFor="counterpartyName">{t("counterpartyName")}</Label>
               <Input
                 id="counterpartyName"
                 value={formData.counterpartyName}
                 onChange={(e) => onFormChange("counterpartyName", e.target.value)}
-                placeholder="Acme Corporation"
+                placeholder={t("counterpartyPlaceholder")}
               />
             </div>
           </section>
@@ -351,12 +353,12 @@ function ReviewScreen({
           {/* Timeline */}
           <section className="rounded-xl border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Timeline
+              {t("timeline")}
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="startDate">Start Date</Label>
+                <Label htmlFor="startDate">{t("startDate")}</Label>
                 <Input
                   id="startDate"
                   type="date"
@@ -365,7 +367,7 @@ function ReviewScreen({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endDate">End Date</Label>
+                <Label htmlFor="endDate">{t("endDate")}</Label>
                 <Input
                   id="endDate"
                   type="date"
@@ -379,12 +381,12 @@ function ReviewScreen({
           {/* Financial */}
           <section className="rounded-xl border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Financial
+              {t("financial")}
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="value">Contract Value</Label>
+                <Label htmlFor="value">{t("contractValue")}</Label>
                 <Input
                   id="value"
                   type="number"
@@ -396,7 +398,7 @@ function ReviewScreen({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="currency">Currency</Label>
+                <Label htmlFor="currency">{t("currency")}</Label>
                 <Select
                   value={formData.currency}
                   onValueChange={(v) => onFormChange("currency", v ?? "USD")}
@@ -416,21 +418,21 @@ function ReviewScreen({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="paymentTerms">Payment Terms</Label>
+              <Label htmlFor="paymentTerms">{t("paymentTerms")}</Label>
               <Input
                 id="paymentTerms"
                 value={formData.paymentTerms}
                 onChange={(e) => onFormChange("paymentTerms", e.target.value)}
-                placeholder="Net 30"
+                placeholder={t("paymentTermsPlaceholder")}
               />
             </div>
 
             {/* Auto-Renewal toggle */}
             <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Auto-Renewal</p>
+                <p className="text-sm font-medium text-foreground">{t("autoRenewal")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Contract renews automatically at expiry
+                  {t("autoRenewalDescription")}
                 </p>
               </div>
               <button
@@ -440,7 +442,7 @@ function ReviewScreen({
                   "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none",
                   formData.autoRenewal ? "bg-primary" : "bg-muted",
                 )}
-                aria-label="Toggle auto-renewal"
+                aria-label={t("toggleAutoRenewal")}
               >
                 <span
                   className={cn(
@@ -452,12 +454,12 @@ function ReviewScreen({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="governingLaw">Governing Law</Label>
+              <Label htmlFor="governingLaw">{t("governingLaw")}</Label>
               <Input
                 id="governingLaw"
                 value={formData.governingLaw}
                 onChange={(e) => onFormChange("governingLaw", e.target.value)}
-                placeholder="State of Delaware"
+                placeholder={t("governingLawPlaceholder")}
               />
             </div>
           </section>
@@ -469,31 +471,31 @@ function ReviewScreen({
           <div className="rounded-xl border border-border bg-card p-4 space-y-3 sticky top-6">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-foreground">AI Extraction</span>
+              <span className="text-sm font-semibold text-foreground">{t("aiExtraction")}</span>
               <span className="ml-auto inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                Powered by AI
+                {t("poweredByAi")}
               </span>
             </div>
 
             {aiExtracting ? (
               <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                Reading the document in the background. You can keep editing.
+                {t("aiReading")}
               </div>
             ) : Object.keys(confidence).length > 0 ? (
               <div className="space-y-2.5 pt-1">
                 {Object.entries(confidence).map(([field, val]) => (
-                  <ConfidenceBar key={field} label={field} value={val} />
+                  <ConfidenceBar key={field} label={t(`fields.${field}`)} value={val} />
                 ))}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground pt-1">
-                No confidence data available.
+                {t("noConfidence")}
               </p>
             )}
 
             <p className="text-xs text-muted-foreground pt-1 border-t border-border">
-              Values pre-filled from your document. Review and correct as needed.
+              {t("reviewExtractedValues")}
             </p>
           </div>
 
@@ -512,7 +514,7 @@ function ReviewScreen({
               onClick={onChangeFile}
               className="text-xs text-primary underline hover:no-underline"
             >
-              Change file
+              {t("changeFile")}
             </button>
           </div>
         </div>
@@ -522,7 +524,7 @@ function ReviewScreen({
       <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <Button type="button" variant="outline" onClick={onBack}>
-            Back
+            {t("back")}
           </Button>
           <Button
             type="button"
@@ -532,10 +534,10 @@ function ReviewScreen({
             {submitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
+                {t("creating")}
               </>
             ) : (
-              "Create Contract"
+              t("createContract")
             )}
           </Button>
         </div>
@@ -547,6 +549,7 @@ function ReviewScreen({
 // ---- Main Page ----
 
 export default function NewContractPage() {
+  const t = useTranslations("contracts")
   const [pageState, setPageState] = useState<PageState>("upload")
   const [file, setFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<FormData>(defaultFormData)
@@ -623,8 +626,8 @@ export default function NewContractPage() {
         setPreviewCompleted(false)
         toast.warning(
           extracted.partial
-            ? "AI extraction partially failed. You can fill in the remaining fields."
-            : "AI extraction is unavailable. You can fill in the fields manually.",
+            ? t("create.partialExtractionWarning")
+            : t("create.extractionUnavailable"),
         )
       } else {
         // Only skip the worker's authoritative extraction when the preview
@@ -636,7 +639,7 @@ export default function NewContractPage() {
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         setPreviewCompleted(false)
-        toast.error("AI extraction is unavailable. You can continue manually.")
+        toast.error(t("create.continueManually"))
         setFormData((prev) =>
           prev.title ? prev : { ...prev, title: fallbackTitle },
         )
@@ -676,7 +679,7 @@ export default function NewContractPage() {
 
   async function handleSubmit() {
     if (!formData.title.trim()) {
-      toast.error("Contract title is required")
+      toast.error(t("create.titleRequired"))
       return
     }
 
@@ -712,7 +715,7 @@ export default function NewContractPage() {
 
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(err.error ?? "Failed to create contract")
+        throw new Error(err.error ?? t("create.createFailed"))
       }
 
       const contract = (await res.json()) as { id: string }
@@ -747,7 +750,7 @@ export default function NewContractPage() {
             body: JSON.stringify({ extractions: seedPayload }),
             credentials: "include",
           })
-          if (!seedRes.ok) throw new Error("Initial extraction review state could not be saved")
+          if (!seedRes.ok) throw new Error(t("create.reviewStateSaveFailed"))
         }
 
         const fd = new globalThis.FormData()
@@ -761,15 +764,15 @@ export default function NewContractPage() {
           credentials: "include",
         })
         if (!uploadRes.ok) {
-          throw new Error("File upload failed")
+          throw new Error(t("create.fileUploadFailed"))
         }
       }
 
-      toast.success("Contract created")
+      toast.success(t("create.created"))
       window.location.assign(`/contracts/${contract.id}`)
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to create contract",
+        err instanceof Error ? err.message : t("create.createFailed"),
       )
     } finally {
       setSubmitting(false)
@@ -785,11 +788,11 @@ export default function NewContractPage() {
             href="/contracts"
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Contracts
+            <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+            {t("title")}
           </Link>
           <span className="text-muted-foreground">/</span>
-          <span className="text-sm font-medium text-foreground">New Contract</span>
+          <h1 className="text-sm font-medium text-foreground">{t("newContract")}</h1>
         </div>
       </div>
 

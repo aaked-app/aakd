@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -31,6 +31,7 @@ import {
   type CrmStatusResponse,
 } from "@/lib/types/crm"
 import { useSession } from "@/lib/auth/client"
+import { hasRole } from "@/lib/auth/roles"
 import { cn } from "@/lib/utils"
 import { useLocale, useTranslations } from "next-intl"
 
@@ -497,6 +498,8 @@ function CrmSection({
                     placeholder={t("negotiationPlaceholder")}
                     className="min-h-11"
                     value={providerSettings.autoCreateStage}
+                    disabled={!canManage}
+                    title={!canManage ? t("manageRoleRequired") : undefined}
                     onChange={(e) =>
                       onUpdateSetting(meta.id, "autoCreateStage", e.target.value)
                     }
@@ -517,6 +520,8 @@ function CrmSection({
                     placeholder={defaultStage(meta.id)}
                     className="min-h-11"
                     value={providerSettings.syncOnActiveStage}
+                    disabled={!canManage}
+                    title={!canManage ? t("manageRoleRequired") : undefined}
                     onChange={(e) =>
                       onUpdateSetting(meta.id, "syncOnActiveStage", e.target.value)
                     }
@@ -530,7 +535,8 @@ function CrmSection({
                     size="sm"
                     variant="outline"
                     onClick={() => onSaveSettings(meta.id)}
-                    disabled={savingProvider === meta.id}
+                    disabled={!canManage || savingProvider === meta.id}
+                    title={!canManage ? t("manageRoleRequired") : undefined}
                     className="min-h-11"
                   >
                     {savingProvider === meta.id ? (
@@ -578,7 +584,7 @@ export default function IntegrationsPage() {
   const [slackCount, setSlackCount] = useState(0)
   const [teamsCount, setTeamsCount] = useState(0)
 
-  async function fetchStatus(signal?: AbortSignal) {
+  const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     try {
       const res = await fetch("/api/crm/status", { signal })
       if (!res.ok) throw new Error("status")
@@ -599,13 +605,13 @@ export default function IntegrationsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
 
   useEffect(() => {
     const controller = new AbortController()
     fetchStatus(controller.signal)
     return () => controller.abort()
-  }, [])
+  }, [fetchStatus])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -650,13 +656,15 @@ export default function IntegrationsPage() {
     if (error) toast.error(errorMessages[error] ?? t("connectFailed"))
   }, [searchParams, t])
 
-  const canManage = roleLoaded && (role === "admin" || role === "legal")
+  const canManage = roleLoaded && role !== null && hasRole(role, "legal")
 
   function startConnect(provider: CrmProvider) {
+    if (!canManage) return
     window.location.href = `/api/crm/${provider.toLowerCase()}/connect`
   }
 
   async function disconnect(provider: CrmProvider) {
+    if (!canManage) return
     setDisconnecting(true)
     try {
       const res = await fetch(`/api/crm/${provider.toLowerCase()}/connect`, {
@@ -674,6 +682,7 @@ export default function IntegrationsPage() {
   }
 
   async function saveSettings(provider: CrmProvider) {
+    if (!canManage) return
     const body = settings[provider]
     if (!body) return
     setSavingProvider(provider)
@@ -697,6 +706,7 @@ export default function IntegrationsPage() {
   }
 
   function updateSetting(provider: CrmProvider, key: keyof ProviderSettings, value: string) {
+    if (!canManage) return
     setSettings((prev) => ({
       ...prev,
       [provider]: {
@@ -773,7 +783,7 @@ export default function IntegrationsPage() {
               variant="outline"
               className="min-h-11 border-red-200 text-red-600 hover:bg-red-50"
               onClick={() => confirmDisconnect && disconnect(confirmDisconnect)}
-              disabled={disconnecting}
+              disabled={!canManage || disconnecting}
             >
               {disconnecting ? t("disconnecting") : t("disconnect")}
             </Button>

@@ -3,13 +3,14 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { captureServerEvent } from "@/lib/posthog-server"
+import { projectRenewalActions } from "@/lib/actions/project"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
 import type { ContractType } from "@prisma/client"
 
 // Fields whose acceptance must trigger renewal-alert regeneration
-const ALERT_TRIGGERING_FIELDS = new Set(["endDate", "renewalDate", "noticePeriodDays"])
+const ALERT_TRIGGERING_FIELDS = new Set(["endDate", "renewalDate", "noticePeriodDays", "autoRenewal"])
 
 async function regenerateAlertsIfTouched(contractId: string, touchedFields: string[]) {
   if (!touchedFields.some((f) => ALERT_TRIGGERING_FIELDS.has(f))) return
@@ -196,20 +197,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     if (body.action === "edit") {
-      // Update rawValue first, then fall through to accept logic below.
-      // Mark the extraction as user-edited so the audit trail reflects the
-      // human override of the AI value.
-      await prisma.aIExtraction.update({
-        where: { id: extractionId },
-        data: { rawValue: body.newValue, extractedBy: "user" },
-      })
       extraction.rawValue = body.newValue
     }
 
     if (body.action === "accept" || body.action === "edit") {
       const mapping = FIELD_MAP[extraction.field]
+      let coerced: unknown
       if (mapping && extraction.rawValue !== null) {
-        const coerced = mapping.coerce(extraction.rawValue)
+        coerced = mapping.coerce(extraction.rawValue)
         if (!isCoercedValueValid(coerced)) {
           return Response.json(
             {
@@ -219,27 +214,34 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             { status: 422 },
           )
         }
-        await prisma.aIExtraction.update({
-          where: { id: extractionId },
-          data: { status: "accepted" },
-        })
-        await prisma.contract.update({
-          where: { id: params.id },
-          data: { [mapping.column]: coerced },
-        })
-      } else {
-        await prisma.aIExtraction.update({
-          where: { id: extractionId },
-          data: { status: "accepted" },
-        })
       }
 
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "METADATA_UPDATED",
-        `Accepted AI extraction for field "${extraction.field}"`,
-      )
+      await prisma.$transaction(async (tx) => {
+        await tx.aIExtraction.update({
+          where: { id: extractionId },
+          data: {
+            status: "accepted",
+            ...(body.action === "edit" ? { rawValue: body.newValue, extractedBy: "user" } : {}),
+          },
+        })
+        if (mapping && extraction.rawValue !== null) {
+          await tx.contract.update({
+            where: { id: params.id },
+            data: { [mapping.column]: coerced },
+          })
+        }
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: "METADATA_UPDATED",
+            detail: `Accepted AI extraction for field "${extraction.field}"`,
+          },
+        })
+        if (ALERT_TRIGGERING_FIELDS.has(extraction.field)) {
+          await projectRenewalActions(contract.organizationId, tx)
+        }
+      })
 
       // Keep activation telemetry aggregate-only. Never send document identifiers
       // or extracted values to the analytics provider.

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "@/lib/auth/client"
 import Link from "next/link"
@@ -287,6 +288,7 @@ function ReviewerPicker({
 export default function ContractDetailPage() {
   const tStatuses = useTranslations("contract.statuses")
   const tWorkspace = useTranslations("contract.workspace")
+  const tActions = useTranslations("actionQueue")
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -305,6 +307,7 @@ export default function ContractDetailPage() {
   const extractionPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [obligations, setObligations] = useState<Obligation[]>([])
+  const [nextAction, setNextAction] = useState<{ id: string; title: string; status: string; dueDate: string | null } | null>(null)
   const [riskData, setRiskData] = useState<{
     riskScore: string | null
     riskScoredAt: string | null
@@ -333,13 +336,16 @@ export default function ContractDetailPage() {
   const [archiving, setArchiving] = useState(false)
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes, riskRes] = await Promise.all([
+      const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes, riskRes, actionsRes] = await Promise.all([
         fetch(`/api/contracts/${id}`, { signal }),
         fetch(`/api/alerts?contractId=${id}`, { signal }),
         fetch(`/api/contracts/${id}/extractions`, { signal }),
         fetch(`/api/contracts/${id}/approvals`, { signal }),
         fetch(`/api/contracts/${id}/obligations`, { signal }),
         fetch(`/api/contracts/${id}/risk-score`, { signal }),
+        isActionLedgerUiEnabled()
+          ? fetch(`/api/actions?view=dashboard&contractId=${id}&limit=1`, { signal })
+          : Promise.resolve(new Response(JSON.stringify({ actions: [] }), { status: 200 })),
       ])
       if (!contractRes.ok) {
         toast.error("Contract not found")
@@ -370,6 +376,10 @@ export default function ContractDetailPage() {
       if (riskRes.ok) {
         const rd = await riskRes.json()
         setRiskData(rd)
+      }
+      if (actionsRes.ok) {
+        const actionData = await actionsRes.json() as { actions?: Array<{ id: string; title: string; status: string; dueDate: string | null }> }
+        setNextAction(Array.isArray(actionData.actions) ? actionData.actions[0] ?? null : null)
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return
@@ -913,6 +923,8 @@ export default function ContractDetailPage() {
           </div>
         </div>
       </header>
+
+      {isActionLedgerUiEnabled() && nextAction ? <section className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3 sm:mx-6 xl:mx-8" aria-label={tActions("nextStep")}><div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{tActions("nextStep")}</p><p className="truncate text-sm font-semibold">{nextAction.title}</p></div><Link href={`/actions/${nextAction.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{tActions("openAction")}<ArrowUpRight className="ms-1 size-3.5 rtl:-scale-x-100" /></Link></section> : null}
 
       {/* ── Tab bar ── */}
       <Tabs

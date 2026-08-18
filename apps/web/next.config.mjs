@@ -9,6 +9,7 @@ const withNextIntl = createNextIntlPlugin("./i18n.ts")
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Expose signing feature flag to the client — derived from DOCUSEAL_API_KEY
   // so users never need to set a separate toggle. No key = signing hidden.
   env: {
