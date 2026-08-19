@@ -398,8 +398,8 @@ Outcome, posterior update and forecast score (append; never overwrite):
 | Compact reusable decision record | **PASS** | Copyable Markdown template with frame, alternatives, evidence, challenge, choice, test and update. |
 | Printable practical checklist | **PASS** | 28 checkboxes across seven stages. |
 | Product-agnostic / prohibited-name scan | **PASS** | Case-insensitive scan for the two prohibited project/product names returns zero matches. |
-| Source URL reachability checked | **PASS with access caveat** | 39 unique document URLs checked 2026-08-19: 20 returned HTTP 200, one 202, one 203; 17 DOI/publisher or protected endpoints returned HTTP 403 to automated `curl` but resolved in browser/search verification. No retained URL returned 404 after encoding the Jensen–Meckling DOI. HTTP status proves reachability, not evidentiary quality. |
-| Size report | **PASS** | `wc` after final content: **405 lines; 8,581 words**. |
+| Source URL reachability checked | **PASS with access caveat** | 38 retained unique document URLs plus one superseded unencoded DOI variant were checked 2026-08-19: 20 returned HTTP 200, one 202, one 203; 17 DOI/publisher or protected endpoints returned HTTP 403 to automated `curl` but resolved in browser/search verification. No retained URL returned 404 after encoding the Jensen–Meckling DOI. HTTP status proves reachability, not evidentiary quality. |
+| Size report | **PASS** | `wc` after final content: **405 lines; 8,589 words**. |
 | Markdown/patch hygiene | **PASS** | `git diff --check` run after final edit. |
 
 **Overall: PASS (18/18 rules).** The URL rule carries an access caveat, not an evidence failure: publisher bot protection is reported rather than treated as source invalidity.
