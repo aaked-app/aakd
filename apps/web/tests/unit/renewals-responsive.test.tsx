@@ -254,10 +254,10 @@ describe("renewals responsive attention queue", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
     await act(async () => resolveSecond(response([renewal("newer", 8)])))
-    expect(await screen.findByText("Contract newer")).toBeInTheDocument()
+    expect((await screen.findAllByText("Contract newer")).length).toBeGreaterThan(0)
     await act(async () => resolveFirst(response([renewal("older", 1)])))
     expect(screen.queryByText("Contract older")).not.toBeInTheDocument()
-    expect(screen.getByText("Contract newer")).toBeInTheDocument()
+    expect(screen.getAllByText("Contract newer").length).toBeGreaterThan(0)
   })
 
   it("renders special-character text safely and falls back for malformed display values", async () => {

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useActiveOrganization, useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
+import { FocusBand, OperationsShell } from "@/components/portfolio/operations-shell"
 import type { Obligation, ObligationPriority, ObligationStatus } from "@/components/obligations/types"
 import {
   fetchAllObligations,
@@ -299,6 +300,9 @@ export default function ObligationsPage() {
   const priorityLabel = (priority: ObligationPriority) => t(`priority.${priority}`)
   const statusLabel = (status: ObligationStatus) => t(`status.${status}`)
   const detailHref = (obligation: FlatObligation) => `/contracts/${obligation.contractId}/obligations/${obligation.id}`
+  const priorityObligation = obligations.find((obligation) => obligation.status === "OVERDUE")
+    ?? obligations.find((obligation) => (obligation.status === "PENDING" || obligation.status === "IN_PROGRESS") && isWithinDays(obligation.dueDate, 7, now))
+    ?? obligations[0]
   const selectionCheckbox = (obligation: FlatObligation) => canDelete ? (
     <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
       <input
@@ -312,21 +316,22 @@ export default function ObligationsPage() {
   ) : null
 
   return (
-    <main className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:px-7">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
-          </div>
-          <Link href="/contracts" className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+    <OperationsShell
+      className="relative"
+      eyebrow={t("attentionLabel")}
+      title={t("title")}
+      description={t("subtitle")}
+      action={<Link href="/contracts" className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
             {t("goToContracts")}<ArrowUpRight className="size-4" aria-hidden="true" />
-          </Link>
-        </div>
-      </header>
-
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-7">
-        <div className="mx-auto w-full max-w-[96rem] space-y-5">
+          </Link>}
+    >
+        <div className="space-y-5">
+          {loadState === "ready" && priorityObligation ? <FocusBand
+            label={priorityObligation.status === "OVERDUE" ? t("overdue") : t("dueThisWeek")}
+            title={priorityObligation.title}
+            detail={`${priorityObligation.contractTitle} · ${t("tableDueDate")}: ${formatDate(priorityObligation.dueDate, locale)}`}
+            action={<Link href={detailHref(priorityObligation)} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">{t("goToContracts")}<ArrowUpRight className="ms-1 size-4 rtl:-scale-x-100" aria-hidden="true" /></Link>}
+          /> : null}
           <PortfolioSummary
             items={[
               { label: t("overdue"), value: stats.overdue, description: t("overdueRequires") },
@@ -463,7 +468,6 @@ export default function ObligationsPage() {
             </ul>
           )}
         </div>
-      </div>
 
       {canDelete && checkedIds.size > 0 ? (
         <section aria-label={t("bulkActionsLabel")} className="absolute inset-x-4 bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-xl sm:inset-x-auto sm:start-1/2 sm:w-fit sm:-translate-x-1/2 sm:flex-nowrap">
@@ -492,6 +496,6 @@ export default function ObligationsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </OperationsShell>
   )
 }
