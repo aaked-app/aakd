@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest a feature for ClauseFlow
+about: Suggest a feature for Aakd
 labels: enhancement
 ---
 

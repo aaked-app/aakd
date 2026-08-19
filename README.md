@@ -16,6 +16,9 @@ obligations, deadlines, approvals, and completion evidence.
 > It is not a hosted service, legal-advice product, compliance certification,
 > or autonomous legal agent.
 
+If Aakd is useful to your team, [star the repository](../../stargazers) to help
+other self-hosting and contract-operations teams find it.
+
 ## The workflow
 
 ```text
@@ -186,9 +189,18 @@ workflow, and how it can be verified. Keep changes focused and preserve the
 source-linked, human-reviewable contract model. See the repository's issue and
 pull-request templates for project-specific guidance.
 
+### Start with a focused contribution
+
+- [Document the synthetic demo-verification workflow](../../issues/12).
+- [Write the operator guide to audit history and activity records](../../issues/13).
+- [Help shape the amendment-impact review workflow](../../issues/14).
+
 For setup questions, implementation discussions, and contributor coordination,
 join the [Aakd Discord community](https://discord.gg/23hntCVty). Please avoid
 sharing real contract data or other confidential information in public channels.
+
+To share evaluation feedback without including confidential contract data,
+[open a workflow-feedback issue](../../issues/new?template=workflow_feedback.md).
 
 For security vulnerabilities, use the private reporting process in
 [`SECURITY.md`](SECURITY.md) rather than publishing exploit details in an issue.
