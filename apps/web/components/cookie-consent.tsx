@@ -22,6 +22,7 @@ export function CookieConsent() {
   function accept() {
     localStorage.setItem("cookie_consent", "accepted")
     posthog.opt_in_capturing()
+    posthog.capture("$pageview", { $current_url: `${window.origin}/` })
     setVisible(false)
   }
 
@@ -46,12 +47,12 @@ export function CookieConsent() {
       <p className="text-sm text-muted-foreground flex-1">
         We use cookies to understand how you use Aakd and improve your experience.{" "}
         <a
-          href="/privacy"
+          href="https://github.com/aaked-app/aakd/blob/main/docs/analytics-privacy.md"
           className="underline underline-offset-2 hover:text-foreground transition-colors"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Privacy Policy
+          Privacy and analytics information
         </a>
       </p>
       <div className="flex gap-2 shrink-0">

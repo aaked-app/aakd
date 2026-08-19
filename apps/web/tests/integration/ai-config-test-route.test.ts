@@ -89,6 +89,27 @@ describe("POST /api/org/ai-config/test — ollama SSRF guard", () => {
     expect(fetchSpy).toHaveBeenCalledOnce()
   })
 
+  it("accepts a blank cloud model and lets the provider default apply", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "msg_test" }), { status: 200 }),
+    )
+    const { POST } = await import("@/app/api/org/ai-config/test/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/org/ai-config/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "anthropic", apiKey: "sk-ant-test", model: "" }),
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).valid).toBe(true)
+    expect(fetchSpy).toHaveBeenCalledOnce()
+    const requestInit = fetchSpy.mock.calls[0]?.[1]
+    expect(JSON.parse(String(requestInit?.body))).toMatchObject({ model: "claude-haiku-4-5" })
+  })
+
   it("returns 403 for a 'legal' role — endpoint is admin-only", async () => {
     mockCtx = legalCtx
     const { POST } = await import("@/app/api/org/ai-config/test/route")

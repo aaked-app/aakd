@@ -17,7 +17,6 @@ import {
   ListChecks,
 } from "lucide-react"
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
-import { usePostHog } from "posthog-js/react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
@@ -299,7 +298,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   } = useListOrganizations()
   const t = useTranslations("nav")
   const locale = useLocale()
-  const ph = usePostHog()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [activationFailure, setActivationFailure] = useState<{
     organizationId: string
@@ -385,17 +383,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     firstOrganizationId,
     activationFailure,
   ])
-
-  // Identify authenticated user in PostHog so events are tied to real people
-  useEffect(() => {
-    if (!session?.user || !ph) return
-    ph.identify(session.user.id, {
-      email: session.user.email,
-      name: session.user.name,
-      organizationId: activeOrg?.id,
-      organizationName: activeOrg?.name,
-    })
-  }, [session?.user?.id, activeOrg?.id, ph])
 
   // While activeOrg is null but the org list hasn't resolved yet (or has, and
   // the auto-activate effect above just fired), keep showing the skeleton

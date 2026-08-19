@@ -167,14 +167,37 @@ describe("LandingPage", () => {
   it("publishes contract-specific metadata without overclaiming", () => {
     expect(LandingModule).toHaveProperty("metadata")
     expect(LandingModule.metadata).toMatchObject({
-      title: "Aakd | Open-source contract lifecycle management",
+      title: { absolute: "Aakd | Open-source contract lifecycle management" },
       description:
         "Self-hostable contract lifecycle management for agreements, cited review, obligations, renewals, approvals, and governed agent access.",
+      alternates: { canonical: "/" },
       openGraph: {
         title: "Aakd | Open-source contract lifecycle management",
         description:
           "Self-hostable contract lifecycle management for agreements, cited review, obligations, renewals, approvals, and governed agent access.",
+        url: "/",
+        siteName: "Aakd",
+        type: "website",
       },
+      twitter: { card: "summary" },
+    })
+  })
+
+  it("publishes factual software identity for search and answer engines", () => {
+    const { container } = render(<LandingPage />)
+    const script = container.querySelector('script[type="application/ld+json"]')
+
+    expect(script).not.toBeNull()
+    expect(JSON.parse(script?.textContent ?? "")).toMatchObject({
+      "@graph": expect.arrayContaining([
+        expect.objectContaining({ "@type": "WebSite", name: "Aakd", url: "https://aakd.app" }),
+        expect.objectContaining({
+          "@type": "SoftwareApplication",
+          name: "Aakd",
+          url: "https://aakd.app",
+          sameAs: ["https://github.com/aaked-app/aakd"],
+        }),
+      ]),
     })
   })
 })

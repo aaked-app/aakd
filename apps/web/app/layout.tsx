@@ -31,8 +31,12 @@ const sora = Sora({
 })
 
 export const metadata: Metadata = {
-  title: "Aakd",
-  description: "Open source, self-hostable contract management",
+  metadataBase: new URL("https://aakd.app"),
+  title: {
+    default: "Aakd | Open-source contract lifecycle management",
+    template: "%s | Aakd",
+  },
+  description: "Open-source, self-hostable contract operations for reviewed, source-linked facts, obligations, and actions.",
 }
 
 export default async function RootLayout({

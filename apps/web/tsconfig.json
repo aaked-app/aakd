@@ -44,7 +44,9 @@
     ".next-final-redesign-verify/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "/private/tmp/aakd-micro-ux-next/types/**/*.ts",
-    "/private/tmp/aakd-micro-ux-next/dev/types/**/*.ts"
+    "/private/tmp/aakd-micro-ux-next/dev/types/**/*.ts",
+    ".next-seo-verify/types/**/*.ts",
+    ".next-seo-verify/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

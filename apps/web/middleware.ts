@@ -15,6 +15,8 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/webhooks",
   "/api/user/unsubscribe",
+  "/robots.txt",
+  "/sitemap.xml",
 ]
 
 // Locale resolution is cookie-based with no URL prefix — `i18n.ts` reads the
