@@ -155,10 +155,13 @@ export default function OnboardingPage() {
     setStatus("testing")
     setErrorMsg("")
     try {
+      const trimmedModel = model.trim()
       const body =
         provider === "ollama"
           ? { provider, baseUrl: ollamaUrl.trim(), model: ollamaModel.trim() }
-          : { provider, apiKey: apiKey.trim(), model: model.trim() }
+          : trimmedModel
+            ? { provider, apiKey: apiKey.trim(), model: trimmedModel }
+            : { provider, apiKey: apiKey.trim() }
 
       const modelsResponse = await fetch("/api/org/ai-config/models", {
         method: "POST",
@@ -195,10 +198,13 @@ export default function OnboardingPage() {
     setStatus("saving")
     setErrorMsg("")
     try {
+      const trimmedModel = model.trim()
       const body =
         provider === "ollama"
           ? { provider, baseUrl: ollamaUrl.trim(), model: ollamaModel.trim() }
-          : { provider, apiKey: apiKey.trim(), model }
+          : trimmedModel
+            ? { provider, apiKey: apiKey.trim(), model: trimmedModel }
+            : { provider, apiKey: apiKey.trim() }
 
       const res = await fetch("/api/org/ai-config", {
         method: "POST",

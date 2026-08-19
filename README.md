@@ -210,6 +210,7 @@ For security vulnerabilities, use the private reporting process in
 - [Product constitution and roadmap](PRODUCT.md)
 - [Self-hosting guide](docs/self-hosting.md)
 - [API reference](docs/api-reference.md)
+- [Analytics and privacy information](docs/analytics-privacy.md)
 - [Community launch checklist](docs/community-launch-checklist.md)
 
 ## License

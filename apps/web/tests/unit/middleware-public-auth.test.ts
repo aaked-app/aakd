@@ -11,6 +11,8 @@ describe("public password recovery routes", () => {
   it.each([
     "/forgot-password",
     "/reset-password?token=reset-token",
+    "/robots.txt",
+    "/sitemap.xml",
   ])("allows an unauthenticated request to %s", (path) => {
     const response = middleware(request(path))
 
@@ -26,6 +28,21 @@ describe("public password recovery routes", () => {
     expect(response.headers.get("location")).toBe(
       "https://aakd.example/login?callbackUrl=%2Fdashboard",
     )
+  })
+
+  it.each([
+    "/actions",
+    "/ai/agents",
+    "/analytics",
+    "/contracts",
+    "/obligations",
+    "/onboarding",
+    "/renewals",
+    "/search",
+    "/settings/org",
+    "/templates",
+  ])("keeps the protected %s path behind authentication", (path) => {
+    expect(middleware(request(path)).status).toBe(307)
   })
 
   it("does not treat a lookalike password-recovery path as public", () => {

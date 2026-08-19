@@ -5,10 +5,15 @@ import { logger } from "@/lib/logger"
 import { validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
 import { z } from "zod"
 
+const optionalModel = z.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().trim().min(1).optional(),
+)
+
 const TestSchema = z.discriminatedUnion("provider", [
-  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1), model: z.string().trim().min(1).optional() }),
-  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1), model: z.string().trim().min(1).optional() }),
-  z.object({ provider: z.literal("ollama"), baseUrl: z.string().url(), model: z.string().trim().min(1).optional() }),
+  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1), model: optionalModel }),
+  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1), model: optionalModel }),
+  z.object({ provider: z.literal("ollama"), baseUrl: z.string().url(), model: optionalModel }),
 ])
 
 export async function POST(req: Request) {

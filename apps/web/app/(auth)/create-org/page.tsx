@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
 import { organization } from "@/lib/auth/client"
@@ -12,7 +11,6 @@ import { useTranslations } from "next-intl"
 import posthog from "posthog-js"
 
 export default function CreateOrgPage() {
-  const router = useRouter()
   const t = useTranslations("auth")
   const tc = useTranslations("common")
   const [name, setName] = useState("")
@@ -41,7 +39,16 @@ export default function CreateOrgPage() {
             : t("createOrgFailed"),
         )
       } else {
-        await organization.setActive({ organizationId: result.data.id })
+        const activation = await organization.setActive({ organizationId: result.data.id })
+        if (activation?.error) {
+          toast.error(t("createOrgFailed"))
+          // The organization was already created. Do not send the user back
+          // to the creation form, which would produce a misleading duplicate
+          // name error on retry. The app layout can recover activation from
+          // the user's first membership.
+          window.location.assign("/onboarding")
+          return
+        }
         // Keep workspace activation aggregate-only and never send the org ID.
         // PostHog is consent-aware and telemetry must never block onboarding.
         try {
@@ -49,7 +56,9 @@ export default function CreateOrgPage() {
         } catch {
           // Telemetry failures must not interrupt the first-run path.
         }
-        router.push("/onboarding")
+        // Force a fresh session/query read so the new organization is not
+        // lost behind a stale useActiveOrganization cache on the first load.
+        window.location.assign("/onboarding")
       }
     } catch {
       toast.error(tc("error"))

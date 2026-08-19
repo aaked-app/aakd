@@ -1,57 +1,90 @@
 "use client"
 
 import posthog from "posthog-js"
-import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react"
-import { useEffect, Suspense } from "react"
-import { usePathname, useSearchParams } from "next/navigation"
+import type { CaptureResult } from "posthog-js"
+import { PostHogProvider as PHProvider } from "posthog-js/react"
+import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 
-function PostHogPageView() {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const ph = usePostHog()
+export function publicPageviewUrl(origin: string, pathname: string, consent: string | null): string | null {
+  if (consent !== "accepted" || pathname !== "/") return null
+  return `${origin}/`
+}
 
-  useEffect(() => {
-    if (pathname) {
-      let url = window.origin + pathname
-      const search = searchParams?.toString()
-      if (search) url += `?${search}`
-      ph.capture("$pageview", { $current_url: url })
-    }
-  }, [pathname, searchParams, ph])
+export function sanitizePublicPageview(event: CaptureResult | null): CaptureResult | null {
+  if (!event || event.event !== "$pageview") return null
 
-  return null
+  const { distinct_id, $device_id, $insert_id, $lib, $lib_version, $time } = event.properties
+
+  return {
+    uuid: event.uuid,
+    event: "$pageview",
+    properties: {
+      distinct_id,
+      $device_id,
+      $insert_id,
+      $lib,
+      $lib_version,
+      $time,
+      $current_url: "https://aakd.app/",
+      $host: "aakd.app",
+      $pathname: "/",
+    },
+  }
+}
+
+function capturePublicPageview(pathname: string) {
+  const url = publicPageviewUrl(window.origin, pathname, localStorage.getItem("cookie_consent"))
+  if (url) {
+    posthog.opt_in_capturing()
+    posthog.capture("$pageview", { $current_url: url })
+  } else {
+    posthog.opt_out_capturing()
+  }
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
     const host = process.env.NEXT_PUBLIC_POSTHOG_HOST
     if (!key) return
 
-    // Only init if user has consented (cookie set) or on first load before banner shown
-    const consent = localStorage.getItem("cookie_consent")
-
+    // Public-site analytics are opt-in. A direct visit to an authenticated
+    // page has no consent banner, so it must remain opted out by default too.
     posthog.init(key, {
       api_host: host ?? "https://eu.i.posthog.com",
       person_profiles: "identified_only",
-      capture_pageview: false, // manual via PostHogPageView
-      capture_pageleave: true,
-      loaded: (ph) => {
-        if (consent === "declined") {
-          ph.opt_out_capturing()
-        }
-      },
+      autocapture: false,
+      rageclick: false,
+      capture_pageview: false,
+      capture_pageleave: false,
+      capture_performance: false,
+      capture_exceptions: false,
+      disable_session_recording: true,
+      disable_persistence: true,
+      disable_surveys: true,
+      disable_surveys_automatic_display: true,
+      save_referrer: false,
+      save_campaign_params: false,
+      advanced_disable_flags: true,
+      opt_out_capturing_by_default: true,
+      before_send: sanitizePublicPageview,
+      loaded: (ph) => ph.opt_out_capturing(),
     })
   }, [])
+
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return
+    capturePublicPageview(pathname)
+  }, [pathname])
 
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
   if (!key) return <>{children}</>
 
   return (
     <PHProvider client={posthog}>
-      <Suspense fallback={null}>
-        <PostHogPageView />
-      </Suspense>
       {children}
     </PHProvider>
   )
