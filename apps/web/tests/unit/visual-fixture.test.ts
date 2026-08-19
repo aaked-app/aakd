@@ -32,6 +32,7 @@ describe("visual fixture records", () => {
       "e2e-visual-user-owner",
       "e2e-visual-user-legal",
       "e2e-visual-user-viewer",
+      "e2e-visual-user-no-organization",
     ])
     expect(fixture.members.map((member) => member.role)).toEqual([
       "owner",
@@ -52,6 +53,12 @@ describe("visual fixture records", () => {
       expect.objectContaining({
         id: VISUAL_FIXTURE_IDS.ownerAccount,
         userId: VISUAL_FIXTURE_IDS.owner,
+        providerId: "credential",
+        password: "better-auth-password-hash",
+      }),
+      expect.objectContaining({
+        id: VISUAL_FIXTURE_IDS.noOrganizationAccount,
+        userId: VISUAL_FIXTURE_IDS.noOrganization,
         providerId: "credential",
         password: "better-auth-password-hash",
       }),
