@@ -341,3 +341,110 @@ All entries accessed 2026-08-19. “Known exclusions/limits” records only what
 8. Which certifications and residency promises cover this exact product, region, AI subprocessor and support path—not merely the parent company?
 9. Who owns taxonomy, templates, playbooks, integrations, failed automations and extraction-quality review after go-live?
 10. Show the operational handoff: how does an agreed price, notice period, SLA, deliverable or renewal decision reach the system and person that must act?
+
+## Research limitations and evidence policy
+
+- This is public-web desk research, not hands-on testing, procurement diligence or a substitute for a security package/order form. Dynamic pricing and trust portals can vary by IP, currency, cookie, edition and authentication state.
+- Vendor capability statements are recorded as vendor claims even when technically plausible. Customer outcome percentages were not used as comparative facts.
+- No anonymous marketplace rating or score was used to rank products. Marketplace reviews are selection-biased, plan/version-specific and usually cannot prove product boundaries. Documented limitations here are either explicit packaging/usage boundaries or clearly labeled inferences from missing lifecycle evidence.
+- WorldCC supplies cross-vendor context, but its 2025 report was produced with industry participants and does not independently test named software. The report is used for process/accountability findings, not vendor ranking.
+- A blank or **OPEN GAP** means “not established in the sources reviewed,” not “the capability does not exist.” Sales demos must prove it with product documentation, UI evidence and contractual terms.
+- “Private cloud” is not treated as self-hosting. No reviewed offer supplied evidence of customer-operated/on-premises deployment. Icertis publicly lists public and private cloud; all other evidenced deployments are vendor-operated cloud/SaaS or were not specified.
+
+## Source and claim ledger
+
+All sources were accessed 2026-08-19. “Primary” means the vendor's product, pricing, legal, help, trust, developer or investor material. “Industry research” means a published research body/report; it is not treated as a product test. Geography records the page context, not a contractual availability warranty.
+
+| ID | Class | Geography | Source | Claims supported / cautions |
+|---|---|---|---|---|
+| P01 | Primary—vendor pricing | US | [Docusign eSignature pricing](https://ecom.docusign.com/plans-and-pricing/esignature) | Editions, exact USD price, billing commitment, envelopes, tax note; dynamic offers may vary |
+| P02 | Primary—vendor product | US/global | [Docusign eSignature](https://www.docusign.com/products/electronic-signature) | Signing-centered offer and plan positioning |
+| P03 | Primary—vendor trust | Global | [Docusign Trust Portal](https://trust-portal.docusign.com/) | Certification/report inventory; product/report scope requires access/diligence |
+| P04 | Primary—vendor product | UK | [Docusign CLM UK](https://www.docusign.com/en-gb/products/clm) | CLM lifecycle, AI, integrations, UK availability, quote route |
+| P05 | Primary—vendor datasheet | APAC/global product | [Docusign CLM datasheet](https://www.docusign.com/sites/default/files/resource_event_files/apac_docusign_clm_datasheet.pdf) | Repository, metadata, hierarchy, renewals, implementation customer statement |
+| P06 | Primary—vendor datasheet | APAC/global product | [Docusign CLM+ datasheet](https://www.docusign.com/sites/default/files/resource_event_files/apac_docusign_clm_datasheet_0.pdf) | 100+ AI models and risk/workflow use |
+| P07 | Primary—vendor pricing | US | [PandaDoc pricing](https://www.pandadoc.com/pricing/) | Exact USD editions, limits, taxes, optional features, object/lifecycle boundaries |
+| P08 | Primary—vendor help | Global | [PandaDoc plan comparison](https://support.pandadoc.com/en/articles/9715033-compare-subscription-plan-features) | Monthly/annual price and feature cross-check |
+| P09 | Primary—vendor pricing | US page | [Contractbook pricing](https://contractbook.com/pricing) | Exact price, users/contracts, onboarding, add-ons, security labels |
+| P10 | Primary—vendor product | Global | [Contractbook AI contract management](https://contractbook.com/ai-contract-management) | OCR/extraction, templates, lifecycle, tasks/reminders and integrations |
+| P11 | Primary—vendor pricing | US | [Concord pricing](https://www.concord.app/pricing/) | Exact USD plans, seats, AI, lifecycle, security/residency labels, implementation claim |
+| P12 | Primary—vendor product | Global | [Concord features](https://www.concord.app/features/) | End-to-end feature scope |
+| P13 | Primary—vendor pricing | US/UK site | [Oneflow pricing](https://oneflow.com/pricing/) | Current demo-led Business/Enterprise packaging, minimum users, paid feature markers |
+| P14 | Primary—vendor annual report | Global | [Oneflow annual report 2025](https://oneflow.com/app/uploads/2026/04/Annual-report-2025_Oneflow-AB.pdf) | Per-user SaaS, separately priced onboarding/configuration/integration/custom templates |
+| P15 | Primary—vendor pricing | Global/localized | [Zoho Contracts pricing](https://www.zoho.com/contracts/pricing.html) | Free limits, plan features, license unit, geography-specific AI caveat; paid amount dynamically unavailable in capture |
+| P16 | Primary—vendor help | Global | [Zoho Contracts overview](https://help.zoho.com/portal/en/kb/contracts/introduction/articles/zoho-contracts-overview) | Contract record and lifecycle model |
+| P17 | Primary—vendor product | Global | [Zoho enterprise](https://www.zoho.com/contracts/enterprise.html) | Permissions, audit, obligations, integration and vendor security/compliance claims |
+| P18 | Primary—vendor pricing | US/UK | [Juro pricing](https://juro.com/pricing-new) | Quote basis, AI and integration options, implementation/support model |
+| P19 | Primary—vendor pricing | US/UK | [SpotDraft pricing](https://www.spotdraft.com/pricing) | User/volume pricing basis, included implementation, lifecycle and security labels |
+| P20 | Primary—vendor legal/product | Global | [SpotDraft CLM offering](https://legal.spotdraft.com/legal/clm-product-services-offerings-e6e5c133?v=1.0) | Document-storage charging object, add-ons, VerifAI licensing, feature boundaries |
+| P21 | Primary—vendor help | Global | [SpotDraft obligations](https://help.spotdraft.com/articles/9044692601-managing-contract-obligations-beta) | Executed-contract extraction to trackable task; beta status/date |
+| P22 | Primary—vendor legal | Global | [SpotDraft DPA](https://legal.spotdraft.com/legal/data-processing-agreement-accelerate-package-347b742b) | AI processing purpose and no customer-personal-data training statement |
+| P23 | Primary—vendor product | US/UK | [LinkSquares contract intelligence](https://linksquares.com/contract-intelligence/) | Segment breadth, repository/intelligence and obligations |
+| P24 | Primary—vendor release | Global | [LinkSquares 2026 platform launch](https://blog.linksquares.com/launches-first-agentic-clm-platform) | Agentic workflow, citation-backed insights, obligations/renewals; vendor launch claims |
+| P25 | Primary—vendor services | Global | [LinkSquares services](https://linksquares.com/services/) | Implementation packages, variable timeline, technical services/support |
+| P26 | Primary—vendor explanation | Global | [LinkSquares trust in AI](https://linksquares.com/library/why-contract-teams-need-to-trust-ai-and-where-to-start/) | Paper-trail/human-control claims and under-90-day statement |
+| P27 | Primary—vendor pricing | US/UK | [Ironclad pricing](https://ironcladapp.com/pricing) | Modular quote, deployment choices, integrations/add-ons |
+| P28 | Primary—vendor product | Global | [Ironclad AI](https://ironcladapp.com/product/ironclad-ai) | AI suite, human governance/no-training/security claims |
+| P29 | Primary—vendor help | Global | [Ironclad AI Playbooks](https://support.ironcladapp.com/hc/en-us/articles/12275685560215-Ironclad-AI-Playbooks-Overview) | Detection, flags and human/functional review routing |
+| P30 | Primary—vendor product | Global | [Icertis platform](https://www.icertis.com/products/platform/) | Engage/Operate/Analyze, public/private cloud, enterprise integrations, structured records |
+| P31 | Primary—vendor product | Global | [Icertis contract performance](https://www.icertis.com/products/platform/contract-performance/) | Obligations and transactional reconciliation/action model |
+| P32 | Primary—vendor product | Global | [Icertis Analyze](https://www.icertis.com/products/analyze/) | Corpus extraction, relationships, search/Q&A and stakeholder uses |
+| P33 | Primary—vendor product/pricing | US | [Agiloft Astra](https://www.agiloft.com/platform/astra) | $0/$120, credits/playbooks, Word review, no-training and setup claim; not full CLM price |
+| P34 | Primary—vendor release | Global | [Agiloft Astra launch](https://www.agiloft.com/news/agiloft-launches-astra) | 2026 release status and target functions; vendor outcome claims excluded |
+| P35 | Primary—vendor policy | Global | [Sirion AI policy](https://www.sirion.ai/wp-content/uploads/2025/02/Sirion-AI-Policy-External-V2.pdf) | AI governance commitments; not proof of field-level product evidence |
+| P36 | Primary—vendor analysis | Global | [Sirion obligations](https://www.sirion.ai/library/contract-insights/contract-obligations-risk-management/) | Full-lifecycle obligation model and vendor positioning |
+| P37 | Primary—vendor implementation | Global | [Sirion implementation analysis](https://www.sirion.ai/library/contract-insights/self-vs-professional-clm-implementation/) | Migration/integration risk and service-model factors |
+| P38 | Primary—vendor pricing analysis | Global | [Sirion pricing models](https://www.sirion.ai/library/contract-insights/contract-management-pricing-models-comparison/) | Enterprise price drivers; no Sirion amount, so quote-only/unknown |
+| P39 | Primary—vendor product | Canada/global | [Workday Contract Intelligence](https://www.workday.com/en-ca/products/contract-management/contract-intelligence.html) | Evisort-powered repository, OCR, Q&A, models, admin and responsible-AI claim |
+| P40 | Primary—vendor datasheet | Canada/global | [Workday CLM datasheet](https://forms.workday.com/content/dam/web/ca/documents/datasheets/workday-contract-lifecycle-management-powered-by-evisort-ai-datasheet-en-CA.pdf) | CLM product existence and lifecycle scope |
+| P41 | Primary—vendor material | US/global | [Workday manufacturing contracts](https://forms.workday.com/content/dam/web/en-us/documents/ebooks/hidden-costs-of-not-knowing-your-manufacturing-contracts-ebook-enus.pdf) | Renewal, price/rebate, obligation and audit use cases; vendor-authored |
+| P42 | Primary—vendor pricing | US | [Salesforce Revenue Cloud pricing](https://www.salesforce.com/sales/revenue-lifecycle-management/revenue-optimization-pricing/) | Exact USD plans, annual term, add-ons and support percentage |
+| P43 | Primary—vendor product | US | [Salesforce Revenue Cloud](https://www.salesforce.com/sales/revenue-lifecycle-management/revenue-cloud/) | Quote-to-cash object, contract features, API/integrations and AI claims |
+| P44 | Primary—vendor datasheet | US | [Salesforce Contracts datasheet](https://www.salesforce.com/en-us/wp-content/uploads/sites/4/documents/datasheets/fy25-sales-cloud-contracts-datasheet.pdf) | $50 add-on historical/current datasheet price with prerequisite caveat and feature boundary |
+| P45 | Primary—vendor pricing/product | US/global | [SAP Ariba Contracts](https://www.sap.com/products/spend-management/contract-management-software.html) | Per-user quote, term range/renewal, lifecycle, spend/consumption and cloud/security links |
+| P46 | Primary—vendor product | US/global | [SAP Ariba Contract Intelligence by Icertis](https://www.sap.com/products/spend-management/ariba-contract-intelligence-by-icertis.html) | Two-product dependency, editions, source-to-pay intelligence |
+| P47 | Primary—vendor documentation | Global | [SAP Ariba Contracts 2026 guide](https://help.sap.com/doc/0b232816de9e4396bf8f09e5d14ed702/Cloud/en-US/3dcf7e56e8a54fadb8018d3403ff0baa.pdf) | Contract line/item pricing object and terms |
+| P48 | Primary—vendor developer docs | Global | [Coupa Contracts API](https://docs.coupa.com/en/developer-documentation/the-coupa-core-api/resources/transactional-resources/contracts-api-contracts) | Contract fields/states, hierarchy, approvals and legal file |
+| P49 | Primary—vendor docs | Global | [Coupa Platform](https://compass.coupa.com/en-us/products/product-documentation/total-spend-management-platform/platform-plus) | Platform subscription/function/security/admin/integration foundation |
+| P50 | Primary—vendor datasheet | Global | [Coupa CLM datasheet](https://get.coupa.com/rs/950-OLU-185/images/Coupa-CLM_Datasheet.pdf) | Authoring, hierarchy and operationalized spend/invoice claims |
+| P51 | Primary—vendor marketplace | Global | [Coupa migration app](https://marketplace.coupa.com/en-US/apps/351534/mainspring-contract-migration-for-coupa-clm) | Specialist migration offering; does not prove universal requirement |
+| P52 | Primary—vendor documentation | Global | [Oracle Procurement 26C](https://docs.oracle.com/en/cloud/saas/procurement/26c/use.html) | Suite status-quo coverage: create/search/edit/approve/fulfillment/terms library |
+| P53 | Primary—official software docs | Global | [Microsoft Track Changes](https://support.microsoft.com/en-us/word/training/track-changes-in-word) | Word review capabilities and boundaries |
+| P54 | Primary—official software docs | Global | [Microsoft Word versioning](https://support.microsoft.com/en-US/Word/use-versioning-with-word) | OneDrive/SharePoint versioning/coauthoring dependency |
+| P55 | Primary—official software docs | Global | [SharePoint versioning](https://support.microsoft.com/en-us/sharepoint/lists/documents-and-library/how-versioning-works-in-lists-and-libraries) | Version creation semantics |
+| P56 | Primary—official software docs | Global | [Google Drive sharing](https://support.google.com/drive/answer/2494822?hl=en) | Roles, inheritance and file-sharing controls |
+| P57 | Primary—official software docs | Global | [Google Drive approvals](https://support.google.com/drive/answer/9387535?hl=en_fm) | File approval and approval-history boundaries |
+| P58 | Primary—official software docs | Global | [Google version history](https://support.google.com/docs/answer/190843?hl=en_) | Document version/change visibility and limits |
+| I01 | Industry research | Global | [WorldCC Benchmark 2025](https://www.worldcc.com/Portals/IACCM/Reports/Benchmark-Report-2025.pdf) | Aggregate process/accountability findings; industry-supported, not a vendor test |
+| I02 | Industry research | Global | [WorldCC Benchmark 2023](https://www.worldcc.com/Portals/IACCM/Reports/Benchmark-report-2023.pdf) | Process complexity, barriers and 8.6% value erosion context; not a product comparison |
+| I03 | Industry commentary/research summary | Global | [WorldCC integration and outcomes](https://www.worldcc.com/resource/from-value-leakage-to-better-outcomes-why-contracting-needs-integration.html) | Cross-functional handoff/operational behavior framing; dated 2026 |
+
+**Ledger count:** 61 unique sources: 58 primary vendor/official software sources and 3 industry research/commentary sources. All 28 pricing rows trace directly to a vendor pricing, product, legal or investor source; no review-site price is used. All affirmative security/deployment claims trace to vendor product, pricing, trust, legal or policy sources and remain labeled vendor claims unless directly observable.
+
+## Rule-based acceptance audit
+
+| Rule | Result | Evidence |
+|---|---|---|
+| Product-agnostic; no project positioning | PASS | No product recommendation or project comparison; report discusses buyer contexts only |
+| Status quo treated as first-class competition | PASS | Six status-quo sections plus object-model table cover document/email, drives, spreadsheets/calendars, e-signature, suites/ERP/tasks and outside counsel |
+| At least 15 named dedicated/suite solutions | PASS | 18 named offers across 17 vendor families |
+| At least 4 plausible small-team offers | PASS | 6: Docusign eSignature, PandaDoc, Contractbook, Concord, Oneflow, Zoho Contracts |
+| At least 6 mid-market offers | PASS | 12 placements in segment matrix |
+| At least 5 enterprise offers | PASS | 11 placements in segment matrix |
+| Segment basis sourced or explicit inference | PASS | Segmentation method plus per-dossier FACT/INFERENCE labels |
+| Offer/edition and exact public price or quote-only status | PASS | 27-row pricing matrix with currency/unit/period/edition/limits/geography/source |
+| No invented normalized price | PASS | No quote/start price converted; dynamic/unknown amounts marked gaps |
+| Buyer, daily user and core object | PASS | Stack/segment tables and every dossier |
+| Pre-signature, signature and post-signature coverage | PASS | Lifecycle matrix and every dossier |
+| Repository/search/metadata | PASS | Lifecycle matrix and dossiers |
+| Negotiation/approvals | PASS | Lifecycle/object tables and dossiers |
+| Obligations, renewals, change and exit | PASS | Lifecycle matrix/dossiers; evaluation questions include amendment, export and exit; unknowns explicit |
+| Integrations | PASS | Dossiers distinguish suite connections and APIs |
+| AI functions and evidence model | PASS | Every dossier has concise AI/evidence verdict; cross-market provenance gap explicit |
+| Implementation, migration, admin and services burden | PASS | Every dossier has burden verdict; cross-segment comparison and evaluation questions |
+| Cloud/self-host/deployment/data residency/security | PASS | Every dossier states evidence or open gap; limitations distinguish private cloud from self-hosting |
+| Documented advantage and limitation | PASS | Every dossier ends with advantage and limitation, labeled claim/inference/gap |
+| US/UK geography and date | PASS | Header, source ledger and pricing geography; deviations labeled |
+| At least 35 unique sources / 25 primary | PASS | 61 unique total; 58 primary/official |
+| Independent limitations only with transparent method | PASS | No review ratings used; limitations derive from official boundaries or labeled inference; WorldCC use/limits disclosed |
+| No production/config/schema/unrelated edits | PASS | Research artifact and researcher-memory notes only; exact files reported at handoff |
