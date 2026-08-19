@@ -1,8 +1,11 @@
 # Contract-solutions landscape: small business to enterprise
 
-**Research date:** 2026-08-19  
-**Geographic lens:** products available to US and UK organizations; prices use the vendor-selected US page/currency unless stated otherwise. A UK page is cited where it materially changes the claim.  
-**Scope:** status-quo methods, e-signature and document automation, dedicated contract lifecycle management (CLM), contract intelligence, and suite-native sales/procurement contract modules.  
+**Research date:** 2026-08-19
+
+**Geographic lens:** products available to US and UK organizations; prices use the vendor-selected US page/currency unless stated otherwise. A UK page is cited where it materially changes the claim.
+
+**Scope:** status-quo methods, e-signature and document automation, dedicated contract lifecycle management (CLM), contract intelligence, and suite-native sales/procurement contract modules.
+
 **Exclusions:** legal advice, a procurement recommendation, private negotiated prices, and estimates derived from review sites or “starting at” statements.
 
 ## How to read this report
