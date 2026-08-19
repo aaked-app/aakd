@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
-**Research date:** 2026-08-19  
-**Status:** Stage 1 — Frame  
+**Research date:** 2026-08-19
+**Status:** Stage 1 — Frame
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
