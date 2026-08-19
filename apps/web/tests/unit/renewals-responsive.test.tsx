@@ -191,6 +191,14 @@ describe("renewals responsive attention queue", () => {
     expect(within(table).getByRole("row", { name: /Contract unknown/ })).toHaveTextContent(message("renewals", "notAvailable"))
   })
 
+  it("only gives the priority band to a renewal that actually needs action", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("later", 31)])))
+    render(<RenewalsPage />)
+
+    await screen.findByRole("table", { name: message("renewals", "resultsLabel") })
+    expect(screen.getAllByRole("link", { name: /Contract later/ })).toHaveLength(1)
+  })
+
   it("localizes singular day grammar and risk text instead of exposing English component labels", async () => {
     locale = "fr-FR"
     vi.stubGlobal("fetch", vi.fn(async () => response([renewal("francais", 1)])))

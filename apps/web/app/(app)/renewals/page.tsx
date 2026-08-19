@@ -254,7 +254,7 @@ export default function RenewalsPage() {
   const priorityRenewal = renewals.find((renewal) => {
     const level = classifyUrgency(renewal.daysUntilDeadline)
     return level === "overdue" || level === "action"
-  }) ?? renewals[0]
+  })
 
   return (
     <OperationsShell

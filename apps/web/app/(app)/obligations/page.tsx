@@ -302,7 +302,6 @@ export default function ObligationsPage() {
   const detailHref = (obligation: FlatObligation) => `/contracts/${obligation.contractId}/obligations/${obligation.id}`
   const priorityObligation = obligations.find((obligation) => obligation.status === "OVERDUE")
     ?? obligations.find((obligation) => (obligation.status === "PENDING" || obligation.status === "IN_PROGRESS") && isWithinDays(obligation.dueDate, 7, now))
-    ?? obligations[0]
   const selectionCheckbox = (obligation: FlatObligation) => canDelete ? (
     <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
       <input

@@ -163,6 +163,16 @@ describe("obligations portfolio responsive action queue", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
   })
 
+  it("only gives the priority band to an overdue or due-soon obligation", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/org/members" ? membersResponse() : response([obligations[1]]),
+    ))
+    render(<ObligationsPage />)
+
+    await screen.findByRole("table", { name: "Obligation results" })
+    expect(screen.getAllByRole("link", { name: "View Renew insurance certificate" })).toHaveLength(1)
+  })
+
   it("keeps stats, filters, and search aligned to the same portfolio records", async () => {
     render(<ObligationsPage />)
 

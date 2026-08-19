@@ -2348,19 +2348,6 @@ export default function ContractDetailPage() {
                       onChange={(e) => setEditForm((p) => ({ ...p, renewalDate: e.target.value || null }))}
                     />
                   </div>
-                  <label className="flex min-h-11 items-start gap-3 rounded-md border border-border p-3 sm:mt-6">
-                    <input
-                      id="contract-renewal-reminders"
-                      type="checkbox"
-                      className="mt-1 size-4 accent-primary"
-                      checked={editForm.renewalReminderEnabled !== false}
-                      onChange={(e) => setEditForm((p) => ({ ...p, renewalReminderEnabled: e.target.checked }))}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">{tWorkspace("renewals")}</span>
-                      <span className="block text-xs text-muted-foreground">{tWorkspace("autoRenewalDescription")}</span>
-                    </span>
-                  </label>
                 </div>
               </section>
 
