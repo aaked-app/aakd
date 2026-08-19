@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stage 2 — Observe PASS; Stage 3 — Explain in progress
+**Status:** Stages 1–3 PASS; Stage 4 — independent Challenge pending
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -531,3 +531,380 @@ No row is yet a validated opportunity. `Incomplete` means at least one required 
 | 51–500 US/UK coverage sufficient for market inference | **FAIL** | `G1` and §§13.2/13.5 preserve the source audit's explicit cohort failure; no new primary evidence was added |
 
 **Stage 2 result: PASS on the 10 evidence-handling advancement rules; the separate target-cohort coverage rule remains FAIL.** The evidence supports generating distinct workflow theses. It does not support demand prevalence, a winner, or willingness to pay. The coverage failure prevents any target-segment validation claim and is carried into every thesis.
+
+---
+
+## 14. Stage 3 — Explain
+
+### 14.1 Thesis construction rules
+
+**VALUE JUDGMENT.** Each thesis below is a primary-research candidate, not a product recommendation. Its segment/geography specification defines the population to test; it does not claim that the population currently has the stated pain.
+
+**VALUE JUDGMENT.** A thesis is distinct only when it names a different triggering event, causal bottleneck, operating actor/system, consequence, and prediction. Different interface ideas for the same mechanism do not count as different theses.
+
+**VALUE JUDGMENT.** Every thesis competes against:
+
+- `H0`, the status quo/no-startup-opportunity explanation;
+- a governance explanation, in which unclear authority/ownership—not missing technology—causes the failure;
+- a volume/complexity explanation, in which pain appears only in exceptional portfolios; and
+- an implementation explanation, in which an existing solution could work if process, data, integration, or adoption were repaired.
+
+### 14.2 Thesis T1 — Vendor renewal/notice decision control
+
+**HYPOTHESIS.** In the defined population, a recurring and fundable failure occurs because the renewal decision starts after the practical decision point or uses stale terms, ownership, usage, or performance context—not because the organization lacks a calendar alert.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** 51–500-employee organizations with a recurring supplier/software portfolio and no mature contract-operations function; analyze 51–200 and 201–500 separately |
+| Geography | **HYPOTHESIS:** US and UK sampled and reported separately |
+| Contract family | **HYPOTHESIS:** supplier master/subscription agreement + order/PO + amendments + renewal/non-renewal notices |
+| Workflow/event | **HYPOTHESIS:** decision preparation, approval, negotiation, and compliant notice before renewal/termination window |
+| Actor | **HYPOTHESIS:** procurement/contracts analyst or vendor owner performs the work; finance/business owner bears spend/service effect |
+| Trigger | **HYPOTHESIS:** 120–30 days before a notice or commercial decision point, adjusted to actual lead time |
+| Current workaround | **FACT:** observed classes include Excel, Power Automate, Airtable, Planner, project boards, internal systems, and suite reminders (`CFA-L` R04–R17, R54) |
+| Frequency | **OPEN GAP:** portfolio renewal events per quarter/year and fraction requiring a material decision |
+| Measurable consequence | **HYPOTHESIS:** unwanted renewal/spend, outdated terms, emergency procurement, lost leverage, or service interruption; no target-population amount is known |
+| Economic buyer/budget owner | **HYPOTHESIS:** CPO/procurement head, CFO/finance leader, or COO depending on spend ownership; no accessible budget is established |
+
+**FACT.** The evidence contains both late/expired/outdated-term episodes and status-quo routines reported as sufficient [§13.4, A2](#a2--renewal-and-notice-decision-control).
+
+**INFERENCE.** The causal bottleneck is plausibly decision readiness: governing terms + lead time + ownership + operating context + authority must converge before the window, while a date alert supplies only one input.
+
+**HYPOTHESIS — risky prediction.** A recent-episode sample will contain independent organizations where the reminder existed or the date was knowable, yet the decision was still late because context, owner, or authority was incomplete; the buyer can connect that delay to an auditable consequence.
+
+**HYPOTHESIS — rival-favoring observation.** Organizations using a disciplined register and review cadence consistently make timely decisions, cannot reconstruct a material consequence, or refuse to redirect budget even after a recent failure.
+
+**OPEN GAP.** Current evidence cannot distinguish a software opportunity from a lightweight process/service intervention.
+
+### 14.3 Thesis T2 — Sell-side signature-to-booking/fulfillment continuity
+
+**HYPOTHESIS.** In the defined population, nonstandard customer agreements create recurring delay or error between execution and booking, provisioning, billing, or delivery because approved commercial/legal state is not reliably transferred into the revenue operating system.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** 51–500-employee B2B software, services, or technical companies with recurring customer agreements and nonstandard paper; bands tested separately |
+| Geography | **HYPOTHESIS:** US and UK separately |
+| Contract family | **HYPOTHESIS:** customer MSA + order form/SOW + DPA/security schedule + amendments |
+| Workflow/event | **HYPOTHESIS:** executed version through booking/order creation, provisioning, billing setup, and delivery handoff |
+| Actor | **HYPOTHESIS:** RevOps/deal desk/order management performs transfer; finance and delivery bear error/delay; legal approves deviations |
+| Trigger | **HYPOTHESIS:** final execution or satisfaction of a contractual condition precedent |
+| Current workaround | **FACT:** documented classes include CRM cases/records, e-signature, email, shared storage, manual metadata, order management, and finance review [CDR, GitLab/Lenus/Placemakr examples in §5](contracts-domain-research/researcher-memo.md#52-medium-companies-four-documented-cases) |
+| Frequency | **OPEN GAP:** executed nonstandard agreements per month and proportion requiring manual re-entry/interpretation |
+| Measurable consequence | **HYPOTHESIS:** signature-to-booking/provisioning delay, invoice setup error, manual corrections, revenue-control exception, or delivery mismatch |
+| Economic buyer/budget owner | **HYPOTHESIS:** CRO/RevOps leader, COO, or CFO; budget ownership and purchasing authority unobserved |
+
+**FACT.** First-party enterprise operating records connect contract approval/execution to booking and fulfillment, while medium-company vendor cases describe CRM and finance continuity; these are workflow-existence evidence, not target-cohort effect estimates [CDR, §§5–6](contracts-domain-research/researcher-memo.md#6-how-contracts-affect-the-business-process).
+
+**INFERENCE.** The mechanism is state discontinuity: contract truth is finalized in one process, but transaction/delivery state is created in another, and nonstandard terms increase interpretation or re-entry.
+
+**HYPOTHESIS — risky prediction.** Recent executed nonstandard deals will show a reconstructable delay or correction at the contract-to-order/provisioning boundary that cannot be explained only by ordinary sales or implementation workload.
+
+**HYPOTHESIS — rival-favoring observation.** CRM/revenue-suite configuration already transfers the necessary state reliably, exceptions are rare/low-cost, or the receiving team rejects another contract-derived control layer.
+
+**OPEN GAP.** No independent 51–500 US/UK episode with measured economic consequence or WTP is in the corpus.
+
+### 14.4 Thesis T3 — Professional-services scope change to acceptance and billing
+
+**HYPOTHESIS.** In the defined population, margin or cash is lost because scope changes, customer dependencies, acceptance tests/windows, authority, and delivery evidence are fragmented across the SOW, project tools, email, and finance process.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** 51–500-employee professional, technical, implementation, engineering, or managed-service firms with material SOW-based revenue |
+| Geography | **HYPOTHESIS:** US and UK separately, preserving governing-law and accounting context |
+| Contract family | **HYPOTHESIS:** customer MSA + SOW + pricing/specification schedule + change order + acceptance record/invoice |
+| Workflow/event | **HYPOTHESIS:** out-of-scope request or milestone submission through authorized change, acceptance, and billable evidence |
+| Actor | **HYPOTHESIS:** project/service-delivery manager performs; finance/commercial owner bears margin/cash effect; customer approver affects acceptance |
+| Trigger | **HYPOTHESIS:** scope deviation, dependency failure, milestone/deliverable submission, rejection, or acceptance-window expiry |
+| Current workaround | **FACT:** documented classes include project/PSA tools, ERP, time tracking, email, change forms, contract review, and manual financial controls [CDR, §§6 and 8.1](contracts-domain-research/researcher-memo.md#81-archetype-specific-operating-focus) |
+| Frequency | **OPEN GAP:** changes/milestones per active SOW and proportion disputed/unbilled/delayed |
+| Measurable consequence | **HYPOTHESIS:** unbilled work, delayed cash/revenue, margin leakage, rework, disputed acceptance, or claim weakness |
+| Economic buyer/budget owner | **HYPOTHESIS:** services COO, delivery executive, CFO, or commercial leader; no budget path established |
+
+**FACT.** Government standards and a public-company filing document change control, acceptance/evidence, claims, revenue/cost recognition, and cash effects; the strongest evidence is enterprise/public-sector and sector-specific [§13.4, A5](#a5--sowchangeacceptance-evidence).
+
+**INFERENCE.** The causal bottleneck is a cross-boundary evidence/authority chain, not clause discovery alone: delivery must detect the event, the right person must authorize change, the customer must accept, and finance must receive proof.
+
+**HYPOTHESIS — risky prediction.** Independent service firms will produce recent episodes where performed work or a completed milestone was not timely billable/collectible because the contractual change/acceptance path and evidence were not followed.
+
+**HYPOTHESIS — rival-favoring observation.** PSA/ERP/project controls already manage the path, exceptions are commercial judgment rather than information failure, or formalizing the workflow costs more delivery speed than it protects.
+
+**OPEN GAP.** There is no direct mid-sized US/UK operator evidence, recurrence distribution, or costly commitment.
+
+### 14.5 Thesis T4 — Governing agreement-family resolution at a consequential event
+
+**HYPOTHESIS.** In the defined population, recurring consequential decisions are delayed or made against stale/wrong terms because the governing answer spans a master agreement, order/SOW, amendment, DPA/schedule, and notice record whose precedence and effective periods are not resolved.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** 51–500-employee B2B technical/services organizations with repeated master-plus-order/SOW relationships and amendments; complexity threshold must be measured |
+| Geography | **HYPOTHESIS:** US and UK separately; governing law recorded per family |
+| Contract family | **HYPOTHESIS:** MSA/framework + order/SOW + DPA/security/price/SLA schedules + amendments/waivers/notices |
+| Workflow/event | **HYPOTHESIS:** determine governing term for renewal, price, SLA, incident, assignment/change of control, dispute, or termination before action |
+| Actor | **HYPOTHESIS:** contracts/legal user resolves; operations/procurement/finance/security requester waits or bears wrong-term effect |
+| Trigger | **HYPOTHESIS:** a concrete event requiring interpretation of current rights, duties, thresholds, or notice mechanics |
+| Current workaround | **FACT:** shared drives/search, naming/folder taxonomies, manual family reconstruction, counsel, and enterprise relationship/hierarchy features are documented [CDR, §1.3](contracts-domain-research/researcher-memo.md#13-the-agreement-family-model); [CSL, documented gap 3](contracts-solutions-landscape-2026-08-19.md#documented-gaps-across-the-landscape) |
+| Frequency | **OPEN GAP:** families queried per period and proportion where added family context changes the answer |
+| Measurable consequence | **HYPOTHESIS:** decision delay, outside-counsel/reconstruction time, wrong notice/price/SLA action, lost remedy, or control exception |
+| Economic buyer/budget owner | **HYPOTHESIS:** GC/legal ops, COO, risk/security, or procurement leader depending on event; no buyer pattern or budget exists |
+
+**FACT.** Direct legal/operating evidence establishes that contracts may be multi-document families and that changes/notices can alter operational truth; community evidence of family/amendment problems is thin [CDR, §§1.3 and 8.2](contracts-domain-research/researcher-memo.md#82-event-to-action-pattern); [CFA, §5.4](contracts-community-feedback-audit-2026-08-19.md#54-agreement-families-and-non-standard-documents--high-confidence-on-the-documented-case).
+
+**INFERENCE.** The causal bottleneck is completeness and precedence before interpretation. Retrieval of relevant text is necessary but insufficient if the relationship among sources is wrong.
+
+**HYPOTHESIS — risky prediction.** Adding related documents and effective-period/precedence context will materially change a consequential answer or required action in recent target-population episodes, and the change will matter to an operational decision.
+
+**HYPOTHESIS — rival-favoring observation.** Isolated documents are materially sufficient in nearly all target workflows, family ambiguity is too rare, or only qualified legal judgment can resolve it at a cost buyers already accept.
+
+**OPEN GAP.** No evidence shows whether resolution can be repeatable, reviewable, affordable, or defensible without creating false certainty.
+
+### 14.6 Thesis T5 — Constrained, human-reviewed first-pass analysis
+
+**HYPOTHESIS.** In the defined population, a narrow recurring review/extraction task with explicit written guidance can reduce lawyer/analyst work while preserving or improving critical-error detection, but broad autonomous “contract review” cannot.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** 51–500-employee organizations with an in-house legal/contracts function and enough repeated low-to-moderate-complexity paper to justify setup; volume threshold unknown |
+| Geography | **HYPOTHESIS:** US and UK separately, with task/jurisdiction-specific guidance |
+| Contract family | **HYPOTHESIS:** begin validation with one bounded family such as NDAs or standardized customer/vendor agreements; do not pool families |
+| Workflow/event | **HYPOTHESIS:** first-pass evidence extraction, classification, deviation identification, or draft redline followed by authorized human disposition |
+| Actor | **HYPOTHESIS:** counsel/contracts analyst reviews; business requester waits; GC/legal ops owns risk and capacity |
+| Trigger | **HYPOTHESIS:** receipt of third-party paper or a request to compare against a current written checklist/playbook |
+| Current workaround | **FACT:** Word, written checklists/playbooks, manual review, general models, and specialist review tools appear in official/community evidence (`CFA-L` R30–R38; `CSL` dossiers) |
+| Frequency | **OPEN GAP:** eligible reviews per week/month and stable proportion of the total review portfolio |
+| Measurable consequence | **HYPOTHESIS:** reviewer minutes, cycle time, material correction/critical-miss rate, and accepted suggestion rate, with no silent legal decision |
+| Economic buyer/budget owner | **HYPOTHESIS:** GC/legal ops; one vendor-affiliated observation says low volume does not justify setup (`CFA-L` R35), but no threshold or WTP is known |
+
+**FACT.** The corpus contains both negative broad/unreliable episodes and positive constrained/human-reviewed episodes, with no reproducible target benchmark [§13.4, A7](#a7--constrained-human-reviewed-contract-analysis).
+
+**INFERENCE.** The mechanism is task decomposition plus reusable guidance: a bounded task reduces possible outputs and makes review/evidence comparison tractable, while human judgment remains the authority boundary.
+
+**HYPOTHESIS — risky prediction.** On a representative, blinded task set, a constrained method will reduce median reviewer time without increasing preregistered critical errors versus the existing manual process, and reviewers will use it again on a second batch.
+
+**HYPOTHESIS — rival-favoring observation.** Review time approaches manual work, critical misses or nondeterminism remain unacceptable, written guidance is not stable/reusable, volume is below the setup threshold, or buyers will not accept the liability/data path.
+
+**OPEN GAP.** Reviewer-time ceilings, critical-error taxonomy, acceptable provider/deployment, data rights, and budget are all unresolved.
+
+### 14.7 Thesis T6 — Enterprise contract-process implementation assurance
+
+**HYPOTHESIS.** For organizations undertaking a material contract-system deployment or migration, an independent process/data/integration/adoption assurance workflow can prevent enough rework or failure to command budget before and during implementation.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** >500-employee or multi-business-unit organizations already committed to a material contract-system selection, migration, or redesign; not pooled with mid-market theses |
+| Geography | **OPEN GAP:** US/UK is the intended validation scope, but most episode geography is unknown |
+| Contract family | **HYPOTHESIS:** multi-family portfolio including customer, supplier, employment, and/or corporate paper; scope recorded per organization |
+| Workflow/event | **HYPOTHESIS:** pre-implementation readiness through process mapping, taxonomy/data quality, workflow design, migration, integration, user acceptance, and adoption review |
+| Actor | **FACT:** observed roles include legal ops, IT, system buyer/admin, implementation participant, vendor/consultant, and functional users (`CFA-L` R01–R03, R18–R28, R44, R48, R50–R52) |
+| Trigger | **HYPOTHESIS:** approved acquisition/replacement, failed prior rollout, merger/portfolio migration, or major workflow expansion |
+| Current workaround | **FACT:** vendor professional services, third-party consultants, internal implementation teams, and self-implementation are documented |
+| Frequency | **OPEN GAP:** low-frequency organization-level program; repeatability may occur across customers rather than within one buyer |
+| Measurable consequence | **HYPOTHESIS:** avoided unusable subscription, migration rework, workflow sprawl, support cost, adoption failure, schedule overrun, or replacement cost |
+| Economic buyer/budget owner | **HYPOTHESIS:** GC/legal ops executive, CIO/enterprise applications, CPO, or transformation sponsor; anecdotes show material spend, not an accessible repeatable budget |
+
+**FACT.** The community corpus documents severe failures, paid implementation/support concerns, and successful counterexamples; vendor sources openly make implementation a services/configuration/data scope [§13.4, A8](#a8--contract-process-implementation-assurance).
+
+**INFERENCE.** The mechanism is early detection and correction of process–data–ownership–integration mismatch before sunk cost and organizational commitment make change harder.
+
+**HYPOTHESIS — risky prediction.** A prospective readiness/assurance assessment will identify decision-relevant defects that the buyer and implementer accept, change before launch, and value against avoided rework—not merely restate generic best practices.
+
+**HYPOTHESIS — rival-favoring observation.** Existing vendor/consultant governance already performs the job, failures are too vendor/configuration-specific for a reusable method, procurement resists independent assurance, or delivery remains labor-intensive with no repeatable margin/defensibility.
+
+**OPEN GAP.** This may be a bespoke consulting market rather than a scalable startup opportunity; repeat purchase inside one organization is structurally weak.
+
+### 14.8 Null thesis H0 — Proportionate status quo plus process discipline
+
+**HYPOTHESIS.** For most reachable organizations in the proposed segments, the next-best response is to improve ownership, templates/checklists, folder/version discipline, a register/cadence, existing-suite configuration, or specialist legal/implementation support rather than adopt a new dedicated contract-workflow solution.
+
+| Unit field | Specification |
+|---|---|
+| Segment | **HYPOTHESIS:** any organization where volume, variation, consequence, or coordination is below the threshold for another dedicated system |
+| Geography | **HYPOTHESIS:** US/UK; proportionality mechanism is not assumed identical across legal/regulatory contexts |
+| Contract family | **HYPOTHESIS:** simple or familiar families managed by one accountable owner/system |
+| Workflow/event | **HYPOTHESIS:** status, final version, next decision/action, and evidence can be answered within the existing process |
+| Actor | **HYPOTHESIS:** current functional owner retains responsibility without an added administrator |
+| Trigger | **HYPOTHESIS:** process failure is corrected through ownership/cadence/configuration before acquiring another system |
+| Current workaround | **FACT:** Word/email, shared storage, spreadsheet/calendar/task tools, CRM/procurement/ERP, e-signature, and counsel are documented real competitors [CSL, status-quo sections](contracts-solutions-landscape-2026-08-19.md#status-quo-competitors-when-they-are-enough-and-where-they-break) |
+| Frequency | **OPEN GAP:** sufficiency threshold by volume/complexity/event frequency |
+| Measurable consequence | **HYPOTHESIS:** similar or better outcome after full implementation/admin/switching cost, with acceptable failure rate |
+| Economic buyer/budget owner | **FACT:** the organization avoids a new budget line and redirects effort to process or an existing system |
+
+**FACT.** Community evidence explicitly contradicts “spreadsheets always fail,” “enterprise suites cannot work,” and “full CLM is needed once contracts are scattered” [CFA, §10](contracts-community-feedback-audit-2026-08-19.md#10-contradictions-and-disconfirming-evidence).
+
+**INFERENCE.** `H0` is strongest where one owner can maintain truth and cadence, the operational suite already owns downstream state, events are infrequent/low-consequence, or a new system's review/admin cost exceeds failure cost.
+
+**HYPOTHESIS — risky prediction.** Comparable organizations that tighten ownership/cadence or configure an existing system will resolve the target episode at lower total cost and similar error/throughput than an added dedicated solution.
+
+**HYPOTHESIS — rival-favoring observation.** Failures persist despite disciplined ownership and existing-system configuration because governing context, cross-functional state, or evidence cannot be maintained economically.
+
+**OPEN GAP.** The sufficiency boundary is not quantified for any thesis population.
+
+### 14.9 Competing causal models
+
+| Model | Mechanism | Predictions across theses | Evidence that would lower belief |
+|---|---|---|---|
+| `M1` Information-state discontinuity | **HYPOTHESIS:** required governing/operational state is lost between documents, actors, or systems | T2/T3/T4 episodes show missing or stale state at a named handoff; restoring it changes action/outcome | State was available and correct; delay/failure persists for unrelated capacity or strategy reasons |
+| `M2` Authority/ownership failure | **HYPOTHESIS:** nobody has accepted responsibility or decision rights | T1/T3 failures cluster where owner/approver is unclear; assigning owner/cadence resolves them | Clear authority existed and was exercised; governing information/evidence still failed |
+| `M3` Volume/complexity threshold | **HYPOTHESIS:** pain becomes economic only beyond a portfolio/variation/event threshold | Low-volume firms succeed with status quo; high-volume/complex firms show repeated consequences | Similar failures and WTP appear below the supposed threshold, or high-volume firms remain adequately controlled |
+| `M4` Existing-system fit | **HYPOTHESIS:** outcome depends on embedding state in the system users already operate | Suite/Word/CRM/ERP-connected workflows outperform added destinations on completion/adoption | A dedicated workflow succeeds without integration, or suite connection cannot preserve governing context/control |
+| `M5` Implementation capacity | **HYPOTHESIS:** process/data/configuration/adoption capability dominates chosen software | Similar products show divergent outcomes by mapping, migration, ownership, and user involvement | Controlled implementation quality still yields consistent product-specific failure/success |
+| `M6` Judgment/review constraint | **HYPOTHESIS:** the limiting resource is qualified human interpretation/review, not retrieval or workflow | T4/T5 review time and error remain dominant after better organization/automation | Bounded tasks shift safely to repeatable evidence/rules with materially lower review burden |
+| `M0` Salience without economic opportunity | **HYPOTHESIS:** complaints are real but infrequent, low-consequence, adequately solved, unreachable, or unfunded | Interviews yield preferences and anecdotes without recent episodes, budget authority, costly commitment, or repeat use | Independent organizations show recurrent measured consequences, inadequate status quo, buyer authority, payment, and second-cycle behavior |
+
+**INFERENCE.** The models are not mutually exclusive. A thesis becomes strategically useful only if evidence identifies the dominant, addressable constraint rather than relabeling every contributing cause as “contract pain.”
+
+### 14.10 Second-order effects and incentive tensions
+
+| Thesis | First-order intended change | Second-order/adaptive risk | Incentive or principal–agent tension |
+|---|---|---|---|
+| `T1` Renewal decision readiness | **HYPOTHESIS:** earlier contextual decision | More fields/alerts create maintenance and alert fatigue; suppliers respond to earlier negotiation | User maintains data, business owner bears service risk, finance captures savings, buyer may not reward avoided loss |
+| `T2` Contract-to-revenue continuity | **HYPOTHESIS:** faster/correct booking and fulfillment | Integration brittleness, false hard gates, or sales bypass when control slows booking | Sales values speed; legal/finance bear downstream risk; IT owns integration cost |
+| `T3` Change/acceptance evidence | **HYPOTHESIS:** protect billable scope and cash | Formal control can slow delivery/customer accommodation and encourage off-process email | Delivery protects relationship/speed; finance wants proof/margin; customer controls acceptance |
+| `T4` Family resolution | **HYPOTHESIS:** current governing answer | False certainty increases reliance/liability; completeness/review burden grows with family complexity | Requester wants fast answer; legal bears interpretation risk; buyer may prefer counsel for rare events |
+| `T5` Reviewed analysis | **HYPOTHESIS:** lower first-pass work | Automation bias, benchmark gaming, checklist fossilization, provider/data exposure, added review | Business wants speed; lawyer owns error; vendor gains usage; affected counterparty is outside the system |
+| `T6` Implementation assurance | **HYPOTHESIS:** catch defects before sunk cost | Adds another review layer, slows program, becomes checkbox theater, or expands consulting dependence | Buyer wants assurance, vendor/implementer wants scope/acceptance, critic may benefit from finding defects |
+| `H0` Process/status quo improvement | **HYPOTHESIS:** solve proportionately | Manual discipline decays, hidden person-dependence grows, and pain can surface only after a costly event | Organization avoids budget; owner absorbs maintenance; leadership may underprice tail risk |
+
+**VALUE JUDGMENT.** Primary validation must measure total work and displaced work, not only the focal step. A local time saving that creates more review, integration, data maintenance, or bypass behavior is not a validated outcome.
+
+### 14.11 Distinguishing-observation matrix for independent challenge
+
+This matrix supplies candidate cruxes; it does not preapprove Stage 4 thresholds.
+
+| Thesis | Observation favoring thesis over `H0` | Observation favoring another thesis/model | Strongest current objection |
+|---|---|---|---|
+| `T1` | Recent contextual renewal failure persists despite an existing reminder and causes auditable loss/delay | Missing owner alone explains it (`M2`); suite configuration fixes it (`M4`) | Existing register/cadence may be enough |
+| `T2` | Correct executed state fails at booking/provisioning and drives measured correction/delay | General revenue-process capacity, not contract state, is limiting | CRM/revenue suites already own this motion |
+| `T3` | Contractual change/acceptance evidence determines billability/cash in repeated episodes | Poor project management or customer dispute explains outcome | Sector-specific workflow may demand services/integration |
+| `T4` | Adding family context changes a consequential answer/action in recurring target cases | Human judgment time remains the constraint (`M6`) | High severity may coexist with low frequency/WTP |
+| `T5` | Blinded bounded-task result improves reviewer time without critical-error regression and repeats | Written checklist/process alone produces the gain | Crowded tools, review burden, trust/liability, low setup ROI |
+| `T6` | Prospective assurance changes implementation decisions and avoids later rework accepted by buyer | Existing implementer governance already catches the defects | Bespoke consulting with weak repeat purchase/defensibility |
+| `H0` | Process/ownership or existing-system change resolves the episode at lower total cost | Failure persists because cross-system/family evidence cannot be maintained | Status quo may hide rare but catastrophic loss |
+
+### 14.12 Thesis operating requirements and evidence verdicts
+
+#### T1 — Renewal decision control
+
+- **FACT — recent episode:** a procurement lead reported supplier contracts expiring or renewing on outdated terms under manual follow-up (`CFA-L` R04, dated 2026-01-23); the same parent thread includes a working Excel/Power Automate control (`R05`), so failure and status-quo sufficiency coexist.
+- **HYPOTHESIS — root cause:** decision context, lead time, ownership, and authority fail to converge before the notice window.
+- **INFERENCE — workaround persistence:** registers and reminders persist because they are cheap, legible, configurable, and already owned by procurement; replacing the reminder alone has little value.
+- **HYPOTHESIS — complete role map:** user = procurement/contracts analyst; pain-holder = business/finance owner; champion = procurement operations lead; buyer = CPO/CFO/COO; approver = spend/business owner and legal where notice interpretation matters; blocker = procurement-system owner, security/legal; implementation owner = procurement ops/enterprise applications.
+- **HYPOTHESIS — budget path:** supplier-risk, spend-management, or procurement-operations budget; buyer must connect a recent consequence to that line.
+- **HYPOTHESIS — promised transformation:** from date alert to timely, contextual, authorized renewal/non-renewal decision with notice proof.
+- **HYPOTHESIS — required behavior change:** owners must accept assignments, maintain usage/performance/context, make a decision before the notice date, and close evidence.
+- **INFERENCE — incumbent/null:** disciplined register + monthly review + existing suite automation is the strongest rival and may be sufficient.
+- **HYPOTHESIS — switching/admin/trust burden:** import current terms/dates, define lead-time logic and ownership, integrate spend/usage context, avoid alert fatigue, and prove notice mechanics without implying legal certainty.
+- **HYPOTHESIS — defensibility mechanism:** embedded renewal decision history and downstream spend/workflow integration could accumulate switching cost; current evidence proves neither unique access nor durable advantage.
+- **INFERENCE — evidence-strength verdict:** medium for workflow existence and status-quo variation; low for defined segment, consequence, buyer, WTP, and defensibility.
+
+#### T2 — Contract-to-revenue continuity
+
+- **FACT — recent/public episode:** GitLab's public operating handbook documents contract approval/execution as a control in booking and fulfillment; vendor-published medium-company cases describe CRM/finance continuity [CDR, §5](contracts-domain-research/researcher-memo.md#5-named-company-examples-what-is-actually-documented). No qualifying recent 51–500 US/UK independent episode exists.
+- **HYPOTHESIS — root cause:** nonstandard executed state is not transformed into the fields, exceptions, and evidence required by order, billing, provisioning, and delivery systems.
+- **INFERENCE — workaround persistence:** CRM/revenue suites, e-signature, shared storage, and manual review already sit in the revenue motion and have strong installed-system advantage.
+- **HYPOTHESIS — complete role map:** user = deal desk/RevOps/order management; pain-holder = finance/delivery/customer; champion = RevOps leader; buyer = CRO/COO/CFO; approver = legal/revenue accounting/finance; blocker = CRM/IT/security; implementation owner = RevOps systems/enterprise applications.
+- **HYPOTHESIS — budget path:** revenue operations, CRM, billing, or finance-transformation budget contingent on measurable booking/correction cost.
+- **HYPOTHESIS — promised transformation:** from executed PDF/manual interpretation to verified revenue-operating state with controlled exceptions.
+- **HYPOTHESIS — required behavior change:** legal/deal desk must structure approved deviations; receiving teams must consume/verify state; sales must respect exception gates.
+- **INFERENCE — incumbent/null:** native CRM/revenue-cloud contract/order workflow or better configuration is the strongest explanation and competitor.
+- **HYPOTHESIS — switching/admin/trust burden:** complex integration, master-data mapping, version/state reconciliation, revenue-control approval, and false-blocking risk can exceed value.
+- **HYPOTHESIS — defensibility mechanism:** deep embedded revenue integrations and accumulated exception mapping could create switching cost; suite vendors may own the same mechanism more strongly.
+- **INFERENCE — evidence-strength verdict:** high for enterprise workflow existence; medium for plausible cross-functional mechanism; low for independent mid-market consequence, budget, WTP, and standalone defensibility.
+
+#### T3 — Scope change, acceptance, and billing evidence
+
+- **FACT — recent/public episode:** Cardinal's 2025 filing, filed in 2026, reports change orders, claims, progress, billing, contract assets/liabilities, and loss-contract provisions as material operating/financial state [CDR, §5.4](contracts-domain-research/researcher-memo.md#54-size-unknown-and-therefore-not-counted-cardinal-infrastructure-group). It is not a 51–500 service-company episode.
+- **HYPOTHESIS — root cause:** delivery events, contractual change authority, customer acceptance, and finance evidence are fragmented, allowing work to proceed before it is contractually protected or billable.
+- **INFERENCE — workaround persistence:** project/PSA/ERP tools own delivery and finance data; email preserves customer interaction; teams may prefer commercial flexibility to formal controls.
+- **HYPOTHESIS — complete role map:** user = project/service manager or commercial manager; pain-holder = delivery margin owner/finance; champion = services operations leader; buyer = COO/CFO; approver = customer sponsor plus internal commercial/legal authority; blocker = delivery leadership/legal/finance systems; implementation owner = services ops/PSA/ERP team.
+- **HYPOTHESIS — budget path:** services operations, margin-improvement, PSA/ERP, or finance-control budget.
+- **HYPOTHESIS — promised transformation:** from informal scope/acceptance trail to authorized, evidenced, timely billable change or exception.
+- **HYPOTHESIS — required behavior change:** delivery must log deviations before work, route authority, request/record acceptance, and attach evidence used by finance.
+- **INFERENCE — incumbent/null:** disciplined project/change control inside PSA/ERP plus commercial training may solve the problem without another system.
+- **HYPOTHESIS — switching/admin/trust burden:** formalization can slow delivery, harm customer flexibility, duplicate project data, and require accounting/legal review of what “accepted” means.
+- **HYPOTHESIS — defensibility mechanism:** embedded project-to-contract-to-billing evidence and learned change patterns might accumulate integration/workflow advantage; sector-specific services could dominate.
+- **INFERENCE — evidence-strength verdict:** high for mechanism existence in enterprise/regulated contexts; low for target-segment recurrence, causal incidence, reachability, WTP, and scalable delivery.
+
+#### T4 — Governing agreement-family resolution
+
+- **FACT — recent/public episode:** a 2025 public-tender operator reported 300–1,200-page multi-file agreements whose appendices were split as contracts by a tested tool (`CFA-L` R53); an executed enterprise agreement directly demonstrates master/service/schedule/change-order hierarchy [CDR, §1.3](contracts-domain-research/researcher-memo.md#13-the-agreement-family-model).
+- **HYPOTHESIS — root cause:** incomplete family collection or unresolved precedence/effective period causes a stale/wrong governing premise before interpretation.
+- **INFERENCE — workaround persistence:** folder/search plus legal reconstruction is slow but flexible, preserves human judgment, and is purchased only when a consequential question arises.
+- **HYPOTHESIS — complete role map:** user = contracts manager/legal counsel; pain-holder = requesting operations/procurement/finance/security team; champion = legal ops/contracts leader; buyer = GC/COO/risk/procurement leader; approver = authorized legal/business decision maker; blocker = legal, privacy/security, records/data owner; implementation owner = legal ops/knowledge/data team.
+- **HYPOTHESIS — budget path:** legal operations, outside-counsel substitution, risk, diligence, or contract-operations budget tied to recurring family reconstruction.
+- **HYPOTHESIS — promised transformation:** from manual family search to reviewable current-source set and explicit unresolved precedence before a consequential decision.
+- **HYPOTHESIS — required behavior change:** teams must link related documents, record effective/supersession state, resolve gaps, and refuse confident answers when family completeness is uncertain.
+- **INFERENCE — incumbent/null:** counsel/manual reconstruction is a credible incumbent because qualified judgment and confidentiality are central and episode frequency may be low.
+- **HYPOTHESIS — switching/admin/trust burden:** migration/linking burden, access segmentation, privilege/confidentiality, false completeness, provenance, and legal-liability concerns are substantial.
+- **HYPOTHESIS — defensibility mechanism:** a trusted, corrected relationship/history graph with legitimate customer data rights might accumulate switching cost; vendor features and manual legal expertise are strong substitutes.
+- **INFERENCE — evidence-strength verdict:** high for legal/domain existence; medium for severe complex-case relevance; low for mid-market frequency, repeatability, WTP, safe automation, and defensibility.
+
+#### T5 — Constrained human-reviewed first pass
+
+- **FACT — recent episode:** 2025–2026 operators report changing classifications across runs, failed playbook-trained deployments, useful guideline/prompt-chain review, and useful NDA triage/basic extraction (`CFA-L` R30–R38). Outcomes are self-reported and not benchmarked.
+- **HYPOTHESIS — root cause:** repeated bounded review work contains enough stable guidance and evidence retrieval to support a first pass, while unconstrained judgment and cross-document semantics exceed reliable automation.
+- **INFERENCE — workaround persistence:** Word, checklists, manual review, and general models are accessible, counterparty-compatible, flexible, and avoid specialist-system setup at low volume.
+- **HYPOTHESIS — complete role map:** user = counsel/contracts analyst; pain-holder = legal team/business requester; champion = legal ops/innovation lead; buyer = GC/legal leader; approver = supervising counsel; blocker = privacy/security/legal-risk owner; implementation owner = legal ops/IT/model-governance owner.
+- **HYPOTHESIS — budget path:** legal productivity, outside-counsel, knowledge-management, or approved AI tooling budget, conditional on task volume and safety evidence.
+- **HYPOTHESIS — promised transformation:** from blank-page/manual first pass to evidence-linked candidate findings/redlines that a human can efficiently accept, correct, or reject.
+- **HYPOTHESIS — required behavior change:** legal must maintain written guidance, use a bounded eligible-task rule, review every consequential output, and feed corrections into evaluation rather than treating suggestions as authority.
+- **INFERENCE — incumbent/null:** checklist + Word + approved general model/manual review is the strongest low-cost rival; numerous specialist tools already claim adjacent workflows.
+- **HYPOTHESIS — switching/admin/trust burden:** benchmark creation, playbook maintenance, provider/data approval, nondeterminism, model change, review time, audit/provenance, and automation bias can erase benefit.
+- **HYPOTHESIS — defensibility mechanism:** proprietary rights to reviewer corrections and embedded team workflow could improve task-specific quality/trust; generic models and incumbent tools pressure both data access and differentiation.
+- **INFERENCE — evidence-strength verdict:** medium for conditional task usefulness and failure modes; low for causal performance, target volume, critical-error tolerance, budget/WTP, and durable advantage.
+
+#### T6 — Implementation assurance
+
+- **FACT — recent episode:** 2025 community reports include a failed 7,500-agreement migration and termination after a year (`CFA-L` R28), a successful five-year/50-workflow self-implementation (`R27`), and different buying decisions based partly on implementation/support cost (`R23`–`R26`).
+- **HYPOTHESIS — root cause:** decisions commit before process, data, user, integration, governance, and operating-capacity assumptions are tested jointly.
+- **INFERENCE — workaround persistence:** vendor services and experienced consultants possess product access, contractual responsibility, and implementation labor; buyers may not want another assurance party.
+- **HYPOTHESIS — complete role map:** user = legal ops/program lead; pain-holder = business users and executive sponsor; champion = transformation/program lead; buyer = GC/CIO/CPO; approver = steering committee/procurement; blocker = vendor, IT/security, functional leaders; implementation owner = internal program team plus vendor/partner.
+- **HYPOTHESIS — budget path:** transformation assurance, implementation, professional-services, or program-risk budget after a material acquisition decision.
+- **HYPOTHESIS — promised transformation:** from feature-led commitment to independently evidenced readiness, risk-adjusted scope, and testable acceptance before irreversible rollout.
+- **HYPOTHESIS — required behavior change:** sponsor and vendor must expose assumptions/data/processes, involve real users, accept adverse findings, stage commitments, and measure adoption/outcomes.
+- **INFERENCE — incumbent/null:** strong internal program governance or an experienced vendor/partner can perform the work; independent assurance may duplicate responsibility.
+- **HYPOTHESIS — switching/admin/trust burden:** access to sensitive portfolio/process data, stakeholder time, political conflict, schedule delay, unclear liability, and adviser independence are significant.
+- **HYPOTHESIS — defensibility mechanism:** cross-vendor benchmark/process corpus and trusted independent reputation could compound; confidentiality, bespoke context, and consultant competition limit data reuse and scale.
+- **INFERENCE — evidence-strength verdict:** medium for existence and severity of implementation variability; low for prospective causal prevention, repeatable unit economics, procurement access, repeat purchase, and defensibility.
+
+#### H0 — Proportionate status quo
+
+- **FACT — recent episode/counterexample:** a six-person scenario and procurement discussions report Drive, structured folders, spreadsheets, Power Automate, Planner, monthly review, and project boards as workable under some conditions (`CFA-L` R05, R10–R16, R39–R43, R54).
+- **HYPOTHESIS — root cause of apparent pain:** weak ownership/cadence or temporary growth friction is misclassified as a missing-product problem.
+- **INFERENCE — workaround persistence:** low license/switching cost, universal interfaces, local flexibility, and existing administrative ownership.
+- **HYPOTHESIS — complete role map:** current functional user/owner is also champion/implementation owner; existing budget owner approves process time or configuration; legal/security/IT retain normal veto without onboarding a new vendor.
+- **HYPOTHESIS — budget path:** existing labor, suite, counsel, or process-improvement budget; no new line is required.
+- **HYPOTHESIS — promised transformation:** enough reliability through clearer ownership, cadence, templates, and existing-system configuration.
+- **HYPOTHESIS — required behavior change:** leadership assigns ownership and review cadence; users maintain a minimum register/folder/system discipline.
+- **INFERENCE — incumbent strength:** maximal because it avoids procurement, migration, integration, data exposure, training, and another system of record.
+- **HYPOTHESIS — switching/admin/trust burden:** minimal new-vendor burden but continuing manual key-person, drift, audit, and tail-event risk.
+- **VALUE JUDGMENT — defensibility:** none is needed for `H0`; it is the opportunity-cost baseline.
+- **INFERENCE — evidence-strength verdict:** high that status quo can be sufficient in some contexts; low for the quantitative boundary where it stops being sufficient.
+
+### 14.13 Explain-stage open gaps
+
+- **OPEN GAP.** The six theses are not exhaustive; privacy/security incident obligations, employment onboarding/offboarding, and other archetypes have domain evidence but insufficient current demand evidence to justify equal primary-research priority.
+- **OPEN GAP.** No numerical prior or comparable startup reference class supports probability estimates for any thesis.
+- **OPEN GAP.** All mid-market thesis populations inherit the explicit 51–500 US/UK coverage failure.
+- **OPEN GAP.** No causal model has been identified against a counterfactual; all mechanisms remain hypotheses.
+- **OPEN GAP.** No thesis has primary buyer/budget evidence, costly WTP, second-cycle use, or defensibility evidence.
+- **OPEN GAP.** Exact pass/downweight/kill thresholds must be challenged independently before a test is run.
+
+### 14.14 Stage 3 gate audit
+
+| Rule | Result | Evidence |
+|---|---|---|
+| At least five distinct opportunity theses plus null | **PASS** | §§14.2–14.8 specify six distinct theses (`T1`–`T6`) plus `H0` |
+| Every thesis uses all ten workflow-level fields | **PASS** | Each thesis/null contains a ten-row unit table; unavailable evidence is labeled **OPEN GAP** or **HYPOTHESIS** |
+| Segment and geography are not silently inferred | **PASS** | Proposed populations are explicitly hypotheses; all mid-market theses carry the 51–500 US/UK coverage gap |
+| Distinct mechanisms, events, actors and consequences | **PASS** | Renewal decision, revenue handoff, SOW change/acceptance, family resolution, bounded review, and implementation assurance use different causal bottlenecks |
+| Status quo and rival explanations retained | **PASS** | §14.1 defines four mandatory rivals; §14.8 fully specifies `H0`; §14.9 gives seven competing models |
+| Each thesis makes a risky prediction | **PASS** | §§14.2–14.8 state one risky prediction and one rival-favoring observation per thesis |
+| Causal language remains hypothetical/counterfactual | **PASS** | §14.9 labels all mechanisms **HYPOTHESIS** and records observations that would lower belief |
+| Systems, second-order effects and incentives visible | **PASS** | §14.10 records adaptive risks and principal–agent tensions for every thesis/null |
+| Disconfirmers prepared without self-certifying Challenge | **PASS** | §14.11 supplies cruxes/objections and explicitly leaves threshold approval to the independent reviewer |
+| Recent episode, root cause and workaround persistence per thesis | **PASS** | §14.12 records one recent/public episode or explicit cohort gap, mechanism hypothesis, and incumbent persistence for `T1`–`T6` and `H0` |
+| Full role, budget, transformation and behavior-change model per thesis | **PASS** | §14.12 separates user, pain-holder, champion, buyer, approver, blocker, implementation owner, budget path, promised change, and required behavior |
+| Burden, defensibility and evidence verdict per thesis | **PASS** | §14.12 records switching/admin/trust burden, a named defensibility hypothesis, and evidence-strength limits for every thesis |
+| No winner, prevalence, WTP or defensibility claim | **PASS** | §14.13 preserves all four as open gaps; no comparative ranking is made |
+
+**Stage 3 result: PASS (13/13 rules).** Six distinct theses plus the null are ready for independent Challenge. Stage 4 remains **PENDING** and cannot be certified by this thesis proposer.
