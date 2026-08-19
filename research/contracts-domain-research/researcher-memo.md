@@ -121,3 +121,92 @@ No single lifecycle fits every transaction, but the following 13-stage operating
 **INFERENCE — High confidence.** The central post-signature data object should be an **action**, not a date: `{governing source; exact text; party; owner; beneficiary; action/right; trigger; condition; due/window; approval; dependencies; evidence; status; exception; escalation; reviewer; version}`. A date-only reminder cannot model “within 72 hours after confirmed incident,” “renew unless notice 90 days before,” “invoice after customer acceptance,” or “delete data at termination unless legally retained.”
 
 **OPEN GAP.** No public evidence establishes which subset of these fields creates enough value for Aakd's ICP to pay, or how much reviewer correction burden is tolerable. That requires representative agreement families and observed operating episodes.
+
+## 4. How the work changes with company size
+
+For this memo, **small = 1–50 employees**, **medium = 51–500**, and **enterprise = more than 500**. These are research bands, not universal legal or market definitions. Aakd's provisional ICP spans the medium band, with 51–200 and 201–500 retained separately in validation.
+
+| Dimension | Small (1–50) | Medium (51–500) | Enterprise (>500) |
+|---|---|---|---|
+| **Typical ownership** | Founder/owner, COO, HR or finance lead; legal often external or absent | First in-house counsel, legal/contract manager, RevOps/Deal Desk, procurement or functional operations; lean teams cover several roles | Separate legal, legal ops, procurement, deal desk, privacy, security, tax, revenue/accounting and contract-management roles |
+| **Intake** | Email, chat, shared drive; the requester may also approve/sign | CRM/procurement form or ticket plus email/Word; thresholds decide reviews | Structured intake by contract family, entity, region, value and risk; service levels and queues |
+| **Templates / negotiation** | Few templates; third-party paper is common; founder/external lawyer handles exceptions | Template suite and playbook emerge; business self-service for routine work; legal handles deviations | Many jurisdiction/product/entity templates, specialist clauses and negotiated customer/supplier paper |
+| **Approval and authority** | Informal or founder-centric; authority may be understood rather than documented | Spend/revenue/risk thresholds; functional and executive approvals; delegated authority begins | Formal authorization matrix, segregation of duties, board/reserved matters and audit evidence |
+| **Systems** | Email, Word/PDF, e-sign, Drive/Dropbox, calendar, accounting/HR | CRM + e-sign + shared storage + procurement/ERP/HRIS + spreadsheets; integration gaps are common | CLM/repository integrated with CRM, procurement, ERP, GRC, IAM, service/project and BI systems |
+| **Post-signature** | Human memory and calendar; owner may be the signer | Responsibility fragments across legal/ops/finance/delivery; obligation spreadsheets and renewal calendars emerge | Dedicated contract/vendor/customer managers, controls, scorecards, audits and formal change/exit processes—but scale creates data-quality and adoption problems |
+| **Main failure shape** | No process, missing document, unauthorized promise, forgotten deadline | Handoff and system fragmentation; lean owner becomes bottleneck; no complete agreement family | Control complexity, duplicate systems, inconsistent global processes, legacy migration and unclear local/global precedence |
+| **Proportionate solution** | Simple templates, e-sign, repository and reminders; full CLM can be excessive | Rapid intake, family-aware repository, reviewed action handoff and targeted integrations | Configurable governance, enterprise integrations, advanced access, migration, analytics and implementation capacity |
+
+**FACT — High confidence.** The UK Government's commercial standard explicitly says simple low-cost contracts may need no commercial-specialist support, while complex contracts should confirm a senior business owner, contract manager, commercial specialists and other roles during mobilisation. [GovS 008, §5.4.1](https://www.gov.uk/government/publications/government-functional-standard-govs-008-commercial-and-commercial-continuous-improvement-assessment-framework/government-functional-standard-govs-008-commercial-html)
+
+**FACT — Medium confidence.** ACC's maturity model says contract-management priorities and target maturity vary by department size, staffing and budget; its contract-management progression runs from ad hoc review toward defined ownership and increasingly integrated/managed practice. It is a practitioner benchmarking tool, not proof that every company follows the same progression. [ACC Legal Operations Maturity Model 2.0, republished 2025](https://www.acc.com/resource-library/acc-legal-operations-maturity-model-0); [ACC model PDF](https://www.acc.com/sites/default/files/program-materials/upload/Legal-Opertaitons-Maturity-Model-2.0---ACC.pdf)
+
+**INFERENCE — Medium confidence.** The 50–500 band is structurally attractive when contract complexity has outgrown founder memory and shared folders, but headcount has not funded a mature legal-operations programme. Headcount alone is a weak qualifier: contract volume, agreement-family complexity, regulated data, recurring triggers, and a funded owner matter more.
+
+## 5. Named company examples: what is actually documented
+
+These examples are **illustrative, not representative**. Small-company public evidence is particularly sparse and vendor-mediated. Workflow claims below stay within what the linked source documents.
+
+### 5.1 Small companies (two documented cases)
+
+#### SFG — 1–10 employees, Denmark; employment contracting
+
+**FACT — Medium confidence; vendor case study.** Contractbook classifies SFG, a cleaning-services company, as 1–10 employees. Its customer story says the HR manager replaced a paper-heavy employment-contract process with a digital workflow and reduced per-employee contract handling from roughly two hours to about ten minutes. This documents a high-frequency HR workflow owned by a functional operator, not a broad CLM deployment. The timing and savings are seller-published and not independently audited. [Contractbook / SFG customer story, accessed 2026-08-19](https://contractbook.com/customers/sfg)
+
+**INFERENCE — Medium confidence.** The value driver is repetitive generation and onboarding throughput. A complex obligation-intelligence system would likely be disproportionate unless SFG has additional contract families or compliance consequences that the case study does not disclose.
+
+#### Burd Delivery — 11–50 employees, Denmark; worker onboarding
+
+**FACT — Medium confidence; vendor case study.** Contractbook classifies Burd Delivery as 11–50 employees. The described flow begins when a recruit submits a web form: data populates a centrally controlled employment template; a human remains in the loop; signature triggers onboarding information and creation in the payroll system; executed contracts are centrally indexed. The story attributes at least 15 minutes saved per recruit to the workflow. [Contractbook / Burd Delivery customer story, accessed 2026-08-19](https://contractbook.com/customers/burd-delivery)
+
+**INFERENCE — High confidence.** This is a contract-triggered business process: execution is the event that authorizes downstream onboarding and payroll creation. The operational gain comes from validated structured data and event automation more than clause analytics.
+
+**OPEN GAP.** Neither small-company case is US/UK, and both are seller-published. They establish that small firms can have high-frequency contract workflows, but not that US/UK 1–50 employee firms will fund Aakd's post-signature wedge.
+
+### 5.2 Medium companies (four documented cases)
+
+#### Expo Pass — 50+ employees, Chicago, US; sell-side contracting
+
+**FACT — Medium confidence; vendor case study.** Juro classifies Expo Pass as 50+ and says the company grew from a handful of employees in 2018 to more than 50 in 2023. The case describes a file-centric e-sign/PDF process replaced by contract generation, approvals, execution, tracking and Salesforce-linked storage; uploaded counterparty PDFs can be tracked and the final version stored against Salesforce. It identifies the COO as an early process owner. [Juro / Expo Pass case study, accessed 2026-08-19](https://juro.com/case-studies/expo-pass)
+
+**Limitation.** “50+” proves the company crossed the medium threshold at the stated time but does not establish its precise 2026 headcount. The vendor's “business-critical” outcome quote is customer-attributed, not independently measured.
+
+#### Tibber — documented growth from 30 to 330; cross-functional repository and renewals
+
+**FACT — Medium confidence; vendor case study.** Juro reports Tibber grew from 30 to 330 employees in two years and hired a sole Head of Legal to build legal infrastructure. Contracts were in shared drives, email and personal desktops; the lawyer spent time searching and could not reliably track deadlines or renewals, while the CFO and Head of Quality also needed visibility. Active contracts running through e-sign affected partnerships, e-commerce, marketing and HR. [Juro / Tibber case study, accessed 2026-08-19](https://juro.com/case-studies/tibber)
+
+**INFERENCE — High confidence.** Tibber closely illustrates the proposed ICP transition: operational need reaches finance and quality, yet a sole lawyer is asked to create the system. The documented pain is retrieval and lifecycle visibility; the public story does not quantify missed-renewal loss or prove willingness to pay specifically for owned post-signature actions.
+
+#### Placemakr — 240+ employees, Washington, DC, US; sales/hospitality contracting
+
+**FACT — Medium confidence; vendor case study.** Juro classifies Placemakr as 240+ employees. Its sales and hospitality teams used HubSpot but moved across six tools to generate contracts. The company says the HubSpot integration and consolidated templates reduced manual edits, data entry and template search, and estimates a 50% reduction in time spent on contract creation/management; it also gained stage-level structured data. [Juro / Placemakr case study, accessed 2026-08-19](https://juro.com/case-studies/placemakr)
+
+**Limitation.** The time reduction is a customer estimate in vendor marketing, not a controlled measurement. It principally supports pre-signature self-service and CRM continuity, not Aakd's post-signature-action wedge.
+
+#### Lenus — 201–500 employees, Denmark; sales, HR and finance handoffs
+
+**FACT — Medium confidence; vendor case study.** Contractbook classifies Lenus as 201–500 employees and reports more than 10,000 annual contracts. The documented sell-side flow uses Salesforce stage data and a questionnaire to generate a country-specific agreement; the story says 95% proceed without legal touch. After signature, metadata is added to a data sheet and finance receives bank, contact and payment terms. Separately, Greenhouse and HiBob data generate country-specific employment contracts. [Contractbook / Lenus customer story, accessed 2026-08-19](https://contractbook.com/customers/lenus)
+
+**INFERENCE — High confidence.** Lenus demonstrates two different archetypes requiring different triggers and destinations: sell-side execution informs finance, while hiring data initiates employment documents. It supports integration and governed self-service, but the extreme volume and highly standardised agreements may not resemble lower-volume, higher-complexity ICP customers.
+
+### 5.3 Enterprise companies (three documented cases)
+
+#### GitLab — 2,375 team members at 2025-01-31; public sell-side and procurement workflows
+
+**FACT — High confidence; operator-authored handbook plus SEC size basis.** GitLab's FY2025 Form 10-K reports approximately 2,375 team members in 60 countries. Its public handbook documents the quote-to-cash path: Salesforce legal requests create assigned cases; versions and communications stay in the case; legal reviews template/customer paper above stated opportunity thresholds; an executable PDF gets a legal approval stamp; only authorized signatories may sign; DocuSign routes execution; Deal Desk, revenue, legal, order management and finance add reviews for non-standard paper before booking and licence fulfilment. [GitLab FY2025 Form 10-K, filed 21 March 2025](https://www.sec.gov/Archives/edgar/data/1653482/000162828025014344/gtlb-20250131.htm); [GitLab sales order processing handbook, accessed 2026-08-19](https://handbook.gitlab.com/handbook/sales/field-operations/order-processing/)
+
+**FACT — High confidence; operator-authored handbook.** On buy-side work, GitLab requires procurement engagement before terms are agreed or work begins; uses Zip for requests, renewals, changes and non-renewal notices; routes privacy, security and compliance reviews based on data/services; uses bid and negotiation thresholds; stores executed vendor contracts in Zip; and conducts quarterly rolling renewal reviews with business owners, beginning renewal work at least 90 days ahead. [GitLab procurement handbook, accessed 2026-08-19](https://handbook.gitlab.com/handbook/finance/procurement/); [GitLab contract storage handbook, updated 2025](https://handbook.gitlab.com/handbook/legal/vendor-contract-filing-process/)
+
+**INFERENCE — High confidence.** GitLab shows contracts acting as cross-system control gates: the approved version governs signature, the executed document gates revenue booking and fulfilment, and the vendor contract gates work, onboarding and payment. It also demonstrates why a generic “contract status” cannot replace role-specific controls.
+
+#### Sabre and DXC — enterprise outsourcing agreement family
+
+**FACT — High confidence; SEC-filed executed contract.** Sabre reported 4,650 employees at 2025-12-31. Its amended and restated MSA with DXC is direct evidence of an enterprise services relationship organised through master terms, service agreements, schedules, local-country agreements and change orders. It assigns governance, procedures, service levels/credits, reports, acceptance tests, security/privacy, continuity, invoices, disputed charges, IP, amendments, dispute resolution and termination assistance. [Sabre 2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/1597033/000162828026008800/sabr-20251231.htm); [Sabre–DXC MSA, SEC exhibit](https://www.sec.gov/Archives/edgar/data/1597033/000159703321000022/exhibit10103masterservices.htm)
+
+**INFERENCE — High confidence.** This agreement family would overwhelm a flat document/reminder model. Operational truth depends on hierarchy, country, service, schedule, change order, procedure and time. It is good evidence for Aakd's domain architecture, but it is poor evidence for the initial 50–500 go-to-market segment because its implementation burden is enterprise-grade.
+
+#### Cardinal Infrastructure Group — enterprise construction contract operations
+
+**FACT — High confidence; SEC filing.** Cardinal's 2025 Form 10-K describes monthly contract loss reviews considering performance, site conditions, profitability, claims and change orders; unapproved change orders affect when revenue and cost can be recognised; retainage and billing/progress timing create contract assets and liabilities. The company disclosed $135,647, $4,039,488 and $803,912 of loss-contract provisions for 2025, 2024 and 2023 respectively, and explained a $37.2 million year-over-year increase in contract assets in 2025. [Cardinal Infrastructure 2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm); [filed annual report, 24 April 2026](https://www.sec.gov/Archives/edgar/data/2079999/000119312526177474/2025_annual_report.pdf)
+
+**INFERENCE — High confidence.** Construction turns contract management into continuous financial and project control: scope and acceptance evidence determine change-order recovery, billing, revenue, cash and loss recognition. A renewal reminder would be largely irrelevant; change authority and evidence are the wedge.
