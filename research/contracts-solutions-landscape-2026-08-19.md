@@ -19,6 +19,14 @@ Claims are deliberately typed:
 
 “Public price” means an exact amount, currency, billing unit and billing period was visible on a first-party page on the access date. “Quote-only” means the official page explicitly routes the buyer to sales or omits an amount. No opaque quote is normalized into an annual or per-user figure. Taxes, onboarding, AI credits, storage, signature envelopes and overages are listed only when the source discloses them.
 
+### Community-evidence addendum
+
+The separate [community-feedback audit](contracts-community-feedback-audit-2026-08-19.md) adds a self-selected, mostly pseudonymous implementation layer to this report's first-party facts and vendor claims. Its [52-row source ledger](contracts-community-feedback-audit-2026-08-19/source-ledger.csv) contains positive, negative and status-quo counterexamples; it cannot establish prevalence, causal effect, product performance, market pricing or willingness to pay.
+
+The community evidence strengthens two inferences here: status-quo tools can be sufficient at low complexity, and implementation depends on process, migration, integration, ownership and adoption. It complicates a post-signature-first interpretation because negotiation and Word compatibility are also prominent. AI accounts are mixed: narrow, guided and human-reviewed tasks can help, while unconstrained review and legacy extraction can fail. Positive suite-integration accounts also disconfirm any assumption that standalone CLM is always superior.
+
+Five legacy positioning assertions are not carried into this landscape: “metadata is 95%” is an unmeasured anonymous opinion; “BYOK kills #1 objection” has no objection-ranking evidence; “portfolio Q&A nobody has” conflicts with documented current offerings and a suite-user account; “warm network only GTM” is outside the evidence; and “MCP positioning” had no organic operator-demand episode in the audited sample. Full provenance, contradictions, access failures and the explicit mid-sized US/UK coverage failure are recorded in the community audit.
+
 ## Executive synthesis
 
 1. **There are five competing object models, not one category.** **INFERENCE:** Word/Docs and e-signature products make the *document or signing envelope* primary; light CLMs make the *contract record plus dates* primary; workflow-first CLMs make the *request-to-signature process* primary; suite modules make a *deal, supplier, order or spend record* primary; the most ambitious enterprise platforms model *agreement families, obligations and operational performance*. This distinction predicts what happens after signature more reliably than an “end-to-end” label.
