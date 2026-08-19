@@ -1,6 +1,6 @@
 # Contract-management community feedback: provenance audit and evidence extension
 
-**Research cutoff:** 2026-08-19  
+**Research cutoff:** 2026-08-19
 **Status:** complete; rules-based audit below
 **Scope:** Public community evidence about contract work and contract-management solutions. This is a product-agnostic evidence audit, not a market-size estimate, product evaluation, or recommendation.
 
