@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stages 1–3 PASS; Stage 4 — independent Challenge pending
+**Status:** Stages 1–3 PASS; Stage 4 PASS for adversarial readiness only; Stage 5 not started
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -34,8 +34,8 @@ The analysis follows the exact sequence **frame → observe → explain → chal
 | 12 | Workflow–segment evidence table | Observe | Evidence for and against each fully specified unit | Pending |
 | 13 | Competing theses plus null | Explain | At least five distinct, falsifiable theses and H0 | Pending |
 | 14 | Causal, systems and incentive models | Explain | Mechanisms, counterfactuals, loops, delays, bottlenecks, second-order effects | Pending |
-| 15 | Disconfirmation and adversarial review | Challenge | Risky predictions, disconfirmers, strongest rival, independent critique | Pending; independent reviewer owns certification |
-| 16 | Premortem and failure register | Challenge | Adoption, displacement, gaming, review burden, incumbent response, implementation failure | Pending |
+| 15 | Disconfirmation and adversarial review | Challenge | Risky predictions, disconfirmers, strongest rival, independent critique | Complete via §15 and the independent review §§4–13 |
+| 16 | Premortem and failure register | Challenge | Adoption, displacement, gaming, review burden, incumbent response, implementation failure | Complete via §15 and the independent review §§14–15 |
 | 17 | Comparative decision table | Decide | Consequence, recurrence, urgency, reachability, status-quo adequacy, switching, burden, budget, evidence | Pending |
 | 18 | Opportunity-cost, VoI, reversibility and ruin analysis | Decide | Sensitivity, research value, commitment sizing, tail constraints | Pending |
 | 19 | Falsifiable validation protocols | Test | Per-thesis prediction, sample, evidence, WTP test, pass/downweight/kill, smallest test | Pending |
@@ -908,3 +908,80 @@ This matrix supplies candidate cruxes; it does not preapprove Stage 4 thresholds
 | No winner, prevalence, WTP or defensibility claim | **PASS** | §14.13 preserves all four as open gaps; no comparative ranking is made |
 
 **Stage 3 result: PASS (13/13 rules).** Six distinct theses plus the null are ready for independent Challenge. Stage 4 remains **PENDING** and cannot be certified by this thesis proposer.
+
+---
+
+## 15. Stage 4 — Independent Challenge integration
+
+### 15.1 Controlling review artifact and meaning of the gate
+
+**FACT.** A reviewer distinct from the thesis proposer evaluated Stage 3 at commit `fa17295`. The controlling artifact is [Adversarial review: contract-workflow opportunity theses](contract-workflow-opportunity-adversarial-review-2026-08-19.md).
+
+**VALUE JUDGMENT.** The independent reviewer assigns Stage 4 `PASS` only because each thesis now has a fair incumbent/null case and a frozen protocol capable of returning `KILL` [review §16](contract-workflow-opportunity-adversarial-review-2026-08-19.md#16-rule-based-stage-4-recommendation).
+
+**VALUE JUDGMENT.** This Stage 4 `PASS` means **adversarial readiness only**. It does not validate, rank, recommend, or select any opportunity thesis. `T1`–`T4` remain unvalidated; `T5` and `T6` carry current `KILL` dispositions; `H0` remains live.
+
+### 15.2 Independent dispositions
+
+The independent review controls any conflict with the thesis proposer's earlier wording.
+
+| Thesis | Independent disposition | Controlling rationale and protocol reference |
+|---|---|---|
+| `T1` | **UNVALIDATED; eligible only for the frozen test** | Renewal failure may be resolved by an owner/register/cadence control; no target-cohort recurrence, consequence, WTP, or defensibility exists. Apply the exact `T1` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `T2` | **UNVALIDATED; eligible only for the frozen test** | Native CRM/order controls and suite response are strong rivals; contract-caused downstream exceptions are not established in the target cohort. Apply the exact `T2` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `T3` | **UNVALIDATED; eligible only for the frozen test** | PSA/ERP/change-control adequacy, commercial discretion, customer delay, and formalization cost remain live explanations. Apply the exact `T3` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `T4` | **UNVALIDATED; eligible only for the frozen test** | Family resolution may be rare, legally risky, review-heavy, or an enabling subproblem within another workflow rather than an independent opportunity. Apply the exact `T4` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `T5` | **KILL AS WRITTEN** | It is a horizontal method and remains category-generic. It may re-enter only after **one task, one family, one jurisdictional scope, one authorized-reviewer role, and one critical-error taxonomy** are frozen before evidence collection. The exact entry and test conditions are the `T5` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `T6` | **KILL AS WRITTEN unless the frozen repeatability/non-consulting gate is cleared** | It must prove incremental findings, remediation, independent agreement, standardized delivery, and payment. More than half custom interpretation under the stated conditions supports bespoke consulting, not a repeatable thesis. Apply the exact `T6` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+| `H0` | **LIVE; must be tested, not assumed** | Process discipline/native-suite adequacy remains a competing mechanism. Its full cost and reliability must be measured under the exact `H0` row in [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols). |
+
+**VALUE JUDGMENT.** The seven protocol rows and their shared definitions in [review §12.1](contract-workflow-opportunity-adversarial-review-2026-08-19.md#121-rules-applying-to-every-row) are frozen before Stage 5. A `KILL` overrides; otherwise every `PASS` condition must hold; every other result is `DOWNWEIGHT`; missing data cannot pass; and post-result repair requires a new hypothesis and fresh sample.
+
+### 15.3 Cross-thesis corrections that govern later work
+
+**VALUE JUDGMENT.** The independent overlap audit imposes these controls [review §11](contract-workflow-opportunity-adversarial-review-2026-08-19.md#11-cross-thesis-overlap-audit):
+
+1. `T1` episodes caused by family-resolution failure cannot also count as independent support for `T4`.
+2. `T2` and `T3` share a post-signature information/authority continuity mechanism; keep denominators separate, but merge the mechanism if results do not differ by event, system, and actor.
+3. `T4` is independent only if family context changes the action at its frozen rate after ordinary handoff controls.
+4. `T5` cannot count as an independent opportunity while it is a horizontal method embedded in another workflow.
+5. `T6` remains outside the mid-market pool and is killed if predominantly bespoke or duplicated by normal vendor/PMO controls.
+6. Every operating thesis must run the process-first/native-suite control before attributing residual failure to a distinct opportunity.
+
+### 15.4 Premortem, trust controls, and objections retained
+
+**FACT.** The review premortem works backward from six failure headlines: positive interviews with no paid buyers; confidential or privileged material exposure; a fast wrong answer propagating downstream; suite vendors closing the gap; implementation assurance becoming founder-led consulting; and protocols expanding after anomalies [review §14](contract-workflow-opportunity-adversarial-review-2026-08-19.md#14-premortem-the-validation-program-has-failed).
+
+**VALUE JUDGMENT.** The frozen responses are mandatory: recruitment-channel caps; verified economic-buyer payment; written data authority and approved transfer/retention; dual review and correction-propagation logging where applicable; process/native-suite controls; the `T6` standardized-hours gate; unchanged denominators, exclusions, and error definitions; and fresh evidence for any reformulation.
+
+**FACT.** Twelve objections remain unresolved, including target-cohort frequency/consequence, hard WTP, process adequacy, suite displacement, family-resolution rarity/risk, total review burden, security/privilege/data veto, `T5` category definition, `T6` consulting risk, downstream gaming/bottleneck movement, US/UK differences, and user/buyer divergence [review §15](contract-workflow-opportunity-adversarial-review-2026-08-19.md#15-unresolved-objection-ledger).
+
+**OPEN GAP.** None of those objections is closed by Stage 4.
+
+### 15.5 Deliverable integration
+
+| Deliverable | Result | Indexed artifact evidence |
+|---|---|---|
+| `D15` Disconfirmation and adversarial review | **COMPLETE** | Independent review §§4–10 supplies seven steelmans, critiques, cruxes, and disconfirming tests; §§11–13 supply overlap and consolidated challenge controls. |
+| `D16` Premortem and failure register | **COMPLETE** | Independent review §§14–15 supplies the premortem, frozen responses, and unresolved-objection ledger. |
+
+**VALUE JUDGMENT.** Completion of `D15`/`D16` means the research artifacts exist and passed the Challenge readiness audit. It does not mean the risks were mitigated in operating evidence.
+
+### 15.6 Stage 4 integration gate audit
+
+| Integration rule | Result | Evidence |
+|---|---|---|
+| Independent review linked and identity boundary preserved | **PASS** | §15.1 links the separate artifact and records review of commit `fa17295` by a distinct reviewer |
+| Seven dispositions integrated without ranking | **PASS** | §15.2 contains exactly one row for `T1`–`T6` and `H0`; no winner is selected |
+| All seven frozen protocol rows referenced | **PASS** | Every disposition row links to the controlling §12.2 table; §15.2 also incorporates the shared §12.1 decision order |
+| `T1`–`T4` remain unvalidated | **PASS** | §15.2 preserves `UNVALIDATED; eligible only for the frozen test` for all four |
+| `T5` kill and re-entry boundary preserved | **PASS** | §15.2 retains `KILL AS WRITTEN` and all five required narrowing dimensions |
+| `T6` kill/repeatability boundary preserved | **PASS** | §15.2 retains `KILL AS WRITTEN unless` the frozen repeatability/non-consulting gate is cleared |
+| `H0` remains live and testable | **PASS** | §15.2 preserves the live null and its frozen protocol |
+| Overlap/double-counting rulings retained | **PASS** | §15.3 records all six controlling overlap consequences |
+| Premortem and unresolved objections retained | **PASS** | §15.4 links six failure headlines and twelve surviving objections |
+| `D15` and `D16` marked complete via indexed artifact set | **PASS** | §1 index and §15.5 agree on completion source and limits |
+| Adversarial-readiness meaning unambiguous | **PASS** | §15.1 says Stage 4 validates no thesis and authorizes no ranking or selection |
+| Stage 5 not started | **PASS** | Status header and this integration stop preserve the sequencing gate |
+
+**Stage 4 integration result: PASS (12/12 rules).** This is a pass of adversarial readiness only. No opportunity thesis has passed primary validation. Stage 5 has not started.
