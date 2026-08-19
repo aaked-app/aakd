@@ -188,6 +188,7 @@ describe("obligations portfolio responsive action queue", () => {
   it("keeps stats, filters, and search aligned to the same portfolio records", async () => {
     render(<ObligationsPage />)
 
+    await screen.findByRole("table", { name: "Obligation results" })
     const attention = await screen.findByRole("region", { name: "Obligation attention" })
     expect(within(attention).getAllByText("1")).toHaveLength(2)
 
