@@ -10,7 +10,8 @@ const SettingsSchema = z.object({
   syncOnActiveStage: z.string().max(200).nullable().optional(),
 })
 
-export async function PATCH(req: Request, { params }: { params: { provider: string } }) {
+export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

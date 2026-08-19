@@ -16,7 +16,7 @@ It supports contract storage and search, AI extraction and cited Q&A, renewals a
 
 ```text
 apps/web/
-  app/                 Next.js 14 App Router pages and API routes
+  app/                 Next.js 16 App Router pages and API routes
   components/          React UI (Tailwind CSS)
   lib/                 auth, Prisma, storage, AI, jobs, imports, CRM, editor, notifications
   prisma/schema.prisma Prisma schema and migrations
@@ -55,7 +55,7 @@ CI runs Prisma generation, type checking, linting, tests, and a production build
 
 ## Architecture and non-negotiable boundaries
 
-- **Framework/UI:** Next.js 14 App Router, React 18, TypeScript strict mode, Tailwind CSS. Keep server/client boundaries explicit.
+- **Framework/UI:** Next.js 16 App Router, React 19, TypeScript strict mode, Tailwind CSS. Keep server/client boundaries explicit.
 - **Data:** PostgreSQL 16 with pgvector through Prisma 7. Schema and migrations live in `apps/web/prisma/`.
 - **Auth:** Better Auth supports browser sessions and `Authorization: Bearer cf_live_...` API keys. Raw API keys are never stored: use SHA-256 lookup hashes and bcrypt key hashes.
 - **Multi-tenancy:** `resolveAuth(req)` returns the authenticated organization context. Protected API handlers must authenticate first and execute organization-scoped database work inside `requestContext.run(ctx, async () => ...)`. The Prisma extension in `lib/db/client.ts` injects scope for direct-org models, but it is not permission to bypass route-level authorization or relationship checks.

@@ -10,8 +10,9 @@ const ROLES_CAN_SYNC = new Set(["admin", "legal"])
 
 export async function POST(
   req: Request,
-  { params }: { params: { provider: string; contractId: string } },
+  props: { params: AsyncRouteParams<{ provider: string; contractId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

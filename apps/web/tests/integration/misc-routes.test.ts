@@ -93,6 +93,10 @@ vi.mock("pdf-parse", () => ({
   default: vi.fn().mockResolvedValue({ text: "Extracted PDF text" }),
 }))
 
+vi.mock("openai", () => ({
+  default: vi.fn(),
+}))
+
 // mammoth — mock to avoid binary loading
 vi.mock("mammoth", () => ({
   extractRawText: vi.fn().mockResolvedValue({ value: "Extracted DOCX text" }),
@@ -115,6 +119,8 @@ import { ensureFreshToken } from "@/lib/crm/route-helpers"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { isZipBuffer } from "@/lib/types/import-helpers"
 import { resolveAiConfig } from "@/lib/ai/resolve"
+import OpenAI from "openai"
+import pdfParse from "pdf-parse"
 
 function resetMockQueues() {
   vi.mocked(resolveAuth).mockReset()
@@ -432,6 +438,50 @@ describe("POST /api/contracts/extract-preview", () => {
     expect(body.error).toBe("ai_unavailable")
 
     if (saved !== undefined) process.env.OPENAI_API_KEY = saved
+  })
+
+  it("keeps an explicit renewal clause when a preview provider contradicts it", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(resolveAiConfig).mockResolvedValueOnce({
+      provider: "openai",
+      apiKey: "test-key",
+      model: "test-model",
+      source: "env",
+    })
+    vi.mocked(pdfParse).mockResolvedValueOnce({
+      text: "This agreement automatically renews unless either party gives 45 days written notice.",
+    } as never)
+    const create = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ autoRenewal: false, noticePeriodDays: 0 }) } }],
+    })
+    vi.mocked(OpenAI).mockImplementationOnce(function () {
+      return { chat: { completions: { create } } }
+    } as never)
+
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const fd = new FormData()
+    fd.append("file", new File([Buffer.from([0x25, 0x50, 0x44, 0x46])], "renewal.pdf", { type: "application/pdf" }))
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ autoRenewal: true, noticePeriodDays: 45 })
+  })
+
+  it("does not turn conditional or negated renewal language into an affirmative preview", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(resolveAiConfig).mockResolvedValueOnce({ provider: "openai", apiKey: "test-key", model: "test-model", source: "env" })
+    vi.mocked(pdfParse).mockResolvedValueOnce({ text: "This agreement may automatically renew with written consent." } as never)
+    const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ autoRenewal: true }) } }] })
+    vi.mocked(OpenAI).mockImplementationOnce(function () { return { chat: { completions: { create } } } as never } as never)
+
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const fd = new FormData()
+    fd.append("file", new File([Buffer.from([0x25, 0x50, 0x44, 0x46])], "conditional.pdf", { type: "application/pdf" }))
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.autoRenewal).toBeUndefined()
   })
 })
 

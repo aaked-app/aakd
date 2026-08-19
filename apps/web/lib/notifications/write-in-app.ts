@@ -13,8 +13,15 @@
  * The `Notification` model is intentionally NOT in ORG_SCOPED_MODELS, so
  * these helpers are safe to call with or without an active request context.
  */
-import { prisma } from "@/lib/db/client"
+import type { PrismaClient } from "@prisma/client"
 import { logger } from "@/lib/logger"
+
+type NotificationClient = Pick<PrismaClient, "member" | "notification">
+
+async function getDefaultNotificationClient(): Promise<NotificationClient> {
+  const { prisma } = await import("@/lib/db/client")
+  return prisma
+}
 
 /**
  * Write a single in-app notification row. Errors are caught and logged —
@@ -27,8 +34,10 @@ export async function writeInApp(
   eventName: string,
   title: string,
   body: string,
+  db?: NotificationClient,
 ): Promise<void> {
   try {
+    const prisma = db ?? await getDefaultNotificationClient()
     await prisma.notification.create({
       data: { userId, organizationId, contractId, eventName, title, body },
     })
@@ -48,8 +57,10 @@ export async function writeInAppToOrgMembers(
   title: string,
   body: string,
   excludeUserId?: string,
+  db?: NotificationClient,
 ): Promise<void> {
   try {
+    const prisma = db ?? await getDefaultNotificationClient()
     const members = await prisma.member.findMany({
       where: { organizationId, role: { in: ["legal", "admin", "owner"] } },
       select: { userId: true },
@@ -57,7 +68,7 @@ export async function writeInAppToOrgMembers(
     await Promise.all(
       members
         .filter((m) => m.userId !== excludeUserId)
-        .map((m) => writeInApp(m.userId, organizationId, contractId, eventName, title, body)),
+        .map((m) => writeInApp(m.userId, organizationId, contractId, eventName, title, body, prisma)),
     )
   } catch (err) {
     logger.error({ err, eventName, organizationId }, "[in-app] org-wide notification write failed")

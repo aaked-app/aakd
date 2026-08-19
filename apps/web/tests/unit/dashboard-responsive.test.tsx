@@ -236,6 +236,30 @@ describe("DashboardPage responsive workspace summary", () => {
     expect(overdue).not.toHaveTextContent(/^0$/)
   })
 
+  it("pairs every workspace signal with a decorative visual cue without replacing its label", async () => {
+    render(<DashboardPage />)
+
+    await screen.findByRole("table", { name: message("dashboard", "recentContracts") })
+    for (const label of [
+      message("dashboard", "overdueObligations"),
+      message("dashboard", "dueSoonObligations"),
+      message("dashboard", "expiringSoon"),
+      message("dashboard", "pendingApprovals"),
+    ]) {
+      const signal = screen.getByText(label).closest("article")
+      expect(signal).toBeTruthy()
+      expect(signal?.querySelector("svg[aria-hidden='true']")).toBeTruthy()
+    }
+  })
+
+  it("makes the retry affordance visually recognizable while preserving its accessible label", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 503 })))
+    render(<DashboardPage />)
+
+    const retry = await screen.findByRole("button", { name: message("dashboard", "retry") })
+    expect(retry.querySelector("svg[aria-hidden='true']")).toBeTruthy()
+  })
+
   it("shows the recoverable error state for a malformed successful analytics response", async () => {
     installSuccessfulFetch({
       analytics: { ...summary, expiringSoon: undefined } as unknown as AnalyticsSummary,
@@ -313,6 +337,16 @@ describe("DashboardPage responsive workspace summary", () => {
     expect(screen.getByText("Human reviewed")).toBeInTheDocument()
     expect(screen.getByText("Suggestion confidence: 82%")).toBeInTheDocument()
     expect(screen.queryByText(/source excerpt/i)).not.toBeInTheDocument()
+    expect(action.closest("li")?.querySelectorAll("svg[aria-hidden='true']").length).toBeGreaterThanOrEqual(5)
+  })
+
+  it("gives an empty priority-work queue a calm ready cue without confusing it with a load failure", async () => {
+    installSuccessfulFetch({ actions: [] })
+    render(<DashboardPage />)
+
+    const readyState = await screen.findByText(message("dashboard", "noAgreementWork"))
+    expect(readyState.closest("div")?.querySelector("svg[aria-hidden='true']")).toBeTruthy()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
   it("hides the new-contract mutation from a viewer while preserving read-only dashboard links", async () => {

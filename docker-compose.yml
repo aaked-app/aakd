@@ -93,6 +93,9 @@ services:
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env (generate with: openssl rand -base64 32)}"
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # Health and server-side self-requests must stay inside the Compose
+      # network rather than using the public browser URL.
+      INTERNAL_APP_URL: http://app:3000
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: clauseflow
       STORAGE_ACCESS_KEY: minioadmin

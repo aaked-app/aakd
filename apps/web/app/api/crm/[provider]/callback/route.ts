@@ -35,7 +35,7 @@ function appBase(): string {
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.BETTER_AUTH_URL ??
     "http://localhost:3000"
-  ).replace(/\/$/, "")
+  ).replace(/\/$/, "");
 }
 
 function settingsRedirect(provider: string, query: string): Response {
@@ -48,7 +48,8 @@ function settingsRedirect(provider: string, query: string): Response {
   })
 }
 
-export async function GET(req: Request, { params }: { params: { provider: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

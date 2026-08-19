@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
+import { Suspense } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import ActionDetailPage from "@/app/(app)/actions/[id]/page"
 import en from "@/messages/en.json"
@@ -18,6 +19,16 @@ function translate(namespace: string, key: string, values?: Record<string, unkno
   return Object.entries(values ?? {}).reduce((result, [name, replacement]) => result.replaceAll(`{${name}}`, String(replacement)), value)
 }
 const actionQueueTranslator = (key: string, values?: Record<string, unknown>) => translate("actionQueue", key, values)
+
+async function renderActionPage() {
+  await act(async () => {
+    render(
+      <Suspense fallback={null}>
+        <ActionDetailPage params={Promise.resolve({ id: "action-1" })} />
+      </Suspense>,
+    )
+  })
+}
 
 vi.mock("next-intl", () => ({
   useLocale: () => locale,
@@ -60,7 +71,7 @@ describe("Action detail approval and role presentation", () => {
   for (const language of ["en", "ar"] as const) {
     it(`renders lowercase approved context without missing ${language} messages`, async () => {
       locale = language
-      render(<ActionDetailPage params={{ id: "action-1" }} />)
+      await renderActionPage()
       expect(await screen.findByText(action.title)).toBeInTheDocument()
       expect(screen.getByText(translate("actionQueue", "approvalStatuses.approved"))).toBeInTheDocument()
       expect(screen.getByRole("button", { name: translate("actionQueue", "complete") })).toBeEnabled()
@@ -69,7 +80,7 @@ describe("Action detail approval and role presentation", () => {
 
   it("shows viewers a read-only explanation instead of mutation controls", async () => {
     role = "viewer"
-    render(<ActionDetailPage params={{ id: "action-1" }} />)
+    await renderActionPage()
     expect(await screen.findByText(action.title)).toBeInTheDocument()
     expect(screen.getByText(translate("actionQueue", "readOnly"))).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: translate("actionQueue", "complete") })).not.toBeInTheDocument()
@@ -78,7 +89,7 @@ describe("Action detail approval and role presentation", () => {
   it("redirects without reading action data when the UI rollout flag is off", async () => {
     process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED = "false"
     const fetchMock = vi.mocked(fetch)
-    render(<ActionDetailPage params={{ id: "action-1" }} />)
+    await renderActionPage()
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"))
     expect(fetchMock).not.toHaveBeenCalled()

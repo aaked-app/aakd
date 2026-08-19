@@ -14,7 +14,13 @@ Authenticate via the web UI. Session cookies are set automatically.
 Authorization: Bearer cf_live_<your-api-key>
 ```
 
-API keys are created in **Settings → API Keys**. Keys are scoped to an org and support `read` or `read_write` scopes. Mutation endpoints (POST, PATCH, DELETE) require `read_write` scope.
+API keys are created in **Settings → API Keys**. Keys are scoped to an organization and use one or more of these scopes:
+
+- `read`: metadata and non-sensitive read endpoints
+- `text_read`: permission to read extracted contract text/content where supported
+- `write`: permission for mutations; the Settings UI combines this with the read scopes for a full read/write key
+
+Mutation endpoints (POST, PATCH, DELETE) require the `write` scope. A key is shown only once when it is created.
 
 ---
 
@@ -53,7 +59,10 @@ GET /api/contracts
       "currency": "USD",
       "startDate": "2026-01-01T00:00:00.000Z",
       "endDate": "2027-01-01T00:00:00.000Z",
+      "renewalDate": "2026-12-01T00:00:00.000Z",
+      "noticePeriodDays": 30,
       "autoRenewal": false,
+      "renewalReminderEnabled": true,
       "owner": { "id": "usr_123", "name": "Jane Smith", "email": "jane@example.com" },
       "tags": [{ "id": "tag_1", "name": "Enterprise" }],
       "folder": { "id": "fld_1", "name": "Customers" },
@@ -76,7 +85,7 @@ GET /api/contracts
 POST /api/contracts
 ```
 
-Requires `read_write` scope. Rate limited to 20 requests/minute per org.
+Requires the `write` scope. Rate limited to 20 requests/minute per org.
 
 **Request body:**
 ```json
@@ -93,6 +102,7 @@ Requires `read_write` scope. Rate limited to 20 requests/minute per org.
   "renewalDate": "2026-12-01",
   "noticePeriodDays": 30,
   "autoRenewal": false,
+  "renewalReminderEnabled": true,
   "notes": "Signed after Q4 negotiation.",
   "folderId": "fld_1",
   "tagIds": ["tag_1", "tag_2"]
@@ -136,7 +146,7 @@ Returns 404 if the contract does not exist or belongs to another org.
 PATCH /api/contracts/:id
 ```
 
-Requires `read_write` scope. All fields are optional.
+Requires the `write` scope. All fields are optional.
 
 **Request body:** Same fields as create (all optional). Setting `folderId: null` removes the folder assignment.
 
@@ -162,7 +172,7 @@ ARCHIVED → (none — terminal)
 DELETE /api/contracts/:id
 ```
 
-Requires `read_write` scope. Soft-delete — sets status to `ARCHIVED`. Returns 409 if already archived.
+Requires the `write` scope. Soft-delete — sets status to `ARCHIVED`. Returns 409 if already archived.
 
 **Response 204:** No content.
 
@@ -174,7 +184,7 @@ Requires `read_write` scope. Soft-delete — sets status to `ARCHIVED`. Returns 
 POST /api/contracts/:id/upload
 ```
 
-Requires `read_write` scope. Accepts `multipart/form-data` with a `file` field.
+Requires the `write` scope. Accepts `multipart/form-data` with a `file` field.
 
 - Accepted formats: PDF, DOCX (validated by magic bytes)
 - Max file size: 50 MB
@@ -256,7 +266,7 @@ Returns all AI-extracted metadata fields awaiting human review.
 PATCH /api/contracts/:id/extractions
 ```
 
-Requires `read_write` scope. Accept or reject an extracted field.
+Requires the `write` scope. Accept or reject an extracted field.
 
 **Request body:**
 ```json
@@ -302,7 +312,7 @@ GET /api/contracts/:id/activity
 POST /api/contracts/:id/approvals
 ```
 
-Requires `read_write` scope.
+Requires the `write` scope.
 
 ```json
 { "assignedToId": "usr_456", "message": "Please review before signing." }
@@ -335,7 +345,7 @@ PATCH /api/contracts/:id/approvals/:approvalId
 POST /api/contracts/:id/sign
 ```
 
-Requires `read_write` scope. Creates a DocuSeal submission and returns a signing URL.
+Requires the `write` scope. Creates a DocuSeal submission and returns a signing URL.
 
 **Response 200:**
 ```json
@@ -401,19 +411,19 @@ GET /api/folders
 ```
 POST /api/folders
 ```
-Requires `read_write` scope. Body: `{ "name": "Customers" }` (max 255 chars).
+Requires the `write` scope. Body: `{ "name": "Customers" }` (max 255 chars).
 
 ### Update folder
 ```
 PATCH /api/folders/:id
 ```
-Requires `read_write` scope. Body: `{ "name": "Enterprise Customers" }`
+Requires the `write` scope. Body: `{ "name": "Enterprise Customers" }`
 
 ### Delete folder
 ```
 DELETE /api/folders/:id
 ```
-Requires `read_write` scope. Returns 400 if folder has contracts assigned.
+Requires the `write` scope. Returns 400 if folder has contracts assigned.
 
 ---
 
@@ -428,7 +438,7 @@ GET /api/tags
 ```
 POST /api/tags
 ```
-Requires `read_write` scope. Body: `{ "name": "Enterprise", "color": "#3B82F6" }` (hex color, optional).
+Requires the `write` scope. Body: `{ "name": "Enterprise", "color": "#3B82F6" }` (hex color, optional).
 
 ### Update tag
 ```
@@ -453,7 +463,7 @@ GET /api/org
 ```
 PATCH /api/org
 ```
-Requires `read_write` scope + admin role. Body: `{ "name": "Acme Legal" }`
+Requires the `write` scope + admin role. Body: `{ "name": "Acme Legal" }`
 
 ---
 
@@ -496,16 +506,22 @@ Returns key metadata only — raw key values are never returned after creation.
 ```
 POST /api/org/api-keys
 ```
-Admin only. Body: `{ "name": "CI Pipeline", "scope": "read" | "read_write" }`
+Admin only. Body: `{ "name": "CI Pipeline", "scopes": ["read"] }`.
+
+For a read/write integration use `{ "name": "CI Pipeline", "scopes": ["read", "text_read", "write"] }`.
 
 **Response 201:**
 ```json
 {
-  "id": "key_1",
-  "name": "CI Pipeline",
-  "key": "cf_live_abc123...",
-  "scope": "read_write",
-  "createdAt": "2026-01-01T00:00:00.000Z"
+  "apiKey": {
+    "id": "key_1",
+    "name": "CI Pipeline",
+    "prefix": "cf_live_abc123",
+    "scopes": ["read", "text_read", "write"],
+    "expiresAt": null,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "rawKey": "cf_live_abc123..."
 }
 ```
 
@@ -516,6 +532,14 @@ Admin only. Body: `{ "name": "CI Pipeline", "scope": "read" | "read_write" }`
 DELETE /api/org/api-keys/:id
 ```
 Admin only.
+
+**Example request using a key**
+```bash
+curl https://your-aakd-host.example/api/contracts \\
+  -H 'Authorization: Bearer cf_live_...'
+```
+
+Use a key containing `read`, `text_read`, and `write` for an agent that must read contract content and create or update records. Keep the raw key in a secret manager; it cannot be recovered from Aakd after the creation dialog is closed.
 
 ---
 

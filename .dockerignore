@@ -12,3 +12,5 @@ node_modules
 **/*.log
 **/.worker-dist
 **/.playwright-mcp
+apps/web/tmp
+apps/web/private

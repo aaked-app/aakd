@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test"
+import { expect, request as playwrightRequest, test, type Page, type TestInfo } from "@playwright/test"
 
 import en from "@/messages/en.json"
 import ar from "@/messages/ar.json"
@@ -297,6 +297,49 @@ test.describe("Priority 2 authenticated visual matrix", () => {
   for (const route of priorityTwoAuthenticated) {
     test(route.name, async ({ page }, testInfo) => verifyRoute(page, testInfo, route))
   }
+
+  test("creates, uses, and revokes an API key", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "en-desktop", "Run once against the seeded English desktop workspace")
+
+    await page.addInitScript(() => localStorage.setItem("cf_onboarding_done", "1"))
+    await page.goto("/settings/api-keys")
+    await expect(page.getByRole("heading", { name: "API Keys" })).toBeVisible()
+    await page.getByRole("button", { name: "Create new key" }).click()
+    const keyName = `E2E API key lifecycle ${Date.now()}`
+    await page.getByLabel("Key name").fill(keyName)
+    const createResponse = page.waitForResponse((response) => response.url().endsWith("/api/org/api-keys") && response.request().method() === "POST")
+    await page.getByRole("button", { name: "Create key" }).click()
+    expect((await createResponse).status()).toBe(201)
+
+    const rawKeyInput = page.locator('input[readonly]').first()
+    await expect(rawKeyInput).toBeVisible({ timeout: 15_000 })
+    const rawKey = await rawKeyInput.inputValue()
+    expect(rawKey).toMatch(/^cf_live_/)
+    await page.getByRole("button", { name: "Done" }).click()
+
+    const api = await playwrightRequest.newContext({ baseURL: testInfo.project.use.baseURL ?? "http://localhost:3000" })
+    try {
+      const readResponse = await api.get("/api/contracts", {
+        headers: { Authorization: `Bearer ${rawKey}` },
+      })
+      expect(readResponse.status()).toBe(200)
+
+      page.once("dialog", (dialog) => dialog.accept())
+      const revokeResponse = page.waitForResponse((response) => response.url().includes("/api/org/api-keys/") && response.request().method() === "DELETE")
+      const keyCard = page.getByText(keyName, { exact: true }).locator("..").locator("..")
+      await keyCard.getByRole("button", { name: "Revoke" }).click()
+      expect((await revokeResponse).status()).toBe(204)
+      await expect(page.getByText(keyName, { exact: true })).toBeVisible()
+
+      const revokedResponse = await api.get("/api/contracts", {
+        headers: { Authorization: `Bearer ${rawKey}` },
+        maxRedirects: 0,
+      })
+      expect(revokedResponse.status()).toBe(401)
+    } finally {
+      await api.dispose()
+    }
+  })
 })
 
 test.describe("Priority 2 public visual matrix", () => {

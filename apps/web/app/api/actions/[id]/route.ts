@@ -62,7 +62,8 @@ async function findAction(id: string, organizationId: string, includeSourceText:
   })
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -74,7 +75,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   })
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

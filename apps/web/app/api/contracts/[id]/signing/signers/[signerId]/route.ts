@@ -10,10 +10,8 @@ function hasRole(role: string, minimumRole: string): boolean {
   return (hierarchy[role] ?? 0) >= (hierarchy[minimumRole] ?? 0)
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string; signerId: string } },
-) {
+export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ id: string; signerId: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

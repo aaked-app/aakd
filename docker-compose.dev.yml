@@ -26,7 +26,9 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - miniodata_dev:/data
-    ports:
+    # Compose otherwise appends this list to the base 9000/9001 mappings,
+    # defeating the development overlay's isolated ports.
+    ports: !override
       - "9010:9000"
       - "9011:9011"
 
@@ -43,6 +45,9 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres@db:5432/clauseflow
       REDIS_URL: redis://redis:6379
+      # Shared jobs live at /app/worker while dependencies are installed in
+      # the web workspace, so make that workspace available to Node lookup.
+      NODE_PATH: /app/apps/web/node_modules
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: clauseflow
       STORAGE_ACCESS_KEY: minioadmin
@@ -53,10 +58,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      # Email (optional — notifications still fire via in-app/Slack without this)
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
+      # Local-only SMTP sink for exercising delivery without a real provider.
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@clauseflow.io}
@@ -70,6 +75,14 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+
+  # The base image defaults to production mode. Local URLs are intentionally
+  # HTTP, so run the local overlay in development mode; production Compose
+  # supplies HTTPS public URLs and keeps NODE_ENV=production.
+  app:
+    environment:
+      NODE_ENV: development
+      RUNTIME_NODE_ENV: development
 
   # Distributed tracing UI — http://localhost:16686 (enable with OTEL_ENABLED=true)
   jaeger:

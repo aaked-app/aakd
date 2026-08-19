@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ObligationSheet } from "@/components/obligations/obligation-sheet"
 
@@ -43,6 +43,10 @@ vi.mock("next-intl", () => ({
 }))
 
 describe("obligation editor presentation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it("uses the same structured record sheet as contract editing", () => {
     render(
       <ObligationSheet
@@ -62,5 +66,27 @@ describe("obligation editor presentation", () => {
     expect(screen.getByRole("heading", { name: "Plan and ownership" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Source context" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Create obligation" })).toHaveClass("min-h-11")
+  })
+
+  it("keeps saving feedback beside the editor actions while a request is in flight", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)))
+    render(
+      <ObligationSheet
+        open
+        onOpenChange={vi.fn()}
+        contractId="contract-1"
+        obligation={null}
+        members={[]}
+        onSaved={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "Prepare renewal notice" } })
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-09-01" } })
+    fireEvent.submit(screen.getByRole("form", { name: "New obligation" }))
+
+    expect(screen.getByRole("status")).toHaveTextContent("saving")
+    expect(screen.getByRole("button", { name: "saving" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "closeEditor" })).toBeDisabled()
   })
 })

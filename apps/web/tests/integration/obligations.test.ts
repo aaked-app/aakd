@@ -1518,7 +1518,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     )
   })
 
-  it("returns 422 when no AI provider is configured", async () => {
+  it("queues deterministic extraction when no AI provider is configured", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     const originalProvider = process.env.AI_PROVIDER
@@ -1529,6 +1529,8 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.OPENAI_API_KEY
     delete process.env.OLLAMA_BASE_URL
+    const { obligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(obligationExtractQueue.add).mockResolvedValueOnce({ id: "local-job" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
@@ -1541,9 +1543,14 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     if (originalAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = originalAnthropic
     if (originalOpenai !== undefined) process.env.OPENAI_API_KEY = originalOpenai
     if (originalOllama !== undefined) process.env.OLLAMA_BASE_URL = originalOllama
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.error).toBe("no_ai_provider")
+    expect(body.jobId).toBe("local-job")
+    expect(obligationExtractQueue.add).toHaveBeenCalledWith(
+      "extract",
+      expect.objectContaining({ sourceHash: expect.any(String) }),
+      expect.objectContaining({ jobId: expect.stringMatching(/^initial-obligation-extract:contract-1:/) }),
+    )
   })
 
   it("returns 200 with jobId when extraction is enqueued", async () => {
@@ -1563,6 +1570,22 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.jobId).toBe("job-abc")
+  })
+
+  it("removes a completed job before intentionally retrying the same document", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const priorJob = { id: "old-job", getState: vi.fn().mockResolvedValue("completed"), remove: vi.fn().mockResolvedValue(undefined) }
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    const queue = { getJob: vi.fn().mockResolvedValue(priorJob), add: vi.fn().mockResolvedValue({ id: "new-job" }) }
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce(queue as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: { id: "contract-1" } })
+
+    expect(res.status).toBe(200)
+    expect(priorJob.remove).toHaveBeenCalledOnce()
+    expect(await res.json()).toEqual({ jobId: "new-job" })
   })
 })
 
@@ -1658,6 +1681,26 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ state: "not_found" })
+  })
+
+  it("uses current pending database candidates instead of a completed job's cached return value", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.contractObligationSuggestion.findMany).mockResolvedValueOnce([{ id: "current", title: "Current pending" }] as any)
+    const sourceHash = (await import("node:crypto")).createHash("sha256").update(mockContract.extractedText).digest("hex")
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-1", organizationId: "org-1", sourceHash },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ id: "old", title: "Accepted old candidate" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await GET(new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"), { params: { id: "contract-1" } })
+
+    expect(await res.json()).toEqual({ state: "completed", suggestions: [{ id: "current", title: "Current pending" }] })
   })
 })
 

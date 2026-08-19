@@ -199,6 +199,19 @@ describe("renewals responsive attention queue", () => {
     expect(screen.getAllByRole("link", { name: /Contract later/ })).toHaveLength(1)
   })
 
+  it("adds decorative visual signals to every visible urgency metric without replacing its label", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("needs-action", 2)])))
+    render(<RenewalsPage />)
+
+    const attention = await screen.findByRole("region", { name: message("renewals", "attentionLabel") })
+    const cards = within(attention).getAllByRole("article")
+    expect(cards).toHaveLength(3)
+    for (const card of cards) {
+      expect(within(card).getByText(/Action required|Coming soon|Later or date unavailable/)).toBeVisible()
+      expect(card.querySelector("svg[aria-hidden='true']")).not.toBeNull()
+    }
+  })
+
   it("localizes singular day grammar and risk text instead of exposing English component labels", async () => {
     locale = "fr-FR"
     vi.stubGlobal("fetch", vi.fn(async () => response([renewal("francais", 1)])))

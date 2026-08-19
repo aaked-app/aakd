@@ -173,6 +173,18 @@ describe("obligations portfolio responsive action queue", () => {
     expect(screen.getAllByRole("link", { name: "View Renew insurance certificate" })).toHaveLength(1)
   })
 
+  it("shows a decorative check signal on the active operational filter", async () => {
+    render(<ObligationsPage />)
+
+    const all = await screen.findByRole("button", { name: "All" })
+    expect(all.querySelector("svg[aria-hidden='true']")).not.toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "Overdue" }))
+    const overdue = screen.getByRole("button", { name: "Overdue" })
+    expect(overdue).toHaveAttribute("aria-pressed", "true")
+    expect(overdue.querySelector("svg[aria-hidden='true']")).not.toBeNull()
+  })
+
   it("keeps stats, filters, and search aligned to the same portfolio records", async () => {
     render(<ObligationsPage />)
 

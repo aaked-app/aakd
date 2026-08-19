@@ -9,7 +9,7 @@ import {
   useSyncExternalStore,
 } from "react"
 import Link from "next/link"
-import { Settings2, Plus, ArrowUpRight, FileText, Upload, ScanText, UserCheck, ShieldCheck } from "lucide-react"
+import { Settings2, Plus, ArrowUpRight, FileText, Upload, ScanText, UserCheck, ShieldCheck, TriangleAlert, Clock3, CalendarClock, FileCheck2, RefreshCw, CircleAlert, CalendarDays, UserRound, Quote, BadgeCheck, type LucideIcon } from "lucide-react"
 import { useActiveOrganization, useSession } from "@/lib/auth/client"
 import { ContractStatusBadge } from "@/components/contract-status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -149,6 +149,8 @@ function StatCard({
   loading,
   locale,
   unavailableLabel,
+  icon: Icon,
+  iconClassName,
 }: {
   title: string
   value: number | null
@@ -156,10 +158,17 @@ function StatCard({
   loading?: boolean
   locale: string
   unavailableLabel?: string
+  icon: LucideIcon
+  iconClassName: string
 }) {
   return (
-    <article className="rounded-[var(--radius)] border border-border bg-card px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-1">{title}</p>
+    <article className="rounded-[var(--radius)] border border-border bg-card px-5 py-4 transition-colors motion-safe:duration-150 hover:border-foreground/20">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">{title}</p>
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/40 ${iconClassName}`}>
+          <Icon className="size-3.5" aria-hidden="true" />
+        </span>
+      </div>
       {loading
         ? <Skeleton className="h-8 w-16 my-0.5" />
         : <p className="text-[28px] font-extrabold leading-none tabular-nums text-foreground">
@@ -332,6 +341,7 @@ export default function DashboardPage() {
       ) : loadState === "error" ? (
         <section className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6" role="alert">
           <div className="max-w-md rounded-[var(--radius)] border border-destructive/30 bg-card p-6 text-center">
+            <CircleAlert className="mx-auto size-5 text-destructive" aria-hidden="true" />
             <h2 className="text-base font-semibold text-foreground">{t("loadErrorTitle")}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("loadErrorDescription")}</p>
             <button
@@ -339,6 +349,7 @@ export default function DashboardPage() {
               className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => void loadDashboard()}
             >
+              <RefreshCw className="me-1.5 size-3.5" aria-hidden="true" />
               {t("retry")}
             </button>
           </div>
@@ -404,11 +415,11 @@ export default function DashboardPage() {
               <div><h2 id="agreement-work-heading" className="text-base font-semibold">{t("priorityAgreementWork")}</h2><p className="mt-1 text-xs text-muted-foreground">{t("priorityAgreementWorkDescription")}</p></div>
               <Link href="/actions?view=my_work" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("viewActionQueue")}<ArrowUpRight className="size-3 rtl:-scale-x-100" /></Link>
             </div>
-            {actions.length === 0 ? <p className="m-4 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{t("noAgreementWork")}</p> : <ol className="divide-y divide-border">{actions.map((action) => {
+            {actions.length === 0 ? <div className="m-4 flex flex-col items-center rounded-lg border border-dashed bg-muted/20 p-5 text-center text-sm text-muted-foreground"><FileCheck2 className="mb-2 size-5 text-primary" aria-hidden="true" /><p>{t("noAgreementWork")}</p></div> : <ol className="divide-y divide-border">{actions.map((action) => {
               const confidence = action.confidence != null && Number.isFinite(action.confidence) && action.confidence >= 0 && action.confidence <= 1
                 ? t("suggestionConfidence", { value: Math.round(action.confidence * 100) })
                 : null
-              return <li key={action.id} className="px-4 py-4 sm:px-5"><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              return <li key={action.id} className="px-4 py-4 transition-colors motion-safe:duration-150 hover:bg-muted/30 focus-within:bg-muted/30 sm:px-5"><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
                     <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-foreground">{action.kind ? tActions(`kinds.${action.kind}`) : t("action")}</span>
@@ -417,11 +428,11 @@ export default function DashboardPage() {
                   <p className="mt-2 font-medium text-foreground">{action.title}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{action.contract.title}{action.contract.counterpartyName ? ` · ${action.contract.counterpartyName}` : ""}</p>
                   <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{action.dueDate ? formatDate(action.dueDate, locale) : t("conditionBased")}</span>
-                    <span>{action.assignee?.name ?? t("unassigned")}</span>
-                    <span>{provenanceFor(action)}</span>
-                    <span>{action.reviewStatus === "reviewed" ? t("humanReviewed") : t("reviewRequired")}</span>
-                    {confidence ? <span>{confidence}</span> : null}
+                    <span className="inline-flex items-center gap-1"><CalendarDays className="size-3" aria-hidden="true" />{action.dueDate ? formatDate(action.dueDate, locale) : t("conditionBased")}</span>
+                    <span className="inline-flex items-center gap-1"><UserRound className="size-3" aria-hidden="true" />{action.assignee?.name ?? t("unassigned")}</span>
+                    <span className="inline-flex items-center gap-1"><Quote className="size-3" aria-hidden="true" />{provenanceFor(action)}</span>
+                    <span className="inline-flex items-center gap-1"><BadgeCheck className="size-3" aria-hidden="true" />{action.reviewStatus === "reviewed" ? t("humanReviewed") : t("reviewRequired")}</span>
+                    {confidence ? <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3" aria-hidden="true" />{confidence}</span> : null}
                   </div>
                 </div>
                 <Link href={`/actions/${action.id}`} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -439,6 +450,8 @@ export default function DashboardPage() {
                 sub={t("needsAttention")}
                 locale={locale}
                 unavailableLabel={t("obligationsUnavailable")}
+                icon={TriangleAlert}
+                iconClassName="text-destructive"
               />
               <StatCard
                 title={t("dueSoonObligations")}
@@ -446,9 +459,11 @@ export default function DashboardPage() {
                 sub={t("needsAttention")}
                 locale={locale}
                 unavailableLabel={t("obligationsUnavailable")}
+                icon={Clock3}
+                iconClassName="text-amber-700"
               />
-              <StatCard title={t("expiringSoon")} value={expiringCount} sub={t("workspaceScope")} locale={locale} />
-              <StatCard title={t("pendingApprovals")} value={pendingApprovals} sub={t("needsAttention")} locale={locale} />
+              <StatCard title={t("expiringSoon")} value={expiringCount} sub={t("workspaceScope")} locale={locale} icon={CalendarClock} iconClassName="text-primary" />
+              <StatCard title={t("pendingApprovals")} value={pendingApprovals} sub={t("needsAttention")} locale={locale} icon={FileCheck2} iconClassName="text-primary" />
             </div>
           </section>
 

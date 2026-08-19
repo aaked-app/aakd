@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useLocale, useTranslations } from "next-intl"
-import { AlertCircle, ArrowUpRight, CalendarDays, FileText, Loader2, Search, Target, Trash2, User } from "lucide-react"
+import { AlertCircle, ArrowUpRight, CalendarDays, Check, CheckCircle2, FileText, Loader2, Search, Target, Trash2, User } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -320,6 +320,7 @@ export default function ObligationsPage() {
       eyebrow={t("attentionLabel")}
       title={t("title")}
       description={t("subtitle")}
+      icon={<Target className="size-4" aria-hidden="true" />}
       action={<Link href="/contracts" className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
             {t("goToContracts")}<ArrowUpRight className="size-4" aria-hidden="true" />
           </Link>}
@@ -329,14 +330,15 @@ export default function ObligationsPage() {
             label={priorityObligation.status === "OVERDUE" ? t("overdue") : t("dueThisWeek")}
             title={priorityObligation.title}
             detail={`${priorityObligation.contractTitle} · ${t("tableDueDate")}: ${formatDate(priorityObligation.dueDate, locale)}`}
+            icon={priorityObligation.status === "OVERDUE" ? <AlertCircle className="size-4" aria-hidden="true" /> : <CalendarDays className="size-4" aria-hidden="true" />}
             action={<Link href={detailHref(priorityObligation)} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">{t("goToContracts")}<ArrowUpRight className="ms-1 size-4 rtl:-scale-x-100" aria-hidden="true" /></Link>}
           /> : null}
           <PortfolioSummary
             items={[
-              { label: t("overdue"), value: stats.overdue, description: t("overdueRequires") },
-              { label: t("dueThisWeek"), value: stats.dueSoon, description: t("actionNeeded") },
-              { label: t("upcoming"), value: stats.upcoming, description: t("next60Days") },
-              { label: t("completed"), value: stats.completed, description: t("thisQuarter") },
+              { label: t("overdue"), value: stats.overdue, description: t("overdueRequires"), icon: <AlertCircle className="size-4" aria-hidden="true" /> },
+              { label: t("dueThisWeek"), value: stats.dueSoon, description: t("actionNeeded"), icon: <CalendarDays className="size-4" aria-hidden="true" /> },
+              { label: t("upcoming"), value: stats.upcoming, description: t("next60Days"), icon: <Target className="size-4" aria-hidden="true" /> },
+              { label: t("completed"), value: stats.completed, description: t("thisQuarter"), icon: <CheckCircle2 className="size-4" aria-hidden="true" /> },
             ]}
             isLimited={isPortfolioLimited}
             attentionLabel={t("attentionLabel")}
@@ -369,10 +371,10 @@ export default function ObligationsPage() {
                       aria-pressed={activeFilter === option.key}
                       onClick={() => setActiveFilter(option.key)}
                       className={cn(
-                        "min-h-11 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         activeFilter === option.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
                       )}
-                    >{option.label}</button>
+                    >{activeFilter === option.key ? <Check className="size-3.5" aria-hidden="true" /> : null}{option.label}</button>
                   ))}
                 </div>
               </fieldset>

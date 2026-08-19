@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { X } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -260,12 +260,13 @@ export function ObligationSheet({
             className="ms-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => onOpenChange(false)}
             aria-label={t("closeEditor")}
+            disabled={saving}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form aria-label={t(isEditing ? "editTitle" : "newTitle")} className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => { event.preventDefault(); void save() }}>
+        <form aria-label={t(isEditing ? "editTitle" : "newTitle")} aria-busy={saving} className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => { event.preventDefault(); void save() }}>
           <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6 sm:px-7">
             <section aria-labelledby="obligation-core-details" className="space-y-5">
               <h3 id="obligation-core-details" className="text-sm font-semibold text-foreground">{t("coreDetails")}</h3>
@@ -284,7 +285,8 @@ export function ObligationSheet({
               {!isEditing && isActionLedgerUiEnabled() && <div className="space-y-2"><FieldLabel label={t("evidenceRequirement")} htmlFor="obligation-evidence-requirement" required /><select id="obligation-evidence-requirement" className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm" value={form.evidenceRequired} onChange={(event) => update("evidenceRequired", event.target.value as FormState["evidenceRequired"])}><option value="completion_note">{t("completionNoteEvidence")}</option><option value="external_link">{t("externalLinkEvidence")}</option></select><p className="text-xs text-muted-foreground">{t("evidenceRequirementHelp")}</p></div>}
             </section>
           </div>
-          <footer className="flex flex-col-reverse gap-2 border-t border-border bg-background px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+          <footer className="flex flex-col-reverse gap-2 border-t border-border bg-background px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+            {saving ? <p role="status" aria-live="polite" className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground sm:me-auto"><Loader2 className="size-3.5 animate-spin" aria-hidden="true" />{t("saving")}</p> : null}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="min-h-11 sm:min-w-[96px]">{t("cancel")}</Button>
             <Button type="submit" disabled={saving} className="min-h-11 sm:min-w-[144px]">{saving ? t("saving") : isEditing ? t("saveChanges") : t("createObligation")}</Button>
           </footer>

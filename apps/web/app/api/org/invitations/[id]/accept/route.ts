@@ -7,7 +7,8 @@ import { fireAndLog } from "@/lib/utils/fire-and-log"
 // Accepts a pending invitation for the currently logged-in user.
 // Validates email match, creates the Member row, marks invitation accepted.
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   // An invited user is not a member of this organization yet, so resolveAuth()
   // intentionally returns null for their otherwise-valid session. Fall back to

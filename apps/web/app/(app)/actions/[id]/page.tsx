@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, use } from "react";
 import Link from "next/link"
 import { ArrowLeft, CheckCircle2, CircleAlert, Clock3, ExternalLink, Loader2, Mail, ShieldCheck, UserRound } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
@@ -40,7 +40,8 @@ function isOrgMember(value: unknown): value is OrgMember {
   return typeof member.userId === "string" && Boolean(member.user) && typeof member.user?.id === "string"
 }
 
-export default function ActionDetailPage({ params }: { params: { id: string } }) {
+export default function ActionDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const t = useTranslations("actionQueue")
   const locale = useLocale()
   const router = useRouter()

@@ -14,7 +14,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "downlevelIteration": true,
     "plugins": [
@@ -32,16 +32,23 @@
       ".prisma/client/*": [
         "../../node_modules/.pnpm/@prisma+client@7.8.0_prisma@7.8.0_@types+react-dom@18.3.7_@types+react@18.3.28__@types+_5b0af57f8cc45a1bc338319b134a2f06/node_modules/.prisma/client/*"
       ]
-    }
+    },
+    "target": "ES2017"
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next-shell-verify/types/**/*.ts",
+    ".next-final-redesign-verify/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "/private/tmp/aakd-micro-ux-next/types/**/*.ts",
+    "/private/tmp/aakd-micro-ux-next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
+    "tmp",
     "worker.ts"
   ]
 }

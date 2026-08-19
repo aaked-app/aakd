@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { AlertCircle } from "lucide-react"
 
 import type { Obligation, ObligationStatus } from "@/components/obligations/types"
@@ -89,7 +90,7 @@ export function PortfolioSummary({
   coverageLabel,
   coverageNotice,
 }: {
-  items: Array<{ label: string; value: number; description: string }>
+  items: Array<{ label: string; value: number; description: string; icon?: ReactNode }>
   isLimited: boolean
   attentionLabel: string
   partialCount: string
@@ -100,9 +101,12 @@ export function PortfolioSummary({
   return (
     <>
       <section aria-label={attentionLabel} className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {items.map(({ label, value, description }) => (
-          <article key={label} className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-            <p className="truncate text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+        {items.map(({ label, value, description, icon }) => (
+          <article key={label} className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors motion-safe:duration-200 hover:border-primary/30">
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+              {icon ? <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">{icon}</span> : null}
+            </div>
             <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
               {isLimited ? partialCount : value}
             </p>

@@ -25,8 +25,9 @@ const PatchCommentSchema = z.object({
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string; commentId: string } },
+  props: { params: AsyncRouteParams<{ id: string; commentId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -101,8 +102,9 @@ export async function PATCH(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string; commentId: string } },
+  props: { params: AsyncRouteParams<{ id: string; commentId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

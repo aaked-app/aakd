@@ -7,7 +7,8 @@ import { fireAndLog } from "@/lib/utils/fire-and-log"
 // ─── POST /api/org/invitations/[id]/resend ────────────────────────────────────
 // Refreshes the expiry to 30 days from now and re-sends the invitation email.
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   if (!hasRole(ctx.role, "admin")) return new Response("Forbidden", { status: 403 })
@@ -56,7 +57,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 // ─── DELETE /api/org/invitations/[id] ────────────────────────────────────────
 // Cancels (hard-deletes) a pending invitation.
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   if (!hasRole(ctx.role, "admin")) return new Response("Forbidden", { status: 403 })

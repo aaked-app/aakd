@@ -16,16 +16,20 @@ const nextConfig = {
     NEXT_PUBLIC_SIGNING_ENABLED: process.env.DOCUSEAL_API_KEY ? "true" : "false",
   },
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Next 16's standalone trace can omit @swc/helpers ESM modules under pnpm.
+  // Keep the runtime helper package in every server trace without pinning a
+  // pnpm-store version in Dockerfile code.
+  outputFileTracingIncludes: {
+    "/*": ["../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*"],
+  },
+  serverExternalPackages: ["pdf-parse"],
   // In a pnpm monorepo the root node_modules lives two levels up.
   // Setting this tells Next.js to trace dependencies from the monorepo
   // root so the standalone bundle includes packages like 'next' itself.
   experimental: {
-    // Required for the instrumentation.ts hook (OpenTelemetry bootstrap)
-    instrumentationHook: true,
-    outputFileTracingRoot: path.join(__dirname, "../../"),
     // pdf-parse v1 runs a test file on import — keep it out of the Next.js
     // bundle so it loads at runtime via Node.js require, not at build time.
-    serverComponentsExternalPackages: ["pdf-parse"],
     // Never serve a stale RSC payload for dynamic pages (those that use
     // cookies/headers or cache:'no-store').  Without this, the client-side
     // Router Cache re-uses the last render for ~30 s, so the dashboard shows

@@ -142,6 +142,7 @@ function Sidebar({
   userEmail,
   userImage,
   orgName,
+  orgLogo,
   onSignOut,
   navSections,
   navigationLabel,
@@ -159,6 +160,7 @@ function Sidebar({
   userEmail: string
   userImage?: string | null
   orgName: string
+  orgLogo?: string | null
   onSignOut: () => void
   navSections: NavSection[]
   navigationLabel: string
@@ -182,7 +184,10 @@ function Sidebar({
         "flex min-h-14 items-center gap-2.5 border-b border-border px-3 py-3",
         compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3",
       )}>
-        <AakdLogoMark size={26} />
+        {orgLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={orgLogo} alt="" className="h-[26px] w-[26px] shrink-0 rounded object-cover" />
+        ) : <AakdLogoMark size={26} />}
         <span className={cn("font-extrabold text-sm flex-1 min-w-0 truncate", compactAtTablet && "md:hidden xl:block")} style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
           Aakd
         </span>
@@ -411,6 +416,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     void refetchOrganizations()
   }
 
+  const [orgLogo, setOrgLogo] = useState<string | null>(
+    (activeOrg as { logo?: string | null } | null)?.logo ?? null,
+  )
+
+  useEffect(() => {
+    if (!activeOrg?.id) {
+      setOrgLogo(null)
+      return
+    }
+    let cancelled = false
+    fetch("/api/org")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { logo?: string | null } | null) => {
+        if (!cancelled) setOrgLogo(data?.logo ?? null)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeOrg?.id])
+
   if (!isPending && session?.user && organizationResolutionError) {
     return (
       <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
@@ -551,6 +575,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               userEmail={userEmail}
               userImage={userImage}
               orgName={orgName}
+              orgLogo={orgLogo}
               onSignOut={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
               navSections={NAV_SECTIONS}
               navigationLabel={t("mobileNavigation")}
@@ -565,7 +590,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
         <Link href="/dashboard" className="flex items-center gap-2">
-          <AakdLogoMark size={24} />
+          {orgLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={orgLogo} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
+          ) : <AakdLogoMark size={24} />}
           <span className="text-sm font-extrabold" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif" }}>Aakd</span>
         </Link>
         <NotificationBell />
@@ -577,6 +605,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         userEmail={userEmail}
         userImage={userImage}
         orgName={orgName}
+        orgLogo={orgLogo}
         onSignOut={() =>
           signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
         }

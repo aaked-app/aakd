@@ -22,11 +22,16 @@ export function chunkText(
     let end = hardEnd
 
     if (hardEnd < clean.length) {
-      const paragraphBreak = clean.lastIndexOf("\n\n", hardEnd)
-      const sentenceBreak = clean.lastIndexOf(". ", hardEnd)
+      // Restrict soft-boundary discovery to this chunk's trailing window.
+      // Searching from the document start on every iteration becomes quadratic
+      // for large documents that contain no matching paragraph or sentence break.
+      const softWindowStart = start + Math.floor(chunkSize * 0.6)
+      const softWindow = clean.slice(softWindowStart, hardEnd)
+      const paragraphBreak = softWindow.lastIndexOf("\n\n")
+      const sentenceBreak = softWindow.lastIndexOf(". ")
       const softBreak = Math.max(paragraphBreak, sentenceBreak)
-      if (softBreak > start + chunkSize * 0.6) {
-        end = softBreak + (softBreak === sentenceBreak ? 1 : 0)
+      if (softBreak >= 0) {
+        end = softWindowStart + softBreak + (softBreak === sentenceBreak ? 1 : 0)
       }
     }
 

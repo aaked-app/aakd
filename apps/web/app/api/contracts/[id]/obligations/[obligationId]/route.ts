@@ -35,8 +35,9 @@ const PatchObligationSchema = z.object({
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string; obligationId: string } },
+  props: { params: AsyncRouteParams<{ id: string; obligationId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -63,8 +64,9 @@ export async function GET(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string; obligationId: string } },
+  props: { params: AsyncRouteParams<{ id: string; obligationId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -205,8 +207,9 @@ export async function PATCH(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string; obligationId: string } },
+  props: { params: AsyncRouteParams<{ id: string; obligationId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

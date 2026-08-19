@@ -113,7 +113,7 @@ export interface ObligationExtractJobData {
   contractId: string
   organizationId: string
   extractedText: string  // passed in so the worker doesn't need a DB read
-  requestedById: string
+  requestedById: string | null
   sourceHash: string
 }
 

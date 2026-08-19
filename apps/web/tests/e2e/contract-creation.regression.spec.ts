@@ -56,13 +56,13 @@ test("new users can create and open a contract", async ({ page }) => {
   await page.getByRole("button", { name: /continue to review/i }).click()
   await page.getByLabel(/contract title/i).waitFor()
   await page.getByLabel(/contract title/i).fill("E2E Service Agreement")
-  await page.getByRole("button", { name: "Create Contract", exact: true }).click()
+  await page.getByRole("button", { name: /create contract/i }).click()
 
   await expect(page).toHaveURL((url) =>
     /^\/contracts\/[a-z0-9]+$/.test(url.pathname) && url.pathname !== "/contracts/new",
   { timeout: 30_000 })
 
-  await page.getByRole("tab", { name: /AI Extractions/i }).click()
+  await page.getByRole("tab", { name: /^Review\b/ }).click()
   await expect(page.getByText("MASTER SERVICES AGREEMENT", { exact: true })).toBeVisible({ timeout: 45_000 })
   await expect(page.getByText("Effective Date: January 15, 2025", { exact: true })).toBeVisible()
   await expect(page.getByText("Source page 1", { exact: true }).first()).toBeVisible()

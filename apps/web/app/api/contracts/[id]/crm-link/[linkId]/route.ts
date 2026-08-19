@@ -5,10 +5,8 @@ import { writeActivity } from "@/lib/db/activity"
 
 const ROLES_CAN_UNLINK = new Set(["admin", "legal"])
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string; linkId: string } },
-) {
+export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ id: string; linkId: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

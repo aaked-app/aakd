@@ -657,11 +657,10 @@ export default function NewContractPage() {
             : t("create.extractionUnavailable"),
         )
       } else {
-        // Only skip the worker's authoritative extraction when the preview
-        // completed cleanly. Partial/error responses must fall back to the
-        // worker so a transient parser failure cannot leave the contract with
-        // only the user-entered seed values.
-        setPreviewCompleted(true)
+        // Preview values are provisional UI assistance. The worker always
+        // re-extracts the uploaded source so pending review rows gain exact
+        // source text and page evidence before they can be trusted.
+        setPreviewCompleted(false)
         setManualReview(false)
       }
     } catch (err) {

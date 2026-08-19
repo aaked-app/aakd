@@ -3,10 +3,8 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { getDocumentExportQueue } from "@/lib/jobs/queues"
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string; jobId: string } },
-) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string; jobId: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

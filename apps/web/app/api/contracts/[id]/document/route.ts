@@ -47,7 +47,8 @@ const SaveSchema = z.object({
   clientVersion: z.number().int().min(0),
 })
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -76,7 +77,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   })
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

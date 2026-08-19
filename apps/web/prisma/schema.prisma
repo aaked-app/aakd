@@ -183,6 +183,7 @@ model Contract {
   renewalDate           DateTime?
   noticePeriodDays      Int?
   autoRenewal           Boolean                        @default(false)
+  renewalReminderEnabled Boolean                       @default(true)
   notes                 String?
   organizationId        String
   organization          Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -750,6 +751,7 @@ model ContractObligationSuggestion {
   organizationId   String
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sourceHash       String
+  sourceKey        String
   jobId            String?
   title            String
   description      String
@@ -763,7 +765,7 @@ model ContractObligationSuggestion {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
-  @@unique([contractId, sourceHash, title])
+  @@unique([contractId, sourceHash, sourceKey])
   @@index([contractId, status])
   @@index([organizationId, status])
 }

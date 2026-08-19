@@ -12,6 +12,10 @@ Next.js output, Prisma internals, third-party dependencies, or individual
 utility files. The route inventory covers 102 API route files; routes are
 grouped under the owning subsystem below.
 
+This is a Phase 0 investment boundary, not a long-term product deletion list.
+For the complete professional capability strategy and progressive-disclosure
+plan, see [`progressive-capability-audit.md`](progressive-capability-audit.md).
+
 ## Classification rules
 
 | Status | Meaning in Phase 0 |

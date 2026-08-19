@@ -350,6 +350,10 @@ export default function ContractDetailPage() {
   const [decideComment, setDecideComment] = useState("")
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [optionalLoadError, setOptionalLoadError] = useState(false)
+  const loadRequestRef = useRef(0)
+  const loadControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(false)
   const [editOpen, setEditOpen] = useState(searchParams.get("edit") === "true")
   const [uploadOpen, setUploadOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Contract>>({})
@@ -380,63 +384,89 @@ export default function ContractDetailPage() {
   }
 
   const fetchContract = useCallback(async (signal?: AbortSignal) => {
+    loadControllerRef.current?.abort()
+    const loadController = new AbortController()
+    loadControllerRef.current = loadController
+    const requestId = ++loadRequestRef.current
+    const timeoutController = new AbortController()
+    const timeout = setTimeout(() => timeoutController.abort(), 10_000)
+    const requestSignal = signal
+      ? AbortSignal.any([signal, loadController.signal, timeoutController.signal])
+      : AbortSignal.any([loadController.signal, timeoutController.signal])
+    const isCurrent = () => loadRequestRef.current === requestId && isMountedRef.current && !signal?.aborted
+
     setLoading(true)
     setLoadError(false)
+    setOptionalLoadError(false)
     try {
-      const [contractRes, alertsRes, extractionsRes, approvalsRes, obligationsRes, riskRes, actionsRes] = await Promise.all([
-        fetch(`/api/contracts/${id}`, { signal }),
-        fetch(`/api/alerts?contractId=${id}`, { signal }),
-        fetch(`/api/contracts/${id}/extractions`, { signal }),
-        fetch(`/api/contracts/${id}/approvals`, { signal }),
-        fetch(`/api/contracts/${id}/obligations`, { signal }),
-        fetch(`/api/contracts/${id}/risk-score`, { signal }),
-        isActionLedgerUiEnabled()
-          ? fetch(`/api/actions?view=dashboard&contractId=${id}&limit=1`, { signal })
-          : Promise.resolve(new Response(JSON.stringify({ actions: [] }), { status: 200 })),
-      ])
+      const contractRes = await fetch(`/api/contracts/${id}`, { signal: requestSignal })
       if (!contractRes.ok) {
-        setLoadError(true)
+        if (isCurrent()) setLoadError(true)
         return
       }
       const data = await contractRes.json()
+      if (!isCurrent()) return
       setContract(data.contract ?? data)
       setFiles(data.files ?? [])
       setActivities(data.activities ?? [])
       setEditForm(data.contract ?? data)
-      if (alertsRes.ok) {
-        const alertData = await alertsRes.json()
-        setAlerts(alertData.alerts ?? [])
+
+      const optionalSignal = signal
+        ? AbortSignal.any([signal, loadController.signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.any([loadController.signal, AbortSignal.timeout(10_000)])
+      const loadOptional = <T,>(request: Promise<Response>, apply: (data: T) => void) => {
+        void request
+          .then(async (response) => {
+            if (!response.ok) throw new Error(`Optional contract data failed: ${response.status}`)
+            return response.json() as Promise<T>
+          })
+          .then((optionalData) => {
+            if (isCurrent()) apply(optionalData)
+          })
+          .catch((error: unknown) => {
+            if ((error as Error).name === "AbortError" && signal?.aborted) return
+            if (isCurrent()) setOptionalLoadError(true)
+          })
       }
-      if (extractionsRes.ok) {
-        const extData = await extractionsRes.json()
-        setExtractions(extData.extractions ?? [])
-      }
-      if (approvalsRes.ok) {
-        const approvalData = await approvalsRes.json()
-        setApprovals(approvalData.approvals ?? [])
-      }
-      if (obligationsRes.ok) {
-        const obligationData = await obligationsRes.json()
-        setObligations(obligationData.obligations ?? [])
-      }
-      if (riskRes.ok) {
-        const rd = await riskRes.json()
-        setRiskData(rd)
-      }
-      if (actionsRes.ok) {
-        const actionData = await actionsRes.json() as { actions?: Array<{ id: string; title: string; status: string; dueDate: string | null }> }
-        setNextAction(Array.isArray(actionData.actions) ? actionData.actions[0] ?? null : null)
+
+      loadOptional<{ alerts?: ContractAlert[] }>(
+        fetch(`/api/alerts?contractId=${id}`, { signal: optionalSignal }),
+        (optionalData) => setAlerts(optionalData.alerts ?? []),
+      )
+      loadOptional<{ extractions?: AIExtraction[] }>(
+        fetch(`/api/contracts/${id}/extractions`, { signal: optionalSignal }),
+        (optionalData) => setExtractions(optionalData.extractions ?? []),
+      )
+      loadOptional<{ approvals?: Approval[] }>(
+        fetch(`/api/contracts/${id}/approvals`, { signal: optionalSignal }),
+        (optionalData) => setApprovals(optionalData.approvals ?? []),
+      )
+      loadOptional<{ obligations?: Obligation[] }>(
+        fetch(`/api/contracts/${id}/obligations`, { signal: optionalSignal }),
+        (optionalData) => setObligations(optionalData.obligations ?? []),
+      )
+      loadOptional<typeof riskData>(
+        fetch(`/api/contracts/${id}/risk-score`, { signal: optionalSignal }),
+        (optionalData) => setRiskData(optionalData),
+      )
+      if (isActionLedgerUiEnabled()) {
+        loadOptional<{ actions?: Array<{ id: string; title: string; status: string; dueDate: string | null }> }>(
+          fetch(`/api/actions?view=dashboard&contractId=${id}&limit=1`, { signal: optionalSignal }),
+          (optionalData) => setNextAction(Array.isArray(optionalData.actions) ? optionalData.actions[0] ?? null : null),
+        )
       }
     } catch (e) {
-      if ((e as Error).name === "AbortError") return
-      setLoadError(true)
+      if ((e as Error).name === "AbortError" && signal?.aborted) return
+      if (isCurrent()) setLoadError(true)
     } finally {
-      setLoading(false)
+      clearTimeout(timeout)
+      if (isCurrent()) setLoading(false)
     }
   }, [id])
 
   useEffect(() => {
     const controller = new AbortController()
+    isMountedRef.current = true
     fetchContract(controller.signal)
     fetch("/api/tags", { signal: controller.signal })
       .then(r => r.json())
@@ -446,7 +476,11 @@ export default function ContractDetailPage() {
       .then(r => r.json())
       .then(d => setMembers(Array.isArray(d) ? d : []))
       .catch(() => {})
-    return () => controller.abort()
+    return () => {
+      isMountedRef.current = false
+      controller.abort()
+      loadControllerRef.current?.abort()
+    }
   }, [fetchContract])
 
   // ── AI extraction polling ─────────────────────────────────────────────────
@@ -941,6 +975,16 @@ export default function ContractDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/[0.18]">
+      {optionalLoadError && (
+        <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:px-6 xl:px-8">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3">
+            <span>{tWorkspace("loadFailedDescription")}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void fetchContract()}>
+              {tWorkspace("retry")}
+            </Button>
+          </div>
+        </div>
+      )}
       {/* ── Header section ── */}
       <header className="flex-shrink-0 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-sm sm:px-6 xl:px-8">
         <div className="mx-auto w-full max-w-[1440px]">
@@ -1637,7 +1681,7 @@ export default function ContractDetailPage() {
                               size="sm"
                             className="min-h-11 text-xs flex-1"
                               onClick={() => handleExtraction(e.id, "accept")}
-                              disabled={updatingExtractionId !== null}
+                              disabled={updatingExtractionId !== null || (e.extractedBy !== "manual" && e.extractedBy !== "user" && !e.sourceText)}
                             >
                               {updatingExtractionId === e.id ? tWorkspace("saving") : tWorkspace("accept")}
                             </Button>

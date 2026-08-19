@@ -256,7 +256,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
       { id: "two", userId: "user-2", organizationId: "org-1", role: "member", createdAt: "2026-01-02T00:00:00Z", user: { name: "Member", email: "member@example.com", image: null } },
     ] }) : json([])))
     const { container } = render(<MembersPage />)
-    const visibleControl = await screen.findByRole("combobox", { name: "members.actions.changeRole" })
+    const [visibleControl] = await screen.findAllByRole("combobox", { name: "members.actions.changeRole" })
     expect(container.querySelectorAll('[aria-label="members.actions.changeRole"]')).toHaveLength(2)
     fireEvent.click(visibleControl)
     expect(await screen.findByRole("option", { name: "members.roles.admin.label" })).toBeInTheDocument()

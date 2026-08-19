@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ContractDetailPage from "@/app/(app)/contracts/[id]/page"
@@ -499,6 +499,88 @@ describe("contract workspace responsive hierarchy", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/This contract could not be loaded\.\s*No contract data was changed\./)
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Back to contracts" })).toHaveAttribute("href", "/contracts")
+  })
+
+  it("shows recovery instead of leaving the loading skeleton after the primary request times out", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString()
+        if (url === "/api/contracts/contract-1") {
+          return new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true })
+          })
+        }
+        return Promise.resolve(new Response(JSON.stringify(apiResponse(url)), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }))
+
+      render(<ContractDetailPage />)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+
+      expect(screen.getByRole("alert")).toHaveTextContent("This contract could not be loaded.")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("renders the contract record while secondary workspace reads are still pending", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/contracts/contract-1") {
+        return Promise.resolve(new Response(JSON.stringify(apiResponse(url)), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return new Promise<Response>(() => {})
+    }))
+
+    render(<ContractDetailPage />)
+
+    expect(await screen.findByRole("heading", { name: "Master Services Agreement", level: 1 })).toBeInTheDocument()
+  })
+
+  it("keeps successful secondary panels available when one secondary read fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url.includes("/extractions")) {
+        return new Response(JSON.stringify({ error: "unavailable" }), { status: 503 })
+      }
+      return new Response(JSON.stringify(apiResponse(url)), { status: 200, headers: { "Content-Type": "application/json" } })
+    }))
+
+    render(<ContractDetailPage />)
+
+    expect(await screen.findByRole("heading", { name: "Master Services Agreement", level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole("status")).toHaveTextContent("No contract data was changed.")
+    fireEvent.click(screen.getByRole("tab", { name: "Approvals" }))
+    expect(screen.getByText("No approval requests are open.")).toBeInTheDocument()
+  })
+
+  it("aborts superseded secondary reads when the user retries", async () => {
+    let loadNumber = 0
+    const secondarySignals: AbortSignal[] = []
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/contracts/contract-1") {
+        loadNumber += 1
+        return Promise.resolve(new Response(JSON.stringify(apiResponse(url)), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (loadNumber === 1 && url.includes("/extractions")) {
+        return Promise.resolve(new Response(JSON.stringify({ error: "unavailable" }), { status: 503 }))
+      }
+      if (loadNumber === 1 && /\/api\/(alerts|contracts\/contract-1\/(approvals|obligations|risk-score))/.test(url)) {
+        if (init?.signal) secondarySignals.push(init.signal)
+        return new Promise<Response>(() => {})
+      }
+      return Promise.resolve(new Response(JSON.stringify(apiResponse(url)), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }))
+
+    render(<ContractDetailPage />)
+
+    expect(await screen.findByRole("status")).toBeInTheDocument()
+    expect(secondarySignals.length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    expect(secondarySignals.every((signal) => signal.aborted)).toBe(true)
   })
 
   it("formats summary dates and values in the active locale without inventing a currency", async () => {

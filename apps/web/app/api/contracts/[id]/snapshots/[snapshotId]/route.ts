@@ -8,8 +8,9 @@ import { writeActivity } from "@/lib/db/activity"
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string; snapshotId: string } },
+  props: { params: AsyncRouteParams<{ id: string; snapshotId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -41,8 +42,9 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string; snapshotId: string } },
+  props: { params: AsyncRouteParams<{ id: string; snapshotId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

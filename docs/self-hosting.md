@@ -76,7 +76,7 @@ This starts:
 - **PostgreSQL 16** with the `pgvector` extension (required for semantic search)
 - **Redis 7** for BullMQ job queues
 - **MinIO** for S3-compatible file storage (contracts, uploaded files)
-- **Aakd app** — Next.js 14 web application on port 3000
+- **Aakd app** — Next.js 16 web application on port 3000
 - **Aakd worker** — BullMQ background worker (text extraction, AI, alerts, email)
 
 ### 4. Run database migrations

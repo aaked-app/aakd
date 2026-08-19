@@ -8,6 +8,7 @@ function computeAlerts(
   endDate: Date | null,
   renewalDate: Date | null,
   noticePeriodDays: number | null,
+  renewalReminderEnabled = true,
   now = new Date()
 ): { alertType: string; triggerDate: Date }[] {
   const alerts: { alertType: string; triggerDate: Date }[] = []
@@ -24,9 +25,9 @@ function computeAlerts(
     }
   }
 
-  if (renewalDate && renewalDate > now) {
+  if (renewalReminderEnabled && renewalDate && renewalDate > now) {
     const triggerDate = new Date(renewalDate.getTime() - 14 * 24 * 60 * 60 * 1000)
-    if (triggerDate > now) alerts.push({ alertType: "RENEWAL_DUE", triggerDate })
+    alerts.push({ alertType: "RENEWAL_DUE", triggerDate: triggerDate > now ? triggerDate : now })
   }
 
   if (noticePeriodDays != null && endDate && endDate > now) {
@@ -91,11 +92,18 @@ describe("computeAlerts — renewal due alert", () => {
     expect(renewal!.triggerDate.getTime()).toBe(expected.getTime())
   })
 
-  it("skips RENEWAL_DUE when triggerDate (renewalDate - 14 days) is in the past", () => {
-    const renewalDate = daysFromNow(10) // 10 days from now — trigger would be -4 days
-    const alerts = computeAlerts(null, renewalDate, null)
+  it("fires immediately when renewalDate is inside the 14-day window", () => {
+    const now = new Date()
+    const renewalDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000) // trigger would be -4 days
+    const alerts = computeAlerts(null, renewalDate, null, true, now)
     const renewal = alerts.find((a) => a.alertType === "RENEWAL_DUE")
-    expect(renewal).toBeUndefined()
+    expect(renewal).toBeDefined()
+    expect(renewal!.triggerDate.getTime()).toBe(now.getTime())
+  })
+
+  it("does not create a renewal alert when reminders are disabled", () => {
+    const alerts = computeAlerts(null, daysFromNow(10), null, false)
+    expect(alerts.find((a) => a.alertType === "RENEWAL_DUE")).toBeUndefined()
   })
 
   it("skips RENEWAL_DUE when renewalDate is in the past", () => {
@@ -144,8 +152,8 @@ describe("computeAlerts — combined", () => {
   it("is idempotent with respect to time (same now → same output)", () => {
     const now = new Date()
     const endDate = daysFromNow(100)
-    const a = computeAlerts(endDate, null, null, now)
-    const b = computeAlerts(endDate, null, null, now)
+    const a = computeAlerts(endDate, null, null, true, now)
+    const b = computeAlerts(endDate, null, null, true, now)
     expect(a).toEqual(b)
   })
 })

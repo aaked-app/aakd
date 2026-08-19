@@ -6,7 +6,8 @@ import { getCrmProvider } from "@/lib/crm"
 import { ensureFreshToken, normalizeProvider } from "@/lib/crm/route-helpers"
 import { logger } from "@/lib/logger"
 
-export async function GET(req: Request, { params }: { params: { provider: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   if (!hasRole(ctx.role, "member")) {

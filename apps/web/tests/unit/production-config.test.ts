@@ -8,6 +8,13 @@ describe("production configuration", () => {
     vi.unstubAllEnvs()
   })
 
+  it("honors the local Compose runtime mode override", () => {
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("RUNTIME_NODE_ENV", "development")
+    expect(() => assertProductionConfig()).not.toThrow()
+    vi.unstubAllEnvs()
+  })
+
   it("rejects missing and insecure production configuration", () => {
     vi.stubEnv("NODE_ENV", "production")
     vi.stubEnv("NEXT_PHASE", "phase-production-server")

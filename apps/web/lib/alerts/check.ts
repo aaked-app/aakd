@@ -4,6 +4,7 @@ import { ContractAlertWithContract } from "@/lib/email"
 import { emailQueue } from "@/lib/jobs/queues"
 import { sendSlackAlert, sendTeamsAlert } from "@/lib/notifications/webhooks"
 import { enqueueNotification } from "@/lib/notifications/fanout"
+import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { logger } from "@/lib/logger"
 
 const FANOUT_EXPIRY_TYPES = new Set(["EXPIRY_7", "EXPIRY_30", "EXPIRY_90"])
@@ -109,6 +110,21 @@ export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: nu
           "STATUS_CHANGED",
           "Contract expired — status automatically set to EXPIRED",
           { from: alert.contract.status, to: "EXPIRED" },
+          prisma,
+        )
+      }
+
+      // Renewal and notice alerts are contract-level reminders, not just
+      // email events. Surface them in the in-app notification bell as well.
+      if (alert.alertType === "RENEWAL_DUE" || alert.alertType === "NOTICE_PERIOD") {
+        const detail = ALERT_DETAIL[alert.alertType]
+        await writeInAppToOrgMembers(
+          alert.contract.organizationId,
+          alert.contractId,
+          "contract.expiring_soon",
+          detail,
+          `"${alert.contract.title}" needs attention`,
+          undefined,
           prisma,
         )
       }
