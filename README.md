@@ -16,6 +16,9 @@ obligations, deadlines, approvals, and completion evidence.
 > It is not a hosted service, legal-advice product, compliance certification,
 > or autonomous legal agent.
 
+If Aakd is useful to your team, [star the repository](../../stargazers) to help
+other self-hosting and contract-operations teams find it.
+
 ## The workflow
 
 ```text
