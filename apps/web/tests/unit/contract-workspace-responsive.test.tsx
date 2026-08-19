@@ -291,6 +291,18 @@ describe("contract workspace responsive hierarchy", () => {
     expect(screen.getByTestId("contract-detail-grid")).toHaveClass("grid-cols-1", "sm:grid-cols-2")
   })
 
+  it("uses an agreement-operations control surface rather than a generic card dashboard", async () => {
+    render(<ContractDetailPage />)
+
+    await screen.findByRole("heading", { name: "Master Services Agreement" })
+    expect(screen.getByTestId("agreement-command-surface")).toHaveAttribute(
+      "data-surface",
+      "agreement-operations",
+    )
+    expect(screen.getByTestId("agreement-workstreams")).toHaveClass("divide-x")
+    expect(screen.getByTestId("agreement-workspace-tabs")).toHaveClass("border-b-2")
+  })
+
   it("keeps CRM out of the contract workspace and presents editing as a structured record", async () => {
     render(<ContractDetailPage />)
     await screen.findByRole("heading", { name: "Master Services Agreement" })

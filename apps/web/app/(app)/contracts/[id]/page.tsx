@@ -106,9 +106,9 @@ function WorkspaceTabIntro({
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p>
-        <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl">{title}</h2>
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{title}</h2>
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {action ? <div className="flex shrink-0 flex-wrap gap-2">{action}</div> : null}
     </div>
@@ -235,8 +235,10 @@ function ReviewerPicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className={cn(
-          "w-full flex items-center gap-2.5 rounded-lg border bg-background px-3 py-2.5 text-sm transition-all",
+          "w-full flex min-h-11 items-center gap-2.5 rounded-lg border bg-background px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
           open
             ? "border-primary ring-2 ring-primary/20"
             : "border-input hover:border-muted-foreground/40",
@@ -275,7 +277,7 @@ function ReviewerPicker({
       {/* Dropdown */}
       {open && (
         <div className="absolute top-[calc(100%+4px)] inset-x-0 z-[60] bg-background border border-border rounded-lg shadow-lg overflow-hidden">
-          <div className="max-h-52 overflow-y-auto">
+          <div role="listbox" className="max-h-52 overflow-y-auto">
             {eligible.length === 0 ? (
               <p className="px-3 py-4 text-sm text-center text-muted-foreground">
                 {noEligibleReviewersLabel}
@@ -286,7 +288,9 @@ function ReviewerPicker({
                   key={m.userId}
                   type="button"
                   onClick={() => { onChange(m.userId); setOpen(false) }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-muted/60 transition-colors"
+                  role="option"
+                  aria-selected={value === m.userId}
+                  className="w-full flex min-h-11 items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
                     {initials(m)}
@@ -974,7 +978,7 @@ export default function ContractDetailPage() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-muted/[0.18]">
+    <div className="flex h-full min-h-0 flex-col bg-[#eef3ef]">
       {optionalLoadError && (
         <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:px-6 xl:px-8">
           <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3">
@@ -986,29 +990,29 @@ export default function ContractDetailPage() {
         </div>
       )}
       {/* ── Header section ── */}
-      <header className="flex-shrink-0 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-sm sm:px-6 xl:px-8">
+      <header data-testid="agreement-command-surface" data-surface="agreement-operations" className="flex-shrink-0 border-b border-[#203128] bg-[#101a14] px-4 py-4 text-white sm:px-6 xl:px-8">
         <div className="mx-auto w-full max-w-[1440px]">
         {/* Row 1 — Breadcrumb */}
         <nav aria-label={tWorkspace("breadcrumb")} className="mb-3 flex min-w-0 items-center gap-1.5">
           <Link
             href="/contracts"
-            className="shrink-0 text-xs font-medium text-primary hover:underline"
+            className="shrink-0 text-xs font-medium text-[#d5ff72] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72]"
           >
             {tWorkspace("contracts")}
           </Link>
-          <ChevronRight className="size-3 shrink-0 text-muted-foreground rtl:rotate-180" />
-          <span className="truncate text-xs text-muted-foreground">{contract.title}</span>
+          <ChevronRight className="size-3 shrink-0 text-[#819082] rtl:rotate-180" />
+          <span className="truncate text-xs text-[#aebcaf]">{contract.title}</span>
         </nav>
 
         {/* Row 2 — Title + actions */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <h1 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{contract.title}</h1>
+            <h1 className="break-words text-xl font-semibold tracking-tight text-white sm:text-2xl">{contract.title}</h1>
             <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={contract.status} />
             {riskData?.riskScore && <RiskBadge level={riskData.riskScore} />}
-            {contract.counterpartyName && <span className="text-sm text-muted-foreground">{contract.counterpartyName}</span>}
-            {contract.contractType && <span className="text-sm text-muted-foreground before:me-2 before:text-border before:content-['·']">{contract.contractType}</span>}
+            {contract.counterpartyName && <span className="text-sm text-[#b9c8ba]">{contract.counterpartyName}</span>}
+            {contract.contractType && <span className="text-sm text-[#b9c8ba] before:me-2 before:text-[#506052] before:content-['·']">{contract.contractType}</span>}
             </div>
           </div>
           <div
@@ -1018,7 +1022,7 @@ export default function ContractDetailPage() {
           >
             {transitions.length > 0 && (
               <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:flex-none">
+                <DropdownMenuTrigger className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/5 px-3 text-[13px] font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72]/50 sm:flex-none">
                   <span className={cn("size-2 rounded-full shrink-0", STATUS_DOT[contract.status] ?? "bg-zinc-400")} />
                   {tWorkspace("changeStatus")}
                   <ChevronDown className="size-3 opacity-50" />
@@ -1051,7 +1055,7 @@ export default function ContractDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setApprovalOpen(true)}
-                className="min-h-11 flex-1 sm:flex-none"
+                className="min-h-11 flex-1 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:flex-none"
               >
                 <ArrowUpRight className="size-3.5" />
                 {tWorkspace("sendForApproval")}
@@ -1061,7 +1065,7 @@ export default function ContractDetailPage() {
               <Button
                 size="sm"
                 onClick={sendForSignature}
-                className="min-h-11 flex-1 sm:flex-none"
+                className="min-h-11 flex-1 bg-[#d5ff72] text-[#101a14] hover:bg-white sm:flex-none"
               >
                 <Pen className="size-3.5" />
                 {tWorkspace("sendForSigning")}
@@ -1072,7 +1076,7 @@ export default function ContractDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setArchiveOpen(true)}
-                className="min-h-11 flex-1 sm:flex-none"
+                className="min-h-11 flex-1 text-[#b9c8ba] hover:bg-white/10 hover:text-white sm:flex-none"
               >
                 <Archive className="size-3.5" />
                 {tWorkspace("archive")}
@@ -1083,7 +1087,7 @@ export default function ContractDetailPage() {
         </div>
       </header>
 
-      {primaryWorkspaceAction ? <section className="mx-auto mt-3 flex w-[calc(100%-2rem)] max-w-[1392px] flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.035] p-3.5 sm:w-[calc(100%-3rem)] xl:w-[calc(100%-4rem)]" aria-label={tActions("nextStep")}><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{tActions("nextStep")}</p><p className="mt-1 truncate text-sm font-semibold text-foreground">{primaryWorkspaceAction.detail}</p></div><Link href={primaryWorkspaceAction.href} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">{primaryWorkspaceAction.label}<ArrowUpRight className="ms-1 size-3.5 rtl:-scale-x-100" /></Link></section> : null}
+      {primaryWorkspaceAction ? <section className="mx-auto mt-3 flex w-[calc(100%-2rem)] max-w-[1392px] flex-wrap items-center justify-between gap-3 border border-[#c7d6c8] bg-[#f9fcf8] p-3.5 sm:w-[calc(100%-3rem)] xl:w-[calc(100%-4rem)]" aria-label={tActions("nextStep")}><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#527259]">{tActions("nextStep")}</p><p className="mt-1 truncate text-sm font-semibold text-foreground">{primaryWorkspaceAction.detail}</p></div><Link href={primaryWorkspaceAction.href} className="inline-flex min-h-11 items-center border-b border-primary text-sm font-semibold text-primary hover:text-[#101a14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{primaryWorkspaceAction.label}<ArrowUpRight className="ms-1 size-3.5 rtl:-scale-x-100" /></Link></section> : null}
 
       {/* ── Tab bar ── */}
       <Tabs
@@ -1092,23 +1096,24 @@ export default function ContractDetailPage() {
       >
         <TabsList
           aria-label={tWorkspace("tabs")}
-          className="h-auto w-full flex-shrink-0 justify-start gap-0 overflow-x-auto rounded-none border-b border-border bg-background px-4 p-0 sm:px-6 xl:px-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          data-testid="agreement-workspace-tabs"
+          className="h-auto w-full flex-shrink-0 justify-start gap-0 overflow-x-auto rounded-none border-b-2 border-[#203128] bg-[#101a14] px-4 p-0 sm:px-6 xl:px-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
           <TabsTrigger
             value="overview"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("summary")}
           </TabsTrigger>
           <TabsTrigger
             value="documents"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("files")}{files.length > 0 && ` (${files.length})`}
           </TabsTrigger>
           <TabsTrigger
             value="ai-extractions"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("review")}
             {pendingExtractions.length > 0 && (
@@ -1119,7 +1124,7 @@ export default function ContractDetailPage() {
           </TabsTrigger>
           <TabsTrigger
             value="approvals"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("approvals")}
             {pendingApprovals.length > 0 && (
@@ -1131,7 +1136,7 @@ export default function ContractDetailPage() {
           {signingEnabled && (
             <TabsTrigger
               value="signing"
-              className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+              className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
             >
               {tWorkspace("signing")}
             </TabsTrigger>
@@ -1140,7 +1145,7 @@ export default function ContractDetailPage() {
               from the primary workflow until authoring is production-ready. */}
           <TabsTrigger
             value="obligations"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("actionsTab")}
             {activeObligations.length > 0 && (
@@ -1151,7 +1156,7 @@ export default function ContractDetailPage() {
           </TabsTrigger>
           <TabsTrigger
             value="risk"
-            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+            className="-mb-px flex-none rounded-none border-b-2 border-transparent px-3.5 py-3 text-[12.5px] font-normal text-[#9ba99c] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d5ff72] data-active:border-[#d5ff72] data-active:bg-transparent data-active:font-semibold data-active:text-[#d5ff72] data-active:shadow-none"
           >
             {tWorkspace("risk")}
             {riskData?.riskScore === "HIGH" && (
@@ -1175,20 +1180,20 @@ export default function ContractDetailPage() {
               title={tWorkspace("summaryTitle")}
               description={tWorkspace("summaryDescription")}
             />
-            <section aria-labelledby="workflow-readiness-heading" className="rounded-xl border border-border bg-card p-4 sm:p-5">
+            <section aria-labelledby="workflow-readiness-heading" className="border-y-2 border-[#203128] bg-[#f8fbf8] py-5">
               <div className="mb-4">
                 <h2 id="workflow-readiness-heading" className="text-sm font-semibold text-foreground">
                   {tWorkspace("workflowReadiness")}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">{tWorkspace("workflowReadinessDescription")}</p>
               </div>
-              <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 xl:grid-cols-5">
+              <div data-testid="agreement-workstreams" className="grid grid-cols-1 divide-x divide-y border-y border-[#cbd8cd] sm:grid-cols-2 xl:grid-cols-5 xl:divide-y-0">
                 {workflowReadiness.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-label={tWorkspace("openTab", { tab: item.tab })}
-                    className="min-h-20 bg-card p-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset"
+                    className="min-h-24 bg-transparent p-4 transition-colors hover:bg-[#e8f1e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset"
                   >
                     <p className="text-xs font-medium text-foreground">{item.tab}</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p>
@@ -2212,10 +2217,10 @@ export default function ContractDetailPage() {
                           key={key}
                           className={cn(
                             "rounded-[var(--radius)] border border-border bg-card p-4",
-                            "border-s-4",
-                            cat.level === "HIGH" ? "border-s-red-500" :
-                            cat.level === "MEDIUM" ? "border-s-amber-500" :
-                            "border-s-emerald-500",
+                            "border-t-2",
+                            cat.level === "HIGH" ? "border-t-red-500" :
+                            cat.level === "MEDIUM" ? "border-t-amber-500" :
+                            "border-t-emerald-500",
                           )}
                         >
                           <div className="flex items-center justify-between mb-2">
@@ -2441,29 +2446,29 @@ export default function ContractDetailPage() {
             <DialogTitle className="truncate pe-8">{previewFileState?.file.filename ?? tWorkspace("documentPreview")}</DialogTitle>
             <DialogDescription>
               {previewFileState?.file.mimeType === "application/pdf" || previewFileState?.file.filename.toLowerCase().endsWith(".pdf")
-                ? "Previewing the uploaded PDF"
-                : "This file can be downloaded and opened in its native application."}
+                ? tWorkspace("previewPdfDescription")
+                : tWorkspace("previewNativeDescription")}
             </DialogDescription>
           </DialogHeader>
           {previewFileState && (
             previewFileState.file.mimeType === "application/pdf" || previewFileState.file.filename.toLowerCase().endsWith(".pdf") ? (
               <iframe
                 src={previewFileState.url}
-                title={`Preview of ${previewFileState.file.filename}`}
+                title={tWorkspace("previewDocumentTitle", { filename: previewFileState.file.filename })}
                 className="h-[min(75vh,800px)] w-full bg-muted"
               />
             ) : (
               <div className="flex min-h-56 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
                 <FileText className="size-10 text-muted-foreground/50" />
                 <p className="max-w-md text-sm text-muted-foreground">
-                  Browser preview is available for PDFs. Download this DOCX file to review it in Word or LibreOffice.
+                  {tWorkspace("previewDocxGuidance")}
                 </p>
                 <a
                   href={previewFileState.url}
                   download={previewFileState.file.filename}
-                  className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  Download document
+                  {tWorkspace("downloadDocument")}
                 </a>
               </div>
             )
@@ -2474,9 +2479,9 @@ export default function ContractDetailPage() {
                 href={previewFileState.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Open in new tab
+                {tWorkspace("openInNewTab")}
               </a>
             </div>
           )}
@@ -2548,7 +2553,8 @@ export default function ContractDetailPage() {
             <button
               type="button"
               onClick={() => { setApprovalOpen(false); setApprovalRequired(true) }}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 mt-0.5"
+                aria-label={tWorkspace("cancel")}
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 shrink-0"
             >
               <X className="h-4 w-4" />
             </button>
