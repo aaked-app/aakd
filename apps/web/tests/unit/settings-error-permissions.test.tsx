@@ -113,11 +113,13 @@ describe("Settings error, permission, and accessibility behavior", () => {
     await screen.findByDisplayValue("Acme")
     expect(Boolean(container.querySelector('input[type="file"]'))).toBe(logo)
     expect(Boolean(screen.queryByRole("button", { name: "org.saveChanges" }))).toBe(general)
-    expect(Boolean(screen.queryByRole("button", { name: "org.setupAi" }))).toBe(aiConfig)
     if (aiConfig) {
-      fireEvent.click(screen.getByRole("button", { name: "org.setupAi" }))
+      const setupAi = await screen.findByRole("button", { name: "org.setupAi" })
+      fireEvent.click(setupAi)
       expect(screen.getByRole("button", { name: "org.save" })).toBeInTheDocument()
       expect(Boolean(screen.queryByRole("button", { name: "org.test" }))).toBe(aiTest)
+    } else {
+      expect(screen.queryByRole("button", { name: "org.setupAi" })).not.toBeInTheDocument()
     }
   })
 

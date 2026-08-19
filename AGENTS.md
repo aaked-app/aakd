@@ -8,7 +8,7 @@ Read `PRODUCT.md` for the canonical product vision, ICP, roadmap, feature bounda
 
 ## Project
 
-Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management platform. It is publicly hosted at `aaked-app/aakd` and is currently released as v1.2.1.
+Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management platform. It is publicly hosted at `aaked-app/aakd` and is currently released as v1.3.0.
 
 The active application is the `apps/web` workspace: Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS, Prisma 7/PostgreSQL 16 + pgvector, Better Auth, BullMQ/Redis, S3-compatible storage, TipTap, next-intl, Vitest, and Playwright. `apps/web/worker.ts` is the separate BullMQ worker; `worker/jobs/` holds shared worker modules. There is no active `packages/` implementation.
 

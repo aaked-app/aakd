@@ -8,7 +8,7 @@ Read `PRODUCT.md` for the canonical product vision, ICP, roadmap, feature bounda
 
 ## Product and current state
 
-Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management (CLM) platform. The public repository is [aaked-app/aakd](https://github.com/aaked-app/aakd); the current release is v1.2.1.
+Aakd is an open-source, self-hostable, AI-native Contract Lifecycle Management (CLM) platform. The public repository is [aaked-app/aakd](https://github.com/aaked-app/aakd); the current release is v1.3.0.
 
 It supports contract storage and search, AI extraction and cited Q&A, renewals and obligations, approvals and DocuSeal signing, authoring/templates/redlining, notifications and webhooks, CRM integrations, imports, an MCP endpoint, and English/French/German/Spanish/Arabic (RTL).
 

@@ -4,6 +4,22 @@ All notable changes to Aakd are documented in this file.
 
 ---
 
+## [1.3.0] — 2026-08-19
+
+### Added
+
+- **Contract operations foundation** — source-cited action-ledger APIs and MCP, plus a feature-flagged workspace for obligations, renewals, actions, approvals, evidence, and delivery. The action UI remains disabled by default during customer validation.
+- **Reviewable AI extraction** — source-verified quotes, document-derived pages, confidence, provenance, and human acceptance or rejection before canonical contract data changes.
+- **Renewal and obligation controls** — duplicate-safe projections, reminder controls, exception states, durable activity, and owner/due-date visibility.
+
+### Security and reliability
+
+- **Tenant and API safety** — strengthened organization isolation, API-key scope checks, MCP data minimization, request validation, and rate-limit recovery.
+- **Document lifecycle safety** — source-locked upload, extraction, AI, and embedding work prevents stale content from being published after replacement uploads.
+- **Platform refresh** — Next.js 16, React 19, Prisma 7.9, and a production dependency audit with no high or critical findings.
+
+---
+
 ## [1.2.1] — 2026-08-16
 
 ### Fixed
