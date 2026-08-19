@@ -186,6 +186,12 @@ workflow, and how it can be verified. Keep changes focused and preserve the
 source-linked, human-reviewable contract model. See the repository's issue and
 pull-request templates for project-specific guidance.
 
+### Start with a focused contribution
+
+- [Document the synthetic demo-verification workflow](../../issues/12).
+- [Write the operator guide to audit history and activity records](../../issues/13).
+- [Help shape the amendment-impact review workflow](../../issues/14).
+
 For setup questions, implementation discussions, and contributor coordination,
 join the [Aakd Discord community](https://discord.gg/23hntCVty). Please avoid
 sharing real contract data or other confidential information in public channels.
