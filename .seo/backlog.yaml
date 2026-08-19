@@ -45,9 +45,21 @@ items:
       Search Console has sufficient query/impression evidence or the original
       proof asset identifies a non-overlapping audience question. Any page
       must include original evidence and avoid doorway-page overlap.
+  - id: durable-location-controlled-intent-research
+    priority: P1
+    status: pending
+    owner: maintainer-with-independent-review
+    done_when: >-
+      A reproducible US/UK query sample records engine, date, location control,
+      signed-out method, exact queries, durable result URLs, limitations, and
+      an independently reviewable evidence artifact. Ephemeral execution-log
+      identifiers are not accepted as evidence.
   - id: weekly-scorecard-review
     priority: P1
     status: recurring_external
     owner: founder-maintainer
     cadence: weekly
-    source: /Users/wassimbensalem/brain/projects/aakd/seo-geo-scorecard.md
+    program_definition: docs/seo-geo-program.md#workstream-4-measurement
+    private_ledger: >-
+      Maintainer-owned and intentionally outside the public repository; do not
+      record an absolute local path here.
