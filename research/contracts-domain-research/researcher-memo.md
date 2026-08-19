@@ -1,8 +1,8 @@
 # Contracts in operating companies: domain research for Aakd
 
-**Research date:** 2026-08-19  
-**Geographic emphasis:** United States and England & Wales (with explicit jurisdiction notes)  
-**Purpose:** founder-grade domain research for Aakd's provisional 50–500 employee US/UK ICP and cited post-signature-action hypothesis  
+**Research date:** 2026-08-19
+**Geographic emphasis:** United States and England & Wales (with explicit jurisdiction notes)
+**Purpose:** founder-grade domain research for Aakd's provisional 50–500 employee US/UK ICP and cited post-signature-action hypothesis
 **Status:** research synthesis, not legal advice
 
 ## Reading conventions and evidence standard
