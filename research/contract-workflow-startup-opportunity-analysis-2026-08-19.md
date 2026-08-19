@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stages 1–5 decision process PASS; no thesis has passed validation; Stage 6 not started
+**Status:** Stages 1–6 research-design readiness PASS; no thesis has passed validation; Stage 7 not started
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -38,7 +38,7 @@ The analysis follows the exact sequence **frame → observe → explain → chal
 | 16 | Premortem and failure register | Challenge | Adoption, displacement, gaming, review burden, incumbent response, implementation failure | Complete via §15 and the independent review §§14–15 |
 | 17 | Comparative decision table | Decide | Consequence, recurrence, urgency, reachability, status-quo adequacy, switching, burden, budget, evidence | Complete in §16.2–§16.3 |
 | 18 | Opportunity-cost, VoI, reversibility and ruin analysis | Decide | Sensitivity, research value, commitment sizing, tail constraints | Complete in §16.4–§16.9 |
-| 19 | Falsifiable validation protocols | Test | Per-thesis prediction, sample, evidence, WTP test, pass/downweight/kill, smallest test | Pending |
+| 19 | Falsifiable validation protocols | Test | Per-thesis prediction, sample, evidence, WTP test, pass/downweight/kill, smallest test | Complete for selected paired `T1`/`H0` protocol in §17; execution not authorized |
 | 20 | Decision/update record and final audit | Update | Ranked hypotheses or no-clear-winner result, posterior updates, rule-by-rule verification | Pending |
 
 **FACT.** The method corpus specifies the exact seven-stage order, requires artifacts and advancement gates, and says the status quo must be included in the explanatory and decision set [RDP, “The one-page recommended reasoning stack”](reasoning-decision-principles-2026-08-19.md#the-one-page-recommended-reasoning-stack).
@@ -1151,3 +1151,520 @@ The allocation changes only when one of these named conditions occurs:
 | Stage 6 not started | **PASS** | No protocol is executed here; preregistration/primary validation remains outside Stage 5 |
 
 **Stage 5 result: PASS (15/15 decision-process rules). No opportunity thesis passes.** The provisional decision allocates the next primary-validation effort to the paired frozen `T1`/`H0` protocol. Stage 6 has not started.
+
+---
+
+## 17. Stage 6 — Test design and preregistration
+
+### 17.1 Authorization boundary
+
+**VALUE JUDGMENT.** This section is a research protocol on paper. Completing it authorizes **none** of the following without separate, explicit user approval:
+
+- outreach, recruitment, scheduling, or messages to any person or organization;
+- collection, transfer, viewing, storage, or analysis of contracts, notices, screenshots, exports, records, or personal/confidential information;
+- presentation or solicitation of a paid validation offer, invoice, commitment, or payment;
+- configuration or change of an organization's register, workflow, calendar, procurement system, repository, access, or data;
+- sending, drafting for external use, approving, or recommending a renewal, non-renewal, termination, waiver, or other contractual notice/action; or
+- any write to an operational, financial, legal, procurement, CRM, storage, or communication system.
+
+**VALUE JUDGMENT.** Separate approval must name the authorized actions, recipients, data boundary, payment procedure, operator, and rollback/stop authority. Silence, protocol completion, or Stage 6 `PASS` is not approval.
+
+### 17.2 Exact research questions and competing hypotheses
+
+| ID | Preregistered research question | `T1` prediction | `H0` prediction |
+|---|---|---|---|
+| `RQ1` | After a compliant 30-day owner/register/cadence/native-system correction, do material renewal/notice failures remain? | **HYPOTHESIS:** context or authority failures persist in enough organizations and decisions to meet the frozen `T1` gate | **HYPOTHESIS:** the corrected existing process handles enough decisions correctly/on time to meet the frozen `H0` gate |
+| `RQ2` | Are residual failures distinguishable from ordinary workload, noncompliance, stale source, commercial discretion, or missing ownership? | **HYPOTHESIS:** qualified residual events trace specifically to governing context/authority convergence after control compliance | **HYPOTHESIS:** apparent failures disappear under compliance or remain attributable to governance/adoption rather than a distinct information gap |
+| `RQ3` | Do residual failures cause verified material consequences? | **HYPOTHESIS:** the bearing function verifies the required number of material consequences | **HYPOTHESIS:** consequences are absent, below the defined materiality rule, or not independently verifiable |
+| `RQ4` | Will verified economic buyers make a qualifying non-refundable paid commitment for the named workflow outcome? | **HYPOTHESIS:** the frozen buyer-payment condition is met | **HYPOTHESIS:** buyers prefer the corrected existing process or will not authorize a paid alternative |
+| `RQ5` | Does the result replicate across US/UK and 51–200/201–500 cells? | **HYPOTHESIS:** qualifying residual failure appears in both countries and both size bands | **HYPOTHESIS:** apparent support is confined to one geography, size band, channel, or organization |
+
+**VALUE JUDGMENT.** The focal causal contrast is residual workflow failure after a fair process/native-system correction, not before-versus-after enthusiasm and not a comparison with a neglected status quo.
+
+### 17.3 Population and balanced sample
+
+The controlling frozen definitions are [independent review §12.1](contract-workflow-opportunity-adversarial-review-2026-08-19.md#121-rules-applying-to-every-row) and the exact `T1`/`H0` rows in [§12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols).
+
+| Cell | Geography | Verified employee band | Required organizations |
+|---|---|---:|---:|
+| `C1` | United States | 51–200 | exactly 4 |
+| `C2` | United States | 201–500 | exactly 4 |
+| `C3` | United Kingdom | 51–200 | exactly 4 |
+| `C4` | United Kingdom | 201–500 | exactly 4 |
+| **Total** | US and UK reported separately | 51–500, bands separate | **exactly 16** |
+
+**VALUE JUDGMENT.** Geography is the operating organization/entity whose workflow and decision are studied, not vendor headquarters, author profile, currency, or governing law alone. Employee band requires a dated, permissible, verifiable organization source; unverified self-description is recorded but does not qualify.
+
+### 17.4 Organization and event eligibility
+
+#### Organization inclusion
+
+An organization qualifies only when all are true before the cohort is frozen:
+
+1. **FACT TO VERIFY:** it fits exactly one of `C1`–`C4` using a dated employee-count source and stated operating geography.
+2. **FACT TO VERIFY:** it owns a recurring supplier/software agreement workflow with renewal or notice decisions.
+3. **FACT TO VERIFY:** it has at least one due event within the prospective window and the cohort can produce enough events to make the complete 40-event census feasible.
+4. **FACT TO VERIFY:** it names an operational renewal owner and a distinct consequence-bearing functional role; an economic buyer is identified even when that person overlaps with the bearing role.
+5. **FACT TO VERIFY:** it is willing and authorized to apply the full 30-day process-first control and record compliance/admin time.
+6. **FACT TO VERIFY:** it can provide an approved minimal artifact/proxy for event/source/consequence verification without violating third-party, confidentiality, privacy, privilege, or security restrictions.
+7. **FACT TO VERIFY:** it agrees that all eligible events, failures, vetoes, missing data, noncompliance, and withdrawal after cohort freeze remain visible.
+
+Vendors, consultants, implementation partners, and advisers may not count as target buyers or substitute for the 16 organizations.
+
+#### Event inclusion
+
+One event is one supplier/software renewal or contractual notice decision whose practical decision point or notice deadline becomes due after the organization's 30-day control period and during the prospective census window.
+
+An event qualifies only when it has:
+
+- a stable `event_id` and one `org_id`;
+- the agreement/family/source rule needed to determine the applicable renewal/notice state or an approved proxy showing it was verified;
+- a preregistered decision point, contractual notice deadline where applicable, named owner, and intended decision/action;
+- an observable correct/on-time outcome and completion/evidence state; and
+- inclusion independent of whether the outcome favors `T1` or `H0`.
+
+**VALUE JUDGMENT.** Multiple documents, reminders, communications, or consequences arising from the same due decision remain one event. A later, genuinely separate renewal/notice decision may be a new event. Events discovered only after failure remain in the census if they met the date/scope rule.
+
+### 17.5 Recruitment channels and role diversity
+
+**VALUE JUDGMENT.** No more than **two organizations may come from one recruitment channel**. Sixteen organizations therefore require at least eight independently recorded channels. A channel is one originating list, community, association, event, referral source, research panel, partner, or direct-search batch; relabeling sublists from the same origin does not create independence.
+
+The recruitment ledger must capture `channel_id`, originating source, first-contact path, referral dependency, recruiter, date, and relationship/conflict. Related entities under the same purchasing authority or workflow governance count as one organization unless the independent reviewer approves separate treatment before outcomes.
+
+Each organization requires two distinct evidence roles:
+
+1. **operating role:** procurement/contracts analyst, vendor manager, or accountable renewal owner who reconstructs the workflow and control; and
+2. **bearing role:** finance/business/service/procurement leader who verifies the consequence and counterfactual.
+
+The identified economic buyer must separately verify purchasing authority and budget. The buyer may be the bearing role but cannot be inferred from seniority or job title. Legal, security, IT/system, or notice-authority roles participate where the event requires their verification; they do not replace the two required roles.
+
+### 17.6 Pre-recruitment feasibility gate
+
+This gate occurs after separate user authorization but before any external outreach. Every row must pass without relaxing the frozen protocol.
+
+| Feasibility rule | Required evidence before outreach | Failure action |
+|---|---|---|
+| Balanced cells | Credible, independent candidate-access paths for exactly four organizations per `C1`–`C4` | Stop; record `SW1`; do not pool or change bands |
+| Channel cap | At least eight genuinely distinct recruitment origins capable of honoring the two-organization maximum | Stop; do not split one lineage cosmetically |
+| Event volume | A defensible route to a complete prospective census of at least 40 due decisions after controls | Stop; do not substitute retrospective opinions or lower the event denominator |
+| Role access | Plausible access to operating + bearing roles and the real economic buyer in every enrolled organization | Stop; users alone cannot qualify the organization |
+| Process control | Ability to run the entire 30-day control, measure compliance, and record admin time in all organizations | Stop; uncontrolled baseline failures cannot defeat `H0` |
+| Data authority | Approved minimal-data path, transfer/retention plan, access owner, and safe proxy design | Stop before document/data request |
+| Critical taxonomy | Named qualified legal/functional taxonomy owners and preregistered review procedure | Stop; no improvised post-result severity labels |
+| Payment procedure | Separately user-approved fixed-scope non-refundable validation offer, authority verification, and accounting/compliance path | Stop before payment discussion; no WTP proxy substitution |
+| Execution capacity | Named research operator, independent adjudicator, data steward, stop authority, and ability to preserve the complete ledger | Stop; do not run a partially observable protocol |
+
+**VALUE JUDGMENT.** A feasibility failure is a research result about access/operability. It does not justify changing denominators, cells, channel caps, payment definition, or outcome thresholds.
+
+#### 17.6.1 Smallest reversible, non-validating feasibility experiments
+
+1. **Desk-only access map:** without contacting anyone, map at least eight independent channel types, the four required cells, likely role access, public evidence of renewal-event volume, and foreseeable data/authority barriers.
+2. **Synthetic ledger rehearsal:** populate the §17.10 schema with invented records solely to verify field logic, deterministic event ordering, missing-data behavior, threshold calculation, and correction propagation. Synthetic records are permanently excluded from evidence.
+3. **Authority/volume screen after separate approval:** contact at most one organization per cell only to verify employee/geography evidence, two-role/buyer access, at least one prospective due event, control authority, artifact/proxy feasibility, and payment-process legality. No pain/prevalence conclusion is drawn; screen data cannot enter the 16/40 denominators. An organization later enrolled must contribute only fresh prospective events after the full control.
+
+**VALUE JUDGMENT.** These experiments answer only whether execution is feasible and safe. They cannot validate recurrence, consequence, status-quo inadequacy, WTP, `T1`, or `H0`; positive screens are not evidence toward any frozen numerator.
+
+### 17.7 Two-role recent-episode method
+
+Before the process-first control, the two required roles independently reconstruct the most recent in-scope renewal/notice episode from the prior 12 months.
+
+The operating-role reconstruction records:
+
+1. trigger and original/practical decision dates;
+2. governing source/family and how the final version was identified;
+3. sequence, actors, waits, approvals, workaround, escalation, and action/evidence;
+4. context that was available, missing, stale, or disputed; and
+5. actual admin work, correction, bypass, and outcome.
+
+The bearing-role verification records:
+
+1. whether the asserted consequence occurred and who bore it;
+2. the permissible record or signed attestation supporting it;
+3. the counterfactual distinguishing it from general workload or unrelated delay; and
+4. whether the role controls or can identify the relevant budget and decision authority.
+
+**VALUE JUDGMENT.** A recent episode informs eligibility and causal coding; it does not enter the prospective 40-event primary denominator. Preferences, hypothetical future pain, and duplicated retellings do not qualify as episodes.
+
+### 17.8 Thirty-day process-first/native-system control
+
+Each of the 16 frozen organizations runs the following complete control for **30 consecutive calendar days** before prospective event counting begins:
+
+| Control component | Required specification and evidence |
+|---|---|
+| Owner | One named accountable renewal owner plus named backup; explicit acceptance and escalation authority |
+| Final-version/source rule | Location and method for identifying the executed governing agreement/family, amendments, notice terms, source excerpt/page or approved proxy, last verification date, and unresolved gap |
+| Decision register | One record per expected renewal/notice containing stable ID, counterparty, decision point, notice deadline, lead time, owner, current status, context, approver, next action, and evidence link/proxy |
+| Cadence | Scheduled review frequency and attendance appropriate to due decisions; every scheduled review logged |
+| Escalation | Time/condition-based escalation to business owner, procurement leader, legal/finance, or other authorized role; no silent ownerless state |
+| Existing-system configuration | Use the organization's current spreadsheet/calendar/task/procurement/repository/suite capabilities before adding another destination; record configuration time and limitations |
+| Training | Short role-specific instruction on source rule, event entry, owner action, escalation, evidence, and error reporting; attendance and acknowledgment logged |
+| Admin time | Minutes by role for initial correction, recurring maintenance, review, escalation, source verification, correction, and closeout |
+| Compliance | Every required control action has scheduled/required, completed, actor, timestamp, evidence/proxy, and deviation reason; report per organization and pooled |
+
+Compliance is calculated as completed required control actions divided by all scheduled/required control actions. The pooled preregistered compliance figure covers the frozen sample; any organization counted toward `H0`'s residual-failure kill condition must also have **at least 90%** recorded control compliance. Failure during noncompliance diagnoses adoption/governance and does not defeat `H0`.
+
+**VALUE JUDGMENT.** The control may configure existing tools but introduces no new product or automated legal decision. Any actual configuration requires the separate authorization in §17.1.
+
+### 17.9 Prospective complete event census
+
+After every organization completes the 30-day control, freeze the cohort and start the prospective census.
+
+- Include every consecutive eligible due renewal/notice decision across the 16 organizations; do not sample favorable or complete events.
+- Continue until the **40th** eligible decision has reached its observable correct/on-time outcome, creating the primary denominator of **40 decisions**.
+- If more than one event reaches the boundary simultaneously, order by preregistered decision deadline timestamp and then stable hashed `org_id`/`event_id`; events after the 40th are retained as exploratory and cannot repair the primary result.
+- Preserve event counts by `C1`–`C4`, country, size band, organization, channel, and contract family; do not pool US/UK evidence silently.
+- Log eligible events discovered after their deadline, missing events, vetoes, withdrawals, and noncompliance. None disappears because evidence is inconvenient.
+
+**VALUE JUDGMENT.** The 40-event primary census is complete for the defined prospective boundary: all eligible events from census start through the deterministically ordered 40th completed outcome are included.
+
+### 17.10 Data dictionary
+
+| Field | Type / allowed state | Operational definition |
+|---|---|---|
+| `org_id` | Stable pseudonymous ID | One independent organization/purchasing authority; identity key held separately by authorized steward |
+| `cell_id` | `C1`–`C4` | Verified geography × employee band |
+| `employee_count_basis` | Date + source/proxy | Permissible evidence used to assign the band |
+| `channel_id` | Stable ID | Original recruitment lineage; dependency retained |
+| `role_ids` | Operating, bearing, buyer, approver, blocker, implementation owner | Named internally; research view minimized/pseudonymized where possible |
+| `event_id` | Stable pseudonymous ID | One due renewal/notice decision |
+| `event_order` | Integer | Deterministic prospective ordering; primary set is 1–40 |
+| `agreement_family_class` | Supplier/software master, order, amendment, notice, other stated class | No raw contents required for classification |
+| `decision_point_at` | Timestamp/date | Practical last date for informed decision under preregistered lead-time rule |
+| `notice_deadline_at` | Timestamp/date or not applicable | Contractual deadline as verified by authorized role/source proxy |
+| `source_verified` | Yes / no / unresolved | Final-version/family/notice source rule completed before decision |
+| `owner_accepted` | Yes / no + timestamp | Named owner accepted responsibility |
+| `control_action_required` | Boolean/category | Scheduled or event-required process-control action |
+| `control_action_completed` | Boolean + evidence/proxy | Used in compliance denominator/numerator |
+| `admin_minutes` | Nonnegative integer by role/activity | Actual measured setup, maintenance, review, verification, escalation, correction, closeout time |
+| `decision_outcome` | Renew / renegotiate / non-renew / terminate / defer / other stated | Authorized organization's decision; research does not recommend it |
+| `correct_on_time` | Yes / no / unresolved | Outcome meets preregistered correctness/timing rule under authorized adjudication |
+| `residual_failure` | Yes / no / unresolved | Context/authority failure after compliant control, not general workload/noncompliance |
+| `failure_cause` | Context / authority / source / ownership / noncompliance / workload / commercial discretion / other preregistered | Primary cause plus adjudication record; no post-result category creation for confirmatory result |
+| `material_consequence` | Yes / no / unresolved + category | Meets §17.14 verification rule |
+| `consequence_verifier` | Bearing role + record/attestation type | Independent of researcher estimate |
+| `critical_error` | Yes / no / unresolved + taxonomy ID | Preregistered critical-error definition and adjudication |
+| `correction_event` | Timestamp, source, affected fields/actions | What changed, who approved, and where correction propagated |
+| `downstream_write` | None / system/action destination | Every operational write/action; protocol itself authorizes none |
+| `admin_or_bypass_effect` | Type + duration/count | Alert fatigue, bypass, queue shift, supplier friction, extra review, unrecorded workaround |
+| `security_legal_veto` | Yes / no + reason/stage | Veto remains visible and is not an ordinary exclusion |
+| `payment_status` | Not offered / offered / authorized / received / rejected / prohibited | Only `received` under §17.15 counts |
+| `payment_target` | Named workflow validation / other | Separates qualifying commitment from unrelated spend |
+| `missing_reason` | Preregistered category + responsible source | Missing data never counts as success |
+| `exclusion_reason` | Eligibility-only category | Outcome-based exclusion prohibited after cohort freeze |
+
+### 17.11 Permissible artifacts, proxies, and authority
+
+**VALUE JUDGMENT.** Collect the minimum evidence needed. Preference order:
+
+1. authorized signed attestation containing only event facts and verification outcome;
+2. redacted structured export or screenshot with unrelated/sensitive fields removed;
+3. source excerpt/page or notice-field verification performed by the organization's authorized reviewer, with only the verification result shared;
+4. hashed document/version ID, timestamp, audit event, decision log, calendar/task record, invoice/spend/service record, or other independently checkable proxy; and
+5. raw contract/family only if strictly necessary, separately approved, lawfully disclosable, access-controlled, minimized, and covered by explicit retention/deletion authority.
+
+Before any collection, record organization data authority, third-party/confidentiality limits, privilege position, data geography, approved transfer/storage, allowed viewers, retention/deletion date, and incident/stop contact. A participant offering a document is not proof of authority.
+
+**VALUE JUDGMENT.** No generative model or external processor receives contract content under this protocol unless separately approved with provider, retention, training, geography, and access terms. The protocol does not require such processing.
+
+### 17.12 Primary and secondary measures
+
+#### Primary confirmatory measures
+
+| Measure ID | Exact numerator / denominator | Used by |
+|---|---|---|
+| `P1` | Organizations with qualifying residual context/authority failure / **16** | `T1` pass/kill |
+| `P2` | Primary decisions with qualifying residual context/authority failure / **40** | `T1` pass/kill |
+| `P3` | Organizations with verified material consequence / **16** | `T1` pass |
+| `P4` | Economic buyers with qualifying payment received / **16** | `T1` and `H0` |
+| `P5` | Correct/on-time primary decisions / **40** | `T1` kill; `H0` pass/kill |
+| `P6` | Organizations for which all included primary events are correct/on-time / **16**; an organization with no assessable primary event cannot enter the numerator | `H0` pass |
+| `P7` | Critical errors / all 40 primary decisions | `T1` kill and `H0` pass guardrail |
+| `P8` | Median total admin hours per organization per month | `T1` kill and `H0` pass |
+| `P9` | Recorded control actions completed / required | `H0` kill compliance condition; report pooled and by organization |
+| `P10` | Residual failures and consequences by country, band, and all four cells | `T1` cross-cell condition and non-pooling rule |
+
+`P8` includes every measured setup, maintenance, review, verification, escalation, correction, and closeout minute from control start through the 40th primary outcome. For each organization, divide total hours by elapsed calendar days and multiply by 30; take the median of the 16 organization-month rates. Report initial setup and recurring components separately as secondary evidence, but do not remove setup from the frozen threshold metric.
+
+#### Secondary/exploratory measures
+
+- source/family, context, authority, ownership, workload, commercial-discretion, and noncompliance cause distribution;
+- time from practical decision point to authorized decision and from decision to evidence closure;
+- admin minutes by role/activity, including setup and correction;
+- number and age of unresolved source/family gaps;
+- overrides, bypasses, owner reassignments, alert/escalation volume, and missing-state incidents;
+- supplier/business friction, downstream queue time, added reviews, and work shifted to other roles;
+- correction count, propagation destinations, retraction time, and any stale action after correction;
+- security/legal veto stage and reason; and
+- payment offer, authority, receipt timing, rejection/prohibition reason, without interpreting amount as market price.
+
+**VALUE JUDGMENT.** Secondary measures diagnose mechanisms and harms. They cannot substitute for a missed primary frozen condition.
+
+### 17.13 Critical-error taxonomy and adjudication ownership
+
+Before recruitment outcomes are visible, two qualified owners freeze the taxonomy:
+
+1. an authorized legal/contract professional for notice/source/authority errors; and
+2. an authorized functional owner for decision, service, spend, and operational-control errors.
+
+An independent adjudicator resolves disagreements without knowing which hypothesis the result favors where practical. The frozen taxonomy must cover at minimum:
+
+- wrong governing document/version/amendment or unresolved family presented as resolved;
+- wrong renewal, notice, termination, decision-point, method, address, or authority state that could lose a right, create an unwanted commitment, or cause invalid action;
+- omitted eligible event or ownerless event that passes the action deadline;
+- unauthorized contractual notice/action or operational write;
+- material confidential, privileged, personal, or security data exposure; and
+- correction not propagated to an affected decision/evidence record before action.
+
+**VALUE JUDGMENT.** Any added or changed critical category after outcomes is exploratory and requires a fresh sample. A critical error is not downgraded because the overall direction supports a thesis.
+
+### 17.14 Material-consequence verification
+
+A material consequence counts only when the bearing function verifies it using a permissible record or signed attestation and it is one of:
+
+- money paid, committed, lost, recovered, or avoidably spent;
+- customer, employee, or service impact;
+- a documented control exception;
+- a missed contractual right; or
+- at least **one full business-day delay on the critical path**.
+
+The verifier records the event, bearing function, counterfactual, evidence/proxy, and why the consequence is distinguishable from general workload. Researcher-estimated savings, vendor ROI, inconvenience, concern, or a hypothetical risk do not count.
+
+### 17.15 Non-refundable economic-buyer payment procedure
+
+A payment counts only when all are true:
+
+1. the actual economic buyer is identified and their purchasing authority/budget path is verified;
+2. separate user approval has authorized presenting a fixed-scope offer for time-bounded validation of the named renewal-decision outcome;
+3. scope, amount, refund terms, delivery boundary, data boundary, and timing are fixed before the buyer sees protocol outcomes;
+4. budget is actually authorized and received as **non-refundable payment** through an approved accounting/compliance path;
+5. the payment is not vendor-funded and is not contingent on a favorable outcome or later purchase; and
+6. `payment_status=received` and `payment_target=named workflow validation` are recorded before unblinding aggregate results.
+
+Survey willingness, compliments, user enthusiasm, waitlists, letters of intent, free work, discounts contingent on success, an invoice not paid, or a buyer saying budget exists do not count. No amount is invented here; the fixed offer and amount require separate user approval before solicitation.
+
+### 17.16 Correction propagation and second-order guardrails
+
+For every correction, record original state, corrected state, cause, approving authority, affected reminders/decisions/notices/evidence, destinations, retraction/update time, and unresolved stale copies. No silent overwrite is allowed in the research ledger.
+
+Guardrails reported for every organization/event include:
+
+- setup, recurring, review, verification, escalation, and correction time by bearing actor;
+- alert/escalation volume, ignored alerts, overrides, bypass, and off-system work;
+- downstream queue or approval delay created by the control;
+- supplier negotiation/relationship effect and internal service disruption;
+- reviewer rework and repeated interpretation;
+- access expansion, privacy/security incident, or legal/authority veto;
+- metric gaming, including perfunctory early “review,” exclusion of hard events, or reclassification that improves the headline metric; and
+- movement of the bottleneck to legal, finance, business owner, supplier, or system administration.
+
+**VALUE JUDGMENT.** Net harm, unauthorized action, or unpriced burden cannot be hidden by a correct/on-time headline. It is reported and invokes the stop/adjudication rule even when the frozen classification remains mechanically calculable.
+
+### 17.17 Exact frozen decision rules
+
+The controlling language remains the independent review [§12](contract-workflow-opportunity-adversarial-review-2026-08-19.md#12-frozen-passdownweightkill-protocols). This restatement changes no threshold.
+
+#### Shared deterministic order
+
+1. Any applicable `KILL` condition overrides.
+2. If no kill applies, every `PASS` condition must hold to classify `PASS`.
+3. If no kill applies but any pass condition is missed, classify `DOWNWEIGHT`.
+4. Missing data never counts as success.
+5. A killed thesis may be reformulated only as a new hypothesis with new evidence, not repaired after results.
+
+#### `T1` frozen classification
+
+- **PASS — all required:** residual context/authority failure in **at least 6/16 organizations** and **at least 6/40 decisions**; material consequence in **at least 4/16 organizations**; **at least 2/16 buyers pay**; failure appears in **both countries and both size bands**.
+- **DOWNWEIGHT:** no kill applies, but any pass condition is missed.
+- **KILL — any one:** residual failure in **at most 2/16 organizations** or **at most 2/40 decisions**; **0/16 pay**; or the process-first control yields **at least 38/40 correct/on-time decisions** with **zero critical errors** and median **at most 2 admin hours per organization per month**.
+
+#### `H0` frozen classification
+
+- **PASS — all required:** the existing process handles **at least 38/40 events correctly/on time across at least 14/16 organizations**, with **zero critical errors**, median **at most 2 admin hours per organization per month**, and **at most 1/16 buyer pays for an alternative**.
+- **DOWNWEIGHT:** no kill applies, but any pass condition is missed.
+- **KILL — all three required:** despite **at least 90% recorded control compliance**, **at least 4/16 organizations have a material residual failure**, correct/on-time performance is **at most 32/40**, and **at least 2/16 economic buyers pay for an alternative**.
+
+**VALUE JUDGMENT.** Classify `T1` and `H0` independently using this order. A Stage 6 protocol-readiness `PASS` is unrelated to these outcome classifications.
+
+### 17.18 Missing data, exclusions, cross-cell reporting, and deduplication
+
+- **Missing data:** use explicit `unresolved` plus `missing_reason`; it never enters a success numerator or silently leaves a denominator.
+- **Before cohort freeze:** record every screened organization and eligibility failure. Replacement is allowed only before the 16-organization cohort begins the 30-day control.
+- **After cohort freeze:** withdrawal, veto, missing role, lost access, incomplete artifact, and unobserved outcome remain in the organization/event ledger and cannot be replaced to improve results.
+- **Event exclusions:** apply only the preregistered date/scope/duplicate rules. No exclusion may depend on consequence, correctness, payment, or thesis direction.
+- **Complete census:** every eligible event through the ordered 40th outcome is included; later events are exploratory and cannot repair confirmatory results.
+- **Cross-cell:** report `C1`–`C4`, country, and size-band results separately. “Both countries and both size bands” means at least one qualifying `T1` residual failure appears in each country and each size band; no pooled count can hide an empty country/band.
+- **Organization dedupe:** related entities sharing purchasing authority/workflow governance count once unless independently approved before outcomes.
+- **Event dedupe:** one due decision counts once even if it has multiple documents, reminders, actors, consequences, or retellings.
+- **Cross-thesis dedupe:** a family-resolution cause inside a renewal event supports the `T1` event denominator only here and cannot be double-counted as independent `T4` evidence.
+- **Threshold repair:** denominators, cells, channel caps, eligibility, critical taxonomy, cause categories, payment definition, and pass/downweight/kill thresholds cannot change after outcomes. Any change creates a new exploratory protocol and fresh sample.
+
+### 17.19 Conditional next-path protocol cards
+
+These cards preserve the Stage 5 sequence: `T3` is second conditional; `T2` is third conditional. They are not parallel execution authorizations, do not change the frozen protocols, and cannot begin unless a named §16.8 switch condition fires, a new decision record activates the path, and separate user authority is granted.
+
+#### 17.19.1 `T3` conditional card — SOW change/acceptance/billing
+
+| Protocol element | Conditional specification |
+|---|---|
+| Status | **CONDITIONAL ONLY:** activate under `SW2` or after the paired `T1`/`H0` update when exact access/authority is demonstrated; no current allocation |
+| Controlling thresholds | Exact `T3` row in [independent review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols); this card neither repeats nor changes its `PASS`/`DOWNWEIGHT`/`KILL` numbers |
+| Population/cells/channels | 16 qualified SOW-based service firms, exactly four in each `C1`–`C4`; shared §12.1 maximum two organizations per channel; vendors/consultants do not count as buyers |
+| Event denominator | Exactly 10 consecutive scope-change/milestone events per firm, 160 total, after the required change-control/PSA correction |
+| Required roles | Delivery/project owner plus finance bearing/verifying role; economic buyer and customer/internal approval authority identified separately |
+| Recent-episode guide | Reconstruct the last scope request/milestone: governing SOW/change terms, request and authority, work performed, customer dependency/acceptance, evidence path, project/PSA entry, invoice/cash outcome, workaround, correction, and counterfactual; delivery and finance accounts recorded independently |
+| Permitted artifact/evidence request | Approved redacted SOW/change/acceptance excerpt or authorized verification proxy; project-to-invoice trace; delivery and finance confirmation; timestamps/IDs rather than raw customer content where sufficient; buyer payment record |
+| Costly WTP mechanism | The §17.15 non-refundable, authorized, paid commitment for the named scope-change-to-billing validation outcome; no survey/letter/free work substitute |
+| Incumbent control | Existing change-control/PSA process correction runs before events; commercial discretion, customer delay, and noncompliance remain separate causes |
+| Authority/guardrails | No research-led scope interpretation, customer communication, acceptance, invoice, revenue/accounting decision, or PSA/ERP write; legal/accounting/data authority required; measure critical-path delay, recovered value evidence, disputes, bypass, admin and correction propagation |
+| Smallest reversible feasibility experiment | First, desk-only map of eight independent channels and cell/event access. After separate outreach approval, screen at most one organization per cell solely for authority, role, and prospective-event availability; screening statements/artifacts cannot enter the 16/160 confirmatory denominators. Test the data schema on synthetic records only. |
+| Stage 7 handoff | Report the untouched frozen classification, cell/event completeness, consequences, payment, incumbent control, guardrails, missingness and deviations; no startup-winner inference |
+
+#### 17.19.2 `T2` conditional card — contract-to-revenue continuity
+
+| Protocol element | Conditional specification |
+|---|---|
+| Status | **CONDITIONAL ONLY:** third in sequence, activated under `SW3` or a later decision record; no current allocation |
+| Controlling thresholds | Exact `T2` row in [independent review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols); this card neither repeats nor changes its `PASS`/`DOWNWEIGHT`/`KILL` numbers |
+| Population/cells/channels | 16 qualified B2B organizations, exactly four in each `C1`–`C4`; shared §12.1 maximum two organizations per channel; vendors/consultants do not count as buyers |
+| Event denominator | Exactly 10 consecutive nonstandard executed deals per organization, 160 total, after the required native CRM/order-control correction |
+| Required roles | Contract/deal-desk/RevOps operating role plus receiving order/billing/provisioning/finance role; economic buyer and legal/IT approvers identified separately |
+| Recent-episode guide | Reconstruct the last nonstandard executed deal: approved/final source, deviations, signature/condition, contract fields passed, CRM/order/provisioning/billing transitions, exception/correction, bearing team, consequence, workaround, suite configuration and counterfactual |
+| Permitted artifact/evidence request | Authorized redacted contract/order process trace or source-verification proxy; CRM/order/billing audit/correction records; timestamps/field diffs without unnecessary contract text; confirmation from both required roles; buyer payment record |
+| Costly WTP mechanism | The §17.15 non-refundable, authorized, paid commitment for the named contract-to-revenue validation outcome; no user enthusiasm, free integration, letter, or future-purchase promise counts |
+| Incumbent control | Native CRM/order checklist/configuration correction precedes the event audit; ordinary workload, sales policy, implementation delay, and noncompliance are coded separately |
+| Authority/guardrails | No contract interpretation by researcher and no CRM/order/provisioning/billing/ERP write; security/legal/data authority required; trace false downstream state, correction propagation, receiving-team adoption, bypass, booking gaming, total admin and shifted queue |
+| Smallest reversible feasibility experiment | First, desk-only map of eight independent channels, nonstandard-volume evidence, and receiving-role access. After separate outreach approval, screen at most one organization per cell only for 10-event availability, native-control authority, and audit-field feasibility; screening data cannot enter 16/160 results. Test the trace schema on synthetic records only. |
+| Stage 7 handoff | Report the untouched frozen classification, native-control effect, 160-deal completeness, receiving-role adoption, consequences, payment, guardrails, missingness and deviations; no startup-winner inference |
+
+**VALUE JUDGMENT.** Feasibility screens answer only “can the frozen protocol be executed safely and completely?” They cannot support recurrence, consequence, buyer, WTP, prevalence, or thesis classification and cannot be pooled into later denominators.
+
+### 17.20 Stepwise execution sequence
+
+No step begins without the separate authorization in §17.1.
+
+1. **Authorize:** obtain explicit user approval naming outreach, data, payment, configuration, and stop boundaries.
+2. **Freeze:** version this protocol, independent review §12, taxonomy-owner roles, data plan, analysis script/specification, and decision order.
+3. **Pass feasibility:** complete §17.6 without external outreach or threshold changes.
+4. **Recruit:** fill exactly four organizations in each `C1`–`C4`, honoring the two-per-channel cap and recording all screening.
+5. **Verify authority:** confirm organization eligibility, two roles, buyer, data/contract authority, transfer/retention, and veto contacts before any artifact request.
+6. **Reconstruct baseline:** conduct two-role recent-episode reconstruction; exclude it from the prospective 40-event denominator.
+7. **Present paid validation:** only under separately approved fixed terms; obtain/record non-refundable payment status before aggregate outcome unblinding.
+8. **Run control:** execute and log the complete 30-day process-first/native-system control in every organization.
+9. **Freeze cohort:** lock the 16 organizations, compliance definitions, eligible event scope, cause taxonomy, and deterministic event ordering.
+10. **Census prospectively:** include every eligible due decision through the ordered 40th completed outcome.
+11. **Verify independently:** bearing role verifies consequences; authorized reviewers adjudicate correctness, cause, and critical errors; data steward checks completeness/dedupe.
+12. **Audit guardrails:** calculate admin time, compliance, corrections, downstream effects, bypass, veto, missingness, and cell/channel coverage.
+13. **Apply decision order:** evaluate all `KILL` conditions first, then all `PASS` conditions, else `DOWNWEIGHT`, separately for `T1` and `H0`.
+14. **Preserve results:** append results to the blank shell without overwriting this preregistration; record deviations as exploratory.
+15. **Stop before interpretation expansion:** Stage 7 performs the belief/decision update; Stage 6 execution cannot declare a startup winner.
+
+### 17.21 Stop and safety rules
+
+Stop the affected organization/event immediately upon:
+
+- absent or withdrawn authority for participation, document/proxy use, storage, payment, or existing-system configuration;
+- unauthorized disclosure, privacy/security incident, privilege concern, or breach of third-party confidentiality;
+- request for research personnel to interpret legal rights, make the renewal decision, send a notice, approve spend, or write to an operational system;
+- any unauthorized consequential action or critical false-certainty event;
+- inability to preserve the complete event census, correction history, or frozen denominator;
+- undisclosed conflict, duplicate organization, channel-cap breach, falsified eligibility, or payment-authority failure; or
+- pressure to change thresholds, exclusions, critical taxonomy, or missing-data treatment after observing outcomes.
+
+The stop authority is the named research lead plus the organization's authorized data/legal/functional owner; either can stop. Preserve only the minimal incident/audit record permitted by authority, notify the designated owner, and do not continue analysis on improperly obtained data.
+
+### 17.22 Blank results and update shell
+
+No observations have been collected and no values are implied.
+
+#### Feasibility and cohort
+
+| Result item | Preregistered requirement | Observed result | Status |
+|---|---|---|---|
+| Separate execution approval | Required before outreach/data/payment/configuration | — | Not executed |
+| `C1` US 51–200 | Exactly 4 organizations | — | Not executed |
+| `C2` US 201–500 | Exactly 4 organizations | — | Not executed |
+| `C3` UK 51–200 | Exactly 4 organizations | — | Not executed |
+| `C4` UK 201–500 | Exactly 4 organizations | — | Not executed |
+| Recruitment channels | At least 8; maximum 2 organizations/channel | — | Not executed |
+| Two roles + buyer | Required in all 16 organizations | — | Not executed |
+| 30-day control | Complete in all frozen organizations | — | Not executed |
+| Primary event census | Exactly first 40 consecutive eligible outcomes after controls | — | Not executed |
+
+#### Primary outcomes
+
+| Measure | Frozen denominator/threshold reference | Observed numerator/value | Evidence completeness |
+|---|---|---|---|
+| `P1` organizations with residual failure | `/16`; §17.17 | — | Not executed |
+| `P2` decisions with residual failure | `/40`; §17.17 | — | Not executed |
+| `P3` organizations with material consequence | `/16`; §17.17 | — | Not executed |
+| `P4` buyers with qualifying payment | `/16`; §17.17 | — | Not executed |
+| `P5` correct/on-time decisions | `/40`; §17.17 | — | Not executed |
+| `P6` organizations meeting correct/on-time rule | `/16`; §17.17 | — | Not executed |
+| `P7` critical errors | `0` required for named pass/control condition | — | Not executed |
+| `P8` median admin hours/org/month | `≤2` required for named pass/control condition | — | Not executed |
+| `P9` control compliance | `≥90%` required for `H0` kill condition | — | Not executed |
+| `P10` country/band/cell spread | Both countries and bands for `T1` pass | — | Not executed |
+
+#### Frozen classifications and update
+
+| Record | Result |
+|---|---|
+| `T1` kill conditions evaluated first | — |
+| `T1` classification: `PASS` / `DOWNWEIGHT` / `KILL` | — |
+| `H0` kill conditions evaluated first | — |
+| `H0` classification: `PASS` / `DOWNWEIGHT` / `KILL` | — |
+| Missingness/exclusions/deviations | — |
+| Guardrail/safety events | — |
+| Evidence by `C1`–`C4`, country, band, organization, channel | — |
+| Observation separated from interpretation | — |
+| Stage 7 belief update | — |
+| Stage 7 research-allocation decision | — |
+
+### 17.23 Explicit Stage 7 handoff
+
+Stage 7 receives only an append-only evidence package after an authorized protocol execution:
+
+1. frozen protocol/version and independent-review references;
+2. authorization, data, channel, screening, cohort, role, event, artifact/proxy, payment, compliance, admin and adjudication ledgers;
+3. the complete event census and `P1`–`P10` results by `C1`–`C4`, country, band, organization and channel;
+4. all missingness, vetoes, withdrawals, exclusions, noncompliance, critical errors, corrections, downstream effects, guardrail breaches and deviations;
+5. mechanical `KILL`-first classification for each activated thesis and comparator under the unchanged frozen table;
+6. observation separated from causal interpretation and value judgment;
+7. evidence that would reverse the updated decision; and
+8. a next action of stop, downweight, continue under the recorded gate, or formulate a new hypothesis—never generic “research more.”
+
+If no protocol was executed, Stage 7 must record **no new primary evidence, no posterior change from this work, and no thesis pass**. It may close the desk-research cycle and retain the conditional validation decision, but it may not fill the results shell with estimates.
+
+**VALUE JUDGMENT.** A protocol `PASS` would validate only the named workflow hypothesis under its frozen population/method. It would not by itself prove prevalence outside the sample, TAM/ROI, defensibility, a product architecture, or a startup winner.
+
+### 17.24 Stage 6 readiness audit
+
+| Readiness rule | Result | Evidence |
+|---|---|---|
+| Exact `T1`/`H0` questions and competing hypotheses | **PASS** | §17.2 defines five discriminating questions and both predictions |
+| Four balanced geography/size cells | **PASS** | §17.3 requires exactly four organizations in each US/UK × 51–200/201–500 cell, total 16 |
+| Organization and event eligibility executable | **PASS** | §17.4 defines seven organization conditions and complete event inclusion |
+| Channel cap and role diversity exact | **PASS** | §17.5 requires no more than two organizations/channel, at least eight origins, two evidence roles, and verified buyer |
+| Pre-recruitment feasibility gate | **PASS** | §17.6 has nine stop-before-outreach rules with no denominator relaxation |
+| Smallest feasibility experiments cannot be mistaken for validation | **PASS** | §17.6.1 limits work to desk mapping, synthetic rehearsal, and separately authorized four-cell screening; none enters a frozen numerator |
+| Process-first control complete | **PASS** | §17.8 specifies owner, source, register, cadence, escalation, existing-system configuration, training, admin, and compliance for 30 days |
+| Complete prospective census | **PASS** | §17.9 includes every eligible event through the deterministic 40th outcome |
+| Data dictionary and authority/proxy rules | **PASS** | §§17.10–17.11 define fields, minimal artifact order, authority, transfer, retention, and processor boundary |
+| Two-role recent-episode method | **PASS** | §17.7 separates operating reconstruction, bearing verification, and prospective denominator |
+| Primary/secondary measures and taxonomy ownership | **PASS** | §§17.12–17.13 define `P1`–`P10`, diagnostics, two qualified owners, and independent adjudication |
+| Consequence and WTP verification exact | **PASS** | §§17.14–17.15 preserve bearing-function verification, one-business-day rule, and non-refundable paid-commitment definition |
+| Compliance, admin, correction, and second-order guardrails | **PASS** | §§17.8 and 17.16 retain all required burden, propagation, bypass, queue, and metric-gaming measures |
+| Frozen numeric thresholds unchanged | **PASS** | §17.17 matches independent review §12: 16 organizations; 40 decisions; `T1` 6/16, 6/40, 4/16, 2/16, 2/16, 2/40, 0/16, 38/40, 0, 2 hours; `H0` 38/40, 14/16, 0, 2 hours, 1/16, 90%, 4/16, 32/40, 2/16 |
+| Missing data, exclusions, cells, dedupe, no repair | **PASS** | §17.18 preserves denominators and forbids outcome-based exclusion, pooling, double-counting, and threshold repair |
+| Conditional `T3`/`T2` cards preserve sequence and thresholds | **PASS** | §17.19 references the exact frozen rows, keeps `T3` second/`T2` third, and adds no parallel allocation or altered number |
+| Recent-episode, artifact, WTP, recruitment and feasibility details cover conditional paths | **PASS** | §17.19 records roles/questions, exact evidence classes, §17.15 payment, balanced cells/channel caps, non-validating feasibility screens, authority and guardrails |
+| Step sequence and stop/safety rules | **PASS** | §§17.20–17.21 require separate authority and stop on data, action, census, conflict, or protocol breach |
+| Blank results/update shell without invented outcomes | **PASS** | §17.22 contains only unexecuted fields and no observations |
+| `D19` marked complete | **PASS** | §1 index points to this execution-ready selected protocol and states execution is unauthorized |
+| Killed theses not revived; no product/TAM/ROI/prevalence work | **PASS** | Only paired `T1`/`H0` is preregistered; `T5`/`T6` remain killed and no solution is designed |
+| Protocol readiness distinguished from thesis pass | **PASS** | Header, §17.17, and this audit state that no outcome classification exists |
+| No external or operational authority inferred | **PASS** | §17.1 explicitly prohibits outreach, data collection, payment solicitation, notices/actions, configuration, and system writes without separate approval |
+| Explicit Stage 7 handoff | **PASS** | §17.23 defines the append-only evidence package, no-execution outcome, decision update boundary, and non-generalization rule |
+| Stage 7 not started | **PASS** | §17.22 leaves update fields blank; §17.23 is a handoff specification, not an update |
+
+**Stage 6 result: PASS (25/25 readiness rules). No thesis has passed, and no protocol has been executed.** Stage 7 has not started. Separate user approval is required before any outreach, document/proxy collection, payment solicitation, configuration, contractual action, or system write.
