@@ -6,7 +6,13 @@ import { request, type FullConfig } from "@playwright/test"
 import { hashPassword } from "better-auth/crypto"
 import { loadEnvConfig } from "@next/env"
 
-import { VISUAL_AUTH_STATE, VISUAL_FIXTURE_IDS, VISUAL_OWNER_EMAIL } from "./visual-constants"
+import {
+  VISUAL_AUTH_STATE,
+  VISUAL_FIXTURE_IDS,
+  VISUAL_NO_ORGANIZATION_EMAIL,
+  VISUAL_NO_ORG_AUTH_STATE,
+  VISUAL_OWNER_EMAIL,
+} from "./visual-constants"
 import {
   assertVisualFixtureEnabled,
   seedVisualFixture,
@@ -52,6 +58,14 @@ export default async function visualGlobalSetup(_config: FullConfig) {
 
     await mkdir(path.dirname(VISUAL_AUTH_STATE), { recursive: true })
     await authRequest.storageState({ path: VISUAL_AUTH_STATE })
+
+    const noOrganizationSignIn = await authRequest.post("/api/auth/sign-in/email", {
+      data: { email: VISUAL_NO_ORGANIZATION_EMAIL, password },
+    })
+    if (!noOrganizationSignIn.ok()) {
+      throw new Error(`No-organization visual fixture sign-in failed (${noOrganizationSignIn.status()}): ${await noOrganizationSignIn.text()}`)
+    }
+    await authRequest.storageState({ path: VISUAL_NO_ORG_AUTH_STATE })
   } finally {
     await authRequest.dispose()
     await prisma.$disconnect()

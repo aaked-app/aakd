@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import en from "@/messages/en.json"
 import ar from "@/messages/ar.json"
-import { VISUAL_AUTH_STATE, VISUAL_FIXTURE_IDS } from "./visual-constants"
+import { VISUAL_AUTH_STATE, VISUAL_FIXTURE_IDS, VISUAL_NO_ORG_AUTH_STATE } from "./visual-constants"
 
 type AppLocale = "en" | "ar"
 type Messages = Record<string, unknown>
@@ -230,6 +230,26 @@ test.describe("Priority 1 seeded visual matrix", () => {
 
     expect(serverErrors).toEqual([])
     expect(errors).toEqual([])
+  })
+})
+
+test.describe("No-organization activation shell visual proof", () => {
+  test.use({ storageState: VISUAL_NO_ORG_AUTH_STATE })
+
+  test("gives a new user a clear workspace setup path", async ({ page }, testInfo) => {
+    await verifyRoute(page, testInfo, {
+      name: "no-organization-shell",
+      path: "/dashboard",
+      headingKey: "nav.workspaceSetupTitle",
+    })
+
+    const locale = localeFor(testInfo)
+    await expect(page.getByRole("list", {
+      name: messageAt(locale, "nav.workspaceSetupSteps"),
+    })).toBeVisible()
+    await expect(page.getByRole("button", {
+      name: messageAt(locale, "nav.createWorkspace"),
+    })).toBeVisible()
   })
 })
 

@@ -8,9 +8,17 @@ import {
   ObligationPriority,
   ObligationStatus,
 } from "@prisma/client"
-import { VISUAL_FIXTURE_IDS, VISUAL_OWNER_EMAIL } from "./visual-constants"
+import {
+  VISUAL_FIXTURE_IDS,
+  VISUAL_NO_ORGANIZATION_EMAIL,
+  VISUAL_OWNER_EMAIL,
+} from "./visual-constants"
 
-export { VISUAL_FIXTURE_IDS, VISUAL_OWNER_EMAIL } from "./visual-constants"
+export {
+  VISUAL_FIXTURE_IDS,
+  VISUAL_NO_ORGANIZATION_EMAIL,
+  VISUAL_OWNER_EMAIL,
+} from "./visual-constants"
 
 type FixtureEnvironment = {
   NODE_ENV?: string
@@ -57,6 +65,15 @@ export function buildVisualFixtureData(passwordHash: string) {
       createdAt,
       updatedAt: createdAt,
     },
+    {
+      id: VISUAL_FIXTURE_IDS.noOrganization,
+      name: "E2E Visual New User",
+      email: VISUAL_NO_ORGANIZATION_EMAIL,
+      emailVerified: true,
+      locale: "en",
+      createdAt,
+      updatedAt: createdAt,
+    },
   ] satisfies Prisma.UserCreateManyInput[]
 
   const organization = {
@@ -72,6 +89,15 @@ export function buildVisualFixtureData(passwordHash: string) {
       accountId: VISUAL_FIXTURE_IDS.owner,
       providerId: "credential",
       userId: VISUAL_FIXTURE_IDS.owner,
+      password: passwordHash,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: VISUAL_FIXTURE_IDS.noOrganizationAccount,
+      accountId: VISUAL_FIXTURE_IDS.noOrganization,
+      providerId: "credential",
+      userId: VISUAL_FIXTURE_IDS.noOrganization,
       password: passwordHash,
       createdAt,
       updatedAt: createdAt,
@@ -234,20 +260,18 @@ export async function cleanupVisualFixture(client: PrismaClient | Prisma.Transac
       },
     },
   })
-  await client.account.deleteMany({ where: { id: VISUAL_FIXTURE_IDS.ownerAccount } })
+  await client.account.deleteMany({
+    where: { id: { in: [VISUAL_FIXTURE_IDS.ownerAccount, VISUAL_FIXTURE_IDS.noOrganizationAccount] } },
+  })
   await client.session.deleteMany({
     where: {
-      userId: {
-        in: [VISUAL_FIXTURE_IDS.owner, VISUAL_FIXTURE_IDS.legal, VISUAL_FIXTURE_IDS.viewer],
-      },
+      userId: { in: [VISUAL_FIXTURE_IDS.owner, VISUAL_FIXTURE_IDS.legal, VISUAL_FIXTURE_IDS.viewer, VISUAL_FIXTURE_IDS.noOrganization] },
     },
   })
   await client.organization.deleteMany({ where: { id: VISUAL_FIXTURE_IDS.organization } })
   await client.user.deleteMany({
     where: {
-      id: {
-        in: [VISUAL_FIXTURE_IDS.owner, VISUAL_FIXTURE_IDS.legal, VISUAL_FIXTURE_IDS.viewer],
-      },
+      id: { in: [VISUAL_FIXTURE_IDS.owner, VISUAL_FIXTURE_IDS.legal, VISUAL_FIXTURE_IDS.viewer, VISUAL_FIXTURE_IDS.noOrganization] },
     },
   })
 }

@@ -152,18 +152,24 @@ describe("authenticated application shell", () => {
     expect(authState.push).toHaveBeenCalledWith("/login")
   })
 
-  it("shows a localized no-workspace holding state without changing organization behavior", () => {
+  it("gives a new user a clear workspace setup brief without changing organization behavior", () => {
     authState.activeOrg = null
     authState.organizations = []
 
     render(<AppLayout><p>Hidden workspace</p></AppLayout>)
 
     expect(screen.getByRole("main")).toHaveAccessibleName("Workspace unavailable")
-    expect(screen.getByRole("heading", { name: "No organization yet" })).toBeInTheDocument()
-    expect(screen.getByText("Create a new organization or accept an email invitation from your team.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Create your contract workspace" })).toBeInTheDocument()
+    expect(screen.getByText("A focused place for agreements, ownership, and the work that follows.")).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Workspace setup steps" })).toBeInTheDocument()
+    expect(screen.getByText("Add an agreement")).toBeInTheDocument()
+    expect(screen.getByText("Invite your team")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Create organization" }))
+    fireEvent.click(screen.getByRole("button", { name: "Create workspace" }))
     expect(authState.push).toHaveBeenCalledWith("/create-org")
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }))
+    expect(authState.signOut).toHaveBeenCalledTimes(1)
   })
 
   it("opens the mobile sheet from the logical RTL edge for Arabic", () => {
@@ -175,6 +181,20 @@ describe("authenticated application shell", () => {
       "data-side",
       "right",
     )
+  })
+
+  it("keeps the workspace setup brief localized and contained for Arabic", () => {
+    authState.locale = "ar"
+    authState.activeOrg = null
+    authState.organizations = []
+
+    const { container } = render(<AppLayout><p>Hidden workspace</p></AppLayout>)
+
+    expect(screen.getByRole("heading", { name: "أنشئ مساحة عمل العقود الخاصة بك" })).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "خطوات إعداد مساحة العمل" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "إنشاء مساحة العمل" })).toHaveClass("min-h-11")
+    expect(container.querySelector("section")).toHaveClass("min-w-0")
+    expect(container.querySelector("aside")).toHaveClass("min-w-0", "lg:border-s")
   })
 
   it("keeps resolving a user's existing organization before showing the empty state", async () => {
@@ -355,6 +375,19 @@ describe("authenticated application shell", () => {
       "noOrganizationDescription",
       "createOrganization",
       "invitationHint",
+      "workspaceSetupEyebrow",
+      "workspaceSetupTitle",
+      "workspaceSetupDescription",
+      "workspaceSetupSteps",
+      "setupStepWorkspace",
+      "setupStepAgreement",
+      "setupStepTeam",
+      "setupStepWorkspaceDescription",
+      "setupStepAgreementDescription",
+      "setupStepTeamDescription",
+      "createWorkspace",
+      "invitationTitle",
+      "invitationDescription",
       "workspaceUnavailable",
       "organizationLoadErrorTitle",
       "organizationLoadErrorDescription",
