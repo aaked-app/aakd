@@ -87,3 +87,117 @@ This inversion makes three controls non-negotiable: test a recent episode agains
 **Most diagnostic crux:** in a deal-level audit, what fraction of nonstandard executed agreements produce contract-caused downstream exceptions after ordinary workload and suite-configuration failures are excluded?
 
 **Disconfirming test:** configure the existing CRM/order checklist first and prospectively audit the next nonstandard deals. If residual contract-caused exceptions are below the frozen threshold, native configuration resolves them, or receiving teams refuse the operating change, `T2` fails.
+
+## 6. `T3` — Professional-services scope change to acceptance and billing
+
+### Strongest incumbent/null case
+
+**STEELMAN — High confidence.** Scope, delivery evidence, acceptance and invoicing belong in the PSA/project/ERP system operated by delivery and finance. A clear change-order policy, trained project managers, customer-authority matrix and milestone evidence checklist can close the chain without another destination. The [Cardinal filing](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm) demonstrates that mature contract-loss reviews, change-order accounting and contract-asset controls are continuous management disciplines; it does not show a startup-shaped gap.
+
+### Adversarial findings
+
+- **Unsupported inference — High confidence:** public-sector standards and one sector-specific public-company filing show that change/acceptance controls matter, not that information fragmentation is the dominant cause of margin or cash loss in mid-sized professional-services firms.
+- **Segment/geography gap — High confidence:** Cardinal's employee count was not verified and it is not a qualifying 51–500 case; no direct target-cohort US/UK operator episode, recurrence distribution or paid commitment exists.
+- **Actor/buyer/incentive failure — High confidence:** project managers are rewarded for delivery and customer satisfaction, not stopping work; sales may promise flexibility; customer approvers can delay acceptance; finance sees leakage late; the economic buyer cannot unilaterally change customer behavior.
+- **Status-quo adequacy — High confidence:** PSA/ERP/project controls plus enforced no-work-without-change discipline may solve the problem. Commercial discretion or weak escalation, rather than missing state, may be the cause.
+- **Implementation/adoption burden — High confidence:** formalizing every variance can slow delivery and harm the client relationship; users may conduct the real negotiation in email/chat and backfill records later.
+- **False-positive/correction cost — High confidence:** incorrectly treating a request as out of scope or a milestone as accepted can trigger an invalid invoice, revenue treatment, escalation or customer dispute. Reversals must propagate across project, ERP, billing and evidence records.
+- **Legal/accounting risk — High confidence:** contract interpretation, customer authority and revenue recognition are jurisdiction-, fact- and policy-dependent. [IFRS 15](https://www.ifrs.org/issued-standards/list-of-standards/ifrs-15-revenue-from-contracts-with-customers/) establishes accounting requirements, not automated treatment or a business opportunity.
+- **Suite/defensibility gap — High confidence:** PSA/ERP/project vendors already own delivery events and finance data; a separate workflow risks being a brittle reconciliation layer.
+- **Metric gaming/second-order effect — Medium confidence:** “change-order capture” can rise through trivial classifications while customer outcomes or cash worsen; stricter gates may push unrecorded favors off-system or increase disputes.
+
+**Most diagnostic crux:** after clear authority and change-control training, do delivery events still fail to become timely, valid billing evidence often enough to justify paid intervention?
+
+**Disconfirming test:** prospectively trace scope-change and acceptance events from request through invoice, with a PSA/process-first control. If failures are principally commercial choices, customer delay, or noncompliance with an adequate control—or if formalization's delay exceeds recovered value—`T3` fails.
+
+## 7. `T4` — Governing agreement-family resolution at a consequential event
+
+### Strongest incumbent/null case
+
+**STEELMAN — High confidence.** Complex governing-answer questions are low-frequency, high-context legal work. Good naming, folder/family discipline and a qualified lawyer may be cheaper and safer than maintaining inferred relationships. The [Sabre–DXC MSA](https://www.sec.gov/Archives/edgar/data/1597033/000159703321000022/exhibit10103masterservices.htm) proves that one large outsourcing agreement has master terms, service agreements, schedules, change control, acceptance, privacy/security and exit mechanics; it does not establish target-cohort frequency or that counsel is an inadequate response. `CFA-L` R53 is one public-tender user's multi-file, mostly Dutch-language episode, with country and organization size unknown ([source](https://www.reddit.com/r/ContractManagement/comments/1okba00/what_do_you_use_for_contract_management/)).
+
+### Adversarial findings
+
+- **Unsupported inference — High confidence:** multi-document legal structure does not imply recurrent, economically addressable resolution failure in 51–500-employee US/UK companies.
+- **Source dependency — High confidence:** the strongest primary evidence is an enterprise SEC exhibit; the most direct community episode is one anonymous, non-target-verifiable trial. These are different evidence paths but neither measures the proposed population.
+- **Actor/buyer/incentive failure — Medium confidence:** operations wants an immediate answer; legal bears professional risk and may resist delegated interpretation; the budget holder benefits only when a rare event occurs; document owners may not maintain family links.
+- **Status-quo adequacy — High confidence:** counsel plus document hygiene may be proportionate. Buyers may rationally accept slower resolution in exchange for accountable judgment.
+- **Adoption/review burden — High confidence:** establishing family membership, effective periods, precedence, waivers and notices is itself legal/administrative work. A reviewer must inspect both included and potentially missing documents.
+- **False-positive/correction-propagation cost — Very high confidence:** a confidently wrong governing term can cause a missed notice, invalid price action, incident response error or waived remedy. One critical wrong answer may outweigh many faster correct answers; corrections must reach every operational consumer.
+- **Security/privacy/regulatory veto — High confidence:** entire agreement families can include personal, security, pricing, dispute and privileged material; cross-border processing and access controls can veto the method before utility is tested.
+- **Incumbent/defensibility gap — High confidence:** enterprise CLM, search and counsel already address hierarchy/retrieval; family relationship features are claimed by incumbents. No evidence establishes repeatable accuracy, lower total review burden, payment or a defensible data advantage.
+- **Metric gaming/second-order effect — High confidence:** “answer time” rewards premature certainty; “documents linked” rewards over-linking; users may stop searching for missing amendments once a plausible answer is presented.
+
+**Most diagnostic crux:** under blind expert adjudication, how often does full family/effective-period context change the operational answer, and can that gain be achieved with zero critical false certainty and lower total review time?
+
+**Disconfirming test:** audit recent consequential questions using an isolated-document baseline, organized-family control and qualified independent adjudication. If family context rarely changes the action, counsel/document hygiene is faster at full cost, or any critical false-certainty event occurs, `T4` fails.
+
+## 8. `T5` — Constrained, human-reviewed first-pass analysis
+
+### Strongest incumbent/null case
+
+**STEELMAN — High confidence.** A current written checklist and trained reviewer are the load-bearing system. General models or existing review tools can assist ad hoc, but setup, validation and re-review may erase any time saving at modest volume. Community evidence is balanced but unbenchmarked: R30 reports unstable risk classifications; R31 and R33 report useful human-retained workflows; R34 and R36 report unreliable results/nondeployment; R37 reports useful NDA/basic extraction below advertised accuracy; R35 is vendor-affiliated and says low volume does not justify setup; R38 is a consultant anecdote ([R30–R31 source](https://www.reddit.com/r/legaltech/comments/1pnzkcd/why_generic_genai_failed_for_contract_review_in_a/), [R33–R35 source](https://www.reddit.com/r/legaltech/comments/1ux5hsz/ai_use_cases_for_inhouse_legal_counsels/), [R36–R38 source](https://www.reddit.com/r/legaltech/comments/1qop0f3/getting_pitched_ai_for_contract_review_how_do_i/)).
+
+### Adversarial findings
+
+- **Category-definition failure — High confidence:** extraction, classification, deviation identification and draft redlining have different outputs, reviewers, error taxonomies and liability. “NDA or standardized customer/vendor agreement” also pools distinct families and jurisdictions. This thesis cannot be validated or falsified as written.
+- **Unsupported inference — High confidence:** anecdotes about constrained use do not show equivalent or improved critical-error detection, stable guidance, reviewer-time reduction or target-cohort WTP.
+- **Segment/geography gap — High confidence:** all cited community observations lack verified 51–500 size and US/UK geography; none supplies a reproducible benchmark.
+- **Actor/buyer/incentive failure — High confidence:** the requester values speed; the reviewer retains liability and may reperform the work; legal ops pays setup/admin; security/privacy can veto processing; the GC may value risk avoidance over capacity.
+- **Status-quo adequacy — High confidence:** checklist + manual review or an incumbent/general model may be enough. Low review volume makes setup irrational, as even the commercially interested R35 concedes.
+- **Review/implementation burden — Very high confidence:** guidance must be authored, versioned, jurisdiction-scoped, tested and retrained; reviewers must inspect sources and catch omissions. Accepted-suggestion rate can fall while total review effort rises.
+- **False-positive and correction-propagation cost — Very high confidence:** misplaced clauses, defined-term errors and nondeterministic classifications can contaminate redlines, playbooks and future batches. Corrections must invalidate prior outputs derived from the same rule/model/document state.
+- **Security/privacy/legal veto — High confidence:** third-party contracts, personal data, privilege and confidentiality restrictions can block external processing or require deployment/audit controls that erase the economic case.
+- **Incumbent/defensibility gap — High confidence:** general models and specialist review vendors already pursue constrained workflows; a generic “human in the loop” is a safety boundary, not defensibility.
+- **Metric gaming/second-order effect — High confidence:** “reviewer minutes” can be reduced by excluding verification or downstream correction; “accepted suggestions” rewards safe trivialities; automation can deskill reviewers, expand review volume, and normalize lower-quality first drafts.
+
+**Most diagnostic crux:** for exactly one preregistered family, task, jurisdiction and critical-error taxonomy, does assisted review reduce total end-to-end reviewer time on a representative blind set without a single critical-error increase, and is the improvement repeated on a fresh batch?
+
+**Disconfirming test:** a blinded crossover benchmark including setup, verification, correction and second-batch maintenance. Any critical miss, unstable output that changes disposition, or no end-to-end time reduction kills the bounded test.
+
+**Current disposition:** **KILL AS WRITTEN.** It may re-enter only after one task, one family, one jurisdictional scope, one authorized reviewer and one critical-error taxonomy are frozen before evidence collection. That is measurement definition, not product design.
+
+## 9. `T6` — Enterprise contract-process implementation assurance
+
+### Strongest incumbent/null case
+
+**STEELMAN — High confidence.** Implementation is inherently organization-, vendor-, portfolio- and integration-specific. The system vendor, specialist implementer and customer's transformation office already possess access, responsibility and governance. R27 reports more than 50 workflows self-implemented over five years, a direct counterexample to inevitability of failure; R51 describes Confluent's operator-authored mapping, prioritization and executive sponsorship, but offers no neutral outcome benchmark ([ACC article](https://www.acc.com/resource-library/lessons-front-lines-clm-implementation)). R28's failed 7,500-agreement migration and R50's reported >$1m NDA-template episode are serious anecdotes, not prevalence or proof that an independent assurance layer would have prevented them ([R23–R28 thread](https://www.reddit.com/r/legaltech/comments/1ok5bin/ironclad_vs_evisort_looking_for_insight_or/), [R50 thread](https://www.reddit.com/r/legaltech/comments/1ok6m9p/whats_one_legaltech_tool_you_cant_stand/)).
+
+### Adversarial findings
+
+- **Unsupported inference — High confidence:** retrospective failure stories do not show prospective detectability, preventability, independence from implementation quality, or willingness to fund a separate assurance party.
+- **Segment/geography gap — High confidence:** this is an enterprise thesis, separate from the 51–500 ICP; most episode geographies and verified company sizes are unknown.
+- **Actor/buyer/incentive failure — Very high confidence:** the sponsor wants schedule confidence; vendor/implementer may resist an evaluator who threatens acceptance or fees; internal teams may hide readiness gaps; procurement may reject overlapping accountability; the assessor does not control remediation.
+- **Status-quo adequacy — High confidence:** vendor services, specialist consultants, internal PMO, UAT and staged migration already perform parts of the job. An independent reviewer may merely restate their artifacts.
+- **Implementation/adoption burden — Very high confidence:** access to contracts, data mappings, security architecture, integrations, workflows and users is expensive. Each engagement may require a new taxonomy, stakeholder map and risk model.
+- **False-positive/correction cost — High confidence:** an assurance finding can delay a viable launch, expand scope, create defensive documentation or redirect scarce implementation effort. A missed defect can create misplaced trust and contested responsibility.
+- **Security/privacy/regulatory veto — Very high confidence:** broad portfolio and system access, privilege, personal data, security architecture and cross-border constraints can block an independent assessor or materially increase diligence.
+- **Incumbent response/defensibility gap — Very high confidence:** vendors and consultancies can package readiness checks; large buyers can require contractual implementation gates. Repeat purchase inside one organization is weak, and know-how may reside in personnel rather than a reusable asset.
+- **Metric gaming/second-order effect — High confidence:** counts of “risks found,” workflows mapped or milestones passed reward overfinding and paperwork; assurance can diffuse accountability, slow learning and cause implementers to optimize for the audit.
+
+**Most diagnostic crux:** can the same preregistered assurance rubric identify prospective, decision-relevant defects across vendors and organizations, with buyers accepting/remediating them and paying independently, while most delivery effort remains standardized?
+
+**Disconfirming test:** apply the same rubric prospectively across independent programs and compare findings with normal vendor/PMO controls before outcomes are known. If findings are mostly generic/duplicate, cannot be validated, do not change decisions, or require predominantly custom expert labor, `T6` fails.
+
+**Current disposition:** **KILL AS WRITTEN unless the frozen §12 repeatability gate is met.** If more than half of delivery effort is organization-specific interpretation or the buyer primarily purchases expert judgment by the hour, the evidence supports bespoke consulting, not a repeatable startup thesis.
+
+## 10. `H0` — Proportionate status quo plus process discipline
+
+### Strongest null case
+
+**STEELMAN — High confidence.** `H0` is strongest when a single accountable owner can maintain final version, status, next action and evidence in the system where work already happens; events are infrequent or low-consequence; and expected failure cost is below implementation, administration, review and switching cost. `CFA-L` R05, R10–R16, R39–R43 and R54 provide counterexamples to “spreadsheets always fail” or “full CLM is necessary”; R54 explicitly reports a project board sufficient for renewal avoidance and a dedicated tool only when usage tracking is also required ([source](https://www.reddit.com/r/ContractManagement/comments/1okba00/what_do_you_use_for_contract_management/)).
+
+### Adversarial findings
+
+- **Unsupported inference — Medium confidence:** “proportionate” is undefined; without an admin-cost, error and consequence threshold, `H0` can absorb every result after the fact.
+- **Source/segment gap — High confidence:** status-quo anecdotes also lack verified population denominators, target size/geography and longitudinal outcome audits.
+- **Actor/incentive failure — High confidence:** avoiding a new budget benefits finance immediately, while manual maintenance burden and failures are dispersed. Owners can declare a process adequate while downstream teams absorb rework.
+- **Adequacy risk — High confidence:** spreadsheets and folders can work but are vulnerable to turnover, access/version drift and invisible noncompliance. “No reported failure” is not evidence that all events were captured.
+- **Behavior-change burden — Medium confidence:** process discipline itself requires training, review cadence, escalation and audit. It is not free, and a fair comparison must include labor and failure costs.
+- **Trust/legal risk — High confidence:** manual systems can miss amendments, notices and access controls; suite configuration can produce false confidence just as a new system can.
+- **Metric gaming/second-order effect — Medium confidence:** teams may reduce recorded exceptions by narrowing what they track; low visible admin cost can hide lawyer, finance and operations effort; local efficiency can move the bottleneck downstream.
+- **WTP/defensibility point — High confidence:** `H0` needs no new-vendor WTP, but it must demonstrate comparable reliability and full cost rather than win by default.
+
+**Most diagnostic crux:** after a time-bounded, auditable process-first correction, can the existing system answer every sampled target event correctly and on time at lower total cost and acceptable residual risk?
+
+**Disconfirming test:** run the process-first intervention with explicit owner, final-version rule, cadence and exception log, then prospectively audit all in-scope events. Persistent material failures despite compliance, combined with paid commitment to an alternative, kill `H0` for that workflow/population.
