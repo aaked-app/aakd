@@ -13,10 +13,8 @@ const AUTHOR_SELECT = {
 // ─── GET /api/contracts/[id]/comments ────────────────────────────────────────
 // Return all comments for the contract. Any member can read.
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -67,10 +65,8 @@ const CreateCommentSchema = z.object({
   markId: z.string().optional(),
 })
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

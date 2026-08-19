@@ -513,6 +513,30 @@ describe("Activity log completeness", () => {
     expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "UPLOADED", expect.any(String))
   })
 
+  it("always queues cited extraction even when a client claims its preview completed", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({ id: "c1", organizationId: "org-1" } as any)
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contractFile.updateMany).mockResolvedValue({ count: 0 } as any)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({ id: "file-cited", contractId: "c1", filename: "test.pdf" } as any)
+    vi.mocked(prisma.contractVersion.create).mockResolvedValue({} as any)
+    const { contractExtractQueue } = await import("@/lib/jobs/queues")
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const fd = new FormData()
+    fd.append("file", new File([Buffer.from([0x25, 0x50, 0x44, 0x46])], "test.pdf"))
+    fd.append("previewCompleted", "true")
+    const req = new Request("http://localhost/api/contracts/c1/upload", { method: "POST" })
+    Object.defineProperty(req, "formData", { value: () => Promise.resolve(fd), writable: true })
+
+    const res = await POST(req, { params: { id: "c1" } })
+
+    expect(res.status).toBe(201)
+    expect(contractExtractQueue.add).toHaveBeenCalledWith(
+      "extract",
+      expect.not.objectContaining({ skipAiExtraction: true }),
+      { jobId: "contract-text-file-cited" },
+    )
+  })
+
   it("status change via PATCH logs STATUS_CHANGED activity (DRAFT → INTERNAL_REVIEW)", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.update).mockResolvedValue({

@@ -55,18 +55,18 @@ test("uploaded contract exposes renewal facts and starts obligation review", asy
   await page.getByRole("button", { name: /continue to review/i }).click()
   await page.getByLabel(/contract title/i).waitFor()
   await page.getByLabel(/contract title/i).fill("E2E Operations Agreement")
-  await page.getByRole("button", { name: "Create Contract", exact: true }).click()
+  await page.getByRole("button", { name: /create contract/i }).click()
   await expect(page).toHaveURL(
     (url) => /^\/contracts\/[a-z0-9]+$/.test(url.pathname) && url.pathname !== "/contracts/new",
     { timeout: 30_000 },
   )
 
-  await page.getByRole("tab", { name: /AI Extractions/i }).click()
+  await page.getByRole("tab", { name: /^Review\b/ }).click()
   await expect(page.getByText("autoRenewal", { exact: true })).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText("true", { exact: true })).toBeVisible()
   await expect(page.getByText("45", { exact: true })).toBeVisible()
 
-  await page.getByRole("tab", { name: "Obligations", exact: true }).click()
+  await page.getByRole("tab", { name: /^Actions\b/ }).click()
   await expect(page.getByText(/AI found \d+ suggestion/)).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText(/monthly service report/i).first()).toBeVisible()
 })

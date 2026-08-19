@@ -17,7 +17,8 @@ export async function generateAlertsForContract(
   contractId: string,
   endDate: Date | null,
   renewalDate: Date | null,
-  noticePeriodDays: number | null
+  noticePeriodDays: number | null,
+  renewalReminderEnabled = true,
 ): Promise<void> {
   // Step 1: delete unfired alerts so we can rebuild them cleanly
   await prisma.contractAlert.deleteMany({
@@ -70,11 +71,11 @@ export async function generateAlertsForContract(
   }
 
   // Step 3: renewal due alert from renewalDate
-  if (renewalDate && renewalDate > now) {
+  if (renewalReminderEnabled && renewalDate && renewalDate > now) {
     const triggerDate = new Date(renewalDate.getTime() - 14 * 24 * 60 * 60 * 1000)
-    if (triggerDate > now) {
-      alerts.push({ contractId, alertType: "RENEWAL_DUE", triggerDate })
-    }
+    // If a renewal is inside the normal 14-day window, fire on the next
+    // alert sweep instead of silently dropping it during alert generation.
+    alerts.push({ contractId, alertType: "RENEWAL_DUE", triggerDate: triggerDate > now ? triggerDate : now })
   }
 
   // Step 4: notice period alert

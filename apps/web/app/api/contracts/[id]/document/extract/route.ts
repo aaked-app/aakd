@@ -6,7 +6,8 @@ import { writeActivity } from "@/lib/db/activity"
 import { contractAiExtractQueue } from "@/lib/jobs/queues"
 import { plateToPlaintext } from "@/lib/editor/plate-to-plaintext"
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -46,6 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await contractAiExtractQueue.add("ai_extract", {
       contractId: params.id,
+      organizationId: ctx.organizationId,
       extractedText: plaintext,
     })
 

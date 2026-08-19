@@ -33,7 +33,12 @@ export function getDatabasePoolSize(value = process.env.DATABASE_POOL_SIZE): num
  * excluded because Next evaluates instrumentation while compiling.
  */
 export function assertProductionConfig(): void {
-  if (process.env.NODE_ENV !== "production" || process.env.NEXT_PHASE === "phase-production-build") return
+  // Next replaces `process.env.NODE_ENV` while producing the standalone
+  // server. The optional runtime-only override keeps the local Compose
+  // overlay on HTTP without weakening the production default, which remains
+  // the build's production NODE_ENV and therefore still requires HTTPS.
+  const runtimeNodeEnv = process.env.RUNTIME_NODE_ENV ?? process.env.NODE_ENV
+  if (runtimeNodeEnv !== "production" || process.env.NEXT_PHASE === "phase-production-build") return
 
   const missing = REQUIRED_PRODUCTION_ENV.filter((name) => !process.env[name]?.trim())
   const shortSecrets = ["BETTER_AUTH_SECRET", "NOTIFICATION_ENCRYPTION_KEY"].filter(

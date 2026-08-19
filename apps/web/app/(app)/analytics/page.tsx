@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { headers } from "next/headers"
 import { AnalyticsClient } from "@/components/analytics/analytics-client"
 import { AnalyticsError } from "@/components/analytics/analytics-error"
 import type { AnalyticsSummary } from "@/app/api/analytics/summary/route"
@@ -7,8 +8,16 @@ import { getTranslations } from "next-intl/server"
 async function fetchSummary(): Promise<AnalyticsSummary | null> {
   try {
     const cookieStore = await cookies()
+    const requestHeaders = await headers()
+    const requestHost = requestHeaders.get("host")
+    const forwardedProto = requestHeaders.get("x-forwarded-proto") ?? "http"
+    const isLocalRequest = requestHost?.startsWith("localhost") || requestHost?.startsWith("127.0.0.1")
+    const configuredBase = process.env.INTERNAL_APP_URL ?? "http://localhost:3000"
+    const baseUrl = isLocalRequest && requestHost
+      ? `${forwardedProto}://${requestHost}`
+      : configuredBase
     const res = await fetch(
-      `${process.env.INTERNAL_APP_URL ?? "http://localhost:3000"}/api/analytics/summary`,
+      `${baseUrl}/api/analytics/summary`,
       { headers: { cookie: cookieStore.toString() }, cache: "no-store" },
     )
     if (!res.ok) return null

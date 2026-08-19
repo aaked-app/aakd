@@ -9,15 +9,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useTranslations } from "next-intl"
+import { safeCallbackPath } from "@/lib/auth/safe-callback"
+import { authErrorMessageKey } from "@/lib/auth/error-message"
 
 function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   // If the user arrived via an invitation link, callbackURL points back to
   // /accept-invitation?id=... — skip /create-org entirely and go accept.
-  const callbackURL = searchParams.get("callbackURL") ?? null
+  const callbackURL = safeCallbackPath(searchParams.get("callbackURL"))
   const t = useTranslations("auth")
-  const te = useTranslations("errors")
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -67,7 +68,7 @@ function RegisterForm() {
         callbackURL: destination,
       })
       if (result.error) {
-        setFormError(t("registrationFailed"))
+        setFormError(t(authErrorMessageKey(result.error)))
       } else {
         // Fire activation signal — PostHog respects consent (no-op if user opted out).
         // Identify happens later in (app)/layout.tsx once session resolves.
@@ -80,8 +81,8 @@ function RegisterForm() {
         }
         router.push(destination)
       }
-    } catch {
-      setFormError(te("serverError"))
+    } catch (error) {
+      setFormError(t(authErrorMessageKey(error as { code?: string; message?: string })))
     } finally {
       setLoading(false)
     }
@@ -89,9 +90,10 @@ function RegisterForm() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{t("register")}</h1>
-        <p className="text-sm text-zinc-500">
+      <div className="mb-7">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("register")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
           {callbackURL ? t("registerSubtitleInviteSecure") : t("registerSubtitle")}
         </p>
       </div>

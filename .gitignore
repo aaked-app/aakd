@@ -26,6 +26,8 @@ specs/
 apps/web/.next-stale-*/
 apps/web/playwright-report/
 apps/web/test-results/
+apps/web/tmp/
+apps/web/private/
 docs/media/aakd-workflow.webm
 docs/media/aakd-demo-final.png
 
@@ -48,3 +50,6 @@ reports/test-state.json
 
 # Local production backup exports
 backups/
+.gstack/
+.next-verify-first-use/
+.next-*/

@@ -1,25 +1,27 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
 import { captureServerEvent } from "@/lib/posthog-server"
+import { projectRenewalActions } from "@/lib/actions/project"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
+import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
-import type { ContractType } from "@prisma/client"
+import { Prisma, type ContractType } from "@prisma/client"
 
 // Fields whose acceptance must trigger renewal-alert regeneration
-const ALERT_TRIGGERING_FIELDS = new Set(["endDate", "renewalDate", "noticePeriodDays"])
+const ALERT_TRIGGERING_FIELDS = new Set(["endDate", "renewalDate", "noticePeriodDays", "autoRenewal", "renewalReminderEnabled"])
 
 async function regenerateAlertsIfTouched(contractId: string, touchedFields: string[]) {
   if (!touchedFields.some((f) => ALERT_TRIGGERING_FIELDS.has(f))) return
   const c = await prisma.contract.findUnique({
     where: { id: contractId },
-    select: { endDate: true, renewalDate: true, noticePeriodDays: true },
+    select: { endDate: true, renewalDate: true, noticePeriodDays: true, renewalReminderEnabled: true },
   })
   if (!c) return
   fireAndLog(
-    generateAlertsForContract(contractId, c.endDate, c.renewalDate, c.noticePeriodDays),
+    generateAlertsForContract(contractId, c.endDate, c.renewalDate, c.noticePeriodDays, c.renewalReminderEnabled)
+      .then(() => alertsCheckQueue.add("after-contract-change", { triggeredAt: new Date().toISOString() })),
     "generateAlertsForContract:extractionAccepted",
   )
 }
@@ -27,7 +29,8 @@ async function regenerateAlertsIfTouched(contractId: string, touchedFields: stri
 // ─── GET /api/contracts/[id]/extractions ─────────────────────────────────────
 // Returns all AIExtraction records for the contract, ordered by createdAt.
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -77,7 +80,8 @@ const SeedSchema = z.object({
     .max(20),
 })
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -159,7 +163,8 @@ function isCoercedValueValid(value: unknown): boolean {
   return value !== undefined
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -188,79 +193,108 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const extraction = await prisma.aIExtraction.findUnique({
       where: { id: extractionId },
-      select: { id: true, contractId: true, field: true, rawValue: true, status: true },
+      select: { id: true, contractId: true, field: true, rawValue: true, status: true, extractedBy: true, sourceText: true },
     })
 
     if (!extraction || extraction.contractId !== params.id) {
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
 
-    if (body.action === "edit") {
-      // Update rawValue first, then fall through to accept logic below.
-      // Mark the extraction as user-edited so the audit trail reflects the
-      // human override of the AI value.
-      await prisma.aIExtraction.update({
-        where: { id: extractionId },
-        data: { rawValue: body.newValue, extractedBy: "user" },
-      })
-      extraction.rawValue = body.newValue
-    }
-
     if (body.action === "accept" || body.action === "edit") {
-      const mapping = FIELD_MAP[extraction.field]
-      if (mapping && extraction.rawValue !== null) {
-        const coerced = mapping.coerce(extraction.rawValue)
-        if (!isCoercedValueValid(coerced)) {
-          return Response.json(
-            {
-              error: "AI-extracted value failed type coercion",
-              field: extraction.field,
-            },
-            { status: 422 },
-          )
+      const result = await prisma.$transaction(async (tx) => {
+        // Upload holds this same parent lock before invalidating derived rows.
+        // Lock it first here too to maintain a single lock order and avoid an
+        // acceptance-vs-replacement deadlock.
+        await tx.$queryRaw(Prisma.sql`
+          SELECT "id" FROM "Contract" WHERE "id" = ${params.id} FOR UPDATE
+        `)
+        // Re-read after the parent lock: an upload, correction, or worker
+        // refresh may have changed/deleted this candidate while the request
+        // was waiting. Canonical data must always be derived from this row.
+        const current = await tx.aIExtraction.findUnique({
+          where: { id: extractionId },
+          select: { id: true, contractId: true, field: true, rawValue: true, extractedBy: true, sourceText: true },
+        })
+        if (!current || current.contractId !== params.id) return { kind: "missing" as const }
+        if (body.action === "accept" && current.extractedBy !== "manual" && !current.sourceText?.trim()) {
+          return { kind: "uncited" as const }
         }
-        await prisma.aIExtraction.update({
+        const rawValue = body.action === "edit" ? body.newValue : current.rawValue
+        const mapping = FIELD_MAP[current.field]
+        const coerced = mapping && rawValue !== null ? mapping.coerce(rawValue) : undefined
+        if (mapping && rawValue !== null && !isCoercedValueValid(coerced)) {
+          return { kind: "invalid" as const, field: current.field }
+        }
+        await tx.aIExtraction.update({
           where: { id: extractionId },
-          data: { status: "accepted" },
+          data: {
+            status: "accepted",
+            ...(body.action === "edit" ? { rawValue: body.newValue, extractedBy: "user" } : {}),
+          },
         })
-        await prisma.contract.update({
-          where: { id: params.id },
-          data: { [mapping.column]: coerced },
+        if (mapping && rawValue !== null) {
+          await tx.contract.update({
+            where: { id: params.id },
+            data: { [mapping.column]: coerced },
+          })
+        }
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: "METADATA_UPDATED",
+            detail: `Accepted AI extraction for field "${current.field}"`,
+          },
         })
-      } else {
-        await prisma.aIExtraction.update({
-          where: { id: extractionId },
-          data: { status: "accepted" },
-        })
+        if (ALERT_TRIGGERING_FIELDS.has(current.field)) {
+          await projectRenewalActions(contract.organizationId, tx)
+        }
+        return { kind: "accepted" as const, field: current.field }
+      })
+      if (result.kind === "missing") return Response.json({ error: "Not Found" }, { status: 404 })
+      if (result.kind === "uncited") {
+        return Response.json({ error: "Source evidence is still processing; review is unavailable." }, { status: 409 })
       }
-
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "METADATA_UPDATED",
-        `Accepted AI extraction for field "${extraction.field}"`,
-      )
+      if (result.kind === "invalid") {
+        return Response.json({ error: "AI-extracted value failed type coercion", field: result.field }, { status: 422 })
+      }
 
       // Keep activation telemetry aggregate-only. Never send document identifiers
       // or extracted values to the analytics provider.
       captureServerEvent(ctx.userId, "contract_fact_reviewed", {
         action: body.action,
-        field: extraction.field,
+        field: result.field,
       })
 
-      await regenerateAlertsIfTouched(params.id, [extraction.field])
+      await regenerateAlertsIfTouched(params.id, [result.field])
     } else {
-      await prisma.aIExtraction.update({
-        where: { id: extractionId },
-        data: { status: "rejected" },
+      const rejected = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`
+          SELECT "id" FROM "Contract" WHERE "id" = ${params.id} FOR UPDATE
+        `)
+        const current = await tx.aIExtraction.findUnique({
+          where: { id: extractionId },
+          select: { id: true, contractId: true, field: true, status: true },
+        })
+        if (!current || current.contractId !== params.id) return { kind: "missing" as const }
+        // Accepted values are a reviewed canonical decision. Corrections must
+        // be explicit edits, never a later rejection that strands the value.
+        if (current.status === "accepted") return { kind: "accepted" as const }
+        await tx.aIExtraction.update({ where: { id: extractionId }, data: { status: "rejected" } })
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: "METADATA_UPDATED",
+            detail: `Rejected AI extraction for field "${current.field}"`,
+          },
+        })
+        return { kind: "rejected" as const }
       })
-
-      await writeActivity(
-        params.id,
-        ctx.userId,
-        "METADATA_UPDATED",
-        `Rejected AI extraction for field "${extraction.field}"`,
-      )
+      if (rejected.kind === "missing") return Response.json({ error: "Not Found" }, { status: 404 })
+      if (rejected.kind === "accepted") {
+        return Response.json({ error: "Accepted facts must be corrected, not rejected." }, { status: 409 })
+      }
     }
 
     const updated = await prisma.aIExtraction.findUnique({ where: { id: extractionId } })

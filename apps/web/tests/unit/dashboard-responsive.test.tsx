@@ -12,6 +12,7 @@ import fr from "@/messages/fr.json"
 
 let desktop = true
 let locale = "en-US"
+let activeRole = "member"
 
 const catalogs = { en, fr, de, es, ar }
 
@@ -38,7 +39,10 @@ vi.mock("next-intl", () => ({
 }))
 
 vi.mock("@/lib/auth/client", () => ({
-  useSession: () => ({ data: { user: { name: "Alex Johnson", email: "alex@example.com" } } }),
+  useSession: () => ({ data: { user: { id: "user-1", name: "Alex Johnson", email: "alex@example.com" } } }),
+  useActiveOrganization: () => ({
+    data: { members: [{ userId: "user-1", role: activeRole }] },
+  }),
 }))
 
 function setViewport(isDesktop: boolean) {
@@ -89,6 +93,21 @@ const contract = {
   updatedAt: "2026-08-01T00:00:00.000Z",
 }
 
+const priorityAction = {
+  id: "action-1",
+  title: "Confirm the non-renewal notice owner",
+  kind: "RENEWAL_NOTICE",
+  status: "PENDING_REVIEW",
+  dueDate: "2027-06-01T00:00:00.000Z",
+  assignee: { id: "member-2", name: "Taylor Smith" },
+  contract: { id: "contract-1", title: "Northwind master agreement", counterpartyName: "Northwind" },
+  sourcePage: 4,
+  hasCitation: true,
+  confidence: 0.82,
+  reviewStatus: "reviewed",
+  evidenceCount: 0,
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -96,12 +115,13 @@ function json(data: unknown, status = 200) {
   })
 }
 
-function installSuccessfulFetch(overrides?: { analytics?: AnalyticsSummary; contracts?: unknown[] }) {
+function installSuccessfulFetch(overrides?: { analytics?: AnalyticsSummary; contracts?: unknown[]; actions?: unknown[] }) {
   const analytics = overrides?.analytics ?? summary
   const contracts = overrides?.contracts ?? [contract]
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     if (String(input) === "/api/analytics/summary") return json(analytics)
     if (String(input) === "/api/contracts?limit=5") return json({ contracts })
+    if (String(input) === "/api/actions?view=dashboard&limit=5") return json({ actions: overrides?.actions ?? [] })
     return new Response(null, { status: 404 })
   })
   vi.stubGlobal("fetch", fetchMock)
@@ -110,12 +130,15 @@ function installSuccessfulFetch(overrides?: { analytics?: AnalyticsSummary; cont
 
 describe("DashboardPage responsive workspace summary", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED = "true"
     locale = "en-US"
+    activeRole = "member"
     setViewport(true)
     installSuccessfulFetch()
   })
 
   afterEach(() => {
+    delete process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
@@ -130,7 +153,7 @@ describe("DashboardPage responsive workspace summary", () => {
       "/contracts/contract-1",
     )
     expect(screen.queryByRole("list", { name: message("dashboard", "recentContracts") })).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/analytics/summary",
       expect.objectContaining({ credentials: "include", signal: expect.any(AbortSignal) }),
@@ -156,7 +179,7 @@ describe("DashboardPage responsive workspace summary", () => {
     expect(screen.getAllByText("Northwind master agreement")).toHaveLength(1)
   })
 
-  it("uses the active locale and UTC calendar for money, end dates, and chart months", async () => {
+  it("uses the active locale and UTC calendar for money and end dates", async () => {
     locale = "de-DE"
     vi.stubEnv("TZ", "America/Los_Angeles")
     render(<DashboardPage />)
@@ -165,12 +188,7 @@ describe("DashboardPage responsive workspace summary", () => {
     expect(table.textContent).toMatch(/25\.000.*\$/)
     expect(table).toHaveTextContent("30.06.2027")
     expect(table).not.toHaveTextContent("29.06.2027")
-    const monthFormatter = new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
-    const may = monthFormatter.format(new Date("2027-05-01T00:00:00.000Z"))
-    const june = monthFormatter.format(new Date("2027-06-01T00:00:00.000Z"))
-    const chart = screen.getByRole("img")
-    expect(chart).toHaveAccessibleName(expect.stringContaining(`${may}: 1`))
-    expect(chart).toHaveAccessibleName(expect.stringContaining(`${june}: 3`))
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
   })
 
   it("uses localized Arabic labels and logical RTL layout", async () => {
@@ -191,6 +209,7 @@ describe("DashboardPage responsive workspace summary", () => {
         generation += 1
         return generation === 1 ? new Response(null, { status: 503 }) : json(summary)
       }
+      if (String(input) === "/api/actions?view=dashboard&limit=5") return json({ actions: [] })
       return json({ contracts: [contract] })
     }))
     render(<DashboardPage />)
@@ -215,6 +234,30 @@ describe("DashboardPage responsive workspace summary", () => {
     expect(overdue).toHaveTextContent("—")
     expect(dueSoon).toHaveTextContent("—")
     expect(overdue).not.toHaveTextContent(/^0$/)
+  })
+
+  it("pairs every workspace signal with a decorative visual cue without replacing its label", async () => {
+    render(<DashboardPage />)
+
+    await screen.findByRole("table", { name: message("dashboard", "recentContracts") })
+    for (const label of [
+      message("dashboard", "overdueObligations"),
+      message("dashboard", "dueSoonObligations"),
+      message("dashboard", "expiringSoon"),
+      message("dashboard", "pendingApprovals"),
+    ]) {
+      const signal = screen.getByText(label).closest("article")
+      expect(signal).toBeTruthy()
+      expect(signal?.querySelector("svg[aria-hidden='true']")).toBeTruthy()
+    }
+  })
+
+  it("makes the retry affordance visually recognizable while preserving its accessible label", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 503 })))
+    render(<DashboardPage />)
+
+    const retry = await screen.findByRole("button", { name: message("dashboard", "retry") })
+    expect(retry.querySelector("svg[aria-hidden='true']")).toBeTruthy()
   })
 
   it("shows the recoverable error state for a malformed successful analytics response", async () => {
@@ -258,7 +301,7 @@ describe("DashboardPage responsive workspace summary", () => {
     ))
   })
 
-  it("announces loading and aborts both reads when the view is discarded", () => {
+  it("announces loading and aborts all reads when the view is discarded", () => {
     const signals: AbortSignal[] = []
     vi.stubGlobal("fetch", vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.signal) signals.push(init.signal)
@@ -267,10 +310,52 @@ describe("DashboardPage responsive workspace summary", () => {
     const view = render(<DashboardPage />)
 
     expect(screen.getByRole("status", { name: message("dashboard", "loading") })).toHaveAttribute("aria-busy", "true")
-    expect(signals).toHaveLength(2)
+    expect(signals).toHaveLength(3)
 
     view.unmount()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
+  })
+
+  it("skips Action API reads and keeps workspace signals first when the UI flag is off", async () => {
+    process.env.NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED = "false"
+    const fetchMock = installSuccessfulFetch()
+    render(<DashboardPage />)
+
+    expect(await screen.findByText(message("dashboard", "workspaceSignals"))).toBeInTheDocument()
+    expect(screen.queryByText(message("dashboard", "agreementWork"))).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/actions?view=dashboard&limit=5", expect.anything())
+  })
+
+  it("makes cited, reviewed priority work actionable without exposing source text", async () => {
+    installSuccessfulFetch({ actions: [priorityAction] })
+    render(<DashboardPage />)
+
+    expect(await screen.findByRole("heading", { name: "Priority agreement work" })).toBeInTheDocument()
+    const action = screen.getByRole("link", { name: /Review suggestion/ })
+    expect(action).toHaveAttribute("href", "/actions/action-1")
+    expect(screen.getByText("Cited · page 4")).toBeInTheDocument()
+    expect(screen.getByText("Human reviewed")).toBeInTheDocument()
+    expect(screen.getByText("Suggestion confidence: 82%")).toBeInTheDocument()
+    expect(screen.queryByText(/source excerpt/i)).not.toBeInTheDocument()
+    expect(action.closest("li")?.querySelectorAll("svg[aria-hidden='true']").length).toBeGreaterThanOrEqual(5)
+  })
+
+  it("gives an empty priority-work queue a calm ready cue without confusing it with a load failure", async () => {
+    installSuccessfulFetch({ actions: [] })
+    render(<DashboardPage />)
+
+    const readyState = await screen.findByText(message("dashboard", "noAgreementWork"))
+    expect(readyState.closest("div")?.querySelector("svg[aria-hidden='true']")).toBeTruthy()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("hides the new-contract mutation from a viewer while preserving read-only dashboard links", async () => {
+    activeRole = "viewer"
+    installSuccessfulFetch({ actions: [priorityAction] })
+    render(<DashboardPage />)
+
+    expect(await screen.findByRole("link", { name: /Review suggestion/ })).toHaveAttribute("href", "/actions/action-1")
+    expect(screen.queryByRole("link", { name: message("dashboard", "newContract") })).not.toBeInTheDocument()
   })
 
   it("renders the first-contract state only after a successful zero-total summary", async () => {
@@ -285,6 +370,11 @@ describe("DashboardPage responsive workspace summary", () => {
       "href",
       "/contracts/new",
     )
+    const workflow = screen.getByRole("list", { name: message("dashboard", "firstRunWorkflow") })
+    expect(within(workflow).getByText(message("dashboard", "firstRunUploadTitle"))).toBeInTheDocument()
+    expect(within(workflow).getByText(message("dashboard", "firstRunReviewTitle"))).toBeInTheDocument()
+    expect(within(workflow).getByText(message("dashboard", "firstRunOwnTitle"))).toBeInTheDocument()
+    expect(screen.getByText(message("dashboard", "firstRunTrust"))).toBeInTheDocument()
   })
 
   it("keeps dashboard message keys aligned in all supported locales", () => {

@@ -191,7 +191,9 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
 
   it("accepts an extraction and updates contract field", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce({ ...mockExtraction, sourceText: "Effective Date: January 1, 2024" } as any)
+    // The route re-reads under the Contract lock before applying a value.
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce({ ...mockExtraction, sourceText: "Effective Date: January 1, 2024" } as any)
     vi.mocked(prisma.aIExtraction.update).mockResolvedValueOnce({
       ...mockExtraction,
       status: "accepted",
@@ -232,8 +234,23 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     )
   })
 
+  it("does not accept an uncited AI preview before worker enrichment", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
+    const { PATCH } = await import("@/app/api/contracts/[id]/extractions/route")
+    const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
+    })
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+    expect(res.status).toBe(409)
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+  })
+
   it("rejects an extraction without updating contract", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
     vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
     vi.mocked(prisma.aIExtraction.update).mockResolvedValueOnce({
       ...mockExtraction,
@@ -311,6 +328,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
   it("edit updates rawValue then accepts and writes to contract", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
+    vi.mocked(prisma.aIExtraction.findUnique).mockResolvedValueOnce(mockExtraction as any)
     vi.mocked(prisma.aIExtraction.update).mockResolvedValue({
       ...mockExtraction,
       rawValue: "2025-06-01",
@@ -335,15 +353,11 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     )
 
     expect(res.status).toBe(200)
-    // First update call: set rawValue and flip extractedBy to "user"
-    expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(1,
+    // The human edit and acceptance are one transactional state change.
+    expect(prisma.aIExtraction.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { rawValue: "2025-06-01", extractedBy: "user" },
+        data: { rawValue: "2025-06-01", extractedBy: "user", status: "accepted" },
       }),
-    )
-    // Second update call: set status accepted
-    expect(prisma.aIExtraction.update).toHaveBeenNthCalledWith(2,
-      expect.objectContaining({ data: { status: "accepted" } }),
     )
     // Contract field written with coerced value
     expect(prisma.contract.update).toHaveBeenCalledWith(

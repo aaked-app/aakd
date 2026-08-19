@@ -7,6 +7,7 @@ import RegisterPage from "@/app/(auth)/register/page"
 import LoginPage from "@/app/(auth)/login/page"
 import ForgotPasswordPage from "@/app/(auth)/forgot-password/page"
 import ResetPasswordPage from "@/app/(auth)/reset-password/page"
+import AuthLayout from "@/app/(auth)/layout"
 import ar from "@/messages/ar.json"
 import de from "@/messages/de.json"
 import en from "@/messages/en.json"
@@ -21,12 +22,14 @@ let session: { user: { id: string } } | null = { user: { id: "user-1" } }
 
 const push = vi.fn()
 const replace = vi.fn()
-const { createOrganization, setActiveOrganization, signInEmail, resetPassword, toastError } = vi.hoisted(() => ({
+const { createOrganization, setActiveOrganization, signInEmail, signUpEmail, resetPassword, toastError, posthogCapture } = vi.hoisted(() => ({
   createOrganization: vi.fn(),
   setActiveOrganization: vi.fn(),
   signInEmail: vi.fn(),
+  signUpEmail: vi.fn(),
   resetPassword: vi.fn(),
   toastError: vi.fn(),
+  posthogCapture: vi.fn(),
 }))
 
 function message(namespace: string, key: string, values?: Record<string, unknown>) {
@@ -51,6 +54,7 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("next-intl", () => ({
+  useLocale: () => locale,
   useTranslations: (namespace: string) =>
     (key: string, values?: Record<string, unknown>) => message(namespace, key, values),
 }))
@@ -58,7 +62,7 @@ vi.mock("next-intl", () => ({
 vi.mock("@/lib/auth/client", () => ({
   signIn: { email: signInEmail },
   authClient: { resetPassword },
-  signUp: { email: vi.fn() },
+  signUp: { email: signUpEmail },
   organization: {
     create: createOrganization,
     setActive: setActiveOrganization,
@@ -67,7 +71,7 @@ vi.mock("@/lib/auth/client", () => ({
 }))
 
 vi.mock("posthog-js", () => ({
-  default: { capture: vi.fn() },
+  default: { capture: posthogCapture },
 }))
 
 vi.mock("sonner", () => ({
@@ -83,14 +87,28 @@ describe("authentication presentation", () => {
     createOrganization.mockReset()
     setActiveOrganization.mockReset()
     signInEmail.mockReset()
+    signUpEmail.mockReset()
     resetPassword.mockReset()
     toastError.mockReset()
+    posthogCapture.mockReset()
     push.mockReset()
     replace.mockReset()
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it("frames account access as the first step of a private contract workspace", () => {
+    render(<AuthLayout><LoginPage /></AuthLayout>)
+
+    expect(screen.getByTestId("auth-workspace-frame")).toHaveClass("bg-[#f5f4ef]")
+    expect(screen.getByRole("complementary", { name: "Workspace setup" })).toBeInTheDocument()
+    const progress = screen.getByRole("list", { name: "Setup progress" })
+    expect(progress).toHaveTextContent("Account")
+    expect(progress).toHaveTextContent("Workspace")
+    expect(progress).toHaveTextContent("First agreement")
+    expect(screen.getByText("Your contract workspace stays under your control.")).toBeInTheDocument()
   })
 
   it("renders the registration form and announces each translated field error", () => {
@@ -241,8 +259,78 @@ describe("authentication presentation", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Sign in failed"))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Authentication is temporarily unavailable. Please try again."))
     expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
+  })
+
+  it("uses a safe fallback everywhere when login receives an external callback", async () => {
+    searchParams = new URLSearchParams("callbackURL=https%3A%2F%2Fevil.example%2Fsteal")
+    signInEmail.mockResolvedValue({ error: null })
+    render(<LoginPage />)
+
+    expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute("href", "/register")
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "jane@example.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"))
+    expect(signInEmail).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: "/dashboard" }))
+  })
+
+  it("preserves an internal invitation callback through login and its registration link", async () => {
+    const callback = "/accept-invitation?id=invite-1#review"
+    searchParams = new URLSearchParams(`callbackURL=${encodeURIComponent(callback)}`)
+    signInEmail.mockResolvedValue({ error: null })
+    render(<LoginPage />)
+
+    expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute(
+      "href",
+      `/register?callbackURL=${encodeURIComponent(callback)}`,
+    )
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "jane@example.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(callback))
+    expect(signInEmail).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: callback }))
+  })
+
+  it("treats an unsafe registration callback as no invitation", async () => {
+    searchParams = new URLSearchParams("callbackURL=%2F%2Fevil.example%2Fsteal")
+    signUpEmail.mockResolvedValue({ error: null })
+    render(<RegisterPage />)
+
+    expect(screen.getByText("Get started with Aakd")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login")
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Smith" } })
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "jane@example.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/create-org"))
+    expect(signUpEmail).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: "/create-org" }))
+    expect(posthogCapture).toHaveBeenCalledWith("signup_completed", { hasInvite: false })
+  })
+
+  it("uses the sanitized invitation callback for registration redirect, copy, link, and telemetry", async () => {
+    const callback = "/accept-invitation?id=invite-1"
+    searchParams = new URLSearchParams(`callbackURL=${encodeURIComponent(callback)}`)
+    signUpEmail.mockResolvedValue({ error: null })
+    render(<RegisterPage />)
+
+    expect(screen.getByText("Create an account to accept your invitation securely.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      `/login?callbackURL=${encodeURIComponent(callback)}`,
+    )
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Smith" } })
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "jane@example.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(callback))
+    expect(signUpEmail).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: callback }))
+    expect(posthogCapture).toHaveBeenCalledWith("signup_completed", { hasInvite: true })
   })
 
   it("keeps password-reset requests enumeration-resistant for completed responses", async () => {

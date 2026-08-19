@@ -8,7 +8,8 @@ import { getRedirectUri, normalizeProvider } from "@/lib/crm/route-helpers"
 
 const STATE_COOKIE = "crm_oauth_state"
 
-export async function GET(req: Request, { params }: { params: { provider: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -53,7 +54,8 @@ export async function GET(req: Request, { params }: { params: { provider: string
   })
 }
 
-export async function DELETE(req: Request, { params }: { params: { provider: string } }) {
+export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

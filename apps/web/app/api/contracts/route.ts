@@ -7,6 +7,7 @@ import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
+import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { requestLogger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { Prisma } from "@prisma/client"
@@ -25,6 +26,7 @@ const CreateContractSchema = z.object({
   renewalDate: z.string().date().optional(),
   noticePeriodDays: z.number().int().min(0).optional(),
   autoRenewal: z.boolean().default(false),
+  renewalReminderEnabled: z.boolean().default(true),
   notes: z.string().max(10000).optional(),
   folderId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
@@ -86,6 +88,7 @@ export async function GET(req: Request) {
           renewalDate: true,
           noticePeriodDays: true,
           autoRenewal: true,
+          renewalReminderEnabled: true,
           notes: true,
           organizationId: true,
           folderId: true,
@@ -208,7 +211,8 @@ export async function POST(req: Request) {
           endDate ? new Date(endDate) : null,
           renewalDate ? new Date(renewalDate) : null,
           parsed.data.noticePeriodDays ?? null,
-        ),
+          parsed.data.renewalReminderEnabled,
+        ).then(() => alertsCheckQueue.add("after-contract-change", { triggeredAt: new Date().toISOString() })),
         "generateAlertsForContract:contractCreated",
       )
     }

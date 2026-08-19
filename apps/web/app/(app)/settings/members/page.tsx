@@ -62,6 +62,7 @@ export default function MembersPage() {
   const [members, setMembers] = useState<OrgMember[]>([])
   const [invitations, setInvitations] = useState<PendingInvitation[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("member")
@@ -71,20 +72,20 @@ export default function MembersPage() {
   const [confirmCancelInvite, setConfirmCancelInvite] = useState<{ id: string; email: string } | null>(null)
 
   const fetchMembers = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true)
+    setLoadError(false)
     try {
       const [membersRes, invitesRes] = await Promise.all([
         fetch("/api/org/members", { signal }),
         fetch("/api/org/members/invite", { signal }),
       ])
-      if (membersRes.ok) {
-        const data = await membersRes.json()
-        setMembers(data.members ?? data ?? [])
-      }
-      if (invitesRes.ok) {
-        setInvitations(await invitesRes.json())
-      }
+      if (!membersRes.ok || !invitesRes.ok) throw new Error("members_unavailable")
+      const data = await membersRes.json()
+      setMembers(data.members ?? data ?? [])
+      setInvitations(await invitesRes.json())
     } catch (e) {
       if ((e as Error).name === "AbortError") return
+      setLoadError(true)
       toast.error(failedToLoadMessage)
     } finally {
       setLoading(false)
@@ -230,6 +231,13 @@ export default function MembersPage() {
           </Button>
         )}
       </div>
+
+      {loadError && !loading ? (
+        <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+          <p>{t("loadError")}</p>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => void fetchMembers()}>{t("retry")}</Button>
+        </section>
+      ) : null}
 
       {/* Active members */}
       <div className="hidden overflow-hidden rounded-[var(--radius)] border border-border bg-card md:block">

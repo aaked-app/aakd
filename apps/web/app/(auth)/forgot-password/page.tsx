@@ -35,14 +35,15 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <>
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-zinc-900">{t("checkEmailTitle")}</h1>
-          <p className="text-sm text-zinc-500 mt-1">
+        <div className="mb-7">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("checkEmailTitle")}</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
             {t("checkEmailSubtitle", { email })}
           </p>
         </div>
         <p className="mt-4 text-center text-sm text-zinc-500">
-          <Link href="/login" className="inline-flex min-h-11 items-center text-indigo-600 hover:underline">
+          <Link href="/login" className="inline-flex min-h-11 items-center font-medium text-emerald-800 hover:underline">
             {t("backToSignIn")}
           </Link>
         </p>
@@ -52,9 +53,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{t("forgotPasswordTitle")}</h1>
-        <p className="text-sm text-zinc-500">{t("forgotPasswordSubtitle")}</p>
+      <div className="mb-7">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("forgotPasswordTitle")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">{t("forgotPasswordSubtitle")}</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -75,7 +77,7 @@ export default function ForgotPasswordPage() {
         </Button>
       </form>
       <p className="mt-4 text-center text-sm text-zinc-500">
-        <Link href="/login" className="inline-flex min-h-11 items-center text-indigo-600 hover:underline">
+        <Link href="/login" className="inline-flex min-h-11 items-center font-medium text-emerald-800 hover:underline">
           {t("backToSignIn")}
         </Link>
       </p>

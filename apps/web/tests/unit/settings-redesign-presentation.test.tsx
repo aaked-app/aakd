@@ -13,6 +13,8 @@ import fr from "@/messages/fr.json"
 const catalogs = { en, fr, de, es, ar }
 let locale = "en-US"
 let searchParams = new URLSearchParams()
+let crmRole: string | null = "admin"
+let crmConnected = false
 const { updateUser, toastError, toastSuccess } = vi.hoisted(() => ({
   updateUser: vi.fn(),
   toastError: vi.fn(),
@@ -32,11 +34,18 @@ function message(namespace: string, key: string, values?: Record<string, unknown
   )
 }
 
+const translators = new Map<string, (key: string, values?: Record<string, unknown>) => string>()
+function translator(namespace: string) {
+  if (!translators.has(namespace)) {
+    translators.set(namespace, (key, values) => message(namespace, key, values))
+  }
+  return translators.get(namespace)!
+}
+
 vi.mock("next/navigation", () => ({ useSearchParams: () => searchParams }))
 vi.mock("next-intl", () => ({
   useLocale: () => locale,
-  useTranslations: (namespace: string) =>
-    (key: string, values?: Record<string, unknown>) => message(namespace, key, values),
+  useTranslations: (namespace: string) => translator(namespace),
 }))
 vi.mock("@/lib/auth/client", () => ({
   useSession: () => ({
@@ -63,9 +72,17 @@ const json = (body: unknown, status = 200) =>
 
 function fetchFixture(input: RequestInfo | URL) {
   const url = String(input)
-  if (url === "/api/crm/status") return json({ integrations: [] })
+  if (url === "/api/crm/status") return json({ integrations: crmConnected ? [{
+    provider: "HUBSPOT",
+    connectedAt: "2026-08-17T12:00:00Z",
+    connectedBy: { name: "Jane Smith" },
+    portalId: "portal-1",
+    instanceUrl: null,
+    autoCreateStage: "Negotiation",
+    syncOnActiveStage: "Closed Won",
+  }] : [] })
   if (url === "/api/org/notification-channels") return json({ channels: [] })
-  if (url === "/api/org/members") return json([{ userId: "user-1", role: "admin" }])
+  if (url === "/api/org/members") return json(crmRole ? [{ userId: "user-1", role: crmRole }] : [])
   if (url === "/api/org") return json({ name: "Acme", meta: {}, logo: null })
   if (url === "/api/ai-status") return json({ provider: null, model: null, hasKey: false, source: null })
   return json({})
@@ -75,6 +92,8 @@ describe("remaining Settings redesign presentation", () => {
   beforeEach(() => {
     locale = "en-US"
     searchParams = new URLSearchParams()
+    crmRole = "admin"
+    crmConnected = false
     updateUser.mockReset()
     toastError.mockReset()
     toastSuccess.mockReset()
@@ -110,6 +129,56 @@ describe("remaining Settings redesign presentation", () => {
     expect(await screen.findByRole("button", { name: "Connect Google Drive" })).toHaveClass("min-h-11")
   })
 
+  it("shows a localized retry state rather than an empty CRM panel after a failed status request", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/crm/status") return json({ error: "unavailable" }, 500)
+      return fetchFixture(input)
+    }))
+    render(<IntegrationsPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load integrations. Existing connections are unchanged.")
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["legal", true],
+    ["member", false],
+    ["viewer", false],
+    [null, false],
+  ] as const)("gives CRM management controls to %s only when legal-or-higher", async (role, canManage) => {
+    crmRole = role
+    crmConnected = true
+    render(<IntegrationsPage />)
+
+    const autoCreateStage = await screen.findByLabelText("Auto-create stage")
+    const syncTargetStage = screen.getByLabelText("Sync target stage")
+    const save = screen.getByRole("button", { name: "Save settings" })
+    const disconnect = screen.getByRole("button", { name: "Disconnect" })
+    expect(autoCreateStage).toHaveProperty("disabled", !canManage)
+    expect(syncTargetStage).toHaveProperty("disabled", !canManage)
+    expect(save).toHaveProperty("disabled", !canManage)
+    expect(disconnect).toHaveProperty("disabled", !canManage)
+  })
+
+  it("does not issue CRM mutation requests from read-only controls", async () => {
+    crmRole = "member"
+    crmConnected = true
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => fetchFixture(input))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<IntegrationsPage />)
+
+    const autoCreateStage = await screen.findByLabelText("Auto-create stage")
+    fireEvent.change(autoCreateStage, { target: { value: "Contract sent" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }))
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== "GET")).toEqual([])
+    expect(autoCreateStage).toHaveValue("Negotiation")
+  })
+
   it("uses locale-owned UTC organization dates and translated option labels without changing values", async () => {
     locale = "de-DE"
     render(<OrgPage />)
@@ -129,6 +198,19 @@ describe("remaining Settings redesign presentation", () => {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Updated" } })
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Failed to save changes"))
+    expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
+  })
+
+  it("keeps the avatar picker open and reports a safe error when the profile provider rejects", async () => {
+    updateUser.mockRejectedValueOnce(new Error("database_connection_string"))
+    render(<ProfilePage />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Change avatar" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Preset avatar 1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Failed to update avatar"))
+    expect(screen.getByRole("dialog", { name: "Choose avatar" })).toBeInTheDocument()
     expect(toastError).not.toHaveBeenCalledWith("database_connection_string")
   })
 

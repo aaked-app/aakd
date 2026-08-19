@@ -13,7 +13,8 @@ import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { Prisma } from "@prisma/client"
 
 // GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -61,7 +62,8 @@ function validateFileType(
 
 const MAX_SIZE = 50 * 1024 * 1024 // 50MB
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -91,7 +93,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!(file instanceof File)) {
       return new Response("Missing file field", { status: 400 })
     }
-    const skipAiExtraction = formData.get("previewCompleted") === "true"
 
     if (file.size > MAX_SIZE) {
       return new Response("File exceeds 50MB limit", { status: 413 })
@@ -119,6 +120,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Without a transaction, a crash between the updateMany and create leaves
     // the contract with zero rows marked isLatest.
     const { contractFile } = await prisma.$transaction(async (tx) => {
+      // The extract workers lock this same parent row while validating their
+      // source and persisting derived data. Acquire it before changing the
+      // latest file marker so a replacement and an older worker serialize.
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "Contract" WHERE "id" = ${params.id} FOR UPDATE
+      `)
       const latestFile = await tx.contractFile.findFirst({
         where: { contractId: params.id },
         orderBy: { version: "desc" },
@@ -168,8 +175,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       })
       if (latestFile) {
+        // The searchable embedding index is as source-bound as extracted text.
+        // Delete it under the parent lock so old jobs cannot be served after
+        // this upload; workers repopulate it only after source verification.
+        await tx.contractEmbedding.deleteMany({ where: { contractId: params.id } })
+        await tx.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${params.id}`
         await tx.aIExtraction.deleteMany({
           where: { contractId: params.id, status: { not: "accepted" } },
+        })
+        // Candidates are tied to the exact document text. Accepted obligations
+        // are already durable ledger records, but pending suggestions must not
+        // survive a replacement upload.
+        await tx.contractObligationSuggestion.deleteMany({
+          where: { contractId: params.id, status: "pending" },
         })
       }
 
@@ -201,10 +219,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
       await contractExtractQueue.add("extract", {
         contractId: params.id,
+        organizationId: ctx.organizationId,
         fileId: contractFile.id,
         storageKey: key,
         preserveUserFields: true,
-        ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
       }, { jobId: `contract-text-${contractFile.id}` })
     } catch (err) {
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue extraction job")
@@ -240,5 +258,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     })
 
     return Response.json({ ...contractFile, downloadUrl, extractionQueued: true }, { status: 201 })
-  })
+  });
 }

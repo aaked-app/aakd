@@ -3,16 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import { toast } from "sonner"
-import {
-  X,
-  CalendarDays,
-  User,
-  Tag,
-  Bell,
-  AlignLeft,
-  Type,
-  Bookmark,
-} from "lucide-react"
+import { Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { cn } from "@/lib/utils"
 import type { Obligation, ObligationPriority } from "./types"
 import type { OrgMember } from "@/lib/types"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +50,7 @@ interface FormState {
   assigneeId: string
   clauseReference: string
   reminderDays: number
+  evidenceRequired: "completion_note" | "external_link"
 }
 
 const EMPTY_FORM: FormState = {
@@ -68,6 +61,7 @@ const EMPTY_FORM: FormState = {
   assigneeId: UNASSIGNED,
   clauseReference: "",
   reminderDays: 7,
+  evidenceRequired: "completion_note",
 }
 
 function obligationToForm(o: Obligation): FormState {
@@ -79,30 +73,26 @@ function obligationToForm(o: Obligation): FormState {
     assigneeId: o.assignee?.id ?? UNASSIGNED,
     clauseReference: o.clauseReference ?? "",
     reminderDays: o.reminderDays,
+    evidenceRequired: "completion_note",
   }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionLabel({
-  icon: Icon,
+function FieldLabel({
   label,
   required,
   htmlFor,
 }: {
-  icon: React.ElementType
   label: string
   required?: boolean
   htmlFor?: string
 }) {
   return (
-    <div className="flex items-center gap-1.5 mb-2">
-      <Icon className="h-3.5 w-3.5 text-muted-foreground/50" />
-      <label htmlFor={htmlFor} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-        {label}
-        {required && <span className="ms-0.5 text-rose-400" aria-hidden="true">*</span>}
-      </label>
-    </div>
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-foreground">
+      {label}
+      {required && <span className="ms-0.5 text-rose-400" aria-hidden="true">*</span>}
+    </label>
   )
 }
 
@@ -203,6 +193,7 @@ export function ObligationSheet({
         reminderDays: form.reminderDays,
         assigneeId: form.assigneeId === UNASSIGNED ? undefined : form.assigneeId,
         suggestionId,
+        evidenceRequired: form.evidenceRequired,
       }
 
       const url = obligation
@@ -249,15 +240,16 @@ export function ObligationSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent showCloseButton={false} className="flex flex-col w-full gap-0 p-0 sm:max-w-lg">
-
-        {/* ── Header ──────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
-          <div>
-            <SheetTitle className="text-[15px] font-semibold text-foreground">
+      <SheetContent showCloseButton={false} className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <div className="flex items-start justify-between border-b border-border px-5 py-5 sm:px-7">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {t("recordEyebrow")}
+            </p>
+            <SheetTitle className="mt-2 text-xl font-semibold tracking-tight text-foreground">
               {t(isEditing ? "editTitle" : "newTitle")}
             </SheetTitle>
-            <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+            <SheetDescription className="mt-1 text-sm leading-6 text-muted-foreground">
               {isEditing
                 ? t("editSubtitle")
                 : t("newSubtitle")}
@@ -265,173 +257,40 @@ export function ObligationSheet({
           </div>
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            className="ms-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => onOpenChange(false)}
             aria-label={t("closeEditor")}
+            disabled={saving}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* ── Body ────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-
-          {/* Title */}
-          <div>
-            <SectionLabel icon={Type} label={t("titleField")} htmlFor="obligation-title" required />
-            <Input
-              id="obligation-title"
-              aria-label={t("titleField")}
-              required
-              value={form.title}
-              maxLength={300}
-              onChange={(e) => update("title", e.target.value)}
-              placeholder={t("titlePlaceholder")}
-              className="min-h-11 text-sm"
-            />
+        <form aria-label={t(isEditing ? "editTitle" : "newTitle")} aria-busy={saving} className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => { event.preventDefault(); void save() }}>
+          <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6 sm:px-7">
+            <section aria-labelledby="obligation-core-details" className="space-y-5">
+              <h3 id="obligation-core-details" className="text-sm font-semibold text-foreground">{t("coreDetails")}</h3>
+              <div className="space-y-2"><FieldLabel label={t("titleField")} htmlFor="obligation-title" required /><Input id="obligation-title" aria-label={t("titleField")} required value={form.title} maxLength={300} onChange={(event) => update("title", event.target.value)} placeholder={t("titlePlaceholder")} className="min-h-11 text-sm" /></div>
+              <div className="space-y-2"><FieldLabel label={t("description")} htmlFor="obligation-description" /><Textarea id="obligation-description" rows={4} value={form.description} maxLength={2000} onChange={(event) => update("description", event.target.value)} placeholder={t("descriptionPlaceholder")} className="min-h-28 resize-y text-sm" /></div>
+              <div className="space-y-2"><FieldLabel label={t("priorityLabel")} /><div className="flex gap-2" role="radiogroup" aria-label={t("priorityLabel")}>{PRIORITY_OPTIONS.map((opt) => <label key={opt.value} data-active={form.priority === opt.value} className={cn("flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2.5 text-xs font-semibold transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1", opt.pill)}><input type="radio" name="obligation-priority" value={opt.value} checked={form.priority === opt.value} onChange={() => update("priority", opt.value)} className="sr-only" /><span className={cn("h-1.5 w-1.5 rounded-full", opt.dot)} />{opt.label}</label>)}</div></div>
+            </section>
+            <section aria-labelledby="obligation-planning" className="space-y-5 border-t border-border pt-6">
+              <h3 id="obligation-planning" className="text-sm font-semibold text-foreground">{t("planningAndOwnership")}</h3>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2"><div className="space-y-2"><FieldLabel label={t("dueDate")} htmlFor="obligation-due-date" required /><Input id="obligation-due-date" aria-label={t("dueDate")} type="date" required value={form.dueDate} onChange={(event) => update("dueDate", event.target.value)} className="min-h-11 text-sm" /></div><div className="space-y-2"><FieldLabel label={t("reminder")} /><div className="flex gap-1.5" role="radiogroup" aria-label={t("reminder")}>{REMINDER_OPTIONS.map((days) => <label key={days} className={cn("flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border py-2 text-xs font-medium transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1", form.reminderDays === days ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-input bg-background text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground")}><input type="radio" name="obligation-reminder" value={days} checked={form.reminderDays === days} onChange={() => update("reminderDays", days)} className="sr-only" />{t(days === 1 ? "reminderOptionOne" : "reminderOptionMany", { count: days })}</label>)}</div>{obligation?.reminderSentAt && <p className="mt-1.5 text-xs text-muted-foreground">{t("reminderSent")} {new Date(obligation.reminderSentAt).toLocaleDateString(locale, { month: "short", day: "numeric" })}</p>}</div></div>
+              <div className="space-y-2"><FieldLabel label={t("assignee")} htmlFor="obligation-assignee" /><AssigneePicker value={form.assigneeId} members={members} onChange={(id) => update("assigneeId", id)} /></div>
+            </section>
+            <section aria-labelledby="obligation-source" className="space-y-5 border-t border-border pt-6">
+              <h3 id="obligation-source" className="text-sm font-semibold text-foreground">{t("sourceContext")}</h3>
+              <div className="space-y-2"><FieldLabel label={t("clauseReference")} htmlFor="obligation-clause-reference" /><Input id="obligation-clause-reference" value={form.clauseReference} maxLength={200} onChange={(event) => update("clauseReference", event.target.value)} placeholder={t("clauseReferencePlaceholder")} className="min-h-11 text-sm" /></div>
+              {!isEditing && isActionLedgerUiEnabled() && <div className="space-y-2"><FieldLabel label={t("evidenceRequirement")} htmlFor="obligation-evidence-requirement" required /><select id="obligation-evidence-requirement" className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm" value={form.evidenceRequired} onChange={(event) => update("evidenceRequired", event.target.value as FormState["evidenceRequired"])}><option value="completion_note">{t("completionNoteEvidence")}</option><option value="external_link">{t("externalLinkEvidence")}</option></select><p className="text-xs text-muted-foreground">{t("evidenceRequirementHelp")}</p></div>}
+            </section>
           </div>
-
-          {/* Description */}
-          <div>
-            <SectionLabel icon={AlignLeft} label={t("description")} htmlFor="obligation-description" />
-            <Textarea
-              id="obligation-description"
-              rows={3}
-              value={form.description}
-              maxLength={2000}
-              onChange={(e) => update("description", e.target.value)}
-              placeholder={t("descriptionPlaceholder")}
-              className="text-sm resize-none"
-            />
-          </div>
-
-          {/* Priority */}
-          <div>
-            <SectionLabel icon={Tag} label={t("priority")} />
-            <div className="flex gap-2" role="radiogroup" aria-label={t("priority")}>
-              {PRIORITY_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  data-active={form.priority === opt.value}
-                  className={cn(
-                    "flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2.5 text-xs font-semibold transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1",
-                    opt.pill,
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="obligation-priority"
-                    value={opt.value}
-                    checked={form.priority === opt.value}
-                    onChange={() => update("priority", opt.value)}
-                    className="sr-only"
-                  />
-                  <span className={cn("h-1.5 w-1.5 rounded-full", opt.dot)} />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t border-border/60" />
-
-          {/* Due date */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <SectionLabel icon={CalendarDays} label={t("dueDate")} htmlFor="obligation-due-date" required />
-              <Input
-                id="obligation-due-date"
-                aria-label={t("dueDate")}
-                type="date"
-                required
-                value={form.dueDate}
-                onChange={(e) => update("dueDate", e.target.value)}
-                className="min-h-11 text-sm"
-              />
-            </div>
-            <div>
-              <SectionLabel icon={Bell} label={t("reminder")} />
-              <div className="flex gap-1.5" role="radiogroup" aria-label={t("reminder")}>
-                {REMINDER_OPTIONS.map((days) => (
-                  <label
-                    key={days}
-                    className={cn(
-                      "flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border py-2 text-xs font-medium transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-offset-1",
-                      form.reminderDays === days
-                        ? "border-primary bg-primary/5 text-primary shadow-sm"
-                        : "border-input bg-background text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="obligation-reminder"
-                      value={days}
-                      checked={form.reminderDays === days}
-                      onChange={() => update("reminderDays", days)}
-                      className="sr-only"
-                    />
-                    {t(days === 1 ? "reminderOptionOne" : "reminderOptionMany", { count: days })}
-                  </label>
-                ))}
-              </div>
-              {obligation?.reminderSentAt && (
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {t("reminderSent")} {new Date(obligation.reminderSentAt).toLocaleDateString(locale, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="border-t border-border/60" />
-
-          {/* Assignee */}
-          <div>
-            <SectionLabel icon={User} label={t("assignee")} htmlFor="obligation-assignee" />
-            <AssigneePicker
-              value={form.assigneeId}
-              members={members}
-              onChange={(id) => update("assigneeId", id)}
-            />
-          </div>
-
-          {/* Clause reference */}
-          <div>
-            <SectionLabel icon={Bookmark} label={t("clauseReference")} htmlFor="obligation-clause-reference" />
-            <Input
-              id="obligation-clause-reference"
-              value={form.clauseReference}
-              maxLength={200}
-              onChange={(e) => update("clauseReference", e.target.value)}
-              placeholder={t("clauseReferencePlaceholder")}
-              className="min-h-11 text-sm"
-            />
-          </div>
-
-        </div>
-
-        {/* ── Footer ──────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border shrink-0 bg-muted/30">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-            className="min-h-11 min-w-[80px]"
-          >
-            {t("cancel")}
-          </Button>
-          <Button
-            size="sm"
-            onClick={save}
-            disabled={saving}
-            className="min-h-11 min-w-[120px]"
-          >
-            {saving ? t("saving") : isEditing ? t("saveChanges") : t("createObligation")}
-          </Button>
-        </div>
+          <footer className="flex flex-col-reverse gap-2 border-t border-border bg-background px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+            {saving ? <p role="status" aria-live="polite" className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground sm:me-auto"><Loader2 className="size-3.5 animate-spin" aria-hidden="true" />{t("saving")}</p> : null}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="min-h-11 sm:min-w-[96px]">{t("cancel")}</Button>
+            <Button type="submit" disabled={saving} className="min-h-11 sm:min-w-[144px]">{saving ? t("saving") : isEditing ? t("saveChanges") : t("createObligation")}</Button>
+          </footer>
+        </form>
 
       </SheetContent>
     </Sheet>

@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: "html",
   use: {
     baseURL,
+    ignoreHTTPSErrors: process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "1",
     trace: "on-first-retry",
   },
   projects: [

@@ -158,7 +158,7 @@ contract facts and obligations before relying on them.
 
 ## Architecture
 
-- **Web:** Next.js 14 App Router, React 18, TypeScript, Tailwind CSS
+- **Web:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS
 - **Data:** PostgreSQL 16, Prisma, pgvector
 - **Auth:** Better Auth with organization-scoped access
 - **Jobs:** BullMQ and Redis, with a separate worker process

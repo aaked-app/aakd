@@ -7,7 +7,8 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { resolveAiConfig } from "@/lib/ai/resolve"
 import { contractRiskScoreQueue, getContractRiskScoreQueue } from "@/lib/jobs/queues"
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -47,7 +48,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

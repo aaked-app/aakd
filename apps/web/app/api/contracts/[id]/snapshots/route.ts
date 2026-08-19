@@ -9,10 +9,8 @@ import { z } from "zod"
 // ─── GET /api/contracts/[id]/snapshots ───────────────────────────────────────
 // List snapshots for a contract (newest first). Any authenticated role can read.
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -66,10 +64,8 @@ const CreateSnapshotSchema = z.object({
   content: z.record(z.string(), z.unknown()),
 })
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

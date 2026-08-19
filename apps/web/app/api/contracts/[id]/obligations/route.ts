@@ -1,7 +1,7 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
+import { projectObligationAction } from "@/lib/actions/project"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 
@@ -34,9 +34,11 @@ const CreateObligationSchema = z.object({
   assigneeId: z.string().optional(),
   reminderDays: z.number().int().min(1).max(30).default(7),
   suggestionId: z.string().optional(),
+  evidenceRequired: z.enum(["completion_note", "external_link"]).default("completion_note"),
 })
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -59,7 +61,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   })
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -116,24 +119,37 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "obligation_limit_reached" }, { status: 422 })
     }
 
-    const obligation = await prisma.contractObligation.create({
-      data: {
-        contractId: params.id,
-        organizationId: ctx.organizationId,
-        title: data.title,
-        description: data.description,
-        clauseReference: data.clauseReference,
-        priority: data.priority,
-        dueDate: new Date(data.dueDate),
-        assigneeId: data.assigneeId,
-        reminderDays: data.reminderDays,
-        createdById: ctx.userId,
-      },
-      include: OBLIGATION_INCLUDE,
-    })
+    const obligation = await prisma.$transaction(async (tx) => {
+      const suggestion = data.suggestionId
+      ? await tx.contractObligationSuggestion.findUnique({
+          where: {
+            id: data.suggestionId,
+            contractId: params.id,
+            organizationId: ctx.organizationId,
+            status: "pending",
+          },
+          select: { sourceHash: true, sourceText: true, sourcePage: true, confidence: true },
+        })
+      : null
+
+      const obligation = await tx.contractObligation.create({
+        data: {
+          contractId: params.id,
+          organizationId: ctx.organizationId,
+          title: data.title,
+          description: data.description,
+          clauseReference: data.clauseReference,
+          priority: data.priority,
+          dueDate: new Date(data.dueDate),
+          assigneeId: data.assigneeId,
+          reminderDays: data.reminderDays,
+          createdById: ctx.userId,
+        },
+        include: OBLIGATION_INCLUDE,
+      })
 
     if (data.suggestionId) {
-      await prisma.contractObligationSuggestion.updateMany({
+      await tx.contractObligationSuggestion.updateMany({
         where: {
           id: data.suggestionId,
           contractId: params.id,
@@ -144,14 +160,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       })
     }
 
-    // Audit trail — must not be fire-and-forget
-    await writeActivity(
-      params.id,
-      ctx.userId,
-      "OBLIGATION_CREATED",
-      `Obligation created: ${obligation.title}`,
-      { obligationId: obligation.id },
-    )
+      const action = await projectObligationAction({
+        id: obligation.id,
+        contractId: params.id,
+        organizationId: ctx.organizationId,
+        title: obligation.title,
+        description: obligation.description,
+        clauseReference: obligation.clauseReference,
+        dueDate: obligation.dueDate,
+        assigneeId: obligation.assigneeId,
+        createdById: ctx.userId,
+        sourceHash: suggestion?.sourceHash,
+        sourceText: suggestion?.sourceText,
+        sourcePage: suggestion?.sourcePage,
+        confidence: suggestion?.confidence,
+        evidenceRequired: data.evidenceRequired,
+      }, tx)
+      await tx.activity.create({
+        data: {
+          contractId: params.id,
+          contractActionId: action.id,
+          userId: ctx.userId,
+          action: "OBLIGATION_CREATED",
+          detail: `Obligation created: ${obligation.title}`,
+          metadata: { obligationId: obligation.id, evidenceRequired: data.evidenceRequired },
+        },
+      })
+      return obligation
+    })
 
     captureServerEvent(ctx.userId, "obligation_created", {
       priority: data.priority,

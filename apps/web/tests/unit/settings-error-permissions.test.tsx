@@ -74,6 +74,25 @@ describe("Settings error, permission, and accessibility behavior", () => {
     expect(container.querySelector("form > .grid")).toHaveClass("grid-cols-1", "sm:grid-cols-2")
   })
 
+  it("does not present a failed team-member request as an empty team", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ error: "failed" }, 500)))
+    render(<MembersPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("members.loadError")
+    expect(screen.getByRole("button", { name: "members.retry" })).toBeInTheDocument()
+  })
+
+  it("keeps known organization data visible but makes a failed settings load explicit and retryable", async () => {
+    orgRole = "admin"
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input) === "/api/org" ? json({ error: "failed" }, 500) : json({ provider: null, model: null }))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<OrgPage />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("org.loadFailed")
+    fireEvent.click(screen.getByRole("button", { name: "org.retry" }))
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([input]) => String(input) === "/api/org")).toHaveLength(2))
+  })
+
   it.each(["viewer", "legal"])("shows an existing logo without a remove action for %s", async (role) => {
     orgRole = role
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input) === "/api/org" ? json({ name: "Acme", meta: {}, logo: "/logo.png" }) : json({ provider: null, model: null })))
@@ -237,10 +256,26 @@ describe("Settings error, permission, and accessibility behavior", () => {
       { id: "two", userId: "user-2", organizationId: "org-1", role: "member", createdAt: "2026-01-02T00:00:00Z", user: { name: "Member", email: "member@example.com", image: null } },
     ] }) : json([])))
     const { container } = render(<MembersPage />)
-    const visibleControl = await screen.findByRole("combobox", { name: "members.actions.changeRole" })
+    const [visibleControl] = await screen.findAllByRole("combobox", { name: "members.actions.changeRole" })
     expect(container.querySelectorAll('[aria-label="members.actions.changeRole"]')).toHaveLength(2)
     fireEvent.click(visibleControl)
     expect(await screen.findByRole("option", { name: "members.roles.admin.label" })).toBeInTheDocument()
     expect(screen.queryByRole("option", { name: "admin" })).not.toBeInTheDocument()
+  })
+
+  it("uses a localized invitation fallback without exposing an unknown server error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/org/members" && !init?.method) return json({ members: [
+        { id: "one", userId: "user-1", organizationId: "org-1", role: "owner", createdAt: "2026-01-01T00:00:00Z", user: { name: "Owner", email: "owner@example.com", image: null } },
+      ] })
+      if (String(input) === "/api/org/members/invite" && init?.method === "POST") return json({ error: "database_connection_string" }, 500)
+      return json([])
+    }))
+    render(<MembersPage />)
+    fireEvent.click(await screen.findByRole("button", { name: "members.inviteMember" }))
+    fireEvent.change(screen.getByLabelText("members.emailAddress"), { target: { value: "new@example.com" } })
+    fireEvent.click(screen.getByRole("button", { name: "members.sendInvite" }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("members.failedToInvite"))
+    expect(toast.error).not.toHaveBeenCalledWith("database_connection_string")
   })
 })

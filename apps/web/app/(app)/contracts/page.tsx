@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Plus, Search, ChevronLeft, ChevronRight,
-  MoreHorizontal, FileText, Archive, Eye, Download,
+  MoreHorizontal, FileText, Archive, Eye, Download, Upload, ScanText, UserCheck, ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/contract-badges"
 import { RiskBadge } from "@/components/risk-badge"
-import { EmptyState } from "@/components/ui/empty-state"
 import { Contract, ContractStatus } from "@/lib/types"
 import { useSession } from "@/lib/auth/client"
 import { cn } from "@/lib/utils"
@@ -410,22 +409,50 @@ export default function ContractsPage() {
             </Button>
           </div>
         ) : contracts.length === 0 ? (
-          /* Empty state */
-          <EmptyState
-            icon={FileText}
-            title={t("noContracts")}
-            description={
-              search || activeFilter !== "ALL"
-                ? t("noContractsFilter")
-                : t("createFirst")
-            }
-            action={!search && activeFilter === "ALL" ? t("newContract") : undefined}
-            onAction={
-              !search && activeFilter === "ALL"
-                ? () => router.push("/contracts/new")
-                : undefined
-            }
-          />
+          search || activeFilter !== "ALL" ? (
+            <div className="border border-zinc-200 bg-white px-6 py-16 text-center">
+              <FileText className="mx-auto size-6 text-zinc-400" aria-hidden="true" />
+              <h2 className="mt-4 text-base font-semibold text-zinc-950">{t("noContracts")}</h2>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-zinc-600">{t("noContractsFilter")}</p>
+            </div>
+          ) : (
+            <section className="grid overflow-hidden border border-zinc-200 bg-white lg:grid-cols-[0.84fr_1.16fr]">
+              <div className="border-b border-zinc-200 p-6 sm:p-8 lg:border-b-0 lg:border-e lg:p-10">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("repositorySetup")}</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("noContracts")}</h2>
+                <p className="mt-3 max-w-md text-sm leading-6 text-zinc-600">{t("createFirst")}</p>
+                <Button type="button" className="mt-7 min-h-11" onClick={() => router.push("/contracts/new")}>
+                  <Plus className="size-4" aria-hidden="true" />
+                  {t("newContract")}
+                </Button>
+                <p className="mt-5 flex max-w-sm items-start gap-2 text-xs leading-5 text-zinc-500">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-800" aria-hidden="true" />
+                  {t("repositoryTrust")}
+                </p>
+              </div>
+              <div className="p-6 sm:p-8 lg:p-10">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">{t("repositoryWorkflow")}</p>
+                <ol aria-label={t("repositoryWorkflow")} className="divide-y divide-zinc-200 border-y border-zinc-200">
+                  {[
+                    [Upload, t("repositoryUploadTitle"), t("repositoryUploadDescription")],
+                    [ScanText, t("repositoryReviewTitle"), t("repositoryReviewDescription")],
+                    [UserCheck, t("repositoryOrganizeTitle"), t("repositoryOrganizeDescription")],
+                  ].map(([Icon, title, description], index) => {
+                    const StepIcon = Icon as typeof Upload
+                    return (
+                      <li key={String(title)} className="grid grid-cols-[36px_1fr] gap-3 py-4">
+                        <span className="flex size-9 items-center justify-center border border-zinc-200 bg-[#f7f6f2] text-zinc-700"><StepIcon className="size-4" aria-hidden="true" /></span>
+                        <div>
+                          <div className="flex items-baseline gap-2"><span className="text-[11px] font-semibold text-zinc-400">0{index + 1}</span><h3 className="text-sm font-semibold text-zinc-950">{String(title)}</h3></div>
+                          <p className="mt-1 text-xs leading-5 text-zinc-600">{String(description)}</p>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </div>
+            </section>
+          )
         ) : (
           /* Data table */
           <>

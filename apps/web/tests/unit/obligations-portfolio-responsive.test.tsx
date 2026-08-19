@@ -129,7 +129,6 @@ describe("obligations portfolio responsive action queue", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
       String(input) === "/api/org/members" ? membersResponse() : response(),
     ))
-    vi.stubGlobal("confirm", vi.fn(() => true))
   })
 
   afterEach(() => {
@@ -162,6 +161,28 @@ describe("obligations portfolio responsive action queue", () => {
     )
     expect(link).toHaveClass("min-h-11")
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
+  })
+
+  it("only gives the priority band to an overdue or due-soon obligation", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/org/members" ? membersResponse() : response([obligations[1]]),
+    ))
+    render(<ObligationsPage />)
+
+    await screen.findByRole("table", { name: "Obligation results" })
+    expect(screen.getAllByRole("link", { name: "View Renew insurance certificate" })).toHaveLength(1)
+  })
+
+  it("shows a decorative check signal on the active operational filter", async () => {
+    render(<ObligationsPage />)
+
+    const all = await screen.findByRole("button", { name: "All" })
+    expect(all.querySelector("svg[aria-hidden='true']")).not.toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "Overdue" }))
+    const overdue = screen.getByRole("button", { name: "Overdue" })
+    expect(overdue).toHaveAttribute("aria-pressed", "true")
+    expect(overdue.querySelector("svg[aria-hidden='true']")).not.toBeNull()
   })
 
   it("keeps stats, filters, and search aligned to the same portfolio records", async () => {
@@ -316,7 +337,31 @@ describe("obligations portfolio responsive action queue", () => {
     expect(selectAll.indeterminate).toBe(true)
     const actions = screen.getByRole("region", { name: "Bulk actions" })
     fireEvent.click(within(actions).getByRole("button", { name: "Delete 1 obligation" }))
-    await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveTextContent("Delete selected obligations?")
+    expect(within(dialog).getByRole("button", { name: "Delete 1 obligation" })).toBeInTheDocument()
+  })
+
+  it("does not duplicate a bulk delete when the confirmation is activated twice", async () => {
+    let deletes = 0
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE") {
+        deletes += 1
+        await new Promise<void>((resolve) => setTimeout(resolve, 1))
+        return new Response(null, { status: 204 })
+      }
+      return String(input) === "/api/org/members" ? membersResponse() : response([obligations[0]])
+    }))
+    render(<ObligationsPage />)
+
+    await screen.findByRole("link", { name: "View File audit report" })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all obligations" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete 1 obligation" }))
+    const confirm = within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete 1 obligation" })
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+
+    await waitFor(() => expect(deletes).toBe(1))
   })
 
   it("bounds bulk-delete concurrency while attempting every selected obligation and preserving partial failures", async () => {
@@ -353,6 +398,7 @@ describe("obligations portfolio responsive action queue", () => {
     await screen.findByRole("link", { name: "View Obligation 101" })
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all obligations" }))
     fireEvent.click(screen.getByRole("button", { name: "Delete 101 obligations" }))
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete 101 obligations" }))
 
     await waitFor(() => expect(attemptedDeletes).toBe(101))
     expect(maxConcurrentDeletes).toBeLessThanOrEqual(100)
@@ -391,6 +437,7 @@ describe("obligations portfolio responsive action queue", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all obligations" }))
     fireEvent.click(screen.getByRole("button", { name: "Delete 1 obligation" }))
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete 1 obligation" }))
 
     expect(await screen.findByRole("status")).toHaveTextContent("Loading obligations")
     expect(screen.queryByRole("heading", { name: "No obligations yet" })).not.toBeInTheDocument()

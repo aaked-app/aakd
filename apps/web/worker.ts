@@ -29,6 +29,7 @@ import mammoth from "mammoth"
 import libre from "libreoffice-convert"
 import Anthropic from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { Prisma } from "@prisma/client"
 
 import { logger } from "@/lib/logger"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
@@ -37,12 +38,16 @@ import { checkAndFireAlerts } from "@/lib/alerts/check"
 import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
-import { extractLocalFields } from "@/lib/ai/local-extract"
+import { extractDeterministicRenewalTerms, extractLocalFields, extractLocalObligationSuggestions } from "@/lib/ai/local-extract"
+import { verifyCitation } from "@/lib/ai/verified-citation"
 import { analyzeContractRisk } from "@/lib/ai/risk"
+import { resolveAiConfig } from "@/lib/ai/resolve"
 import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
+import { sendActionDeliveryEmail } from "@/lib/email/action-delivery"
+import { processActionDelivery } from "@/lib/actions/delivery-worker"
 import { sendSlackEvent, sendTeamsEvent } from "@/lib/notifications/webhooks"
 import { decrypt } from "@/lib/notifications/crypto"
 import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
@@ -58,7 +63,6 @@ import type {
   ContractAiExtractJobData,
   AlertsCheckJobData,
   ContractEmbedJobData,
-  SigningSyncJobData,
   EmailJobData,
   NotificationFanoutJobData,
   NotificationDeliverJobData,
@@ -83,7 +87,6 @@ import {
   obligationsCheckQueue,
   salesforcePollQueue,
   importProcessQueue,
-  getObligationExtractQueue,
   obligationExtractQueue,
   contractRiskScoreQueue,
 } from "@/lib/jobs/queues"
@@ -143,19 +146,6 @@ const connection = {
 
 function maskRedisUrl(url: string): string {
   return url.replace(/\/\/:([^@]+)@/, "//:***@")
-}
-
-// ─── SDK singletons ───────────────────────────────────────────────────────────
-// Constructed lazily so dotenv has loaded before we read API keys.
-
-let _anthropic: Anthropic | null = null
-function getAnthropic(): Anthropic {
-  return (_anthropic ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }))
-}
-
-let _openai: OpenAI | null = null
-function getOpenAI(): OpenAI {
-  return (_openai ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }))
 }
 
 // ─── LibreOffice PDF→DOCX conversion helper ───────────────────────────────────
@@ -297,7 +287,7 @@ function getTextLimitForProvider(): number {
 const extractWorker = new Worker<ContractExtractJobData>(
   "contract.extract",
   async (job: Job<ContractExtractJobData>) => {
-    const { contractId, fileId, storageKey, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId, fileId, storageKey, preserveUserFields, skipAiExtraction } = job.data
 
     logger.info({ jobId: job.id, contractId, fileId }, "[extract] processing job")
 
@@ -307,6 +297,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
     const existingContract = await getWorkerPrisma().contract.findUnique({
       where: { id: contractId },
       select: {
+        organizationId: true,
         extractedText: true,
         files: {
           where: { isLatest: true },
@@ -350,7 +341,25 @@ const extractWorker = new Worker<ContractExtractJobData>(
 
     if (contractFile.mimeType === "application/pdf") {
       try {
-        const result = await pdfParse(buffer)
+        const result = await pdfParse(buffer, {
+          // Preserve a real page boundary in the durable extracted text. The
+          // local fallback derives citations from these delimiters, while
+          // DOCX/plain text correctly remains uncited by page.
+          pagerender: async (pageData) => {
+            const textContent = await pageData.getTextContent({
+              normalizeWhitespace: false,
+              disableCombineTextItems: false,
+            })
+            let lastY: number | undefined
+            let pageText = ""
+            for (const item of textContent.items as Array<{ str: string; transform: number[] }>) {
+              if (lastY !== undefined && lastY !== item.transform[5]) pageText += "\n"
+              pageText += item.str
+              lastY = item.transform[5]
+            }
+            return `${pageText}\f`
+          },
+        })
         extractedText = result.text?.trim() ?? null
         logger.debug({ fileId, chars: extractedText?.length ?? 0 }, "[extract] PDF text extracted")
       } catch (err) {
@@ -402,26 +411,51 @@ const extractWorker = new Worker<ContractExtractJobData>(
 
     // 4. Persist extracted text to the Contract record
     if (extractedText) {
-      await getWorkerPrisma().contract.update({
-        where: { id: contractId },
-        data: { extractedText, isOcrExtracted },
-      })
+      // Upload obtains this same Contract lock before changing the latest-file
+      // marker. Keeping the source check and writes in one transaction means
+      // a superseded file can never persist text after its replacement.
+      const persisted = await getWorkerPrisma().$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "Contract"
+          WHERE "id" = ${contractId}
+          FOR UPDATE
+        `)
+        if (!locked[0]) return false
+        // Keep this as a separate statement after the parent row lock. Under
+        // READ COMMITTED, a combined lock/subquery can retain a pre-wait
+        // snapshot of ContractFile while the Contract row refreshes.
+        const latestFile = await tx.contractFile.findFirst({
+          where: { id: fileId, contractId, isLatest: true },
+          select: { id: true },
+        })
+        if (!latestFile) return false
 
-      await getWorkerPrisma().activity.create({
-        data: {
-          contractId,
-          userId: null,
-          actorLabel: "System",
-          action: "METADATA_EXTRACTED",
-          detail: `Text extracted from ${contractFile.filename}${isOcrExtracted ? " (via OCR)" : ""}`,
-        },
+        await tx.contract.update({
+          where: { id: contractId },
+          data: { extractedText, isOcrExtracted },
+        })
+        await tx.activity.create({
+          data: {
+            contractId,
+            userId: null,
+            actorLabel: "System",
+            action: "METADATA_EXTRACTED",
+            detail: `Text extracted from ${contractFile.filename}${isOcrExtracted ? " (via OCR)" : ""}`,
+          },
+        })
+        return true
       })
+      if (!persisted) {
+        logger.info({ contractId, fileId }, "[extract] stale file superseded before persistence — skipping")
+        return
+      }
 
       // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
       // embed worker chains ai_extract once embeddings land so semantic search
       // is always populated even when the LLM extractor fails or is missing.
       await contractEmbedQueue.add("embed", {
         contractId,
+        organizationId: organizationId ?? existingContract?.organizationId,
         extractedText,
         preserveUserFields,
         ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
@@ -458,13 +492,9 @@ extractWorker.on("failed", (job, err) =>
 // Set AI_PROVIDER=anthropic|openai|ollama in .env.local
 // Defaults to anthropic if ANTHROPIC_API_KEY is set, then openai, then ollama.
 
-async function callExtractionLLM(text: string): Promise<string | null> {
-  const provider = process.env.AI_PROVIDER?.toLowerCase() || (
-    process.env.ANTHROPIC_API_KEY ? "anthropic"
-      : process.env.OPENAI_API_KEY     ? "openai"
-      : process.env.OLLAMA_BASE_URL    ? "ollama"
-      : null
-  )
+async function callExtractionLLM(text: string, organizationId: string): Promise<string | null> {
+  const aiConfig = await resolveAiConfig(organizationId)
+  const provider = aiConfig.provider
 
   if (!provider) {
     logger.warn("[ai_extract] no AI provider configured — set AI_PROVIDER or one of ANTHROPIC_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL")
@@ -472,9 +502,9 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) { logger.warn("[ai_extract] AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set"); return null }
-    const msg = await getAnthropic().messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    if (!aiConfig.apiKey) { logger.warn("[ai_extract] Anthropic key is not configured"); return null }
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+      model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
       system: EXTRACTION_SYSTEM_PROMPT,
@@ -485,9 +515,9 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "openai") {
-    if (!process.env.OPENAI_API_KEY) { logger.warn("[ai_extract] AI_PROVIDER=openai but OPENAI_API_KEY is not set"); return null }
-    const res = await getOpenAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    if (!aiConfig.apiKey) { logger.warn("[ai_extract] OpenAI key is not configured"); return null }
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+      model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
       messages: [
@@ -499,8 +529,8 @@ async function callExtractionLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "ollama") {
-    const base = (process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/$/, "")
-    const model = process.env.OLLAMA_MODEL ?? "llama3"
+    const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
+    const model = aiConfig.model ?? "llama3"
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -538,7 +568,12 @@ function localExtractionJson(text: string): string {
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
   "contract.ai_extract",
   async (job: Job<ContractAiExtractJobData>) => {
-    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields } = job.data
+
+    const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
+      where: { id: contractId },
+      select: { organizationId: true },
+    }))?.organizationId ?? ""
 
     logger.info({ jobId: job.id, contractId }, "[ai_extract] processing job")
 
@@ -555,7 +590,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     let rawJson: string
     let extractionMethod = "ai"
     try {
-      const result = await callExtractionLLM(textToAnalyze)
+      const result = await callExtractionLLM(textToAnalyze, organizationId)
       if (result === null) {
         rawJson = localExtractionJson(textToAnalyze)
         extractionMethod = "local"
@@ -565,17 +600,9 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       }
     } catch (err) {
       logger.error({ err, contractId }, "[ai_extract] LLM call failed")
-      await getWorkerPrisma().activity.create({
-        data: {
-          contractId,
-          userId: null,
-          actorLabel: "System",
-          action: "METADATA_EXTRACTED",
-          detail: `AI extraction failed: ${(err as Error)?.message ?? String(err)}`,
-          metadata: { skipped: true, reason: "llm_error" },
-        },
-      })
-      return
+      rawJson = localExtractionJson(textToAnalyze)
+      extractionMethod = "local"
+      logger.info({ contractId }, "[ai_extract] using deterministic local extraction fallback after provider failure")
     }
 
     // Strip markdown fences if the model emitted them despite instructions.
@@ -589,7 +616,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       extracted = JSON.parse(cleaned)
     } catch {
       logger.error(
-        { contractId, rawJson: rawJson.slice(0, 200) },
+        { contractId, responseLength: rawJson.length, extractionMethod },
         "[ai_extract] failed to parse LLM response as JSON",
       )
       await getWorkerPrisma().activity.create({
@@ -605,48 +632,26 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       return
     }
 
-    // Models occasionally omit a highly regular renewal clause even when it
-    // is plainly present in the source. Recover only deterministic, verbatim
-    // facts here; these remain pending AI extractions and still require human
-    // acceptance before they update the canonical Contract fields.
-    const renewalClause = extractedText.match(
-      /[^.\n]{0,180}(?:automatically\s+renews?|auto[- ]renews?)[^.\n]{0,220}/i,
-    )
-    const autoRenewalResult = extracted.autoRenewal
-    const hasAutoRenewalValue =
-      autoRenewalResult !== null &&
-      typeof autoRenewalResult === "object" &&
-      !Array.isArray(autoRenewalResult) &&
-      "value" in autoRenewalResult &&
-      (autoRenewalResult as { value?: unknown }).value != null
-    if (renewalClause && !hasAutoRenewalValue) {
+    // A provider can contradict an exact, unambiguous renewal clause. The
+    // deterministic parser wins only for those cited source facts; possible
+    // renewals are left unknown rather than turned into a false assertion.
+    const renewalTerms = extractDeterministicRenewalTerms(extractedText)
+    if (renewalTerms.autoRenewal) {
       extracted.autoRenewal = {
-        value: true,
-        confidence: 0.9,
-        sourceText: renewalClause[0].trim(),
-        sourcePage: null,
+        value: renewalTerms.autoRenewal.value,
+        confidence: renewalTerms.autoRenewal.confidence,
+        sourceText: renewalTerms.autoRenewal.sourceText,
+        sourcePage: renewalTerms.autoRenewal.sourcePage,
       }
+    } else if (renewalTerms.autoRenewalAmbiguous) {
+      delete extracted.autoRenewal
     }
-
-    const noticeClause = extractedText.match(
-      /[^.\n]{0,180}(?:\b(\d{1,3})\s+days?\s+(?:written\s+)?notice|notice\s+of\s+(\d{1,3})\s+days?)[^.\n]{0,180}/i,
-    )
-    const noticeResult = extracted.noticePeriodDays
-    const hasNoticeValue =
-      noticeResult !== null &&
-      typeof noticeResult === "object" &&
-      !Array.isArray(noticeResult) &&
-      "value" in noticeResult &&
-      (noticeResult as { value?: unknown }).value != null
-    if (noticeClause && !hasNoticeValue) {
-      const days = Number(noticeClause[1] ?? noticeClause[2])
-      if (Number.isInteger(days)) {
-        extracted.noticePeriodDays = {
-          value: days,
-          confidence: 0.9,
-          sourceText: noticeClause[0].trim(),
-          sourcePage: null,
-        }
+    if (renewalTerms.noticePeriodDays) {
+      extracted.noticePeriodDays = {
+        value: renewalTerms.noticePeriodDays.value,
+        confidence: renewalTerms.noticePeriodDays.confidence,
+        sourceText: renewalTerms.noticePeriodDays.sourceText,
+        sourcePage: renewalTerms.noticePeriodDays.sourcePage,
       }
     }
 
@@ -667,13 +672,13 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       if (obj.value === null || obj.value === undefined) return null
       const conf = typeof obj.confidence === "number" ? obj.confidence : 0
       const clampedConf = Math.max(0, Math.min(1, conf))
-      const src = typeof obj.sourceText === "string" && obj.sourceText.length > 0
-        ? obj.sourceText
-        : null
-      const page = typeof obj.sourcePage === "number" && Number.isFinite(obj.sourcePage)
-        ? Math.trunc(obj.sourcePage)
-        : null
-      return { value: obj.value, confidence: clampedConf, sourceText: src, sourcePage: page }
+      // Provider citations are not evidence by themselves. Persist a quote
+      // only if it is verbatim in the analyzed document, and always derive
+      // page attribution from that matched offset rather than provider output.
+      const citation = verifyCitation(extractedText, obj.sourceText)
+      const sourceText = citation?.sourceText ?? null
+      const sourcePage = citation?.sourcePage ?? null
+      return { value: obj.value, confidence: clampedConf, sourceText, sourcePage }
     }
 
     const EXTRACTABLE_FIELDS = [
@@ -691,7 +696,16 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
 
     const fieldData = EXTRACTABLE_FIELDS
       .map((field) => ({ field, data: normalizeField(extracted[field]) }))
-      .filter((entry): entry is { field: string; data: FieldExtraction } => entry.data !== null)
+      // Phase 0 review only exposes evidence-backed facts. A provider scalar
+      // or hallucinated quote is not a pending fact waiting for acceptance.
+      .filter((entry): entry is { field: string; data: FieldExtraction } => entry.data !== null && entry.data.sourceText !== null)
+
+    const sourceHash = crypto.createHash("sha256").update(extractedText).digest("hex")
+    await obligationExtractQueue.add(
+      "extract",
+      { contractId, organizationId, extractedText: textToAnalyze, requestedById: null, sourceHash },
+      { jobId: `initial-obligation-extract:${contractId}:${sourceHash}` },
+    )
 
     if (fieldData.length === 0) {
       logger.info({ contractId }, "[ai_extract] no fields extracted")
@@ -745,11 +759,21 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
       logger.info({ contractId }, "[ai_extract] all returned fields were supplied by the user")
       return
     }
-    // Two-step write: createMany skipDuplicates inserts only fields with no
-    // prior row, then updateMany refreshes the rest — but only when the row
-    // is NOT accepted. Without the status guard a re-run would clobber a
-    // human-reviewed value back to "pending" and overwrite their edits.
-    await db.aIExtraction.createMany({
+    // The upload route takes this same Contract lock before invalidating its
+    // old text and candidates. Check the source and write all candidates in
+    // one transaction so an in-flight provider response cannot survive a
+    // replacement upload.
+    const persisted = await db.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ extractedText: string | null }>>(Prisma.sql`
+        SELECT "extractedText" FROM "Contract"
+        WHERE "id" = ${contractId} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      `)
+      if (locked[0]?.extractedText !== extractedText) return false
+
+      // createMany inserts only fields with no prior row, then updateMany
+      // refreshes the rest — but only when the row is NOT accepted.
+      await tx.aIExtraction.createMany({
       data: persistedFieldData.map(({ field, data }) => ({
         contractId,
         field,
@@ -761,10 +785,10 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
         status: "pending",
       })),
       skipDuplicates: true,
-    })
+      })
 
-    for (const { field, data } of persistedFieldData) {
-      await db.aIExtraction.updateMany({
+      for (const { field, data } of persistedFieldData) {
+        await tx.aIExtraction.updateMany({
         where: { contractId, field, status: { not: "accepted" } },
         data: {
           rawValue: String(data.value),
@@ -774,12 +798,18 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
           extractedBy: extractionMethod,
           status: "pending",
         },
-      })
-    }
+        })
+      }
 
-    await getWorkerPrisma().activity.create({
-      data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `${extractionMethod === "local" ? "Local" : "AI"} extraction found ${fieldData.length} fields` },
+      await tx.activity.create({
+        data: { contractId, userId: null, actorLabel: "System", action: "METADATA_EXTRACTED", detail: `${extractionMethod === "local" ? "Local" : "AI"} extraction found ${fieldData.length} fields` },
+      })
+      return true
     })
+    if (!persisted) {
+      logger.info({ contractId }, "[ai_extract] stale source superseded before persistence — skipping")
+      return
+    }
 
     logger.info(
       { contractId, count: fieldData.length, fields: fieldData.map((f) => f.field) },
@@ -846,7 +876,12 @@ riskScoreWorker.on("failed", (job, err) => logger.error({ err, jobId: job?.id },
 const embedWorker = new Worker<ContractEmbedJobData>(
   "contract.embed",
   async (job: Job<ContractEmbedJobData>) => {
-    const { contractId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+
+    const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
+      where: { id: contractId },
+      select: { organizationId: true },
+    }))?.organizationId ?? ""
 
     logger.info({ jobId: job.id, contractId }, "[embed] processing job")
 
@@ -867,7 +902,7 @@ const embedWorker = new Worker<ContractEmbedJobData>(
         return
       }
       try {
-        await contractAiExtractQueue.add("ai_extract", { contractId, extractedText, preserveUserFields })
+        await contractAiExtractQueue.add("ai_extract", { contractId, organizationId, extractedText, preserveUserFields })
       } catch (err) {
         logger.error(
           { err, contractId },
@@ -876,7 +911,27 @@ const embedWorker = new Worker<ContractEmbedJobData>(
         throw err
       }
     }
+    const db = getWorkerPrisma()
 
+    // A valid upload may contain 50 MB of text. Do not publish a silently
+    // partial semantic index: it would make Q&A ignore later clauses. Leave
+    // oversized documents on the complete-text fallback instead, with an
+    // auditable explanation, rather than create unbounded provider work.
+    const MAX_EMBEDDING_CHARS = 500_000
+    if (extractedText.length > MAX_EMBEDDING_CHARS) {
+      await db.activity.create({
+        data: {
+          contractId,
+          userId: null,
+          actorLabel: "System",
+          action: "METADATA_EXTRACTED",
+          detail: "Semantic indexing skipped because the document exceeds the indexing budget; Q&A will use lexical retrieval over complete text",
+          metadata: { maxIndexedChars: MAX_EMBEDDING_CHARS, totalChars: extractedText.length, reason: "index_budget" },
+        },
+      })
+      await chainAiExtract()
+      return
+    }
     const embedding = await generateEmbedding(extractedText)
     if (!embedding) {
       logger.warn({ contractId }, "[embed] no embedding provider configured — skipping")
@@ -884,19 +939,8 @@ const embedWorker = new Worker<ContractEmbedJobData>(
       return
     }
 
-    const db = getWorkerPrisma()
     const model = currentEmbeddingModel() ?? "unknown"
     const id = crypto.randomUUID()
-
-    // Upsert using raw SQL (pgvector — Prisma does not support vector type natively)
-    await db.$executeRaw`
-      INSERT INTO "ContractEmbedding" ("id", "contractId", "embedding", "model", "createdAt", "updatedAt")
-      VALUES (${id}, ${contractId}, ${JSON.stringify(embedding)}::vector, ${model}, NOW(), NOW())
-      ON CONFLICT ("contractId") DO UPDATE
-        SET "embedding" = EXCLUDED."embedding",
-            "model" = EXCLUDED."model",
-            "updatedAt" = NOW()
-    `
 
     const chunks = chunkText(extractedText)
 
@@ -939,16 +983,46 @@ const embedWorker = new Worker<ContractEmbedJobData>(
       return
     }
 
-    // Only swap rows once we know at least one chunk succeeded.
-    await db.$transaction([
-      db.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${contractId}`,
-      ...collected.map(
-        (c) => db.$executeRaw`
+    // Only swap rows once we know at least one chunk succeeded. The upload
+    // path takes this same parent lock before replacing a file and removes the
+    // old index, so the exact source check and both embedding writes must be
+    // one transaction.
+    const embedded = await db.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ extractedText: string | null }>>(Prisma.sql`
+        SELECT "extractedText" FROM "Contract"
+        WHERE "id" = ${contractId} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      `)
+      if (locked[0]?.extractedText !== extractedText) return false
+
+      await tx.$executeRaw`
+        INSERT INTO "ContractEmbedding" ("id", "contractId", "embedding", "model", "createdAt", "updatedAt")
+        VALUES (${id}, ${contractId}, ${JSON.stringify(embedding)}::vector, ${model}, NOW(), NOW())
+        ON CONFLICT ("contractId") DO UPDATE
+          SET "embedding" = EXCLUDED."embedding",
+              "model" = EXCLUDED."model",
+              "updatedAt" = NOW()
+      `
+      await tx.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${contractId}`
+      // Keep each statement bounded even for the largest allowed upload. A
+      // small number of multi-row inserts avoids thousands of sequential
+      // round-trips while preserving an atomic final index swap.
+      const CHUNK_INSERT_BATCH_SIZE = 50
+      for (let offset = 0; offset < collected.length; offset += CHUNK_INSERT_BATCH_SIZE) {
+        const rows = collected.slice(offset, offset + CHUNK_INSERT_BATCH_SIZE).map((c) => Prisma.sql`
+          (${crypto.randomUUID()}, ${contractId}, ${c.index}, ${c.text}, ${JSON.stringify(c.embedding)}::vector, ${model}, NOW(), NOW())
+        `)
+        await tx.$executeRaw(Prisma.sql`
           INSERT INTO "ContractChunkEmbedding" ("id", "contractId", "chunkIndex", "text", "embedding", "model", "createdAt", "updatedAt")
-          VALUES (${crypto.randomUUID()}, ${contractId}, ${c.index}, ${c.text}, ${JSON.stringify(c.embedding)}::vector, ${model}, NOW(), NOW())
-        `,
-      ),
-    ])
+          VALUES ${Prisma.join(rows)}
+        `)
+      }
+      return true
+    }, { maxWait: 10_000, timeout: 60_000 })
+    if (!embedded) {
+      logger.info({ contractId }, "[embed] stale source superseded before persistence — skipping")
+      return
+    }
 
     if (failures > 0) {
       logger.warn({ contractId, failures, totalChunks: chunks.length }, "[embed] some chunks failed")
@@ -1154,23 +1228,16 @@ Return ONLY a valid JSON array. Each item must have this exact shape:
 
 Return ONLY the JSON array. No explanation, no markdown fences. Max 20 obligations.`
 
-async function callObligationLLM(text: string): Promise<string | null> {
-  const provider =
-    process.env.AI_PROVIDER?.toLowerCase() ||
-    (process.env.ANTHROPIC_API_KEY
-      ? "anthropic"
-      : process.env.OPENAI_API_KEY
-        ? "openai"
-        : process.env.OLLAMA_BASE_URL
-          ? "ollama"
-          : null)
+async function callObligationLLM(text: string, organizationId: string): Promise<string | null> {
+  const aiConfig = await resolveAiConfig(organizationId)
+  const provider = aiConfig.provider
 
   if (!provider) return null
 
   if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) return null
-    const msg = await getAnthropic().messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    if (!aiConfig.apiKey) return null
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+      model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
       system: OBLIGATION_EXTRACTION_PROMPT,
@@ -1181,9 +1248,9 @@ async function callObligationLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "openai") {
-    if (!process.env.OPENAI_API_KEY) return null
-    const res = await getOpenAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    if (!aiConfig.apiKey) return null
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+      model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
       messages: [
@@ -1195,8 +1262,8 @@ async function callObligationLLM(text: string): Promise<string | null> {
   }
 
   if (provider === "ollama") {
-    const base = (process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/$/, "")
-    const model = process.env.OLLAMA_MODEL ?? "llama3"
+    const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
+    const model = aiConfig.model ?? "llama3"
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1223,21 +1290,47 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
     const { contractId, organizationId, extractedText, sourceHash, requestedById } = job.data
     logger.info({ jobId: job.id, contractId }, "[obligations.extract] processing job")
 
-    const raw = await callObligationLLM(extractedText)
-    if (!raw) throw new Error("no_ai_provider")
+    const db = getWorkerPrisma()
+    // An upload can replace the document while this job waits in Redis. Never
+    // persist or return candidates for an older document version.
+    const currentContract = await db.contract.findFirst({
+      where: { id: contractId, organizationId },
+      select: { extractedText: true },
+    })
+    if (!currentContract?.extractedText || crypto.createHash("sha256").update(currentContract.extractedText).digest("hex") !== sourceHash) {
+      logger.info({ contractId, jobId: job.id }, "[obligations.extract] stale document version — skipping")
+      return []
+    }
 
-    let suggestions: unknown
+    let raw: string | null
     try {
-      suggestions = JSON.parse(raw)
-    } catch {
-      throw new Error("parse_error: " + raw.slice(0, 200))
+      raw = await callObligationLLM(extractedText, organizationId)
+    } catch (err) {
+      logger.error({ err, contractId }, "[obligations.extract] provider call failed")
+      raw = null
+    }
+    let suggestions: unknown
+    let extractionMethod = "ai"
+    if (!raw) {
+      suggestions = extractLocalObligationSuggestions(extractedText)
+      extractionMethod = "local"
+      logger.info({ contractId }, "[obligations.extract] using deterministic local extraction fallback")
+    } else {
+      try {
+        suggestions = JSON.parse(raw)
+      } catch {
+        // A provider can be configured but unavailable or malformed. The
+        // first-run workflow remains useful and reviewable without it.
+        suggestions = extractLocalObligationSuggestions(extractedText)
+        extractionMethod = "local"
+        logger.warn({ contractId }, "[obligations.extract] malformed provider response — using local fallback")
+      }
     }
 
     // Validate and normalize model output before it reaches the browser. A
-    // malformed suggestion must never become a writable obligation silently.
-    if (!Array.isArray(suggestions)) throw new Error("invalid_shape: expected array")
-
-    const normalized = suggestions.slice(0, 20).flatMap((item) => {
+    // malformed provider response falls back to the deterministic path rather
+    // than turning a configured-but-unhealthy provider into a dead end.
+    const normalizeSuggestions = (items: unknown) => Array.isArray(items) ? items.slice(0, 20).flatMap((item) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return []
       const value = item as Record<string, unknown>
       const title = typeof value.title === "string" ? value.title.trim().slice(0, 100) : ""
@@ -1253,70 +1346,103 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
       const clauseReference = typeof value.clauseReference === "string"
         ? value.clauseReference.trim().slice(0, 200)
         : null
-      const sourceText = typeof value.sourceText === "string"
-        ? value.sourceText.trim().slice(0, 500)
-        : null
-      const sourcePage = typeof value.sourcePage === "number" && Number.isInteger(value.sourcePage) && value.sourcePage > 0
-        ? value.sourcePage
+      const sourceText = typeof value.sourceText === "string" ? value.sourceText.trim().slice(0, 500) : ""
+      const sourceOffset = sourceText ? extractedText.indexOf(sourceText) : -1
+      // A model-provided citation is evidence only when the exact quote is in
+      // the analyzed document. Page is derived from that quote, never trusted
+      // from provider output.
+      if (sourceOffset < 0) return []
+      const sourcePage = extractedText.includes("\f")
+        ? extractedText.slice(0, sourceOffset).split("\f").length
         : null
       return [{ title, description, clauseReference, sourceText, sourcePage, priority, suggestedDueDays, confidence }]
-    })
+    }) : []
 
-    const db = getWorkerPrisma()
-    // Persist candidates outside the ledger. Upsert makes retries and repeated
-    // polling idempotent while the unique key prevents duplicate suggestions.
-    const persistedSuggestions = []
-    for (const suggestion of normalized) {
-      const persisted = await db.contractObligationSuggestion.upsert({
-        where: {
-          contractId_sourceHash_title: {
-            contractId,
-            sourceHash,
-            title: suggestion.title,
-          },
-        },
-        create: {
-          contractId,
-          organizationId,
-          sourceHash,
-          jobId: String(job.id),
-          title: suggestion.title,
-          description: suggestion.description,
-          clauseReference: suggestion.clauseReference,
-          sourceText: suggestion.sourceText,
-          sourcePage: suggestion.sourcePage,
-          priority: suggestion.priority,
-          suggestedDueDays: suggestion.suggestedDueDays,
-          confidence: suggestion.confidence,
-        },
-        update: {
-          jobId: String(job.id),
-          description: suggestion.description,
-          clauseReference: suggestion.clauseReference,
-          sourceText: suggestion.sourceText,
-          sourcePage: suggestion.sourcePage,
-          priority: suggestion.priority,
-          suggestedDueDays: suggestion.suggestedDueDays,
-          confidence: suggestion.confidence,
-        },
-      })
-      persistedSuggestions.push(persisted)
+    let normalized = normalizeSuggestions(suggestions)
+    if (extractionMethod === "ai" && (!Array.isArray(suggestions) || (suggestions.length > 0 && normalized.length === 0))) {
+      suggestions = extractLocalObligationSuggestions(extractedText)
+      extractionMethod = "local"
+      normalized = normalizeSuggestions(suggestions)
+      logger.warn({ contractId }, "[obligations.extract] invalid provider shape — using local fallback")
     }
 
-    // Record who requested the analysis without creating a ledger obligation.
-    await db.activity.create({
-      data: {
-        contractId,
-        userId: requestedById,
-        actorLabel: "AI",
-        action: "METADATA_EXTRACTED",
-        detail: `AI found ${normalized.length} obligation suggestions`,
-        metadata: { sourceHash, suggestionCount: normalized.length },
-      },
-    })
+    // The provider call above may take seconds. Lock the contract row while
+    // checking its hash and writing candidates: a replacement upload either
+    // waits and deletes these rows before it commits, or wins first and makes
+    // this job a no-op. A read-only check cannot provide that guarantee.
+    return db.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ extractedText: string | null }>>(Prisma.sql`
+        SELECT "extractedText"
+        FROM "Contract"
+        WHERE "id" = ${contractId} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      `)
+      const currentText = locked[0]?.extractedText
+      if (!currentText || crypto.createHash("sha256").update(currentText).digest("hex") !== sourceHash) {
+        logger.info({ contractId, jobId: job.id }, "[obligations.extract] document replaced during extraction — skipping writes")
+        return []
+      }
 
-    // Return value is retained for fast polling; the database is the durable fallback.
-    return persistedSuggestions
+      // Persist candidates outside the ledger. Upsert makes retries and repeated
+      // polling idempotent while the unique key prevents duplicate suggestions.
+      const persistedSuggestions = []
+      for (const suggestion of normalized) {
+        // Titles are display labels and can legitimately repeat in a contract.
+        // Deduplicate on the cited clause instead, so two separate commitments
+        // named "Pay the fee" never overwrite one another.
+        const sourceKey = `${suggestion.sourceText ?? ""}\u001f${suggestion.clauseReference ?? ""}`
+        const persisted = await tx.contractObligationSuggestion.upsert({
+          where: {
+            contractId_sourceHash_sourceKey: {
+              contractId,
+              sourceHash,
+              sourceKey,
+            },
+          },
+          create: {
+            contractId,
+            organizationId,
+            sourceHash,
+            sourceKey,
+            jobId: String(job.id),
+            title: suggestion.title,
+            description: suggestion.description,
+            clauseReference: suggestion.clauseReference,
+            sourceText: suggestion.sourceText,
+            sourcePage: suggestion.sourcePage,
+            priority: suggestion.priority,
+            suggestedDueDays: suggestion.suggestedDueDays,
+            confidence: suggestion.confidence,
+          },
+          update: {
+            jobId: String(job.id),
+            description: suggestion.description,
+            clauseReference: suggestion.clauseReference,
+            sourceText: suggestion.sourceText,
+            sourcePage: suggestion.sourcePage,
+            priority: suggestion.priority,
+            suggestedDueDays: suggestion.suggestedDueDays,
+            confidence: suggestion.confidence,
+          },
+        })
+        persistedSuggestions.push(persisted)
+      }
+
+      // Record who requested the analysis without creating a ledger obligation.
+      await tx.activity.create({
+        data: {
+          contractId,
+          userId: requestedById,
+          actorLabel: "AI",
+          action: "METADATA_EXTRACTED",
+          detail: `${extractionMethod === "local" ? "Local" : "AI"} extraction found ${normalized.length} obligation suggestions`,
+          metadata: { sourceHash, suggestionCount: normalized.length, extractionMethod },
+        },
+      })
+
+      // Return value is retained for fast polling; the database is the durable fallback.
+      return persistedSuggestions
+    })
   },
   {
     connection,
@@ -1390,6 +1516,10 @@ const emailWorker = new Worker<EmailJobData>(
           metadata: data.metadata,
           unsubscribeToken: data.unsubscribeToken,
         })
+        return
+      }
+      if (data.kind === "action_delivery") {
+        await processActionDelivery(data, { db: getWorkerPrisma(), send: sendActionDeliveryEmail })
         return
       }
     } catch (err: unknown) {
@@ -1794,13 +1924,15 @@ async function createInAppNotifications(
     case "obligation.due_soon":
     case "obligation.overdue": {
       const obligationTitle = typeof metadata.obligationTitle === "string" ? metadata.obligationTitle : "An obligation"
+      const actionId = typeof metadata.actionId === "string" ? metadata.actionId : null
       const daysUntilDue = typeof metadata.daysUntilDue === "number" ? metadata.daysUntilDue : null
       const title = eventName === "obligation.overdue" ? "Obligation overdue" : "Obligation due soon"
-      const body = eventName === "obligation.overdue"
+      const baseBody = eventName === "obligation.overdue"
         ? `"${obligationTitle}" on "${contractTitle}" is overdue`
         : daysUntilDue != null && daysUntilDue > 0
           ? `"${obligationTitle}" on "${contractTitle}" is due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`
           : `"${obligationTitle}" on "${contractTitle}" is due soon`
+      const body = actionId ? `${baseBody}. Review it at /actions/${actionId}` : baseBody
 
       const members = await db.member.findMany({
         where: { organizationId, role: { in: ["legal", "admin", "owner"] } },
@@ -1812,18 +1944,21 @@ async function createInAppNotifications(
 
       // Also notify the obligation assignee if set and not already notified
       const obligationId = typeof metadata.obligationId === "string" ? metadata.obligationId : null
+      const metadataAssigneeId = typeof metadata.assigneeId === "string" ? metadata.assigneeId : null
       if (obligationId) {
         const ob = await db.contractObligation.findUnique({
           where: { id: obligationId },
           select: { assigneeId: true },
         }).catch(() => null)
-        const assigneeId = ob?.assigneeId ?? null
+        const assigneeId = ob?.assigneeId ?? metadataAssigneeId
         if (assigneeId) {
           const alreadyNotified = members.some(m => m.userId === assigneeId)
           if (!alreadyNotified) {
             await writeNotification(assigneeId, title, body)
           }
         }
+      } else if (metadataAssigneeId && !members.some((m) => m.userId === metadataAssigneeId)) {
+        await writeNotification(metadataAssigneeId, title, body)
       }
       break
     }

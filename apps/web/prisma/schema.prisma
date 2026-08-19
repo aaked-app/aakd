@@ -18,35 +18,39 @@ model User {
   createdAt     DateTime
   updatedAt     DateTime
 
-  sessions      Session[]
-  accounts      Account[]
-  memberships   Member[]
-  ownedContracts Contract[]    @relation("ContractOwner")
-  uploadedFiles  ContractFile[]
-  versions       ContractVersion[]
-  activities     Activity[]
-  apiKeys        ApiKey[]
-  approvalRequests    Approval[] @relation("ApprovalRequester")
-  approvalAssignments Approval[] @relation("ApprovalAssignee")
-  createdNotificationChannels OrgNotificationChannel[] @relation("NotificationChannelCreatedBy")
-  createdOutboundWebhooks     OutboundWebhook[]        @relation("OutboundWebhookCreatedBy")
+  sessions                    Session[]
+  accounts                    Account[]
+  memberships                 Member[]
+  ownedContracts              Contract[]                   @relation("ContractOwner")
+  uploadedFiles               ContractFile[]
+  versions                    ContractVersion[]
+  activities                  Activity[]
+  apiKeys                     ApiKey[]
+  approvalRequests            Approval[]                   @relation("ApprovalRequester")
+  approvalAssignments         Approval[]                   @relation("ApprovalAssignee")
+  createdNotificationChannels OrgNotificationChannel[]     @relation("NotificationChannelCreatedBy")
+  createdOutboundWebhooks     OutboundWebhook[]            @relation("OutboundWebhookCreatedBy")
   notificationPreferences     UserNotificationPreference[]
-  savedDocuments              ContractDocument[]       @relation("DocumentSaver")
-  createdTemplates            ContractTemplate[]       @relation("TemplateCreator")
-  updatedTemplates            ContractTemplate[]       @relation("TemplateUpdater")
-  obligationsAssigned         ContractObligation[]     @relation("ObligationAssignee")
-  obligationsCompleted        ContractObligation[]     @relation("ObligationCompleter")
-  obligationsCreated          ContractObligation[]     @relation("ObligationCreator")
-  subTasksCompleted           ObligationSubTask[]      @relation("SubTaskCompleter")
-  crmIntegrationsConnected    CrmIntegration[]         @relation("CrmIntegrationConnectedBy")
-  crmLinksCreated             CrmLink[]                @relation("CrmLinkCreator")
-  importJobsCreated           ImportJob[]              @relation("ImportJobCreator")
-  googleDriveConnected        GoogleDriveIntegration[] @relation("GoogleDriveConnectedBy")
+  savedDocuments              ContractDocument[]           @relation("DocumentSaver")
+  createdTemplates            ContractTemplate[]           @relation("TemplateCreator")
+  updatedTemplates            ContractTemplate[]           @relation("TemplateUpdater")
+  obligationsAssigned         ContractObligation[]         @relation("ObligationAssignee")
+  obligationsCompleted        ContractObligation[]         @relation("ObligationCompleter")
+  obligationsCreated          ContractObligation[]         @relation("ObligationCreator")
+  actionsAssigned             ContractAction[]             @relation("ActionAssignee")
+  actionsCompleted            ContractAction[]             @relation("ActionCompleter")
+  actionsCreated              ContractAction[]             @relation("ActionCreator")
+  actionEvidenceRecorded      ContractActionEvidence[]     @relation("ActionEvidenceRecorder")
+  subTasksCompleted           ObligationSubTask[]          @relation("SubTaskCompleter")
+  crmIntegrationsConnected    CrmIntegration[]             @relation("CrmIntegrationConnectedBy")
+  crmLinksCreated             CrmLink[]                    @relation("CrmLinkCreator")
+  importJobsCreated           ImportJob[]                  @relation("ImportJobCreator")
+  googleDriveConnected        GoogleDriveIntegration[]     @relation("GoogleDriveConnectedBy")
   notifications               Notification[]
-  commentsAuthored            ContractComment[]        @relation("CommentAuthor")
-  commentsResolved            ContractComment[]        @relation("CommentResolver")
-  snapshotsCreated            DocumentSnapshot[]       @relation("SnapshotCreator")
-  createdSnippets             ClauseSnippet[]          @relation("SnippetCreatedBy")
+  commentsAuthored            ContractComment[]            @relation("CommentAuthor")
+  commentsResolved            ContractComment[]            @relation("CommentResolver")
+  snapshotsCreated            DocumentSnapshot[]           @relation("SnapshotCreator")
+  createdSnippets             ClauseSnippet[]              @relation("SnippetCreatedBy")
 }
 
 model Session {
@@ -89,19 +93,19 @@ model Verification {
 }
 
 model Organization {
-  id          String   @id
-  name        String
-  slug        String   @unique
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
+  id        String   @id
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdAt DateTime
+  metadata  String?
 
-  members     Member[]
-  invitations Invitation[]
-  contracts   Contract[]
-  folders     Folder[]
-  tags        Tag[]
-  apiKeys     ApiKey[]
+  members                 Member[]
+  invitations             Invitation[]
+  contracts               Contract[]
+  folders                 Folder[]
+  tags                    Tag[]
+  apiKeys                 ApiKey[]
   notificationChannels    OrgNotificationChannel[]
   outboundWebhooks        OutboundWebhook[]
   notificationPreferences UserNotificationPreference[]
@@ -109,6 +113,7 @@ model Organization {
   snapshots               DocumentSnapshot[]
   obligations             ContractObligation[]
   obligationSuggestions   ContractObligationSuggestion[]
+  actions                 ContractAction[]
   crmIntegrations         CrmIntegration[]
   importJobs              ImportJob[]
   googleDriveIntegration  GoogleDriveIntegration?
@@ -123,7 +128,7 @@ model Member {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           String       // "admin" | "legal" | "member" | "viewer"
+  role           String // "admin" | "legal" | "member" | "viewer"
   createdAt      DateTime
 
   @@unique([userId, organizationId])
@@ -145,9 +150,9 @@ model Invitation {
 model ApiKey {
   id             String       @id @default(cuid())
   name           String
-  keyHash        String       @unique   // bcrypt hash — never store plaintext
-  lookupHash     String       @unique   // SHA-256 for fast DB lookup
-  prefix         String                 // "cf_live_sk_abc1..." shown in UI list
+  keyHash        String       @unique // bcrypt hash — never store plaintext
+  lookupHash     String       @unique // SHA-256 for fast DB lookup
+  prefix         String // "cf_live_sk_abc1..." shown in UI list
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdById    String
@@ -162,44 +167,46 @@ model ApiKey {
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
 model Contract {
-  id                  String         @id @default(cuid())
-  title               String
-  contractType        ContractType?
-  status              ContractStatus @default(DRAFT)
-  ownerId             String
-  owner               User           @relation("ContractOwner", fields: [ownerId], references: [id])
-  counterpartyName    String?
-  counterpartyContact String?
-  value               Float?
-  currency            String?        @default("USD")
-  governingLaw        String?
-  startDate           DateTime?
-  endDate             DateTime?
-  renewalDate         DateTime?
-  noticePeriodDays    Int?
-  autoRenewal         Boolean        @default(false)
-  notes               String?
-  organizationId      String
-  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  folderId            String?
-  folder              Folder?        @relation(fields: [folderId], references: [id])
-  files               ContractFile[]
-  versions            ContractVersion[]
-  activities          Activity[]
-  tags                Tag[]
-  extractions         AIExtraction[]
-  alerts              ContractAlert[]
-  approvals           Approval[]
-  embedding           ContractEmbedding?
+  id                    String                         @id @default(cuid())
+  title                 String
+  contractType          ContractType?
+  status                ContractStatus                 @default(DRAFT)
+  ownerId               String
+  owner                 User                           @relation("ContractOwner", fields: [ownerId], references: [id])
+  counterpartyName      String?
+  counterpartyContact   String?
+  value                 Float?
+  currency              String?                        @default("USD")
+  governingLaw          String?
+  startDate             DateTime?
+  endDate               DateTime?
+  renewalDate           DateTime?
+  noticePeriodDays      Int?
+  autoRenewal           Boolean                        @default(false)
+  renewalReminderEnabled Boolean                       @default(true)
+  notes                 String?
+  organizationId        String
+  organization          Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folderId              String?
+  folder                Folder?                        @relation(fields: [folderId], references: [id])
+  files                 ContractFile[]
+  versions              ContractVersion[]
+  activities            Activity[]
+  tags                  Tag[]
+  extractions           AIExtraction[]
+  alerts                ContractAlert[]
+  approvals             Approval[]
+  embedding             ContractEmbedding?
   document              ContractDocument?
   snapshots             DocumentSnapshot[]
   comments              ContractComment[]
   obligations           ContractObligation[]
   obligationSuggestions ContractObligationSuggestion[]
+  actions               ContractAction[]
   crmLinks              CrmLink[]
   notifications         Notification[]
   extractedText         String?
-  isOcrExtracted        Boolean        @default(false)
+  isOcrExtracted        Boolean                        @default(false)
   riskScore             String?
   riskScoredAt          DateTime?
   riskDetails           Json?
@@ -207,8 +214,8 @@ model Contract {
   signingUrl            String?
   signingStatus         String?
   signers               ContractSigner[]
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
 
   @@index([organizationId, updatedAt])
   @@index([docusealSubmissionId])
@@ -226,7 +233,7 @@ model ContractSigner {
   isInternal Boolean   @default(false)
   status     String    @default("not_sent") // "not_sent" | "pending" | "signed" | "declined"
   signedAt   DateTime?
-  externalId String?   // DocuSeal submitter slug — populated after submission created
+  externalId String? // DocuSeal submitter slug — populated after submission created
   createdAt  DateTime  @default(now())
 
   @@index([contractId])
@@ -286,18 +293,21 @@ model ContractVersion {
 }
 
 model Activity {
-  id          String         @id @default(cuid())
-  contractId  String
-  contract    Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  userId      String?
-  user        User?          @relation(fields: [userId], references: [id])
-  actorLabel  String         @default("System")
-  action      ActivityAction
-  detail      String?
-  metadata    Json?
-  createdAt   DateTime       @default(now())
+  id               String          @id @default(cuid())
+  contractId       String
+  contract         Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractActionId String?
+  contractAction   ContractAction? @relation("ContractActionActivities", fields: [contractActionId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id])
+  actorLabel       String          @default("System")
+  action           ActivityAction
+  detail           String?
+  metadata         Json?
+  createdAt        DateTime        @default(now())
 
   @@index([contractId])
+  @@index([contractActionId])
 }
 
 enum ActivityAction {
@@ -325,6 +335,19 @@ enum ActivityAction {
   OBLIGATION_UPDATED
   OBLIGATION_COMPLETED
   OBLIGATION_DELETED
+  ACTION_PROPOSED
+  ACTION_REVIEWED
+  ACTION_ASSIGNED
+  ACTION_ACKNOWLEDGED
+  ACTION_STARTED
+  ACTION_REOPENED
+  ACTION_COMPLETED
+  ACTION_BLOCKED
+  ACTION_STALE
+  ACTION_DISMISSED
+  ACTION_EVIDENCE_ADDED
+  ACTION_DELIVERY_ATTEMPTED
+  ACTION_DELIVERED
   CRM_LINKED
   CRM_UNLINKED
   CRM_SYNCED
@@ -364,7 +387,7 @@ model AIExtraction {
   id          String   @id @default(cuid())
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  field       String   // contractType | startDate | endDate | renewalDate | value | parties | governingLaw | noticePeriodDays | autoRenewal
+  field       String // contractType | startDate | endDate | renewalDate | value | parties | governingLaw | noticePeriodDays | autoRenewal
   rawValue    String?
   confidence  Float    @default(0)
   sourceText  String?
@@ -380,15 +403,16 @@ model AIExtraction {
 // ─── M1: Renewal Alerts ──────────────────────────────────────────────────────
 
 model ContractAlert {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   contractId  String
-  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  alertType   String    // EXPIRY_30 | EXPIRY_60 | EXPIRY_90 | RENEWAL_DUE | NOTICE_PERIOD
+  contract    Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  alertType   String // EXPIRY_30 | EXPIRY_60 | EXPIRY_90 | RENEWAL_DUE | NOTICE_PERIOD
   triggerDate DateTime
   firedAt     DateTime?
   emailSentAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  actions     ContractAction[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([contractId])
 }
@@ -413,22 +437,26 @@ model ContractEmbedding {
 // ─── M2: Approval Workflow ────────────────────────────────────────────────────
 
 model Approval {
-  id             String    @id @default(cuid())
-  contractId     String
-  contract       Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  requestedById  String
-  requestedBy    User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
-  assignedToId   String
-  assignedTo     User      @relation("ApprovalAssignee", fields: [assignedToId], references: [id])
-  status         String    @default("pending") // pending | approved | rejected | waiting
-  required       Boolean   @default(true)
-  step           Int       @default(1)
-  comment        String?
-  decidedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  contractId    String
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  actionId      String?
+  action        ContractAction? @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionVersion Int?
+  requestedById String
+  requestedBy   User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  assignedToId  String
+  assignedTo    User      @relation("ApprovalAssignee", fields: [assignedToId], references: [id])
+  status        String    @default("pending") // pending | approved | rejected | waiting
+  required      Boolean   @default(true)
+  step          Int       @default(1)
+  comment       String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([contractId])
+  @@index([actionId])
 }
 
 // ─── M5: Ecosystem Notifications ─────────────────────────────────────────────
@@ -437,9 +465,9 @@ model OrgNotificationChannel {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  channelType    String       // "slack" | "teams"
-  webhookUrl     String       // AES-256-GCM encrypted at rest
-  label          String       // max 100 chars
+  channelType    String // "slack" | "teams"
+  webhookUrl     String // AES-256-GCM encrypted at rest
+  label          String // max 100 chars
   enabled        Boolean      @default(true)
   createdById    String
   createdBy      User         @relation("NotificationChannelCreatedBy", fields: [createdById], references: [id])
@@ -451,16 +479,16 @@ model OutboundWebhook {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  url            String       // AES-256-GCM encrypted at rest
-  label          String       // max 100 chars
-  signingSecret  String       // 32-byte hex, AES-256-GCM encrypted at rest
+  url            String // AES-256-GCM encrypted at rest
+  label          String // max 100 chars
+  signingSecret  String // 32-byte hex, AES-256-GCM encrypted at rest
   enabled        Boolean      @default(true)
   createdById    String
   createdBy      User         @relation("OutboundWebhookCreatedBy", fields: [createdById], references: [id])
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  deliveryLogs   WebhookDeliveryLog[]
+  deliveryLogs WebhookDeliveryLog[]
 }
 
 // Cascade behavior: deleting an OutboundWebhook removes all of its
@@ -471,15 +499,15 @@ model WebhookDeliveryLog {
   id           String          @id @default(cuid())
   webhookId    String
   webhook      OutboundWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-  eventName    String          // one of the 10 canonical event names
+  eventName    String // one of the 10 canonical event names
   contractId   String
-  payload      Json            // full envelope sent in the request body
-  attempt      Int             // 1 | 2 | 3
-  httpStatus   Int?            // null on network error
-  responseBody String?         // first 1000 chars of response body, null on network error
-  durationMs   Int?            // round-trip ms, null on network error
-  status       String          // "pending" | "success" | "failed"
-  deliveredAt  DateTime?       // set on success
+  payload      Json // full envelope sent in the request body
+  attempt      Int // 1 | 2 | 3
+  httpStatus   Int? // null on network error
+  responseBody String? // first 1000 chars of response body, null on network error
+  durationMs   Int? // round-trip ms, null on network error
+  status       String // "pending" | "success" | "failed"
+  deliveredAt  DateTime? // set on success
   createdAt    DateTime        @default(now())
 }
 
@@ -489,7 +517,7 @@ model UserNotificationPreference {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  eventName      String       // one of the 10 canonical event names
+  eventName      String // one of the 10 canonical event names
   emailEnabled   Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -500,16 +528,16 @@ model UserNotificationPreference {
 // ─── M6: Authoring ────────────────────────────────────────────────────────────
 
 model ContractDocument {
-  id           String   @id @default(cuid())
-  contractId   String   @unique
-  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  content      Json     // Plate JSON — array of top-level Plate nodes
-  wordCount    Int      @default(0)
-  version      Int      @default(1)
-  savedById    String
-  savedBy      User     @relation("DocumentSaver", fields: [savedById], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(cuid())
+  contractId String   @unique
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  content    Json // Plate JSON — array of top-level Plate nodes
+  wordCount  Int      @default(0)
+  version    Int      @default(1)
+  savedById  String
+  savedBy    User     @relation("DocumentSaver", fields: [savedById], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // ─── M12: Document Snapshots (Redlining) ─────────────────────────────────────
@@ -520,8 +548,8 @@ model DocumentSnapshot {
   contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  label          String       // e.g. "Before client review", max 200 chars
-  content        Json         // TipTap JSON — full snapshot of editor content
+  label          String // e.g. "Before client review", max 200 chars
+  content        Json // TipTap JSON — full snapshot of editor content
   wordCount      Int          @default(0)
   createdById    String
   createdBy      User         @relation("SnapshotCreator", fields: [createdById], references: [id])
@@ -538,7 +566,7 @@ model ContractComment {
   authorId     String
   author       User      @relation("CommentAuthor", fields: [authorId], references: [id])
   body         String
-  markId       String?   // TipTap comment mark ID linking this comment to highlighted text
+  markId       String? // TipTap comment mark ID linking this comment to highlighted text
   resolved     Boolean   @default(false)
   resolvedById String?
   resolvedBy   User?     @relation("CommentResolver", fields: [resolvedById], references: [id])
@@ -573,40 +601,145 @@ model ContractTemplate {
 // ─── M7: Obligation Tracking ──────────────────────────────────────────────────
 
 model ContractObligation {
-  id              String              @id @default(cuid())
-  contractId      String
-  contract        Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  organizationId  String
-  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   title           String
   description     String?
   clauseReference String?
-  priority        ObligationPriority  @default(MEDIUM)
-  status          ObligationStatus    @default(PENDING)
+  priority        ObligationPriority @default(MEDIUM)
+  status          ObligationStatus   @default(PENDING)
   dueDate         DateTime
 
-  assigneeId      String?
-  assignee        User?               @relation("ObligationAssignee", fields: [assigneeId], references: [id])
+  assigneeId String?
+  assignee   User?   @relation("ObligationAssignee", fields: [assigneeId], references: [id])
 
-  reminderDays    Int                 @default(7)
-  reminderSentAt  DateTime?
+  reminderDays   Int       @default(7)
+  reminderSentAt DateTime?
 
-  completedAt     DateTime?
-  completedById   String?
-  completedBy     User?               @relation("ObligationCompleter", fields: [completedById], references: [id])
+  completedAt   DateTime?
+  completedById String?
+  completedBy   User?     @relation("ObligationCompleter", fields: [completedById], references: [id])
 
-  createdById     String
-  createdBy       User                @relation("ObligationCreator", fields: [createdById], references: [id])
+  createdById String
+  createdBy   User   @relation("ObligationCreator", fields: [createdById], references: [id])
 
-  subTasks        ObligationSubTask[]
+  subTasks ObligationSubTask[]
+  actions  ContractAction[]    @relation("ActionSourceObligation")
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([contractId])
   @@index([organizationId, status])
   @@index([status, dueDate])
+}
+
+// ─── M14: Phase 1 Contract Action Ledger ────────────────────────────────────
+
+enum ContractActionKind {
+  OBLIGATION
+  RENEWAL_NOTICE
+  EXPIRY
+  CUSTOM
+}
+
+enum ContractActionStatus {
+  PROPOSED
+  PENDING_REVIEW
+  ACKNOWLEDGED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  STALE
+  DISMISSED
+}
+
+model ContractAction {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contractId         String
+  contract           Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  sourceObligationId String?
+  sourceObligation   ContractObligation? @relation("ActionSourceObligation", fields: [sourceObligationId], references: [id], onDelete: SetNull)
+  sourceAlertId      String?
+  sourceAlert        ContractAlert?      @relation(fields: [sourceAlertId], references: [id], onDelete: SetNull)
+
+  sourceKey   String
+  kind        ContractActionKind
+  title       String
+  description String?
+  condition   String?
+  dueDate     DateTime?
+  noticeDate  DateTime?
+  assigneeId  String?
+  assignee    User?              @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  sourceText       String?
+  sourcePage       Int?
+  confidence       Float?
+  sourceHash       String?
+  reviewStatus     String               @default("pending")
+  status           ContractActionStatus @default(PENDING_REVIEW)
+  evidenceRequired String?
+  escalationState  String?
+  acknowledgedAt   DateTime?
+  completedAt      DateTime?
+  completedById    String?
+  completedBy      User?                @relation("ActionCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  staleAt          DateTime?
+
+  createdById String?
+  createdBy   User?                    @relation("ActionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  version     Int                      @default(1)
+  evidence    ContractActionEvidence[]
+  deliveries  ContractActionDelivery[]
+  approvals   Approval[]
+  activities  Activity[]               @relation("ContractActionActivities")
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@unique([organizationId, sourceKey])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, assigneeId, status])
+  @@index([contractId, kind])
+  @@index([sourceObligationId])
+  @@index([sourceAlertId])
+}
+
+model ContractActionEvidence {
+  id           String         @id @default(cuid())
+  actionId     String
+  action       ContractAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  kind         String
+  note         String?
+  storageKey   String?
+  sourceUrl    String?
+  recordedById String
+  recordedBy   User           @relation("ActionEvidenceRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@index([actionId, createdAt])
+}
+
+model ContractActionDelivery {
+  id             String         @id @default(cuid())
+  actionId       String
+  action         ContractAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  channel        String
+  idempotencyKey String         @unique
+  status         String         @default("pending")
+  externalRef    String?
+  errorCode      String?
+  attemptedAt    DateTime       @default(now())
+  deliveredAt    DateTime?
+  createdAt      DateTime       @default(now())
+
+  @@index([actionId, channel, status])
 }
 
 /// AI-generated obligation candidates remain separate from the durable
@@ -618,6 +751,7 @@ model ContractObligationSuggestion {
   organizationId   String
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sourceHash       String
+  sourceKey        String
   jobId            String?
   title            String
   description      String
@@ -631,24 +765,24 @@ model ContractObligationSuggestion {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  @@unique([contractId, sourceHash, sourceKey])
   @@index([contractId, status])
   @@index([organizationId, status])
-  @@unique([contractId, sourceHash, title])
 }
 
 model ObligationSubTask {
-  id            String              @id @default(cuid())
-  obligationId  String
-  obligation    ContractObligation  @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  id           String             @id @default(cuid())
+  obligationId String
+  obligation   ContractObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
 
   title         String
-  isCompleted   Boolean             @default(false)
+  isCompleted   Boolean   @default(false)
   completedAt   DateTime?
   completedById String?
-  completedBy   User?               @relation("SubTaskCompleter", fields: [completedById], references: [id])
+  completedBy   User?     @relation("SubTaskCompleter", fields: [completedById], references: [id])
 
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([obligationId])
 }
@@ -683,37 +817,37 @@ model CrmIntegration {
   autoCreateStage   String?
   syncOnActiveStage String?
 
-  connectedById  String
-  connectedBy    User         @relation("CrmIntegrationConnectedBy", fields: [connectedById], references: [id])
+  connectedById String
+  connectedBy   User   @relation("CrmIntegrationConnectedBy", fields: [connectedById], references: [id])
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  links          CrmLink[]
+  links CrmLink[]
 
   @@unique([organizationId, provider])
   @@index([organizationId])
 }
 
 model CrmLink {
-  id               String         @id @default(cuid())
-  contractId       String
-  contract         Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  integrationId    String
-  integration      CrmIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  id            String         @id @default(cuid())
+  contractId    String
+  contract      Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  integrationId String
+  integration   CrmIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   provider         CrmProvider
   externalDealId   String
   externalDealName String
   externalDealUrl  String?
 
-  lastSyncedAt     DateTime?
-  lastSyncStatus   String?
+  lastSyncedAt   DateTime?
+  lastSyncStatus String?
 
-  createdById      String
-  createdBy        User           @relation("CrmLinkCreator", fields: [createdById], references: [id])
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdById String
+  createdBy   User     @relation("CrmLinkCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([contractId, integrationId])
   @@index([contractId])
@@ -808,7 +942,7 @@ model Notification {
   eventName      String
   title          String
   body           String
-  actionUrl      String?   // optional deep-link or action path (e.g. /accept-invitation?id=...)
+  actionUrl      String? // optional deep-link or action path (e.g. /accept-invitation?id=...)
   read           Boolean   @default(false)
   readAt         DateTime?
   createdAt      DateTime  @default(now())
@@ -827,9 +961,9 @@ model OrgAiConfig {
   id             String       @id @default(cuid())
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  provider       String       // "anthropic" | "openai" | "ollama"
-  encryptedKey   String       // AES-256-GCM: API key for anthropic/openai, base URL for ollama
-  model          String?      // optional model override
+  provider       String // "anthropic" | "openai" | "ollama"
+  encryptedKey   String // AES-256-GCM: API key for anthropic/openai, base URL for ollama
+  model          String? // optional model override
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }

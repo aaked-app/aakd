@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db/client"
 
 const FULL_ROW_THRESHOLD = 200
 
-export async function GET(req: Request, { params }: { params: { jobId: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ jobId: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const roleError = requireRole(ctx.role, "member")

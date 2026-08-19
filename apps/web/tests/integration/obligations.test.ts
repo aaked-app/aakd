@@ -343,11 +343,12 @@ describe("POST /api/contracts/[id]/obligations", () => {
   })
 
   it("returns 201 on happy path and writes activity", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
     vi.mocked(prisma.contractObligation.create).mockResolvedValueOnce(mockObligation as any)
+    vi.mocked(prisma.contractAction.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contractAction.upsert).mockResolvedValueOnce({ id: "action-1" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations", {
@@ -360,13 +361,15 @@ describe("POST /api/contracts/[id]/obligations", () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.id).toBe("obl-1")
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_CREATED",
-      expect.stringContaining("Pay invoice"),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contractId: "contract-1",
+        contractActionId: "action-1",
+        userId: "user-admin",
+        action: "OBLIGATION_CREATED",
+        metadata: expect.objectContaining({ obligationId: "obl-1" }),
+      }),
+    })
   })
 
   it("returns 201 for member role (has write access)", async () => {
@@ -374,6 +377,8 @@ describe("POST /api/contracts/[id]/obligations", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     vi.mocked(prisma.contractObligation.count).mockResolvedValueOnce(0)
     vi.mocked(prisma.contractObligation.create).mockResolvedValueOnce(mockObligation as any)
+    vi.mocked(prisma.contractAction.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contractAction.upsert).mockResolvedValueOnce({ id: "action-1" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations", {
@@ -559,17 +564,13 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(200)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_COMPLETED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_COMPLETED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 
   it("returns 200 and writes OBLIGATION_UPDATED activity for non-completion updates", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       ...mockObligation,
@@ -589,13 +590,10 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(200)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_UPDATED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_UPDATED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 })
 
@@ -672,7 +670,6 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
   })
 
   it("returns 204 on successful delete and writes activity", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contractObligation.findUnique).mockResolvedValueOnce({
       ...mockObligation,
@@ -687,13 +684,10 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       { params: { id: "contract-1", obligationId: "obl-1" } },
     )
     expect(res.status).toBe(204)
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-admin",
-      "OBLIGATION_DELETED",
-      expect.any(String),
-      expect.objectContaining({ obligationId: "obl-1" }),
-    )
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      contractId: "contract-1", userId: "user-admin", action: "OBLIGATION_DELETED",
+      metadata: expect.objectContaining({ obligationId: "obl-1" }),
+    }) })
   })
 })
 
@@ -1524,7 +1518,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     )
   })
 
-  it("returns 422 when no AI provider is configured", async () => {
+  it("queues deterministic extraction when no AI provider is configured", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     const originalProvider = process.env.AI_PROVIDER
@@ -1535,6 +1529,8 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.OPENAI_API_KEY
     delete process.env.OLLAMA_BASE_URL
+    const { obligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(obligationExtractQueue.add).mockResolvedValueOnce({ id: "local-job" } as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
@@ -1547,9 +1543,14 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     if (originalAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = originalAnthropic
     if (originalOpenai !== undefined) process.env.OPENAI_API_KEY = originalOpenai
     if (originalOllama !== undefined) process.env.OLLAMA_BASE_URL = originalOllama
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.error).toBe("no_ai_provider")
+    expect(body.jobId).toBe("local-job")
+    expect(obligationExtractQueue.add).toHaveBeenCalledWith(
+      "extract",
+      expect.objectContaining({ sourceHash: expect.any(String) }),
+      expect.objectContaining({ jobId: expect.stringMatching(/^initial-obligation-extract:contract-1:/) }),
+    )
   })
 
   it("returns 200 with jobId when extraction is enqueued", async () => {
@@ -1569,6 +1570,22 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.jobId).toBe("job-abc")
+  })
+
+  it("removes a completed job before intentionally retrying the same document", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const priorJob = { id: "old-job", getState: vi.fn().mockResolvedValue("completed"), remove: vi.fn().mockResolvedValue(undefined) }
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    const queue = { getJob: vi.fn().mockResolvedValue(priorJob), add: vi.fn().mockResolvedValue({ id: "new-job" }) }
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce(queue as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: { id: "contract-1" } })
+
+    expect(res.status).toBe(200)
+    expect(priorJob.remove).toHaveBeenCalledOnce()
+    expect(await res.json()).toEqual({ jobId: "new-job" })
   })
 })
 
@@ -1664,6 +1681,26 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ state: "not_found" })
+  })
+
+  it("uses current pending database candidates instead of a completed job's cached return value", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.contractObligationSuggestion.findMany).mockResolvedValueOnce([{ id: "current", title: "Current pending" }] as any)
+    const sourceHash = (await import("node:crypto")).createHash("sha256").update(mockContract.extractedText).digest("hex")
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-1", organizationId: "org-1", sourceHash },
+        getState: vi.fn().mockResolvedValue("completed"),
+        returnvalue: [{ id: "old", title: "Accepted old candidate" }],
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+
+    const res = await GET(new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"), { params: { id: "contract-1" } })
+
+    expect(await res.json()).toEqual({ state: "completed", suggestions: [{ id: "current", title: "Current pending" }] })
   })
 })
 

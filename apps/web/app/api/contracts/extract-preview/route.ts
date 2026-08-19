@@ -1,5 +1,6 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { resolveAiConfig } from "@/lib/ai/resolve"
+import { extractDeterministicRenewalTerms } from "@/lib/ai/local-extract"
 import { logger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
 import OpenAI from "openai"
@@ -166,16 +167,10 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const extracted = await runAiExtraction(contractText, ctx.organizationId)
-    // Preserve deterministic facts even when the model omits a regular clause.
-    // This keeps the create-time preview authoritative when the background
-    // extractor is intentionally skipped to avoid a duplicate AI call.
-    const renewalClause = contractText.match(/[^.\n]{0,180}(?:automatically\s+renews?|auto[- ]renews?)[^.\n]{0,220}/i)
-    if (renewalClause && extracted.autoRenewal == null) extracted.autoRenewal = true
-    const noticeClause = contractText.match(/[^.\n]{0,180}(?:\b(\d{1,3})\s+days?\s+(?:written\s+)?notice|notice\s+of\s+(\d{1,3})\s+days?)[^.\n]{0,180}/i)
-    if (noticeClause && extracted.noticePeriodDays == null) {
-      const days = Number(noticeClause[1] ?? noticeClause[2])
-      if (Number.isInteger(days)) extracted.noticePeriodDays = days
-    }
+    const renewalTerms = extractDeterministicRenewalTerms(contractText)
+    if (renewalTerms.autoRenewal) extracted.autoRenewal = renewalTerms.autoRenewal.value as boolean
+    else if (renewalTerms.autoRenewalAmbiguous) delete extracted.autoRenewal
+    if (renewalTerms.noticePeriodDays) extracted.noticePeriodDays = renewalTerms.noticePeriodDays.value as number
     if (!extracted.error) {
       captureServerEvent(ctx.userId, "ai_extraction_run", {
         organizationId: ctx.organizationId,

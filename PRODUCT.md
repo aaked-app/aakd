@@ -2,8 +2,8 @@
 
 **Status:** Founder direction and cross-team source of truth
 **Owner:** Founder/CEO
-**Version:** 1.0
-**Last updated:** 2026-08-17
+**Version:** 1.2
+**Last updated:** 2026-08-18
 **Applies to:** product, engineering, GTM, UI/UX, research, security, documentation, community and partnerships
 
 **Review trigger:** after a roadmap gate, material customer evidence, a founder-approved strategic change or a verified contradiction.
@@ -19,6 +19,7 @@ Read this document with `AGENTS.md` and `CLAUDE.md`. This file owns product dire
 |---|---|
 | 1.0 | Consolidated the full OSS CLM vision, US/UK posture, validation ICP, gate-based roadmap, governed Agent Gateway, privacy/redaction, OSS/Cloud constitution and cross-discipline rules. |
 | 1.1 | Added a continuous community-evidence loop, startup challenger cohorts, handoff/workaround capture, and a rule-based community launch gate. These improve discovery discipline without expanding product scope. |
+| 1.2 | Added Phase 1 Team Briefs, explicit fulfilment and exception semantics, and Phase 3 reusable, permissioned team-agent skills. These sharpen the reviewed-action journey without changing its safety or evidence gates. |
 
 ## Executive snapshot
 
@@ -48,6 +49,7 @@ The defensible compound is:
 - progressive usability instead of consulting-first implementation;
 - governing agreement relationships and reviewed facts;
 - cited, owned actions and completion evidence;
+- role-scoped Team Briefs that safely carry reviewed commitments to delivery teams;
 - correction propagation that stops stale execution;
 - contract-native recipes with safe failure;
 - vendor-neutral, permissioned agent access;
@@ -89,6 +91,8 @@ No single item is assumed unique. The opportunity is the quality of the compound
 - The US is the commercial priority; the UK is a parallel evidence and prospect cohort.
 - Additional-country localized GTM beyond the shared US/UK English motion, including Germany-specific selling, is deferred until demand appears. Privacy and security obligations are not deferred.
 - Aakd becomes agent-native through governed interfaces, not by rebuilding Claude or Codex.
+- Team Briefs are human-published, audience-scoped presentations of reviewed facts and actions, not a new product primitive or source of contractual truth.
+- Reusable team-agent skills consume only permissioned, reviewed Team Brief context; they may explain, summarize, flag and propose, while consequential execution remains policy- and approval-controlled.
 - Humans retain authority over canonical facts, legal decisions and consequential external actions.
 - Recipes precede a generic workflow canvas.
 - Aakd coexists with Word, Drive, SharePoint, CRM, task and e-signature tools before requiring replacement.
@@ -105,6 +109,7 @@ No single item is assumed unique. The opportunity is the quality of the compound
 - OSS adoption can generate contributors, technical champions and commercial introductions.
 - Some self-host-aware buyers will pay for managed operation and enterprise assurance.
 - Agent-safe contract infrastructure and redaction can become buying reasons after the first outcome is proven.
+- A reviewed brief plus owned action loop can solve a costly cross-functional contract handoff.
 
 ### UNKNOWN
 
@@ -116,6 +121,7 @@ No single item is assumed unique. The opportunity is the quality of the compound
 - Whether US demand converts differently from current UK evidence.
 - Sustainable Cloud support cost and gross margin.
 - Whether agent access or redaction independently triggers purchases.
+- The first paid handoff, publisher, recipient audience, evidence workflow and preferred delivery surface.
 
 These unknowns must not appear in public copy as facts.
 
@@ -143,6 +149,8 @@ The product primitives are:
 - **Interfaces:** progressive human UI plus REST, events, webhooks, CLI, SDK and MCP.
 
 AI is an assistant and compiler over these primitives. It is not canonical authority.
+
+A Team Brief is a derived view of immutable sources plus reviewed fact/action state. A team-agent skill is a reusable, policy-bounded interaction over that approved view. Neither is canonical authority or receives broader access than its explicit audience policy permits.
 
 ## 3. Current product truth
 
@@ -296,6 +304,9 @@ organizations and passes the payment and repeat-use gates.
 - owners, approvers and escalation;
 - due dates, event triggers and recurring actions;
 - completion evidence and immutable history;
+- human-published, role-scoped Team Briefs derived from reviewed facts and actions;
+- explicit fulfilment states: not started, in progress, self-attested, evidence submitted, verified, blocked/exception and overdue;
+- daily exception views for unacknowledged, due, blocked, missing-evidence and provably stale work;
 - stale-state detection after changes;
 - safe delivery to existing task, calendar, CRM and communication tools;
 - operational and audit-ready reporting.
@@ -333,6 +344,7 @@ Core resources and tools should include:
 - reviewed facts with source and freshness;
 - rights, obligations, actions and approvals;
 - governing-document and change-impact queries;
+- Team-Brief-grounded explanations, summaries and work proposals for authorized recipients;
 - recipe simulation;
 - action proposals and approval requests;
 - execution of previously approved actions;
@@ -363,6 +375,8 @@ Authorization combines:
 
 Default deny applies on every tool call. Raw text and bulk export require stronger permission than metadata or reviewed facts.
 
+Functional membership alone does not grant agreement access. Phase 1 Team Briefs use an authorized publisher and an explicit recipient set; reusable audience rules require the Phase 2 policy controls.
+
 ### Privacy, redaction and egress
 
 Aakd preserves the protected original and generates purpose-specific privacy views.
@@ -380,6 +394,8 @@ Support:
 Privacy policy applies before MCP responses, model calls, embeddings, webhooks, notifications, exports and telemetry. Stable pseudonyms preserve context; encrypted organization-scoped mappings control re-identification.
 
 Every disclosure records destination, principal, purpose, provider, categories, policy and timestamp.
+
+Content excluded from a Team Brief audience remains inaccessible through UI, API, MCP, notifications, exports and assistants.
 
 Permanent redacted exports remove underlying text/OCR, metadata, annotations, attachments and revision remnants. Visual boxes alone are not safe redaction.
 
@@ -427,6 +443,8 @@ calendar, CRM, ticketing, repository or human-labor workaround. Community
 evidence generates interview targets and hypotheses; it cannot substitute for
 representative corpora, buyer payment or repeat organizational use.
 
+For a contract handoff, also record the receiving team, information it lacked, evidence needed, whether a reviewed brief would have changed the outcome, and willingness to pay for the reviewed brief plus owned-action loop.
+
 Before public community launch, verify that the repository is runnable from a
 clean environment, deployment and security documentation are current, AI
 involvement is disclosed, capability claims are truthful, one working journey
@@ -443,17 +461,17 @@ unsupported compliance claims.
 
 **Outcome:** one agreement becomes one reviewed, owned and useful action with minimal setup.
 
-**Features:** unified action queue, exact citation, confidence/review, owner, deadline, condition, completion evidence, one work-tool output, progressive access to the wider CLM, read-first Agent Gateway, fine-grained scopes, privacy-safe summaries, action proposals and approval requests.
+**Features:** unified action queue; exact citation; confidence/review; owner, deadline and condition; completion evidence; explicit fulfilment and exception states; one authorized reviewer publishing a Team Brief to one named, least-privileged audience; evidence submission, blocker reporting and reviewer verification/rejection; daily exception views; one work-tool output; progressive access to the wider CLM; read-first Agent Gateway; fine-grained scopes; privacy-safe summaries; action proposals and approval requests. A Team Brief presents reviewed facts and actions—it is never a new source of contractual truth, automated team inference, a broad role dashboard or a generic functional-access model.
 
 **Differentiation:** fast value plus no forced migration, sources, human review, progressive UX, OSS/self-hosting and safe agent retrieval. A cited action list alone is not unique.
 
-**Gate:** the signed Phase 1 scorecard's corpus-quality, activation-time and marginal-support limits pass with no silent critical error; two organizations repeat; two fund managed operation.
+**Gate:** the signed Phase 1 scorecard's corpus-quality, activation-time and marginal-support limits pass with no silent critical error; publication meets its precommitted activation threshold; every consequential brief item is cited, reviewed, owned and conditioned/due; excluded content cannot be retrieved through any delivery surface; evidence verification/rejection remains immutable; two organizations repeat on another agreement family or later event; and two fund managed operation.
 
 ### Phase 2: agreement intelligence
 
 **Outcome:** Aakd knows what governs and how changes affect dependent work.
 
-**Features:** agreement families and precedence, versioned reviewed facts, rights and conditions, completion evidence, correction propagation, stale-state invalidation, relationship brief, sensitivity labels, privacy views, version-bound approvals and full egress policy.
+**Features:** agreement families and precedence, versioned reviewed facts, rights and conditions, completion evidence, correction propagation, stale-state invalidation, relationship and amendment-change briefs, sensitivity labels, reusable team/privacy views, reviewed routing rules, version-bound approvals and full egress policy.
 
 **Differentiation:** governing truth and safe correction propagation, not merely clause extraction.
 
@@ -463,7 +481,9 @@ unsupported compliance claims.
 
 **Outcome:** organizations adapt repeated contract work without consulting-heavy implementation.
 
-**Features:** proven recipes, typed triggers/conditions/actions/approvals, dry-run, idempotency, retries, permissions, audit, stable events/API/MCP, recipe packaging, one evidence-selected integration, pause/resume approvals and approved agent execution.
+**Features:** proven recipes; typed triggers, conditions, actions and approvals; dry-run; idempotency; retries; permissions; audit; stable events/API/MCP; recipe packaging; one evidence-selected integration; pause/resume approvals; approved agent execution; and reusable, Team-Brief-grounded agent skills that can explain reviewed requirements, surface missing evidence, draft status or work items, and propose tasks for their authorized audience.
+
+Team-agent skills receive only policy-minimized, reviewed and source-cited context. They may not make legal decisions, expose excluded terms, silently alter fulfilment state, or create consequential external actions without the required approval.
 
 **Differentiation:** “n8n for contracts” with governing context, citations, permissions, approvals and recoverable failure.
 
@@ -535,6 +555,7 @@ OSS, self-hosting, agent access and privacy strengthen the proof. They do not re
 - Research US and UK cohorts separately.
 - Require a specific recent episode, workaround, consequence and owner.
 - Run a fixed-scope paid diagnostic on representative redacted agreements.
+- Capture the failed handoff, receiving team, missing information, evidence needed, current workaround, consequence and preferred delivery surface.
 - Record volume, systems, support effort, deployment preference, buyer and budget path.
 - Require repeat use on another agreement family or event.
 - Disqualify incumbent adequacy rather than forcing a sale.
@@ -564,6 +585,7 @@ Do not claim nobody else has graphs, obligations, citations, workflows, agents o
 - Default to contract-first and action-first.
 - Do not require infrastructure configuration before value.
 - Show meaning, exact source, confidence/review, owner and next step for consequential results.
+- Make Team Brief audiences, excluded information and the distinction between contract source, reviewed result and AI suggestion understandable.
 - Reveal advanced features in context instead of making them competing products.
 - Design empty, loading, error, uncertainty and missing-configuration states.
 - A non-legal operator should understand the result without CLM jargon.
@@ -611,6 +633,7 @@ Redaction reduces disclosure; it does not automatically anonymize a contract. If
 - workspace to real upload;
 - upload to reviewed fact;
 - reviewed fact to assigned/completed action;
+- Team Brief publication, recipient acknowledgement, evidence submission/verification and exception resolution;
 - time to first useful action;
 - accepted fact/action rate;
 - correction rate and time;
@@ -626,6 +649,7 @@ Redaction reduces disclosure; it does not automatically anonymize a contract. If
 - redaction false-negative and review rate;
 - findings by severity and remediation;
 - compatibility results by client/version.
+- team-agent skill proposal acceptance and rejected/blocked proposals by policy reason.
 
 ### OSS
 
@@ -666,6 +690,8 @@ Every report states unit, denominator, window, exclusions and source. Gate thres
 - **Startup challenger cohort:** a startup employee band tracked separately from the provisional ICP; it cannot be pooled into ICP evidence or change the roadmap without payment and repeat-use proof.
 - **Community launch-ready:** the clean-install, documentation, truthful-claims, AI-disclosure, working-journey and current-rules checks all pass before a public community post.
 - **Agent:** an attributable software principal acting through a delegated capability and policy, never an anonymous model process.
+- **Team Brief:** a human-published, explicit-audience view of reviewed facts and source-cited actions; it is not a canonical agreement interpretation.
+- **Team-agent skill:** a reusable, policy-bounded agent interaction over the reviewed, minimized context authorized for a Team Brief audience.
 
 ## 14. Main risks and invalidation
 
@@ -677,6 +703,8 @@ Every report states unit, denominator, window, exclusions and source. Gate thres
 | Recipes become services | Typed reusable primitives | Every customer requires bespoke code |
 | AI creates liability | Citations, uncertainty, review and policy | Serious silent errors or correction burden stay unacceptable |
 | Agents increase exposure | Default deny, privacy views, approvals and audit | Any cross-tenant result, unauthorized mutation or unlogged side effect |
+| Team Brief leaks sensitive terms | Explicit audiences and policy-minimized delivery surfaces | An excluded term is retrieved through any brief, agent or delivery surface |
+| Team Brief or skill is stale or overreaches | Version/freshness, correction propagation, delegated permissions and approvals | A stale brief is acted upon or a skill exceeds its authorized audience/capability |
 | Redaction harms value | Purpose-specific policy and private fallback | Accuracy fails or no real privacy-sensitive use is unlocked |
 | OSS does not monetize | Separate community and commercial funnels | No retained installs, contributors or qualified introductions |
 | Cloud loses to free hosting | Sell operation and assurance | Qualified buyers consistently reject managed operation |
@@ -786,9 +814,10 @@ No session silently changes the ICP, geography, OSS constitution, product primit
 2. Harden MCP/API before promoting agent readiness.
 3. Build the representative US/UK corpus and benchmark.
 4. Deliver one unified reviewed-action journey.
-5. Validate the ICP through episodes, corpora, paid pilots and repeat use.
-6. Build only reusable agreement/fact/action/privacy foundations during validation.
-7. Make the repository independently understandable, runnable and contributable.
+5. Validate whether one human-published Team Brief improves a costly contract handoff for the selected ICP.
+6. Validate the ICP through episodes, corpora, paid pilots and repeat use.
+7. Build only reusable agreement/fact/action/privacy foundations during validation.
+8. Make the repository independently understandable, runnable and contributable.
 
 The company vision is a full open Agreement Operations platform. The operating focus is proving one trusted contract outcome and the foundations that make it safely extensible.
 

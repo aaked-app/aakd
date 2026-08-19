@@ -11,6 +11,7 @@ const connection = {
 
 export interface ContractExtractJobData {
   contractId: string
+  organizationId?: string
   fileId: string
   storageKey: string
   /** Initial uploads already contain user-reviewed metadata from the fast review form. */
@@ -21,6 +22,7 @@ export interface ContractExtractJobData {
 
 export interface ContractAiExtractJobData {
   contractId: string
+  organizationId?: string
   extractedText: string
   /** Do not create AI suggestions for metadata the user supplied during upload. */
   preserveUserFields?: boolean
@@ -48,6 +50,7 @@ export interface ImportProcessJobData {
 
 export interface ContractEmbedJobData {
   contractId: string
+  organizationId?: string
   extractedText: string
   preserveUserFields?: boolean
   skipAiExtraction?: boolean
@@ -90,6 +93,19 @@ export type EmailJobData =
       metadata: Record<string, string | number | boolean | null>
       unsubscribeToken: string
     }
+  | {
+      kind: "action_delivery"
+      deliveryId: string
+      to: string
+      recipientName: string
+      actionId: string
+      actionTitle: string
+      actionUrl: string
+      contractTitle: string
+      dueDate: string | null
+      sourceText: string | null
+      sourcePage: number | null
+    }
 
 // ─── M7: Obligation AI extraction ────────────────────────────────────────────
 
@@ -97,7 +113,7 @@ export interface ObligationExtractJobData {
   contractId: string
   organizationId: string
   extractedText: string  // passed in so the worker doesn't need a DB read
-  requestedById: string
+  requestedById: string | null
   sourceHash: string
 }
 

@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db/client"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { logger } from "@/lib/logger"
 
-export async function POST(req: Request, { params }: { params: { jobId: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ jobId: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const roleError = requireRole(ctx.role, "member")

@@ -28,7 +28,7 @@ FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f60937229
 WORKDIR /app
 ENV NODE_ENV=production
 # prisma CLI needed for migrate deploy at container start
-RUN npm install -g prisma@7.8.0
+RUN npm install -g prisma@7.9.1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma
@@ -47,6 +47,6 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 WORKDIR /app
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch(process.env.INTERNAL_APP_URL + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 # Run pending migrations then start the server
 CMD ["sh", "-c", "npx prisma migrate deploy && node apps/web/server.js"]

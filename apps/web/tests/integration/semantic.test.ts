@@ -335,4 +335,41 @@ describe("POST /api/contracts/[id]/ask", () => {
     expect(body.citations[0].chunkIndex).toBe(0)
     expect(body.citations[0].similarity).toBe(0.91)
   })
+
+  it("finds a final short legal-acronym clause through the full-text fallback", async () => {
+    process.env.OPENAI_API_KEY = "test-key"
+
+    const { generateEmbedding } = await import("@/lib/embedding")
+    vi.mocked(generateEmbedding).mockResolvedValueOnce(null)
+    const finalClause = "IP ownership remains exclusively with Vendor."
+
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      id: "c1",
+      title: "Large Contract",
+      extractedText: `${"A".repeat(720_000)}\n${finalClause}`,
+      organizationId: "org-1",
+    } as any)
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Vendor owns the IP. See Excerpt 1." } }],
+      }),
+    } as any)
+
+    const { POST } = await import("@/app/api/contracts/[id]/ask/route")
+    const req = new Request("http://localhost/api/contracts/c1/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Who owns IP?" }),
+    })
+
+    const res = await requestContext.run(mockCtx, () =>
+      POST(req, { params: Promise.resolve({ id: "c1" }) }),
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.citations.some((citation: { text: string }) => citation.text.includes(finalClause))).toBe(true)
+  })
 })

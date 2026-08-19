@@ -86,6 +86,20 @@ type AskCitation = {
   similarity: number | null
 }
 
+function lexicalFallbackChunks(extractedText: string, question: string): AskCitation[] {
+  // Two-letter legal acronyms (IP, EU, UK) carry real retrieval intent.
+  const terms = [...new Set(question.toLowerCase().match(/[\p{L}\p{N}_-]{2,}/gu) ?? [])]
+  const chunks = chunkText(extractedText, 8000, 1000)
+  return chunks
+    .map((chunk) => ({
+      chunk,
+      score: terms.reduce((total, term) => total + (chunk.text.toLowerCase().split(term).length - 1), 0),
+    }))
+    .sort((a, b) => b.score - a.score || a.chunk.index - b.chunk.index)
+    .slice(0, 5)
+    .map(({ chunk }) => ({ chunkIndex: chunk.index, text: chunk.text, similarity: null }))
+}
+
 async function retrieveRelevantChunks(
   contractId: string,
   organizationId: string,
@@ -94,9 +108,7 @@ async function retrieveRelevantChunks(
 ): Promise<AskCitation[]> {
   const embedding = await generateEmbedding(question)
   if (!embedding) {
-    return chunkText(extractedText, 8000, 1000)
-      .slice(0, 5)
-      .map((chunk) => ({ chunkIndex: chunk.index, text: chunk.text, similarity: null }))
+    return lexicalFallbackChunks(extractedText, question)
   }
 
   const embeddingStr = `[${embedding.join(",")}]`
@@ -141,9 +153,7 @@ async function retrieveRelevantChunks(
     }))
   }
 
-  return chunkText(extractedText, 8000, 1000)
-    .slice(0, 5)
-    .map((chunk) => ({ chunkIndex: chunk.index, text: chunk.text, similarity: null }))
+  return lexicalFallbackChunks(extractedText, question)
 }
 
 function buildContext(chunks: AskCitation[]): string {
@@ -155,7 +165,7 @@ function buildContext(chunks: AskCitation[]): string {
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: AsyncRouteParams<{ id: string }> },
 ) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })

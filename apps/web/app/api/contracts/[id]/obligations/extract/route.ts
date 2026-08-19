@@ -2,11 +2,12 @@ import crypto from "node:crypto"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { contractExtractQueue, getObligationExtractQueue, obligationExtractQueue } from "@/lib/jobs/queues"
+import { contractExtractQueue, getObligationExtractQueue } from "@/lib/jobs/queues"
 
 const ROLES_CAN_WRITE = new Set(["owner", "admin", "legal", "member"])
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -51,6 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         "extract",
         {
           contractId: contract.id,
+          organizationId: ctx.organizationId,
           fileId: latestFile.id,
           storageKey: latestFile.storageKey,
           preserveUserFields: true,
@@ -60,35 +62,35 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return Response.json({ error: "text_processing", queued: true }, { status: 202 })
     }
 
-    // Check that an AI provider is configured
-    const provider =
-      process.env.AI_PROVIDER?.toLowerCase() ||
-      (process.env.ANTHROPIC_API_KEY
-        ? "anthropic"
-        : process.env.OPENAI_API_KEY
-          ? "openai"
-          : process.env.OLLAMA_BASE_URL
-            ? "ollama"
-            : null)
-
-    if (!provider) {
-      return Response.json({ error: "no_ai_provider" }, { status: 422 })
+    // Enqueue — the worker uses the configured provider when available and a
+    // deterministic cited fallback otherwise, so first value never requires BYOK.
+    const sourceHash = crypto.createHash("sha256").update(contract.extractedText).digest("hex")
+    const jobId = `initial-obligation-extract:${contract.id}:${sourceHash}`
+    const queue = getObligationExtractQueue()
+    const priorJob = await queue.getJob(jobId)
+    if (priorJob) {
+      const state = await priorJob.getState()
+      if (state === "waiting" || state === "active" || state === "delayed") {
+        return Response.json({ jobId: priorJob.id })
+      }
+      // Terminal jobs retain a stale return value. Removing them allows a
+      // deliberate retry while preserving deduplication of work in flight.
+      await priorJob.remove()
     }
-
-    // Enqueue — pass extractedText so the worker doesn't need another DB round-trip
-    const job = await obligationExtractQueue.add("extract", {
+    const job = await queue.add("extract", {
       contractId: contract.id,
       organizationId: ctx.organizationId,
       extractedText: contract.extractedText.slice(0, 100_000),
       requestedById: ctx.userId,
-      sourceHash: crypto.createHash("sha256").update(contract.extractedText).digest("hex"),
-    })
+      sourceHash,
+    }, { jobId })
 
     return Response.json({ jobId: job.id })
   })
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -96,7 +98,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     // Verify org membership — don't leak job results across orgs
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { organizationId: true },
+      select: { organizationId: true, extractedText: true },
     })
     if (!contract || contract.organizationId !== ctx.organizationId) {
       return Response.json({ error: "Not Found" }, { status: 404 })
@@ -112,10 +114,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const job = await queue.getJob(jobId)
 
     if (!job) {
-      const suggestions = await prisma.contractObligationSuggestion.findMany({
-        where: { contractId: params.id, organizationId: ctx.organizationId, status: "pending" },
+      const currentSourceHash = contract.extractedText
+        ? crypto.createHash("sha256").update(contract.extractedText).digest("hex")
+        : null
+      if (!currentSourceHash) return Response.json({ state: "not_found" })
+      const suggestions = (await prisma.contractObligationSuggestion.findMany({
+        where: { contractId: params.id, organizationId: ctx.organizationId, status: "pending", sourceHash: currentSourceHash },
         orderBy: { createdAt: "asc" },
-      }) ?? []
+      })) ?? []
       return suggestions.length > 0
         ? Response.json({ state: "completed", suggestions })
         : Response.json({ state: "not_found" })
@@ -123,7 +129,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     // BullMQ job IDs are global to the queue. Bind the poll to the same
     // contract and organization before exposing state or return values.
-    const jobData = job.data as { contractId?: string; organizationId?: string } | undefined
+    const jobData = job.data as { contractId?: string; organizationId?: string; sourceHash?: string } | undefined
     if (
       jobData?.contractId !== params.id ||
       jobData?.organizationId !== ctx.organizationId
@@ -131,15 +137,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return Response.json({ state: "not_found" })
     }
 
+    const currentSourceHash = contract.extractedText
+      ? crypto.createHash("sha256").update(contract.extractedText).digest("hex")
+      : null
+    if (!currentSourceHash || jobData?.sourceHash !== currentSourceHash) {
+      return Response.json({ state: "not_found" })
+    }
+
     const state = await job.getState()
 
     if (state === "completed") {
-      return Response.json({ state: "completed", suggestions: job.returnvalue })
+      // The database is canonical. Do not replay BullMQ's retained return
+      // value after a reviewer accepted, dismissed, or superseded candidates.
+      const suggestions = await prisma.contractObligationSuggestion.findMany({
+        where: { contractId: params.id, organizationId: ctx.organizationId, status: "pending", sourceHash: currentSourceHash },
+        orderBy: { createdAt: "asc" },
+      })
+      return Response.json({ state: "completed", suggestions })
     }
     if (state === "failed") {
       return Response.json({ state: "failed", reason: job.failedReason })
     }
     // waiting, active, delayed → still running
     return Response.json({ state: "active" })
-  })
+  });
 }

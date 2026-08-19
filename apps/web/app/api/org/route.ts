@@ -4,12 +4,17 @@ import { prisma } from "@/lib/db/client"
 import { requireRole } from "@/lib/auth/roles"
 import { z } from "zod"
 
+const logoUrlSchema = z.string().refine(
+  (value) => (value.startsWith("/") && !value.startsWith("//")) || /^https?:\/\//i.test(value),
+  "Logo must be a same-origin path or an HTTP(S) URL",
+)
+
 const UpdateOrgSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   domain: z.string().max(200).optional(),
   timezone: z.string().max(100).optional(),
   industry: z.string().max(100).optional(),
-  logo: z.string().url().optional().nullable(),
+  logo: logoUrlSchema.optional().nullable(),
 })
 
 export async function GET(req: Request) {

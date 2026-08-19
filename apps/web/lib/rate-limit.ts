@@ -17,9 +17,14 @@ import IORedis, { type Redis } from "ioredis"
 
 let _client: Redis | null = null
 let _clientAttempted = false
+let _clientReady: Promise<Redis | null> | null = null
+let _nextReconnectAt = 0
+const RECONNECT_COOLDOWN_MS = 1_000
 
-function getClient(): Redis | null {
-  if (_clientAttempted) return _client
+async function getClient(): Promise<Redis | null> {
+  if (_client?.status === "ready") return _client
+  if (_clientReady) return _clientReady
+  if (_clientAttempted && !_client && Date.now() < _nextReconnectAt) return null
   _clientAttempted = true
 
   const url = process.env.REDIS_URL
@@ -29,15 +34,26 @@ function getClient(): Redis | null {
     _client = new IORedis(url, {
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
-      lazyConnect: false,
+      lazyConnect: true,
+      connectTimeout: 1_000,
     })
     _client.on("error", () => {
       // Swallow — we fall through to in-memory below on each call
     })
+    _clientReady = _client.connect()
+      .then(() => _client)
+      .catch(() => {
+        _client?.disconnect()
+        _client = null
+        _clientReady = null
+        _nextReconnectAt = Date.now() + RECONNECT_COOLDOWN_MS
+        return null
+      })
   } catch {
     _client = null
+    _nextReconnectAt = Date.now() + RECONNECT_COOLDOWN_MS
   }
-  return _client
+  return _clientReady
 }
 
 // ─── In-memory fallback ────────────────────────────────────────────────────────
@@ -92,7 +108,7 @@ export async function rateLimit(
 ): Promise<
   { allowed: true; retryAfter: 0 } | { allowed: false; retryAfter: number }
 > {
-  const client = getClient()
+  const client = await getClient()
   if (!client) {
     if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
     return inMemoryCheck(key, limit, windowMs)
@@ -124,12 +140,26 @@ export async function rateLimit(
       return inMemoryCheck(key, limit, windowMs)
     }
 
+    if (
+      results.length !== 5 ||
+      results.some((result) => !Array.isArray(result) || result.length !== 2 || result[0] !== null)
+    ) {
+      if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
+      return inMemoryCheck(key, limit, windowMs)
+    }
+
     const countResult = results[2]
     const oldestResult = results[4]
-    const count =
-      Array.isArray(countResult) && typeof countResult[1] === "number"
-        ? (countResult[1] as number)
-        : 0
+    if (
+      !Array.isArray(countResult) ||
+      typeof countResult[1] !== "number" ||
+      !Number.isSafeInteger(countResult[1]) ||
+      countResult[1] < 1
+    ) {
+      if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: 60 }
+      return inMemoryCheck(key, limit, windowMs)
+    }
+    const count = countResult[1]
 
     if (count <= limit) {
       return { allowed: true, retryAfter: 0 }

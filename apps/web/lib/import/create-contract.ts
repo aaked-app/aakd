@@ -170,6 +170,7 @@ export async function createImportedContract(
       await db.contractFile.update({ where: { id: fileRecord.id }, data: { storageKey } })
       await contractExtractQueue.add(`extract-${contract.id}`, {
         contractId: contract.id,
+        organizationId: context.organizationId,
         fileId: fileRecord.id,
         storageKey,
       })
@@ -266,6 +267,7 @@ export async function createImportedContractForRow(
     try {
       await contractExtractQueue.add(`extract-${result.contractId}`, {
         contractId: result.contractId,
+        organizationId: context.organizationId,
         fileId: result.extraction.fileId,
         storageKey: result.extraction.storageKey,
       })

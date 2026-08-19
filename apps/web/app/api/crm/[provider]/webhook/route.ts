@@ -7,7 +7,8 @@ import { writeActivity } from "@/lib/db/activity"
 import { normalizeProvider } from "@/lib/crm/route-helpers"
 import { logger } from "@/lib/logger"
 
-export async function POST(req: Request, { params }: { params: { provider: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ provider: string }> }) {
+  const params = await props.params;
   const provider = normalizeProvider(params.provider)
   if (!provider || provider === "SALESFORCE") {
     // Salesforce doesn't post webhooks (polling only). Reject silently.

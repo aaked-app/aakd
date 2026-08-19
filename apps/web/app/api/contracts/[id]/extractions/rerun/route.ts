@@ -12,7 +12,8 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 // upload). Does not reset accepted extractions — only overwrites pending/
 // rejected ones (same guard as the initial worker run).
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const roleError = requireRole(ctx.role, "member")
@@ -43,6 +44,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await getContractAiExtractQueue().add("ai_extract", {
       contractId: params.id,
+      organizationId: ctx.organizationId,
       extractedText: contract.extractedText,
     })
 

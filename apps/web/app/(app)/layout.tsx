@@ -14,6 +14,7 @@ import {
   ChevronDown,
   RefreshCw,
   Menu,
+  ListChecks,
 } from "lucide-react"
 import { useSession, useActiveOrganization, useListOrganizations, organization, signOut } from "@/lib/auth/client"
 import { usePostHog } from "posthog-js/react"
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { GlobalProviders } from "@/components/global-providers"
 import { AakdLogoMark } from "@/components/aakd-logo"
 import { useLocale, useTranslations } from "next-intl"
+import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -140,6 +142,7 @@ function Sidebar({
   userEmail,
   userImage,
   orgName,
+  orgLogo,
   onSignOut,
   navSections,
   navigationLabel,
@@ -157,6 +160,7 @@ function Sidebar({
   userEmail: string
   userImage?: string | null
   orgName: string
+  orgLogo?: string | null
   onSignOut: () => void
   navSections: NavSection[]
   navigationLabel: string
@@ -180,7 +184,10 @@ function Sidebar({
         "flex min-h-14 items-center gap-2.5 border-b border-border px-3 py-3",
         compactAtTablet && "md:justify-center md:px-2 xl:justify-start xl:px-3",
       )}>
-        <AakdLogoMark size={26} />
+        {orgLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={orgLogo} alt="" className="h-[26px] w-[26px] shrink-0 rounded object-cover" />
+        ) : <AakdLogoMark size={26} />}
         <span className={cn("font-extrabold text-sm flex-1 min-w-0 truncate", compactAtTablet && "md:hidden xl:block")} style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif", letterSpacing: '-0.02em' }}>
           Aakd
         </span>
@@ -309,6 +316,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("contracts"),   href: "/contracts",   icon: FileText },
         { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
         { label: t("obligations"), href: "/obligations", icon: Target },
+        ...(isActionLedgerUiEnabled() ? [{ label: t("actions"), href: "/actions", icon: ListChecks }] : []),
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
       ],
     },
@@ -408,6 +416,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     void refetchOrganizations()
   }
 
+  const [orgLogo, setOrgLogo] = useState<string | null>(
+    (activeOrg as { logo?: string | null } | null)?.logo ?? null,
+  )
+
+  useEffect(() => {
+    if (!activeOrg?.id) {
+      setOrgLogo(null)
+      return
+    }
+    let cancelled = false
+    fetch("/api/org")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { logo?: string | null } | null) => {
+        if (!cancelled) setOrgLogo(data?.logo ?? null)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeOrg?.id])
+
   if (!isPending && session?.user && organizationResolutionError) {
     return (
       <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
@@ -445,21 +472,77 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // accept-invitation can resolve naturally.
   if (!activeOrg) {
     return (
-      <main aria-label={t("workspaceUnavailable")} className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4">
-        <AakdLogoMark size={36} />
-        <div className="text-center space-y-1.5">
-          <h1 className="text-lg font-semibold text-foreground">{t("noOrganizationTitle")}</h1>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            {t("noOrganizationDescription")}
-          </p>
-        </div>
-        <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-          <Button className="w-full" onClick={() => router.push("/create-org")}>
-            {t("createOrganization")}
-          </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            {t("invitationHint")}
-          </p>
+      <main aria-label={t("workspaceUnavailable")} className="min-h-screen bg-background px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col border border-border bg-background sm:min-h-[calc(100vh-3rem)]">
+          <header className="flex min-h-16 items-center justify-between border-b border-border px-5 sm:px-7">
+            <div className="flex items-center gap-3">
+              <AakdLogoMark size={32} />
+              <span className="text-sm font-semibold tracking-[-0.01em] text-foreground">Aakd</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1 sm:gap-3">
+              <p className="max-w-[10rem] truncate text-end text-xs text-muted-foreground sm:max-w-xs">
+                {session.user.email}
+              </p>
+              <Button
+                variant="ghost"
+                className="min-h-11 shrink-0 px-3 text-xs"
+                onClick={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
+              >
+                {t("signOut")}
+              </Button>
+            </div>
+          </header>
+
+          <div className="grid flex-1 lg:grid-cols-12">
+            <section className="min-w-0 flex flex-col justify-between px-5 py-10 sm:px-7 sm:py-14 lg:col-span-7 lg:px-10 lg:py-16">
+              <div className="max-w-xl">
+                <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
+                  {t("workspaceSetupEyebrow")}
+                </p>
+                <h1 className="mt-5 max-w-lg text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">
+                  {t("workspaceSetupTitle")}
+                </h1>
+                <p className="mt-5 max-w-lg break-words text-base leading-7 text-muted-foreground">
+                  {t("workspaceSetupDescription")}
+                </p>
+              </div>
+
+              <ol aria-label={t("workspaceSetupSteps")} className="mt-12 grid border-t border-border sm:grid-cols-3 lg:mt-20">
+                {[
+                  ["01", "setupStepWorkspace", "setupStepWorkspaceDescription"],
+                  ["02", "setupStepAgreement", "setupStepAgreementDescription"],
+                  ["03", "setupStepTeam", "setupStepTeamDescription"],
+                ].map(([number, title, description]) => (
+                  <li key={number} className="border-b border-border py-5 sm:border-b-0 sm:border-e sm:px-5 sm:first:ps-0 sm:last:border-e-0 sm:last:pe-0">
+                    <span className="text-xs font-medium tabular-nums text-muted-foreground">{number}</span>
+                    <p className="mt-3 text-sm font-semibold text-foreground">{t(title)}</p>
+                    <p className="mt-1.5 break-words text-sm leading-6 text-muted-foreground">{t(description)}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <aside className="min-w-0 flex items-center border-t border-border bg-muted/30 px-5 py-10 sm:px-7 lg:col-span-5 lg:border-t-0 lg:border-s lg:px-10 lg:py-16">
+              <div className="w-full border border-border bg-background p-6 sm:p-7">
+                <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                  {t("noOrganizationTitle")}
+                </p>
+                <h2 className="mt-4 text-xl font-semibold tracking-[-0.025em] text-foreground">
+                  {t("createWorkspace")}
+                </h2>
+                <p className="mt-3 break-words text-sm leading-6 text-muted-foreground">
+                  {t("noOrganizationDescription")}
+                </p>
+                <Button className="mt-7 min-h-11 w-full" onClick={() => router.push("/create-org")}>
+                  {t("createWorkspace")}
+                </Button>
+                <div className="mt-7 border-t border-border pt-6">
+                  <p className="text-sm font-medium text-foreground">{t("invitationTitle")}</p>
+                  <p className="mt-1.5 break-words text-sm leading-6 text-muted-foreground">{t("invitationDescription")}</p>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       </main>
     )
@@ -492,6 +575,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               userEmail={userEmail}
               userImage={userImage}
               orgName={orgName}
+              orgLogo={orgLogo}
               onSignOut={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
               navSections={NAV_SECTIONS}
               navigationLabel={t("mobileNavigation")}
@@ -506,7 +590,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
         <Link href="/dashboard" className="flex items-center gap-2">
-          <AakdLogoMark size={24} />
+          {orgLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={orgLogo} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
+          ) : <AakdLogoMark size={24} />}
           <span className="text-sm font-extrabold" style={{ fontFamily: "var(--font-sora), 'Sora', sans-serif" }}>Aakd</span>
         </Link>
         <NotificationBell />
@@ -518,6 +605,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         userEmail={userEmail}
         userImage={userImage}
         orgName={orgName}
+        orgLogo={orgLogo}
         onSignOut={() =>
           signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
         }

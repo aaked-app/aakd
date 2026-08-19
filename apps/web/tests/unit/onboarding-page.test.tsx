@@ -95,7 +95,9 @@ describe("OnboardingPage", () => {
   it("announces successful and failed connection feedback", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ["claude-haiku-4-5"] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ valid: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ["claude-haiku-4-5"] })))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ valid: false, error: "Invalid credentials" })),
       )
@@ -109,44 +111,45 @@ describe("OnboardingPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Test connection" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid credentials")
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it("preserves cloud defaults and exact test/save payloads", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ["claude-haiku-4-5"] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ valid: true })))
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
     vi.stubGlobal("fetch", fetchMock)
 
     render(<OnboardingPage />)
-    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent(
-      "claude-haiku-4-5",
-    )
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("claude-haiku-4-5")
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "  secret  " } })
     fireEvent.click(screen.getByRole("button", { name: "Test connection" }))
     await screen.findByRole("status")
 
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
-      provider: "anthropic",
-      apiKey: "secret",
-    })
-
-    fireEvent.click(screen.getByRole("button", { name: "Save & continue" }))
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"))
     expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
       provider: "anthropic",
       apiKey: "secret",
       model: "claude-haiku-4-5",
     })
 
+    fireEvent.click(screen.getByRole("button", { name: "Save & continue" }))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"))
+    expect(JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string)).toEqual({
+      provider: "anthropic",
+      apiKey: "secret",
+      model: "claude-haiku-4-5",
+    })
+
     fireEvent.click(screen.getByRole("button", { name: /OpenAI/i }))
-    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("gpt-4o-mini")
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("gpt-4o-mini")
   })
 
   it("preserves exact Ollama test/save payloads", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ["llama3.2"] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ valid: true })))
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
     vi.stubGlobal("fetch", fetchMock)
@@ -155,15 +158,16 @@ describe("OnboardingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ollama/i }))
     fireEvent.click(screen.getByRole("button", { name: "Test connection" }))
     await screen.findByRole("status")
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
       provider: "ollama",
       baseUrl: "http://localhost:11434",
+      model: "",
     })
 
     fireEvent.change(screen.getByLabelText("Model name"), { target: { value: "  llama3.2  " } })
     fireEvent.click(screen.getByRole("button", { name: "Save & continue" }))
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"))
-    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+    expect(JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string)).toEqual({
       provider: "ollama",
       baseUrl: "http://localhost:11434",
       model: "llama3.2",

@@ -8,13 +8,6 @@ import { useSession, useActiveOrganization } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -56,19 +49,6 @@ const PROVIDER_META: Record<Provider, { name: string; subtitleKey: string }> = {
   anthropic: { name: "Anthropic", subtitleKey: "provider.anthropic.subtitle" },
   openai: { name: "OpenAI", subtitleKey: "provider.openai.subtitle" },
   ollama: { name: "Ollama", subtitleKey: "provider.ollama.subtitle" },
-}
-
-const CLOUD_MODELS: Record<"anthropic" | "openai", { value: string; labelKey: string }[]> = {
-  anthropic: [
-    { value: "claude-haiku-4-5", labelKey: "models.anthropic.haiku" },
-    { value: "claude-sonnet-4-5", labelKey: "models.anthropic.sonnet" },
-    { value: "claude-opus-4-5", labelKey: "models.anthropic.opus" },
-  ],
-  openai: [
-    { value: "gpt-4o-mini", labelKey: "models.openai.mini" },
-    { value: "gpt-4o", labelKey: "models.openai.standard" },
-    { value: "gpt-4-turbo", labelKey: "models.openai.turbo" },
-  ],
 }
 
 const DEFAULT_MODEL: Record<"anthropic" | "openai", string> = {
@@ -133,8 +113,10 @@ export default function OnboardingPage() {
   const [model, setModel] = useState<string>(DEFAULT_MODEL["anthropic"])
   const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434")
   const [ollamaModel, setOllamaModel] = useState("")
+  const [customModel, setCustomModel] = useState(false)
   const [status, setStatus] = useState<Status>("idle")
   const [errorMsg, setErrorMsg] = useState("")
+  const [availableModels, setAvailableModels] = useState<string[]>([])
 
   // Role guard — only admin/legal/owner may configure AI
   useEffect(() => {
@@ -154,6 +136,11 @@ export default function OnboardingPage() {
     setErrorMsg("")
     if (p !== "ollama") {
       setModel(DEFAULT_MODEL[p])
+      setCustomModel(false)
+      setAvailableModels([])
+    } else {
+      setOllamaModel("")
+      setAvailableModels([])
     }
   }
 
@@ -170,8 +157,21 @@ export default function OnboardingPage() {
     try {
       const body =
         provider === "ollama"
+          ? { provider, baseUrl: ollamaUrl.trim(), model: ollamaModel.trim() }
+          : { provider, apiKey: apiKey.trim(), model: model.trim() }
+
+      const modelsResponse = await fetch("/api/org/ai-config/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(provider === "ollama"
           ? { provider, baseUrl: ollamaUrl.trim() }
-          : { provider, apiKey: apiKey.trim() }
+          : { provider, apiKey: apiKey.trim() }),
+      })
+      if (modelsResponse.ok) {
+        const modelsData = (await modelsResponse.json()) as { models?: string[] }
+        const models = modelsData.models ?? []
+        setAvailableModels(models)
+      }
 
       const res = await fetch("/api/org/ai-config/test", {
         method: "POST",
@@ -227,6 +227,8 @@ export default function OnboardingPage() {
   const canSave = !isBusy && (provider === "ollama" ? isOllamaReady : isCloudReady)
 
   const apiKeyPlaceholder = provider === "anthropic" ? "sk-ant-api03-..." : "sk-proj-..."
+  const cloudModelOptions = Array.from(new Set([model, ...availableModels].filter(Boolean)))
+  const ollamaModelOptions = Array.from(new Set([ollamaModel, ...availableModels].filter(Boolean)))
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:py-14">
@@ -338,6 +340,18 @@ export default function OnboardingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ollama-model">{t("fields.ollamaModel")}</Label>
+                  {ollamaModelOptions.length > 0 && (
+                    <select
+                      id="ollama-model-select"
+                      aria-label={t("fields.selectModel")}
+                      value={ollamaModelOptions.includes(ollamaModel) ? ollamaModel : ""}
+                      onChange={(e) => { setOllamaModel(e.target.value); resetFeedback() }}
+                      className="mb-2 h-11 w-full min-w-0 rounded-[var(--radius)] border border-input bg-background px-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <option value="">{t("fields.selectModel")}</option>
+                      {ollamaModelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  )}
                   <Input
                     id="ollama-model"
                     type="text"
@@ -357,21 +371,49 @@ export default function OnboardingPage() {
               <div className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="ai-model">{t("fields.model")}</Label>
-                  <Select
-                    value={model}
-                    onValueChange={(v) => { if (v) { setModel(v); resetFeedback() } }}
-                  >
-                    <SelectTrigger id="ai-model" className="h-11 w-full min-w-0">
-                      <SelectValue placeholder={t("fields.selectModel")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CLOUD_MODELS[provider as "anthropic" | "openai"].map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {t(item.labelKey)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {customModel ? (
+                    <Input
+                      id="ai-model"
+                      type="text"
+                      value={model}
+                      onChange={(e) => { setModel(e.target.value); resetFeedback() }}
+                      className="h-11 w-full min-w-0 font-mono text-sm"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <select
+                      id="ai-model"
+                      aria-label={t("fields.model")}
+                      value={model}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === "__custom__") {
+                          setCustomModel(true)
+                          setModel("")
+                        } else {
+                          setModel(value)
+                        }
+                        resetFeedback()
+                      }}
+                      className="h-11 w-full min-w-0 rounded-[var(--radius)] border border-input bg-background px-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {cloudModelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                      <option value="__custom__">{t("fields.customModel")}</option>
+                    </select>
+                  )}
+                  {customModel && cloudModelOptions.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary underline underline-offset-2"
+                      onClick={() => { setCustomModel(false); setModel(cloudModelOptions[0]) }}
+                    >
+                      {t("fields.selectModel")}
+                    </button>
+                  )}
+                  <p className="break-words text-xs leading-5 text-muted-foreground">
+                    {t("fields.modelHelp")}
+                  </p>
                 </div>
 
                 <div className="space-y-2">

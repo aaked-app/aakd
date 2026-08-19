@@ -191,6 +191,27 @@ describe("renewals responsive attention queue", () => {
     expect(within(table).getByRole("row", { name: /Contract unknown/ })).toHaveTextContent(message("renewals", "notAvailable"))
   })
 
+  it("only gives the priority band to a renewal that actually needs action", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("later", 31)])))
+    render(<RenewalsPage />)
+
+    await screen.findByRole("table", { name: message("renewals", "resultsLabel") })
+    expect(screen.getAllByRole("link", { name: /Contract later/ })).toHaveLength(1)
+  })
+
+  it("adds decorative visual signals to every visible urgency metric without replacing its label", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("needs-action", 2)])))
+    render(<RenewalsPage />)
+
+    const attention = await screen.findByRole("region", { name: message("renewals", "attentionLabel") })
+    const cards = within(attention).getAllByRole("article")
+    expect(cards).toHaveLength(3)
+    for (const card of cards) {
+      expect(within(card).getByText(/Action required|Coming soon|Later or date unavailable/)).toBeVisible()
+      expect(card.querySelector("svg[aria-hidden='true']")).not.toBeNull()
+    }
+  })
+
   it("localizes singular day grammar and risk text instead of exposing English component labels", async () => {
     locale = "fr-FR"
     vi.stubGlobal("fetch", vi.fn(async () => response([renewal("francais", 1)])))
@@ -254,10 +275,10 @@ describe("renewals responsive attention queue", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
     await act(async () => resolveSecond(response([renewal("newer", 8)])))
-    expect(await screen.findByText("Contract newer")).toBeInTheDocument()
+    expect((await screen.findAllByText("Contract newer")).length).toBeGreaterThan(0)
     await act(async () => resolveFirst(response([renewal("older", 1)])))
     expect(screen.queryByText("Contract older")).not.toBeInTheDocument()
-    expect(screen.getByText("Contract newer")).toBeInTheDocument()
+    expect(screen.getAllByText("Contract newer").length).toBeGreaterThan(0)
   })
 
   it("renders special-character text safely and falls back for malformed display values", async () => {
@@ -279,6 +300,16 @@ describe("renewals responsive attention queue", () => {
     expect(within(table).getAllByText(message("renewals", "notAvailable")).length).toBeGreaterThanOrEqual(3)
     expect(within(table).getByText(message("renewals", "riskNotScored"))).toBeInTheDocument()
     expect(table.textContent).toContain("not valid")
+  })
+
+  it("does not present a recorded value as USD when the source has no currency", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response([renewal("uncurried", 8, { currency: null, value: 1234 })])))
+    const view = render(<RenewalsPage />)
+
+    const table = await screen.findByRole("table", { name: message("renewals", "resultsLabel") })
+    expect(within(table).getByText(new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(1234))).toBeInTheDocument()
+    expect(table.textContent).not.toContain("$")
+    view.unmount()
   })
 
   it("renders the distinct localized empty state", async () => {

@@ -70,6 +70,42 @@ jobs:
       - name: Run tests
         run: pnpm --filter web test
 
+  migrations:
+    name: Prisma migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aakd_migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aakd_migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aakd_migrations
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/aakd_migrations
+      BETTER_AUTH_SECRET: test-secret-32-chars-long-xxxxxxxx
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web db:generate
+      - run: pnpm --filter web db:migrate:prod
+
   build:
     name: Build
     runs-on: ubuntu-latest

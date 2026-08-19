@@ -8,20 +8,25 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { useLocale, useTranslations } from "next-intl"
 import {
   AlertCircle,
+  CalendarDays,
   CalendarClock,
+  Clock3,
   ExternalLink,
   Loader2,
   RefreshCw,
+  TriangleAlert,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { RiskBadge } from "@/components/risk-badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FocusBand, OperationsShell } from "@/components/portfolio/operations-shell"
 import { cn } from "@/lib/utils"
 
 interface RenewalContract {
@@ -81,16 +86,16 @@ function formatCurrency(
   fallback: string,
 ) {
   if (value == null || !Number.isFinite(value)) return fallback
-  const code = currency ?? "USD"
+  if (!currency) return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: code,
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
   } catch {
-    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${code}`
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${currency}`
   }
 }
 
@@ -100,16 +105,19 @@ function StatCard({
   description,
   accent,
   locale,
+  icon,
 }: {
   count: number
   label: string
   description: string
   accent: string
   locale: string
+  icon: ReactNode
 }) {
   return (
-    <article className={cn("min-w-0 rounded-xl border border-border border-s-4 bg-card p-4 shadow-sm", accent)}>
-      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+    <article className={cn("relative min-w-0 rounded-xl border border-border border-s-4 bg-card p-4 shadow-sm transition-colors motion-safe:duration-200 hover:border-primary/30", accent)}>
+      <p className="pe-9 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+      <span className="absolute end-4 top-4 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">{icon}</span>
       <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
         {new Intl.NumberFormat(locale).format(count)}
       </p>
@@ -250,16 +258,18 @@ export default function RenewalsPage() {
   const risk = (renewal: RenewalContract) => <LocalizedRisk level={renewal.riskScore} t={t} />
   const urgency = (renewal: RenewalContract) => <UrgencyBadge days={renewal.daysUntilDeadline} t={t} />
   const href = (renewal: RenewalContract) => `/contracts/${renewal.id}`
+  const priorityRenewal = renewals.find((renewal) => {
+    const level = classifyUrgency(renewal.daysUntilDeadline)
+    return level === "overdue" || level === "action"
+  })
 
   return (
-    <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:px-7">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
-          </div>
-          <Button
+    <OperationsShell
+      eyebrow={t("attentionLabel")}
+      title={t("title")}
+      description={t("subtitle")}
+      icon={<CalendarClock className="size-4" aria-hidden="true" />}
+      action={<Button
             variant="outline"
             className="min-h-11 w-fit"
             onClick={loadRenewals}
@@ -267,15 +277,12 @@ export default function RenewalsPage() {
           >
             <RefreshCw className={cn("size-4", loadState === "loading" && "animate-spin")} aria-hidden="true" />
             {t("refresh")}
-          </Button>
-        </div>
-      </header>
-
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-7">
-        <div className="mx-auto w-full max-w-[96rem] space-y-5">
+          </Button>}
+    >
+        <div className="space-y-5">
           {loadState === "loading" ? (
             <>
-              <section aria-label={t("attentionLabel")} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[0, 1, 2].map((item) => <Skeleton key={item} className="h-28 rounded-xl" />)}
               </section>
               <div role="status" aria-live="polite" className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
@@ -293,10 +300,17 @@ export default function RenewalsPage() {
             />
           ) : (
             <>
+              {priorityRenewal ? <FocusBand
+                label={t("actionRequired")}
+                title={priorityRenewal.title}
+                detail={`${priorityRenewal.counterpartyName ?? fallback} · ${t("noticeDeadline")}: ${formatDate(priorityRenewal.noticeDeadlineDate, locale, fallback)}`}
+                icon={<TriangleAlert className="size-4" aria-hidden="true" />}
+                action={<Link href={href(priorityRenewal)} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">{t("view")}<ExternalLink className="ms-1 size-4 rtl:-scale-x-100" aria-hidden="true" /></Link>}
+              /> : null}
               <section aria-label={t("attentionLabel")} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <StatCard count={stats.action} label={t("actionRequired")} description={t("actionRequiredDescription")} accent="border-s-destructive" locale={locale} />
-                <StatCard count={stats.soon} label={t("comingSoon")} description={t("comingSoonDescription")} accent="border-s-warning" locale={locale} />
-                <StatCard count={stats.later} label={t("laterOrUnknown")} description={t("laterOrUnknownDescription")} accent="border-s-success" locale={locale} />
+                <StatCard count={stats.action} label={t("actionRequired")} description={t("actionRequiredDescription")} accent="border-s-destructive" locale={locale} icon={<TriangleAlert className="size-4" aria-hidden="true" />} />
+                <StatCard count={stats.soon} label={t("comingSoon")} description={t("comingSoonDescription")} accent="border-s-warning" locale={locale} icon={<Clock3 className="size-4" aria-hidden="true" />} />
+                <StatCard count={stats.later} label={t("laterOrUnknown")} description={t("laterOrUnknownDescription")} accent="border-s-success" locale={locale} icon={<CalendarDays className="size-4" aria-hidden="true" />} />
               </section>
 
               {renewals.length === 0 ? (
@@ -318,7 +332,7 @@ export default function RenewalsPage() {
                     </thead>
                     <tbody>
                       {renewals.map((renewal) => (
-                        <tr key={renewal.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                        <tr key={renewal.id} className="border-b border-border transition-colors motion-safe:duration-150 last:border-0 hover:bg-muted/40">
                           <td className="min-w-0 px-3 py-2 align-middle">
                             <div className="flex min-h-11 min-w-0 flex-col justify-center">
                               <span className="truncate font-semibold text-foreground">{renewal.title}</span>
@@ -379,7 +393,6 @@ export default function RenewalsPage() {
             </>
           )}
         </div>
-      </div>
-    </main>
+    </OperationsShell>
   )
 }

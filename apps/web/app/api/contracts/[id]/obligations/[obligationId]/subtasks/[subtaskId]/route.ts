@@ -43,10 +43,9 @@ async function ensureSubTaskInScope(
 
 export async function PATCH(
   req: Request,
-  {
-    params,
-  }: { params: { id: string; obligationId: string; subtaskId: string } },
+  props: { params: AsyncRouteParams<{ id: string; obligationId: string; subtaskId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
@@ -126,10 +125,9 @@ export async function PATCH(
 
 export async function DELETE(
   req: Request,
-  {
-    params,
-  }: { params: { id: string; obligationId: string; subtaskId: string } },
+  props: { params: AsyncRouteParams<{ id: string; obligationId: string; subtaskId: string }> }
 ) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

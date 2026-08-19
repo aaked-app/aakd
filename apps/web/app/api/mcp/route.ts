@@ -3,6 +3,8 @@ import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
+import { projectObligationAction } from "@/lib/actions/project"
+import { ACTION_LIST_SELECT, actionDetailSelect, toActionDetail, toActionListItem } from "@/lib/actions/dto"
 import { generateEmbedding } from "@/lib/embedding"
 import { QA_SYSTEM_PROMPT } from "@/lib/ai/prompts"
 import { rateLimit } from "@/lib/rate-limit"
@@ -235,6 +237,28 @@ const TOOLS = [
       required: ["contractId", "obligationId"],
     },
   },
+  {
+    name: "list_actions",
+    description: "List organization-scoped contract actions with owners, deadlines, status and source metadata. Raw source text requires text_read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["PROPOSED", "PENDING_REVIEW", "ACKNOWLEDGED", "IN_PROGRESS", "COMPLETED", "BLOCKED", "STALE", "DISMISSED"] },
+        kind: { type: "string", enum: ["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"] },
+        limit: { type: "number", description: "Max results, default 20, max 100" },
+        page: { type: "number", description: "Page number, default 1" },
+      },
+    },
+  },
+  {
+    name: "get_action",
+    description: "Get one organization-scoped action with minimized approval, evidence, delivery and activity context. Source text requires text_read.",
+    inputSchema: {
+      type: "object",
+      properties: { actionId: { type: "string" } },
+      required: ["actionId"],
+    },
+  },
   // ── M8 Analytics ─────────────────────────────────────────────────────────
   {
     name: "get_analytics_summary",
@@ -365,6 +389,14 @@ const UpdateObligationMcpSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   description: z.string().max(2000).nullable().optional(),
 })
+
+const ListActionsMcpSchema = z.object({
+  status: z.enum(["PROPOSED", "PENDING_REVIEW", "ACKNOWLEDGED", "IN_PROGRESS", "COMPLETED", "BLOCKED", "STALE", "DISMISSED"]).optional(),
+  kind: z.enum(["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"]).optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+  page: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER - 1).default(1),
+})
+const GetActionMcpSchema = z.object({ actionId: z.string().min(1) })
 
 // M9
 const ListCrmLinksSchema = z.object({
@@ -886,6 +918,55 @@ function toSafeObligation(obligation: {
   }
 }
 
+async function toolListActions(
+  args: unknown,
+  orgId: string,
+  id: string | number,
+): Promise<Response> {
+  const parsed = ListActionsMcpSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+
+  const { status, kind, limit, page } = parsed.data
+  const where = {
+    organizationId: orgId,
+    ...(status ? { status } : {}),
+    ...(kind ? { kind } : {}),
+  }
+  const [rows, total] = await Promise.all([
+    prisma.contractAction.findMany({
+      where,
+      select: ACTION_LIST_SELECT,
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.contractAction.count({ where }),
+  ])
+
+  return toolSuccess(id, {
+    actions: rows.map(toActionListItem),
+    total,
+    page,
+    limit,
+  })
+}
+
+async function toolGetAction(
+  args: unknown,
+  orgId: string,
+  includeSourceText: boolean,
+  id: string | number,
+): Promise<Response> {
+  const parsed = GetActionMcpSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  const action = await prisma.contractAction.findFirst({
+    where: { id: parsed.data.actionId, organizationId: orgId },
+    select: actionDetailSelect(includeSourceText),
+  })
+  if (!action) return toolError(id, "Error: Action not found")
+  return toolSuccess(id, toActionDetail(action as never, includeSourceText))
+}
+
 async function toolCreateObligation(
   args: unknown,
   orgId: string,
@@ -940,28 +1021,47 @@ async function toolCreateObligation(
     return toolError(id, "Error: Invalid dueDate format — use ISO datetime e.g. 2025-12-31T00:00:00Z")
   }
 
-  const obligation = await prisma.contractObligation.create({
-    data: {
+  const obligation = await prisma.$transaction(async (tx) => {
+    const created = await tx.contractObligation.create({
+      data: {
+        contractId,
+        organizationId: orgId,
+        title,
+        description,
+        clauseReference,
+        priority,
+        dueDate: dueDateParsed,
+        assigneeId,
+        reminderDays,
+        createdById: userId,
+      },
+      include: {
+        assignee: { select: { id: true, name: true, email: true } },
+        subTasks: true,
+      },
+    })
+    const action = await projectObligationAction({
+      id: created.id,
       contractId,
       organizationId: orgId,
-      title,
-      description,
-      clauseReference,
-      priority,
-      dueDate: dueDateParsed,
-      assigneeId,
-      reminderDays,
+      title: created.title,
+      description: created.description,
+      clauseReference: created.clauseReference,
+      dueDate: created.dueDate,
+      assigneeId: created.assigneeId,
       createdById: userId,
-    },
-    include: {
-      assignee: { select: { id: true, name: true, email: true } },
-      subTasks: true,
-    },
-  })
-
-  // Audit trail — must not be fire-and-forget
-  await writeActivity(contractId, userId, "OBLIGATION_CREATED", `Obligation created: ${obligation.title}`, {
-    obligationId: obligation.id,
+    }, tx)
+    await tx.activity.create({
+      data: {
+        contractId,
+        contractActionId: action.id,
+        userId,
+        action: "OBLIGATION_CREATED",
+        detail: `Obligation created: ${created.title}`,
+        metadata: { obligationId: created.id },
+      },
+    })
+    return created
   })
 
   return toolSuccess(id, toSafeObligation(obligation))
@@ -992,6 +1092,13 @@ async function toolUpdateObligation(
   if (!existing || existing.contractId !== contractId || existing.organizationId !== orgId) {
     return toolError(id, "Error: Obligation not found")
   }
+  const linkedAction = await prisma.contractAction.findFirst({
+    where: { organizationId: orgId, sourceObligationId: obligationId },
+    select: { id: true, version: true },
+  })
+  if (linkedAction && parsed.data.status !== undefined) {
+    return toolError(id, `Error: Linked action ${linkedAction.id} must be changed through an attributed action command`)
+  }
 
   let dueDateParsed: Date | undefined
   if (dueDate !== undefined) {
@@ -1001,22 +1108,57 @@ async function toolUpdateObligation(
     }
   }
 
-  const obligation = await prisma.contractObligation.update({
-    where: { id: obligationId },
-    data: {
-      ...rest,
-      ...(dueDateParsed !== undefined ? { dueDate: dueDateParsed } : {}),
-    },
-    include: {
-      assignee: { select: { id: true, name: true, email: true } },
-      subTasks: true,
-    },
-  })
-
-  // Audit trail — must not be fire-and-forget
-  await writeActivity(contractId, userId, "OBLIGATION_UPDATED", `Obligation updated: ${obligation.title}`, {
-    obligationId: obligation.id,
-  })
+  let obligation
+  try {
+    obligation = await prisma.$transaction(async (tx) => {
+      const updated = await tx.contractObligation.update({
+        where: { id: obligationId },
+        data: { ...rest, ...(dueDateParsed !== undefined ? { dueDate: dueDateParsed } : {}) },
+        include: {
+          assignee: { select: { id: true, name: true, email: true } },
+          subTasks: true,
+        },
+      })
+      if (linkedAction) {
+        const synced = await tx.contractAction.updateMany({
+          where: { id: linkedAction.id, organizationId: orgId, version: linkedAction.version },
+          data: {
+            title: updated.title,
+            description: updated.description,
+            dueDate: updated.dueDate,
+            assigneeId: updated.assigneeId,
+            version: { increment: 1 },
+          },
+        })
+        if (synced.count !== 1) throw new Error("action_version_conflict")
+        await tx.activity.create({
+          data: {
+            contractId,
+            contractActionId: linkedAction.id,
+            userId,
+            action: rest.assigneeId !== undefined ? "ACTION_ASSIGNED" : "ACTION_REVIEWED",
+            detail: `Linked obligation updated through MCP: ${updated.title}`,
+            metadata: { obligationId, expectedVersion: linkedAction.version, requestSource: "mcp" },
+          },
+        })
+      }
+      await tx.activity.create({
+        data: {
+          contractId,
+          userId,
+          action: "OBLIGATION_UPDATED",
+          detail: `Obligation updated: ${updated.title}`,
+          metadata: { obligationId: updated.id, requestSource: "mcp" },
+        },
+      })
+      return updated
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === "action_version_conflict") {
+      return toolError(id, "Error: Action version conflict")
+    }
+    throw error
+  }
 
   return toolSuccess(id, toSafeObligation(obligation))
 }
@@ -1432,6 +1574,10 @@ export async function POST(req: Request) {
             return toolError(id, "Error: MCP write access requires a member role and write scope")
           }
           return toolUpdateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
+        case "list_actions":
+          return toolListActions(toolArgs, ctx.organizationId, id)
+        case "get_action":
+          return toolGetAction(toolArgs, ctx.organizationId, canReadContractText(ctx), id)
         // M8 Analytics
         case "get_analytics_summary":
           return toolGetAnalyticsSummary(ctx.organizationId, id)

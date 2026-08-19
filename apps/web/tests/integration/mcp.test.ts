@@ -54,7 +54,7 @@ describe("GET /api/mcp — discovery", () => {
     expect(body.protocol).toBe("json-rpc-2.0")
     expect(body.endpoint).toBe("/api/mcp")
     expect(body.organizationId).toBeUndefined()
-    expect(body.tools).toHaveLength(13)
+    expect(body.tools).toHaveLength(15)
   })
 })
 
@@ -75,8 +75,41 @@ describe("POST /api/mcp — authentication", () => {
   })
 })
 
+describe("POST /api/mcp — tools/call get_action", () => {
+  const action = {
+    id: "action-1", contractId: "contract-1", kind: "OBLIGATION", title: "Send report",
+    description: null, condition: "Section 4", dueDate: null, noticeDate: null, assigneeId: "user-1",
+    sourceText: "Confidential source excerpt", sourcePage: 3, confidence: 0.9, reviewStatus: "reviewed",
+    status: "PROPOSED", evidenceRequired: "completion_note", acknowledgedAt: null, completedAt: null,
+    staleAt: null, version: 1, createdAt: new Date("2026-08-18"), updatedAt: new Date("2026-08-18"),
+    contract: { id: "contract-1", title: "Northwind", counterpartyName: "Northwind" },
+    assignee: { id: "user-1", name: "Owner", email: "owner@example.test" },
+    evidence: [], deliveries: [], activities: [], approvals: [], _count: { evidence: 0, deliveries: 0 },
+  }
+
+  it("returns minimized detail without raw text for an API key lacking text_read", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...mockCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(action as never)
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(mcpRequest("tools/call", { name: "get_action", arguments: { actionId: "action-1" } }))
+    const data = JSON.parse((await res.json()).result.content[0].text)
+
+    expect(data.sourceText).toBeUndefined()
+    expect(data.assignee).toEqual({ id: "user-1", name: "Owner" })
+    expect(data.sourcePage).toBe(3)
+  })
+
+  it("returns the source excerpt to an authorized human session", async () => {
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(action as never)
+    const { POST } = await import("@/app/api/mcp/route")
+    const res = await POST(mcpRequest("tools/call", { name: "get_action", arguments: { actionId: "action-1" } }))
+    const data = JSON.parse((await res.json()).result.content[0].text)
+    expect(data.sourceText).toBe("Confidential source excerpt")
+  })
+})
+
 describe("POST /api/mcp — tools/list", () => {
-  it("returns all 13 tools", async () => {
+  it("returns all 15 tools", async () => {
     const { POST } = await import("@/app/api/mcp/route")
     const res = await POST(mcpRequest("tools/list"))
 
@@ -84,7 +117,7 @@ describe("POST /api/mcp — tools/list", () => {
     const body = await res.json()
     expect(body.jsonrpc).toBe("2.0")
     expect(body.id).toBe(1)
-    expect(body.result.tools).toHaveLength(13)
+    expect(body.result.tools).toHaveLength(15)
 
     const names = body.result.tools.map((t: { name: string }) => t.name)
     expect(names).toContain("search_contracts")
@@ -96,6 +129,8 @@ describe("POST /api/mcp — tools/list", () => {
     expect(names).toContain("list_obligations")
     expect(names).toContain("create_obligation")
     expect(names).toContain("update_obligation")
+    expect(names).toContain("list_actions")
+    expect(names).toContain("get_action")
     expect(names).toContain("get_analytics_summary")
     expect(names).toContain("list_crm_links")
     expect(names).toContain("list_import_jobs")
@@ -774,6 +809,8 @@ describe("POST /api/mcp — tools/call create_obligation", () => {
     vi.mocked(prisma.member.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.contractObligation.count).mockResolvedValue(0 as any)
     vi.mocked(prisma.contractObligation.create).mockResolvedValue(mockObligation as any)
+    vi.mocked(prisma.contractAction.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.contractAction.upsert).mockResolvedValue({ id: "action-new" } as any)
 
     const { POST } = await import("@/app/api/mcp/route")
     const res = await POST(

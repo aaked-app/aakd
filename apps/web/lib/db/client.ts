@@ -17,6 +17,8 @@ const ORG_SCOPED_MODELS = new Set([
   "ContractTemplate",
   // M7: obligation tracking
   "ContractObligation",
+  // M14: Phase 1 action ledger
+  "ContractAction",
   // M9: CRM integrations
   "CrmIntegration",
   // M10: Import / migration tools

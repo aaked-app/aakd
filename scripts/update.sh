@@ -81,7 +81,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 ATTEMPTS=0
 MAX_ATTEMPTS=30
-until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app wget -q --spider http://localhost:3000/api/health >/dev/null 2>&1; do
+until docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T app node -e "fetch(process.env.INTERNAL_APP_URL + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" >/dev/null 2>&1; do
   ATTEMPTS=$((ATTEMPTS + 1))
   if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
     echo "Updated app did not become healthy; restoring the previous release." >&2

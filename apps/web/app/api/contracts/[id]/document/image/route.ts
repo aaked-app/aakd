@@ -13,7 +13,8 @@ const ALLOWED_TYPES = new Set([
 ])
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)

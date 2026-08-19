@@ -25,6 +25,11 @@ const UpsertSchema = z.discriminatedUnion("provider", [
   }),
 ])
 
+const DEFAULT_MODELS = {
+  anthropic: "claude-haiku-4-5",
+  openai: "gpt-4o-mini",
+} as const
+
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
@@ -73,7 +78,9 @@ export async function POST(req: Request) {
   // For Ollama we encrypt the base URL; for cloud providers we encrypt the API key.
   const credentialPlain =
     parsed.data.provider === "ollama" ? parsed.data.baseUrl : parsed.data.apiKey
-  const model = parsed.data.provider === "ollama" ? parsed.data.model : (parsed.data.model ?? null)
+  const model = parsed.data.provider === "ollama"
+    ? parsed.data.model
+    : (parsed.data.model?.trim() || DEFAULT_MODELS[parsed.data.provider])
 
   let encryptedKey: string
   try {

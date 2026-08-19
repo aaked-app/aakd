@@ -7,6 +7,7 @@ import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
+import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { requestLogger } from "@/lib/logger"
 import { z } from "zod"
@@ -42,12 +43,14 @@ const UpdateContractSchema = z.object({
   renewalDate: isoDate.nullable().optional(),
   noticePeriodDays: z.number().int().min(0).nullable().optional(),
   autoRenewal: z.boolean().optional(),
+  renewalReminderEnabled: z.boolean().optional(),
   notes: z.string().max(10000).nullable().optional(),
   folderId: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional(),
 })
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -70,6 +73,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         renewalDate: true,
         noticePeriodDays: true,
         autoRenewal: true,
+        renewalReminderEnabled: true,
         notes: true,
         organizationId: true,
         folderId: true,
@@ -118,7 +122,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   })
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -142,11 +147,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    let existing: { id: string; title: string; status: string; endDate: Date | null; renewalDate: Date | null; noticePeriodDays: number | null } | null
+    let existing: { id: string; title: string; status: string; endDate: Date | null; renewalDate: Date | null; noticePeriodDays: number | null; renewalReminderEnabled: boolean } | null
     try {
       existing = await prisma.contract.findUnique({
         where: { id: params.id },
-        select: { id: true, title: true, status: true, endDate: true, renewalDate: true, noticePeriodDays: true },
+        select: { id: true, title: true, status: true, endDate: true, renewalDate: true, noticePeriodDays: true, renewalReminderEnabled: true },
       })
     } catch (err) {
       log.error({ err, contractId: params.id }, "[PATCH /contracts/:id] findUnique error")
@@ -218,6 +223,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           startDate: startDate === undefined ? undefined : startDate ? new Date(startDate) : null,
           endDate: endDate === undefined ? undefined : endDate ? new Date(endDate) : null,
           renewalDate: renewalDate === undefined ? undefined : renewalDate ? new Date(renewalDate) : null,
+          renewalReminderEnabled: parsed.data.renewalReminderEnabled,
           tags: tagIds !== undefined ? { set: tagIds.map((id) => ({ id })) } : undefined,
         },
         include: {
@@ -257,7 +263,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const dateFieldsTouched =
       endDate !== undefined ||
       renewalDate !== undefined ||
-      parsed.data.noticePeriodDays !== undefined
+      parsed.data.noticePeriodDays !== undefined ||
+      parsed.data.renewalReminderEnabled !== undefined
 
     if (dateFieldsTouched) {
       // Merge patched values over existing values
@@ -271,6 +278,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         parsed.data.noticePeriodDays !== undefined
           ? parsed.data.noticePeriodDays
           : existing.noticePeriodDays ?? null
+      const resolvedRenewalReminderEnabled =
+        parsed.data.renewalReminderEnabled !== undefined
+          ? parsed.data.renewalReminderEnabled
+          : existing.renewalReminderEnabled
 
       fireAndLog(
         generateAlertsForContract(
@@ -278,16 +289,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           resolvedEndDate,
           resolvedRenewalDate,
           resolvedNoticePeriodDays,
-        ),
+          resolvedRenewalReminderEnabled,
+        ).then(() => alertsCheckQueue.add("after-contract-change", { triggeredAt: new Date().toISOString() })),
         "generateAlertsForContract:contractUpdated",
       )
     }
 
     return Response.json(updated)
-  })
+  });
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const roleError = requireRole(ctx.role, "legal")

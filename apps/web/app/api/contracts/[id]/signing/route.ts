@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db/client"
 // ─── GET /api/contracts/[id]/signing ─────────────────────────────────────────
 // Returns the signers list + overall signing status for a contract.
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 

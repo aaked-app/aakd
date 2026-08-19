@@ -61,6 +61,7 @@ export interface Contract {
   renewalDate?: string | null
   noticePeriodDays?: number | null
   autoRenewal?: boolean
+  renewalReminderEnabled?: boolean
   notes?: string | null
   organizationId: string
   folderId?: string | null

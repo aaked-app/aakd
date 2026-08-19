@@ -54,11 +54,12 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <>
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-zinc-900">{t("invalidLinkTitle")}</h1>
-          <p className="text-sm text-zinc-500">{t("invalidLinkSubtitle")}</p>
+        <div className="mb-7">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("invalidLinkTitle")}</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">{t("invalidLinkSubtitle")}</p>
         </div>
-        <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm text-indigo-600 hover:underline">
+        <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-medium text-emerald-800 hover:underline">
           {t("requestNewLink")}
         </Link>
       </>
@@ -67,9 +68,10 @@ function ResetPasswordForm() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{t("resetPasswordTitle")}</h1>
-        <p className="text-sm text-zinc-500">{t("resetPasswordSubtitle")}</p>
+      <div className="mb-7">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">{t("accessEyebrow")}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-zinc-950">{t("resetPasswordTitle")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">{t("resetPasswordSubtitle")}</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">

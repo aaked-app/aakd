@@ -132,10 +132,8 @@ async function callExplainLLM(
   return null
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
+export async function POST(req: NextRequest, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
