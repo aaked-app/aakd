@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { ArrowUpRight, Check, CheckCircle2, ChevronDown, ExternalLink, FileText } from "lucide-react"
 
 import { AakdLogo } from "@/components/aakd-logo"
+import { capturePublicMarketingEvent } from "@/components/providers/posthog-provider"
 
 const REPOSITORY_URL = "https://github.com/aaked-app/aakd"
 const SELF_HOSTING_URL = `${REPOSITORY_URL}/blob/main/docs/self-hosting.md`
@@ -69,7 +70,7 @@ function LandingHeader() {
         <div className="ms-auto flex items-center gap-2">
           <LocaleSwitcher />
           <Link href="/login" className="hidden min-h-11 items-center px-3 text-sm font-semibold text-[#2c332f] hover:text-[#245442] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] md:inline-flex">{t("nav.signIn")}</Link>
-          <Link href="/register" className="hidden min-h-11 items-center border border-[#17211c] bg-[#17211c] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#245442] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] focus-visible:ring-offset-2 sm:inline-flex motion-reduce:transition-none">{t("nav.createWorkspace")}</Link>
+          <Link href="/register" onClick={() => capturePublicMarketingEvent("registration_started", "header_create_workspace", "registration")} className="hidden min-h-11 items-center border border-[#17211c] bg-[#17211c] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#245442] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] focus-visible:ring-offset-2 sm:inline-flex motion-reduce:transition-none">{t("nav.createWorkspace")}</Link>
           <details className="group relative lg:hidden">
             <summary className="flex size-11 cursor-pointer list-none items-center justify-center border border-[#c9c1b3] text-[#2c332f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442]">
               <span className="sr-only">{t("nav.menu")}</span>
@@ -80,7 +81,7 @@ function LandingHeader() {
               <div className="mt-1 space-y-2 border-t border-[#d8d0c3] px-2 pt-3 md:hidden">
                 <LocaleSwitcher mobile />
                 <Link href="/login" className="flex min-h-11 items-center text-sm font-semibold text-[#2c332f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442]">{t("nav.signIn")}</Link>
-                <Link href="/register" className="flex min-h-11 items-center justify-center bg-[#17211c] px-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] sm:hidden">{t("nav.createWorkspace")}</Link>
+                <Link href="/register" onClick={() => capturePublicMarketingEvent("registration_started", "menu_create_workspace", "registration")} className="flex min-h-11 items-center justify-center bg-[#17211c] px-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] sm:hidden">{t("nav.createWorkspace")}</Link>
               </div>
             </nav>
           </details>
@@ -125,7 +126,7 @@ function Hero() {
       <div className="mx-auto max-w-[88rem] px-4 py-14 sm:px-6 sm:py-20 lg:px-10 lg:py-24">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-6">
           <div className="lg:col-span-8"><Eyebrow>{t("heroNew.eyebrow")}</Eyebrow><h1 className="mt-5 max-w-5xl text-balance font-[var(--font-sora)] text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.055em] text-[#17211c] sm:text-6xl lg:text-7xl xl:text-[5.25rem]">{t("heroNew.title")}</h1></div>
-          <div className="flex flex-col justify-end lg:col-span-4 lg:pb-1"><p className="max-w-xl text-base leading-7 text-[#515854] sm:text-lg sm:leading-8">{t("heroNew.subtitle")}</p><div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row"><Link href="/register" className="inline-flex min-h-11 items-center justify-center gap-2 bg-[#17211c] px-5 text-sm font-bold text-white transition-colors hover:bg-[#245442] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f3efe6] motion-reduce:transition-none">{t("heroNew.primaryCta")}<ArrowUpRight className="size-4" aria-hidden="true" /></Link><Link href={REPOSITORY_URL} className="inline-flex min-h-11 items-center justify-center gap-2 border border-[#8f877a] px-5 text-sm font-bold text-[#17211c] transition-colors hover:bg-[#e8e2d7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] motion-reduce:transition-none"><ExternalLink className="size-4" aria-hidden="true" />{t("heroNew.secondaryCta")}</Link></div><p className="mt-5 text-sm leading-6 text-[#686d69]">{t("heroNew.qualifier")}</p></div>
+          <div className="flex flex-col justify-end lg:col-span-4 lg:pb-1"><p className="max-w-xl text-base leading-7 text-[#515854] sm:text-lg sm:leading-8">{t("heroNew.subtitle")}</p><div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row"><Link href="/register" onClick={() => capturePublicMarketingEvent("registration_started", "hero_create_workspace", "registration")} className="inline-flex min-h-11 items-center justify-center gap-2 bg-[#17211c] px-5 text-sm font-bold text-white transition-colors hover:bg-[#245442] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f3efe6] motion-reduce:transition-none">{t("heroNew.primaryCta")}<ArrowUpRight className="size-4" aria-hidden="true" /></Link><Link href={REPOSITORY_URL} onClick={() => capturePublicMarketingEvent("github_outbound_clicked", "hero_view_github", "github")} className="inline-flex min-h-11 items-center justify-center gap-2 border border-[#8f877a] px-5 text-sm font-bold text-[#17211c] transition-colors hover:bg-[#e8e2d7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#245442] motion-reduce:transition-none"><ExternalLink className="size-4" aria-hidden="true" />{t("heroNew.secondaryCta")}</Link></div><p className="mt-5 text-sm leading-6 text-[#686d69]">{t("heroNew.qualifier")}</p></div>
         </div>
         <div className="mt-14 lg:mt-20"><HeroProof /></div>
       </div>

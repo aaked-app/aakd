@@ -6,19 +6,56 @@ import { PostHogProvider as PHProvider } from "posthog-js/react"
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 
+type PublicMarketingEvent =
+  | "marketing_cta_clicked"
+  | "github_outbound_clicked"
+  | "self_hosting_guide_opened"
+  | "registration_started"
+
+const PUBLIC_MARKETING_EVENTS = new Set<PublicMarketingEvent>([
+  "marketing_cta_clicked",
+  "github_outbound_clicked",
+  "self_hosting_guide_opened",
+  "registration_started",
+])
+
+function safeValue(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9._-]{0,79}$/i.test(value) ? value : undefined
+}
+
 export function publicPageviewUrl(origin: string, pathname: string, consent: string | null): string | null {
   if (consent !== "accepted" || pathname !== "/") return null
   return `${origin}/`
 }
 
-export function sanitizePublicPageview(event: CaptureResult | null): CaptureResult | null {
-  if (!event || event.event !== "$pageview") return null
+export function sanitizePublicMarketingEvent(event: CaptureResult | null): CaptureResult | null {
+  if (!event) return null
 
   const { distinct_id, $device_id, $insert_id, $lib, $lib_version, $time } = event.properties
 
+  if (event.event === "$pageview") {
+    return {
+      uuid: event.uuid,
+      event: "$pageview",
+      properties: {
+        distinct_id,
+        $device_id,
+        $insert_id,
+        $lib,
+        $lib_version,
+        $time,
+        $current_url: "https://aakd.app/",
+        $host: "aakd.app",
+        $pathname: "/",
+      },
+    }
+  }
+
+  if (!PUBLIC_MARKETING_EVENTS.has(event.event as PublicMarketingEvent)) return null
+
   return {
     uuid: event.uuid,
-    event: "$pageview",
+    event: event.event,
     properties: {
       distinct_id,
       $device_id,
@@ -26,11 +63,45 @@ export function sanitizePublicPageview(event: CaptureResult | null): CaptureResu
       $lib,
       $lib_version,
       $time,
-      $current_url: "https://aakd.app/",
-      $host: "aakd.app",
-      $pathname: "/",
+      page_path: "/",
+      cta_name: safeValue(event.properties.cta_name),
+      destination_class: safeValue(event.properties.destination_class),
+      referrer_domain: safeValue(event.properties.referrer_domain),
+      utm_campaign: safeValue(event.properties.utm_campaign),
     },
   }
+}
+
+// Backwards-compatible export for existing callers and tests.
+export const sanitizePublicPageview = sanitizePublicMarketingEvent
+
+export function capturePublicMarketingEvent(
+  event: PublicMarketingEvent,
+  ctaName: string,
+  destinationClass: string,
+) {
+  if (
+    !process.env.NEXT_PUBLIC_POSTHOG_KEY ||
+    localStorage.getItem("cookie_consent") !== "accepted" ||
+    window.location.pathname !== "/"
+  ) {
+    return
+  }
+
+  let referrerDomain: string | undefined
+  try {
+    referrerDomain = document.referrer ? new URL(document.referrer).hostname : undefined
+  } catch {
+    referrerDomain = undefined
+  }
+
+  const campaign = new URLSearchParams(window.location.search).get("utm_campaign") ?? undefined
+  posthog.capture(event, {
+    cta_name: ctaName,
+    destination_class: destinationClass,
+    referrer_domain: referrerDomain,
+    utm_campaign: campaign,
+  })
 }
 
 function capturePublicPageview(pathname: string) {
@@ -70,7 +141,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       save_campaign_params: false,
       advanced_disable_flags: true,
       opt_out_capturing_by_default: true,
-      before_send: sanitizePublicPageview,
+      before_send: sanitizePublicMarketingEvent,
       loaded: (ph) => ph.opt_out_capturing(),
     })
   }, [])

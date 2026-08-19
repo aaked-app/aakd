@@ -8,8 +8,11 @@ and processor choices.
 ## Public website analytics
 
 The public Aakd landing page asks before enabling product analytics. If you
-accept, the website enables a single pseudonymous page-view event used for
-aggregate reporting on that public page. If you decline, or have not made a
+accept, the website enables a pseudonymous homepage page-view event and a
+small set of aggregate CTA events: opening the self-hosting guide, opening the
+GitHub repository, and starting registration. Those events contain only the
+homepage path, a fixed CTA name/destination class, a referrer domain, and a
+valid UTM campaign value when present. If you decline, or have not made a
 choice, client analytics remain disabled. Browser analytics are disabled on
 authentication and application routes, even if the public-site choice was
 previously accepted.

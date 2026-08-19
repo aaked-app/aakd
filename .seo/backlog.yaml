@@ -1,0 +1,53 @@
+# Aakd SEO/GEO queue. Dates are review gates, not ranking promises.
+program: aakd-seo-geo
+canonical_domain: https://aakd.app
+last_reviewed: 2026-08-20
+items:
+  - id: deploy-crawl-foundation
+    priority: P0
+    status: blocked_external
+    owner: founder-maintainer
+    evidence: >-
+      Live robots.txt and sitemap.xml return 307 to login; homepage lacks the
+      canonical and JSON-LD present in public/main. www TLS also fails.
+    done_when: >-
+      Production serves the verified public revision; live crawl matrix passes;
+      www performs one permanent redirect to the apex.
+  - id: verify-search-properties-and-submit-sitemap
+    priority: P0
+    status: blocked_external
+    owner: founder-maintainer
+    depends_on: deploy-crawl-foundation
+    done_when: >-
+      Google Search Console and Bing Webmaster properties are verified and
+      accept https://aakd.app/sitemap.xml after a passing matrix.
+  - id: github-entity-settings
+    priority: P1
+    status: pending_external
+    owner: founder-maintainer
+    done_when: >-
+      GitHub homepage is the canonical domain; factual topics and an approved
+      product-specific social preview are configured.
+  - id: publish-open-source-clm-proof-asset
+    priority: P1
+    status: pending
+    owner: maintainer-with-independent-review
+    evidence: docs/seo-geo-program.md#workstream-3-original-evidence-before-routine-content
+    done_when: >-
+      A reproducible clean-install-to-reviewed-action benchmark has author,
+      version, method, limitations, primary sources, and independent review.
+  - id: assess-first-intent-page-from-search-console
+    priority: P1
+    status: pending
+    owner: founder-maintainer
+    depends_on: verify-search-properties-and-submit-sitemap
+    done_when: >-
+      Search Console has sufficient query/impression evidence or the original
+      proof asset identifies a non-overlapping audience question. Any page
+      must include original evidence and avoid doorway-page overlap.
+  - id: weekly-scorecard-review
+    priority: P1
+    status: recurring_external
+    owner: founder-maintainer
+    cadence: weekly
+    source: /Users/wassimbensalem/brain/projects/aakd/seo-geo-scorecard.md

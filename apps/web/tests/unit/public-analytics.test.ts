@@ -45,4 +45,42 @@ describe("public analytics pageviews", () => {
     })
     expect(sanitizePublicPageview({ uuid: "event-id", event: "$autocapture", properties: {} })).toBeNull()
   })
+
+  it("allows only named public CTA events and removes unsafe dimensions", () => {
+    expect(sanitizePublicPageview({
+      uuid: "event-id",
+      event: "github_outbound_clicked",
+      properties: {
+        distinct_id: "anonymous-id",
+        cta_name: "hero_view_github",
+        destination_class: "github",
+        referrer_domain: "www.google.com",
+        utm_campaign: "summer_launch",
+        contract_text: "must never leave the browser",
+        $current_url: "https://aakd.app/?token=secret",
+      },
+    })).toEqual({
+      uuid: "event-id",
+      event: "github_outbound_clicked",
+      properties: {
+        distinct_id: "anonymous-id",
+        $device_id: undefined,
+        $insert_id: undefined,
+        $lib: undefined,
+        $lib_version: undefined,
+        $time: undefined,
+        page_path: "/",
+        cta_name: "hero_view_github",
+        destination_class: "github",
+        referrer_domain: "www.google.com",
+        utm_campaign: "summer_launch",
+      },
+    })
+
+    expect(sanitizePublicPageview({
+      uuid: "event-id",
+      event: "unapproved_event",
+      properties: {},
+    })).toBeNull()
+  })
 })
