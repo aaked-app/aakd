@@ -8,7 +8,7 @@ All notable changes to Aakd are documented in this file.
 
 ### Added
 
-- **Contract operations** — unified contract workspace flows for cited review, obligations, renewals, actions, approvals, evidence, and delivery.
+- **Contract operations foundation** — source-cited action-ledger APIs and MCP, plus a feature-flagged workspace for obligations, renewals, actions, approvals, evidence, and delivery. The action UI remains disabled by default during customer validation.
 - **Reviewable AI extraction** — source-verified quotes, document-derived pages, confidence, provenance, and human acceptance or rejection before canonical contract data changes.
 - **Renewal and obligation controls** — duplicate-safe projections, reminder controls, exception states, durable activity, and owner/due-date visibility.
 
