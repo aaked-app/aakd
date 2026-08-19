@@ -199,6 +199,9 @@ For setup questions, implementation discussions, and contributor coordination,
 join the [Aakd Discord community](https://discord.gg/23hntCVty). Please avoid
 sharing real contract data or other confidential information in public channels.
 
+To share evaluation feedback without including confidential contract data,
+[open a workflow-feedback issue](../../issues/new?template=workflow_feedback.md).
+
 For security vulnerabilities, use the private reporting process in
 [`SECURITY.md`](SECURITY.md) rather than publishing exploit details in an issue.
 
