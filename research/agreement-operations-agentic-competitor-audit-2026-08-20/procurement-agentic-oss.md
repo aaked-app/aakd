@@ -16,20 +16,28 @@ Every material entry uses one of four labels:
 
 Evidence priority is: official product, documentation, security, pricing, release, repository, filing, or customer sources for present capabilities; independent filings/reporting for funding and scale; official GitHub repository metadata and contents for open-source activity. A funding announcement, customer logo, integration-directory entry, AI label, empty/demo repository, or undated landing page does not by itself prove a live production deployment.
 
-### Deterministic maturity taxonomy
+### Deterministic dual-axis taxonomy
 
-| Label | Required evidence |
-|---|---|
-| **OPERATING-SCALED** | Live product + current activity + independently evidenced large installed/financial scale, or at least three substantive named customer case studies across independent organizations. |
-| **OPERATING-GROWTH** | Live product + current activity + at least two substantive named deployment/customer cases + credible growth or funding evidence. |
-| **OPERATING-EARLY** | Live usable product + at least one credible deployment/customer proof + current activity. |
-| **PRODUCT/WAITLIST** | Product, beta, or access path exists, but credible operating-customer proof was not verified. |
-| **LANDING-PAGE-ONLY** | Marketing claims exist without a verified usable product or customer proof. |
-| **ACTIVE-OSS** | Substantive installable public repository + a release or commit since 2025-08-20. |
-| **INACTIVE/AMBIGUOUS** | Current operating/product/activity evidence cannot be verified. |
-| **ACQUIRED/SUNSET** | Acquired or discontinued and no longer independent, or the product has been sunset. |
+The originally requested compound labels are retained as a crosswalk, but product reality and market maturity are audited independently so a vendor-hosted case cannot be mistaken for company scale.
 
-**Rule application:** a dossier receives exactly one label. The label describes maturity/status, not product quality or strategic fit. Borderline cases are identified explicitly. Status can only be upgraded when every conjunctive requirement is evidenced.
+| Axis | Label | Required evidence |
+|---|---|---|
+| Product reality | **OPERATING-PROVEN** | Current usable product plus at least one substantive named deployment/customer case. |
+| Product reality | **OPERATING-CLAIMED** | Current product/access claim, but no substantive named deployment was verified. |
+| Product reality | **PRODUCT-WAITLIST** | Product/beta or gated access path, with neither verified operating use nor sufficient evidence of general availability. |
+| Product reality | **LANDING-PAGE** | Marketing claims without verified usable product or customer proof. |
+| Product reality | **ACTIVE-OSS** | Substantive installable public repository plus a release or commit since 2025-08-20. |
+| Product reality | **INACTIVE** | Current operating/product/activity evidence cannot be verified. |
+| Product reality | **SUNSET** | Product discontinued. |
+| Market maturity | **SCALED** | Public/audited financial evidence, independently corroborated installed base/customer count, public-company segment evidence, or an equivalent hard scale signal. |
+| Market maturity | **GROWTH** | At least two substantive named deployments plus credible funding/growth evidence, without a hard SCALED signal. |
+| Market maturity | **EARLY** | At least one substantive named deployment and current activity, without the GROWTH evidence bundle. |
+| Market maturity | **UNKNOWN** | Public evidence does not support a maturity conclusion. |
+| Corporate disposition | **INDEPENDENT** | Operates as an independent company. |
+| Corporate disposition | **ACQUIRED-INTEGRATED** | Acquired and continuing as a product or integrated offering. |
+| Corporate disposition | **ACQUIRED-SUNSET** | Acquired and the independent product is discontinued. |
+
+**Requested-label crosswalk:** OPERATING-SCALED = OPERATING-PROVEN + SCALED; OPERATING-GROWTH = OPERATING-PROVEN + GROWTH; OPERATING-EARLY = OPERATING-PROVEN + EARLY; PRODUCT/WAITLIST = PRODUCT-WAITLIST; LANDING-PAGE-ONLY = LANDING-PAGE; ACTIVE-OSS = ACTIVE-OSS; INACTIVE/AMBIGUOUS = INACTIVE or unresolved OPERATING-CLAIMED + UNKNOWN; ACQUIRED/SUNSET is represented by the separate corporate-disposition axis. A dossier receives exactly one value on each applicable axis. Borderline cases are identified explicitly; no axis is upgraded unless every conjunctive requirement is evidenced.
 
 ## 2. Comparison model
 
@@ -51,18 +59,18 @@ Each named dossier records: directness; maturity and qualifying evidence; operat
 
 ## 3. Mandatory company register
 
-| Company | Track | Status pending evidence |
-|---|---|---|
-| Gatekeeper | Vendor/contract lifecycle and renewals | Not yet classified |
-| Vertice | Procurement/SaaS spend and renewals | Not yet classified |
-| Tropic | Procurement/SaaS spend | Not yet classified |
-| Spendflo | SaaS procurement/management | Not yet classified |
-| CloudEagle | SaaS management/procurement | Not yet classified |
-| Levelpath | Procurement orchestration | Not yet classified |
-| Zip | Procurement orchestration | Not yet classified |
-| Coupa | Source-to-pay/spend management | Not yet classified |
-| SAP Ariba | Source-to-pay/procurement | Not yet classified |
-| Pactum | Autonomous commercial negotiation | Not yet classified |
+| Company | Track | Product reality | Market maturity | Corporate disposition |
+|---|---|---|---|---|
+| Gatekeeper | Vendor/contract lifecycle and renewals | Not yet classified | Not yet classified | Not yet classified |
+| Vertice | Procurement/SaaS spend and renewals | Not yet classified | Not yet classified | Not yet classified |
+| Tropic | Procurement/SaaS spend | Not yet classified | Not yet classified | Not yet classified |
+| Spendflo | SaaS procurement/management | Not yet classified | Not yet classified | Not yet classified |
+| CloudEagle | SaaS management/procurement | Not yet classified | Not yet classified | Not yet classified |
+| Levelpath | Procurement orchestration | Not yet classified | Not yet classified | Not yet classified |
+| Zip | Procurement orchestration | Not yet classified | Not yet classified | Not yet classified |
+| Coupa | Source-to-pay/spend management | Not yet classified | Not yet classified | Not yet classified |
+| SAP Ariba | Source-to-pay/procurement | Not yet classified | Not yet classified | Not yet classified |
+| Pactum | Autonomous commercial negotiation | Not yet classified | Not yet classified | Not yet classified |
 
 ## 4. Candidate admission and rejection rules
 
