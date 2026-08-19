@@ -2,6 +2,17 @@
 # Handles automatic SSL (Let's Encrypt), HTTP→HTTPS redirect, and routing.
 # Replace {$DOMAIN} — Caddy reads this from the DOMAIN env var at runtime.
 
+# ── Canonical host ───────────────────────────────────────────────────────────
+# DNS and TLS for www.{$DOMAIN} must exist before this route can serve traffic.
+# Keep both HTTP and HTTPS variants to one redirect directly to the apex host.
+http://www.{$DOMAIN} {
+  redir https://{$DOMAIN}{uri} permanent
+}
+
+www.{$DOMAIN} {
+  redir https://{$DOMAIN}{uri} permanent
+}
+
 # ── Main app ─────────────────────────────────────────────────────────────────
 {$DOMAIN} {
   reverse_proxy app:3000
