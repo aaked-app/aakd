@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stage 1 — Frame
+**Status:** Stage 2 — Observe PASS; Stage 3 — Explain in progress
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -319,3 +319,215 @@ These are **candidate opportunity families**, not selected theses. Stage 3 must 
 | Material claims labeled | **PASS** | Sections use only the five approved labels; tables headed as rules/definitions are governance artifacts rather than empirical claims |
 
 **Stage 1 result: PASS (15/15 rules).** Stage 2 may begin. This gate authorizes evidence synthesis only; it does not strengthen any opportunity thesis.
+
+---
+
+## 13. Stage 2 — Observe
+
+### 13.1 Evidence-stream and dependency ledger
+
+The rows below are evidence streams, not citation counts. Repetition inside a stream does not increase independence.
+
+| Stream ID | Evidence stream | What it can establish | Main dependencies and bias | Weight in this analysis |
+|---|---|---|---|---|
+| `E1` | Law, regulation, accounting standards, and government contract-management guidance in `CDR` | **FACT:** formation, formalities, required terms, control duties, and recognized lifecycle practices within their jurisdiction/scope | Public-sector or regulated context may not transfer to private mid-market frequency or willingness to pay | High for domain constraints; none for market prevalence |
+| `E2` | First-party operating records: GitLab handbook, SEC filings, and the Sabre–DXC agreement in `CDR` | **FACT:** named organizations document cross-functional controls, agreement families, and financial/operational contract effects | Enterprise and public-company selection; published policy may differ from actual compliance | High for workflow existence; low for target-segment incidence |
+| `E3` | Vendor-published company cases in `CDR` | **FACT:** vendors attribute specified workflows and outcomes to named customers | Seller selection, successful-customer bias, unaudited outcome estimates; repeated vendor pages remain one lineage each | Medium for workflow existence; low for effect size and WTP |
+| `E4` | Official vendor/software product, pricing, help, legal, and trust pages in `CSL` | **FACT:** the vendor publishes a capability, price, packaging, or implementation statement as of 2026-08-19 | Does not prove use, performance, implementation success, safety, or buyer demand | High for availability/status-quo boundaries; none for efficacy |
+| `E5` | WorldCC/ACC practitioner frameworks and reports in `CDR`/`CSL` | **FACT:** the bodies publish the stated framework or aggregate finding | Practitioner/industry participation, varying samples, limited transfer to a specified unit | Medium for process framing; low for opportunity ranking |
+| `E6` | `CFA-L` firsthand operator observations | **FACT:** a public author reported the coded episode, role clue, workaround, and limitation | Pseudonymous, affiliation mostly unknown, shared parent threads, self-selection, size/geography mostly unknown | Medium for existence and language; none for prevalence |
+| `E7` | `CFA-L` firsthand implementer observations | **FACT:** a public author reported implementing, migrating, configuring, or administering the stated system | Implementer selection, configuration/version ambiguity, pseudonymity, outcome not independently audited | Medium for implementation failure/success modes; none for rates |
+| `E8` | `CFA-L` consultant/vendor/secondhand/request observations | **FACT:** the author expressed the recorded advice, claim, or request | Commercial incentives, client-selection effects, no direct episode in some rows | Lead generation and counterexample only |
+| `E9` | `CFA-S` query/access record | **FACT:** 40 dated attempts across eight platforms produced the recorded access/yield pattern | Search-provider indexing, rate limits, language, query design, and platform access determine yield | High for auditability; none for absence of demand |
+| `E10` | `RDP` methodological sources and synthesis | **FACT:** the cited methods impose the stated evidence disciplines and limitations | Product-agnostic method; no contract-market thesis is validated by it | Governs reasoning, not thesis likelihood |
+
+**FACT.** The most apparently numerous stream, community evidence, resolves to 52 usable observations from only 17 parent URLs, with 50 observations from Reddit and 49 observations whose affiliation is unknown [CFA, Executive position and §4](contracts-community-feedback-audit-2026-08-19.md#4-current-collection-and-count-reconciliation).
+
+**INFERENCE.** A count of community rows would overweight a small number of discussion contexts and underweight silent organizations, failed searches, and people satisfied with their current process.
+
+**VALUE JUDGMENT.** This analysis therefore uses community evidence to establish that a workflow or counterexample can occur and to design questions; it does not use row/theme counts to score demand.
+
+### 13.2 Reference classes
+
+| Reference class | Direct observations | What appears stable enough to carry forward | What cannot be transferred |
+|---|---|---|---|
+| Low-volume small teams with one accountable owner | **FACT:** a six-person/15-customer scenario described scattered files but also reports that Drive or a structured folder plus one-row-per-agreement register can be enough (`CFA-L` R39–R42; [thread](https://www.reddit.com/r/projectmanagement/comments/1sb8nx1/how_your_contract_lifecycle_management_works/)). | **INFERENCE:** a dedicated system faces a high proportionality bar when one person can answer status, final version, and next deadline. | **OPEN GAP:** no US/UK size-verified cohort, failure denominator, or paid consequence. |
+| Procurement renewal registers | **FACT:** operators describe Excel + Power Automate, Planner, Airtable, internal systems, monthly review, and a dedicated reminder product; both late/expired-contract problems and working routines appear (`CFA-L` R04–R17; [2026 thread](https://www.reddit.com/r/procurement/comments/1qknvxh/any_practical_contract_management_training/); [2024 thread](https://www.reddit.com/r/procurement/comments/1egnzz4/tracking_expiring_contracts_whats_the_best_way/)). | **INFERENCE:** ownership, lead time, cadence, and decision context are as material as the reminder mechanism. | **OPEN GAP:** recurrence, avoided spend, buyer/budget, company size, and geography. |
+| Scaling cross-functional contracting | **FACT:** vendor-published medium-company cases describe CRM/HRIS-to-contract-to-finance or storage continuity; a 600-person affiliation-unknown report describes cross-functional adoption, while other reports describe systems that business units would not change [CDR, §5.2](contracts-domain-research/researcher-memo.md#52-medium-companies-four-documented-cases); `CFA-L` R22–R24. | **INFERENCE:** value depends on fitting an existing operating motion and on which system owns downstream work. | **OPEN GAP:** independent 51–500 US/UK replication and measured outcomes. |
+| Enterprise CLM implementation/migration | **FACT:** firsthand accounts report a three-year unusable subscription, 10,000-contract adviser dependence, 7,500-agreement migration failure, and a successful five-year/50-workflow self-implementation; other accounts emphasize process mapping and implementation ownership (`CFA-L` R01–R03, R23–R28, R44, R48, R50–R52). | **INFERENCE:** implementation is an operating-system and change-management problem, not only a license/install event. | **OPEN GAP:** neutral success/failure rate, vendor/version controls, causal attribution, and repeatable delivery economics. |
+| Enterprise contract-to-transaction control | **FACT:** first-party records connect approved/executed contracts to booking, license fulfillment, procurement, payment, service levels, change orders, revenue, and exit [CDR, GitLab, Sabre–DXC and Cardinal examples in §5](contracts-domain-research/researcher-memo.md#5-named-company-examples-what-is-actually-documented). | **INFERENCE:** contracts can be operational control inputs, not only documents or reminders. | **OPEN GAP:** whether a smaller segment has enough frequency/consequence and integration capacity for the same pattern. |
+| Human-reviewed AI contract work | **FACT:** community episodes include nondeterministic classifications, failed playbook-trained deployments, poor broad FAQ/review outcomes, and useful constrained extraction, scoring, NDA triage, and first-pass redlining with retained human judgment (`CFA-L` R30–R38, R47, R49, R53). | **INFERENCE:** task constraint, guidance, corpus fit, provenance, and review burden condition usefulness. | **OPEN GAP:** representative benchmark, acceptable error, reviewer time, liability allocation, budget, and repeat use. |
+
+**INFERENCE.** The reference classes show that complexity, ownership distribution, and integration surface are more informative than headcount alone, while still leaving employee band and geography necessary for a claim about a reachable segment.
+
+**OPEN GAP.** No reference class is sufficiently comparable to supply a numerical base rate for startup success, adoption, WTP, or workflow incidence.
+
+### 13.3 Observable contract-workflow system
+
+**FACT.** Across the domain sources, a recurring operating sequence is: trigger/request → obtain governing documents/data → draft/review/approve → execute or authorize → transfer state to an operating owner/system → perform/monitor/change → retain evidence → renew, terminate, or exit [CDR, §§3 and 8](contracts-domain-research/researcher-memo.md#3-end-to-end-lifecycle-exact-work-actors-artifacts-systems-and-controls).
+
+**INFERENCE.** Five different state types can be lost at handoffs:
+
+1. governing truth — which document, version, or term controls;
+2. authority — who may approve, sign, change, or waive;
+3. operational state — what event occurred and what must happen next;
+4. accountability — who owns action, review, escalation, and closure; and
+5. evidence — what proves performance, notice, acceptance, payment, or exit.
+
+**INFERENCE.** The system contains reinforcing and balancing effects:
+
+- More custom terms can increase review and downstream interpretation work, which can lengthen queues and encourage off-process work.
+- Adding fields and approvals can improve visibility but also raise submission/admin burden, leading users back to email or local tools.
+- Poor data can reduce trust, causing less use and fewer corrections, which further degrades data.
+- A successful integration can embed contract state in the operating motion; a failed integration adds another reconciliation surface.
+- More alerts can increase coverage until noise lowers attention and ownership.
+
+**OPEN GAP.** These loops are mechanism hypotheses inferred from documented failure modes; their direction and strength have not been measured in a defined target unit.
+
+### 13.4 Observation synthesis by candidate family
+
+#### A1 — Negotiation continuity
+
+**FACT.** Two legal operators report that intended legal users were excluded from selection/configuration and negotiation tests were unusable; another reports moving to a Word/Teams-integrated workflow with simpler redlines/status, and a consultant describes a workable split in which Word remains the negotiation surface while a contract system supports reporting (`CFA-L` R18–R21; [thread](https://www.reddit.com/r/legaltech/comments/1k8ffod/any_good_experience_with_clms/)).
+
+**FACT.** Official software documentation shows Word supports tracked changes, reviewer attribution, accept/reject, locking, coauthoring, and version history when paired with Microsoft storage [CSL, “Word or Google Docs + email”](contracts-solutions-landscape-2026-08-19.md#1-word-or-google-docs--email).
+
+**INFERENCE.** Counterparty compatibility and lawyer habit make the editor an incumbent interface, not a temporary defect to remove.
+
+**OPEN GAP.** The corpus lacks a size/geography-defined sample, episode frequency, cycle-time consequence, economic buyer, and evidence that changing this workflow commands new budget rather than better configuration.
+
+#### A2 — Renewal and notice decision control
+
+**FACT.** Operators report expired or renewed supplier contracts under outdated terms, varying 30–120-day lead needs, and working routines built with Excel, Power Automate, Airtable, Planner, monthly review, or a project board (`CFA-L` R04–R17, R54).
+
+**FACT.** The domain report distinguishes a contextual renewal decision and compliant notice evidence from a generic extracted date [CDR, §§7–8](contracts-domain-research/researcher-memo.md#8-what-changes-by-contract-archetype-and-event).
+
+**INFERENCE.** The differentiating job, if one exists, is not “send a reminder”; it is assemble current terms, usage/performance/options, owner, authority, notice mechanics, and proof early enough to decide.
+
+**OPEN GAP.** No observation quantifies avoidable renewal spend, service loss, negotiating leverage, recurrence, or WTP in a complete target unit.
+
+#### A3 — Executed-term handoff
+
+**FACT.** The domain record documents executed contracts gating revenue booking, fulfillment, vendor work, onboarding, payment, payroll, and other role-specific operations; medium-company vendor cases describe finance and HR handoffs after signature [CDR, §§5–6](contracts-domain-research/researcher-memo.md#6-how-contracts-affect-the-business-process).
+
+**FACT.** Only four community observations directly describe broader obligation handoff, and none supplies a measured financial consequence [CFA, §5.3](contracts-community-feedback-audit-2026-08-19.md#53-pre-signature-versus-post-signature-pain--medium-confidence).
+
+**INFERENCE.** Post-signature work exists, but the corpus does not establish that a generic post-signature queue is more urgent or fundable than a specific renewal, revenue, procurement, service, privacy, or project event.
+
+**OPEN GAP.** The receiving role, event frequency, completion evidence, and budget owner must be discovered per archetype.
+
+#### A4 — Governing agreement-family truth
+
+**FACT.** An SEC-filed outsourcing agreement defines a governed family of master terms, service agreements, schedules, change orders, security/privacy requirements, governance, acceptance, and exit machinery [CDR, §1.3](contracts-domain-research/researcher-memo.md#13-the-agreement-family-model).
+
+**FACT.** A public-tender operator reports 300–1,200-page, mostly Dutch-language multi-file agreements whose appendices were treated as separate contracts by a tested tool; the cause of failure cannot be isolated (`CFA-L` R53; [thread](https://www.reddit.com/r/ContractManagement/comments/1okba00/what_do_you_use_for_contract_management/)).
+
+**INFERENCE.** Agreement-family ambiguity is real in complex cases, but high complexity may also require legal judgment and implementation effort that makes a narrow startup wedge difficult.
+
+**OPEN GAP.** The corpus provides no target-segment frequency, time/cost consequence, buyer behavior, or evidence that a standalone answer is preferred to counsel or an enterprise suite.
+
+#### A5 — SOW/change/acceptance evidence
+
+**FACT.** Public-company filings and government standards document that change orders, acceptance, performance evidence, claims, billing, revenue recognition, cost estimates, and audit trails interact; informal or unapproved changes can affect recoverability and financial reporting [CDR, Cardinal example and §7.1](contracts-domain-research/researcher-memo.md#71-failure-mode-matrix).
+
+**FACT.** The domain taxonomy identifies professional-services SOW milestones, customer dependencies, acceptance windows, rate/cap terms, and change authority as a distinct operational archetype [CDR, §8.1](contracts-domain-research/researcher-memo.md#81-archetype-specific-operating-focus).
+
+**INFERENCE.** The plausible job is protect the evidence and authority path from scope event to accepted/billable change, not generic obligation extraction.
+
+**OPEN GAP.** Evidence is enterprise/public-sector heavy; no independent 51–500 US/UK service-company episodes, loss amounts, process owner, or WTP commitment exist.
+
+#### A6 — Supplier term-to-transaction control
+
+**FACT.** Official suite sources describe supplier contract terms and hierarchies connected to sourcing, purchasing, consumption, orders, and invoice validation [CSL, status-quo §5 and solution dossiers](contracts-solutions-landscape-2026-08-19.md#5-crm-procurements2p-erp-and-work-management-suites).
+
+**FACT.** Community reports include a working Ironclad–Coupa integration and a GEP customization spanning contracts, sourcing, requisitions, POs, and catalogs, alongside a report that adoption outside procurement can fragment (`CFA-L` R45–R47; [thread](https://www.reddit.com/r/procurement/comments/1fo6cvc/contract_management_systems/)).
+
+**INFERENCE.** Operational connection can be the value and the incumbent moat: the suite already owns supplier, spend, and approval data.
+
+**OPEN GAP.** No evidence shows a reachable under-served unit whose existing procurement/ERP stack is both inadequate and technically/economically feasible to augment.
+
+#### A7 — Constrained human-reviewed contract analysis
+
+**FACT.** Negative reports include repeated-run classification changes, misplaced/duplicate clauses, defined-term failures, hit-or-miss scoring, and failed long/multi-file extraction; positive reports describe guidelines, prompt chaining, scoring, NDA triage, evidence extraction, and first-pass redlines with retained human judgment (`CFA-L` R30–R38, R49, R53).
+
+**FACT.** The solutions corpus finds AI extraction, summary, Q&A, and playbook review widely advertised while field-level citation, confidence, and reviewer-disposition evidence is inconsistently public [CSL, Executive synthesis and “Documented gaps”](contracts-solutions-landscape-2026-08-19.md#documented-gaps-across-the-landscape).
+
+**INFERENCE.** A testable job must specify contract family, task, guidance, acceptable error, evidence output, reviewer, and decision boundary; “AI contract review” is not a valid unit.
+
+**OPEN GAP.** No reproducible benchmark, representative target corpus, reviewer-minute ceiling, error tolerance, liability position, or costly commitment exists.
+
+#### A8 — Contract-process implementation assurance
+
+**FACT.** Community accounts contain both severe implementation failures and successful configuration, including unusable multi-year subscriptions, adviser dependence, migration failure, unaffordable support, 50+ self-implemented workflows, suite success, and process-mapping-led deployment (`CFA-L` R01–R03, R23–R28, R44–R52).
+
+**FACT.** Vendor pages themselves describe templates, workflows, integrations, migration, training, onboarding, and professional services as implementation scope [CSL, Executive synthesis and dossiers](contracts-solutions-landscape-2026-08-19.md#solution-dossiers).
+
+**INFERENCE.** The repeated mechanism is mismatch among process, data, ownership, integrations, and adoption—not a uniform software defect.
+
+**OPEN GAP.** It is unknown whether this becomes scalable software, repeatable services, a procurement diagnostic, or work already adequately served by experienced implementers.
+
+### 13.5 Workflow–segment evidence table
+
+No row is yet a validated opportunity. `Incomplete` means at least one required unit field remains an open gap.
+
+| Candidate | Best-supported provisional segment/geography | Contract family + event | User / pain-holder | Current workaround/competitor | Frequency + consequence | Buyer/budget | Evidence-state verdict |
+|---|---|---|---|---|---|---|---|
+| `A1` Negotiation | **OPEN GAP:** legal teams; size/geography mostly unknown | **FACT:** customer/vendor paper; counterparty redline through approval/final version | **FACT:** in-house counsel/contracts manager; pain includes unusable workflow/rework | **FACT:** Word/Teams/email plus e-signature or configured CLM | **OPEN GAP:** no denominator or quantified delay | **OPEN GAP:** GC/legal ops/IT competing roles; budget evidence anecdotal | **INFERENCE:** workflow exists; unit incomplete; status quo strong |
+| `A2` Renewal | **OPEN GAP:** procurement/contract teams; one small agency clue; geography unknown | **FACT:** supplier/software contracts; review/notice window | **FACT:** procurement lead/analyst; organization bears outdated terms or late decision | **FACT:** Excel, Power Automate, Airtable, Planner, project board, suite | **OPEN GAP:** recurrence and economic consequence unmeasured | **HYPOTHESIS:** CPO/finance/COO; no WTP | **INFERENCE:** strong episode language; no complete unit |
+| `A3` Handoff | **OPEN GAP:** medium and enterprise examples across several countries; target unit unknown | **FACT:** executed customer/vendor/employment agreement; booking, fulfillment, payment, onboarding | **FACT:** RevOps/order management/finance/procurement/HR/delivery vary by archetype | **FACT:** CRM, ERP, procurement, HRIS, email, spreadsheet, tasks | **OPEN GAP:** only four broader community observations; no measured consequence | **HYPOTHESIS:** functional operating executive; no budget path | **INFERENCE:** category too broad; must split by event |
+| `A4` Family truth | **FACT:** strongest direct evidence is enterprise outsourcing and public tender; target geography/segment incomplete | **FACT:** MSA + SOW/order + schedules/amendments/DPA; change/audit/dispute/renewal | **HYPOTHESIS:** legal/contracts user; operational teams bear wrong-term consequence | **FACT:** shared storage/search, legal review, enterprise platforms | **OPEN GAP:** target frequency/cost unknown | **HYPOTHESIS:** GC/COO/risk; no WTP | **INFERENCE:** high-severity existence, weak reachable-segment evidence |
+| `A5` Change/acceptance | **FACT:** construction/public-sector/enterprise evidence; mid-market target absent | **FACT:** SOW/project contract; scope change, milestone, acceptance, billing | **FACT:** project/delivery + finance + contract owner | **FACT:** project/PSA/ERP, email, change forms, counsel | **FACT:** financial/reporting consequence exists in named enterprise record; target incidence unknown | **HYPOTHESIS:** services COO/CFO; no budget evidence | **INFERENCE:** specific causal chain; transfer unproven |
+| `A6` Supplier control | **FACT:** enterprise suite and procurement evidence; smaller reachable segment unknown | **FACT:** supplier master/order/amendment; requisition/PO/invoice/SLA/renewal | **FACT:** procurement/AP/business owner | **FACT:** S2P/ERP/procurement suite plus integrations | **OPEN GAP:** incremental consequence beyond suite not measured | **HYPOTHESIS:** CPO/CFO/CIO; existing suite budget may dominate | **INFERENCE:** strong incumbent integration; opportunity gap unproven |
+| `A7` Reviewed analysis | **OPEN GAP:** legal users across unknown sizes/geographies; one US NDA clue | **FACT:** NDA/customer/vendor paper; extraction/classification/redline | **FACT:** counsel/contracts analyst; reviewer bears error/rework | **FACT:** checklist, Word, general AI, specialist tools | **OPEN GAP:** task frequency, minutes saved, critical-error rate | **HYPOTHESIS:** GC/legal ops; low volume may defeat budget | **INFERENCE:** mixed conditional usefulness; no benchmark/WTP |
+| `A8` Implementation | **FACT:** strongest episodes are complex/enterprise migrations and deployments; geography mostly unknown | **FACT:** CLM/process portfolio; selection through configuration, migration, integration, adoption | **FACT:** legal ops/IT/consultant/admin; organization bears sunk cost and adoption failure | **FACT:** vendor services, consultants, internal implementation teams | **FACT:** severe costs/failures and successes are reported; rates/causality unknown | **FACT:** some organizations spend materially, but accessible startup budget/decision path remains unknown | **INFERENCE:** paid problem exists in cases; scalable opportunity form unknown |
+| `H0` Status quo | **FACT:** applies especially to low volume/variation or strong suite ownership | **FACT:** any family where one owner/system can answer status, governing version, next action, and evidence | **FACT:** existing functional owner | **FACT:** Word/email/drive/spreadsheet/calendar/task/suite/counsel | **OPEN GAP:** sufficiency boundary must be observed per unit | **FACT:** avoids new software/implementation budget | **INFERENCE:** live explanation and default competitor in every row |
+
+### 13.6 Actor, incentive, queue and bottleneck map
+
+| Actor | Observable incentive or exposure | Potential queue/bottleneck | Why adoption can fail |
+|---|---|---|---|
+| Business requester/seller/buyer | **INFERENCE:** speed, revenue, delivery, or purchase outcome | Incomplete intake; waits for legal/security/finance | Added fields or destination creates bypass behavior |
+| Legal/contracts | **INFERENCE:** correct authority/terms, manageable risk and review load | Nonstandard paper, ambiguity, missing family, approval | Tool shifts admin/review burden without reducing judgment work |
+| Procurement/RevOps/Finance | **INFERENCE:** spend/revenue control and system continuity | Data re-entry, exceptions, invoice/order mismatch | Contract system does not own transaction data or suite is already sufficient |
+| Delivery/project/HR/security | **INFERENCE:** execute commitments while minimizing disruption and exposure | Handoff lacks condition, context, owner, or evidence | Alerts/tasks arrive without usable operational state or disclose too much |
+| Economic buyer | **INFERENCE:** outcome improvement exceeds total ownership/switching cost | Ambiguous benefit and budget line | Pain sits in another function; buyer sees optional tooling |
+| Approver/blocker | **INFERENCE:** avoid asymmetric legal, security, privacy, or reputation downside | Review/assurance queue | Evidence/provenance, data handling, or authority control is insufficient |
+| Implementation owner | **FACT:** documented deployments require process mapping, templates, data, integrations, training, and support | Scarce configuration/data/change capacity | Ownership absent, users excluded, systems resist change, migration quality poor |
+| Vendor/consultant | **INFERENCE:** license/services revenue and project completion | Scope expansion and dependency | Advice may favor complexity or understate total ongoing burden |
+
+**INFERENCE.** The likely system constraint differs by candidate: lawyer/counterparty interface for `A1`; decision ownership and lead time for `A2`; receiving-system continuity for `A3`; family completeness/judgment for `A4`; authority/evidence at the project boundary for `A5`; integration/master data for `A6`; benchmark/reviewer burden for `A7`; and process/data/implementation capacity for `A8`.
+
+**VALUE JUDGMENT.** Later comparison must assess the demonstrated constraint, not reward a candidate for solving a visible but non-limiting subproblem.
+
+### 13.7 Observe-stage open-gap ledger
+
+| Gap ID | Decision-relevant unknown | Why current evidence cannot answer it | Highest-value primary observation |
+|---|---|---|---|
+| `G1` | 51–200 and 201–500 US/UK workflow prevalence | Community coverage failed; vendor cases are selected | Stratified recent-episode sampling with explicit denominator |
+| `G2` | Measured consequence by workflow | Public sources document mechanisms; anecdotes rarely quantify counterfactual loss | Artifact-backed before/after episode with finance/operational verification |
+| `G3` | Recurrence and urgency | Mention counts are not event rates | Portfolio/event log over a defined 90–180-day period |
+| `G4` | User-to-buyer budget path | Roles appear separately; purchase authority rarely appears | Joint user + economic-buyer reconstruction of last spend decision |
+| `G5` | Status-quo adequacy boundary | Both success and failure cases exist without comparable scope | Paired organizations or within-organization worked/failed episodes using the same stack |
+| `G6` | Switching and implementation burden | Vendor scopes and anecdotes are non-comparable | Time/cost diary from a recent configuration/migration/adoption cycle |
+| `G7` | Trust/legal/security veto | Only two community observations address security/deployment | Review with actual blocker and a permissible data-flow/artifact walkthrough |
+| `G8` | Review burden and error tolerance for AI-assisted work | No representative benchmark or calibrated accuracy | Blinded task comparison on representative families with critical-error taxonomy and reviewer minutes |
+| `G9` | WTP and repeat use | No costly commitment for a defined candidate | Fixed-scope paid diagnostic/test tied to a second occurrence |
+| `G10` | Defensibility mechanism | Corpus describes features/workflows, not durable advantage | Evidence of privileged distribution, data rights, embedded use, trust, integration accumulation, or switching |
+
+### 13.8 Stage 2 gate audit
+
+| Rule | Result | Evidence |
+|---|---|---|
+| Required corpus synthesized without new product framing | **PASS** | §§13.1–13.7 use `CDR`, `CSL`, `CFA`, `CFA-L`, `CFA-S`, and `RDP` only for domain/method evidence |
+| Provenance/date/limitations visible | **PASS** | §13.1 defines ten evidence streams and their dependencies; community observations retain IDs/links and limitations |
+| Evidence dependencies deduplicated | **PASS** | §13.1 explicitly treats vendor repetitions, parent threads, and downstream summaries as shared lineages |
+| Observation separated from explanation | **PASS** | Material observations are labeled **FACT**; analytical bridges are **INFERENCE**; unknowns are **OPEN GAP** |
+| Reference classes and base-rate limits | **PASS** | §13.2 gives six bounded reference classes and explicitly refuses numerical base rates |
+| Status-quo successes and failures visible | **PASS** | §§13.2, 13.4, 13.5 include proportionate-tool successes, dedicated/suite successes, and failure cases |
+| No anecdote prevalence or vendor-performance laundering | **PASS** | §13.1 limits community evidence to existence/language and vendor evidence to published claims/boundaries |
+| Workflow–segment units expose missing fields | **PASS** | §13.5 evaluates all candidates against segment/geography/family/event/actor/workaround/frequency/consequence/buyer |
+| Actors, incentives, queues and constraints mapped | **PASS** | §13.6 separates seven actor groups and identifies candidate-specific likely constraints |
+| Decision-relevant gaps and next observations explicit | **PASS** | §13.7 records ten gaps and one diagnostic observation for each |
+| 51–500 US/UK coverage sufficient for market inference | **FAIL** | `G1` and §§13.2/13.5 preserve the source audit's explicit cohort failure; no new primary evidence was added |
+
+**Stage 2 result: PASS on the 10 evidence-handling advancement rules; the separate target-cohort coverage rule remains FAIL.** The evidence supports generating distinct workflow theses. It does not support demand prevalence, a winner, or willingness to pay. The coverage failure prevents any target-segment validation claim and is carried into every thesis.
