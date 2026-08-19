@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stages 1–6 research-design readiness PASS; no thesis has passed validation; Stage 7 not started
+**Status:** Desk-research cycle complete through Stage 7; no primary protocol executed; no thesis passed; no market winner
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -24,22 +24,22 @@ The analysis follows the exact sequence **frame → observe → explain → chal
 | 2 | Decision brief | Frame | Precise choice, owner, deadline, objective, output | Complete in §2 |
 | 3 | Scope and exclusions | Frame | Included unit, prohibited conclusions and work | Complete in §3 |
 | 4 | Evidence taxonomy | Frame | Five labels, promotion rules, source limitations | Complete in §4 |
-| 5 | Provenance and dependency policy | Frame/Observe | Corpus IDs, source lineage, deduplication and citation rules | Complete in §5; ledger expansion pending |
+| 5 | Provenance and dependency policy | Frame/Observe | Corpus IDs, source lineage, deduplication and citation rules | Complete in §5 and §13.1 |
 | 6 | Workflow-level analysis unit | Frame | Segment, geography, family, event, actor, trigger, workaround, frequency, consequence, buyer | Complete in §6 |
-| 7 | Actor, authority and incentive model | Frame/Observe | User, pain-holder, champion, buyer, approver, blocker, implementation owner | Frame complete in §7; observations pending |
+| 7 | Actor, authority and incentive model | Frame/Observe | User, pain-holder, champion, buyer, approver, blocker, implementation owner | Complete in §7, §13.6 and §14.12 |
 | 8 | Alternative and status-quo set | Frame | At least five distinct candidate opportunity families plus explicit null | Complete in §8 |
 | 9 | Constraint, value and risk boundary | Frame/Decide | Authority, forbidden harms, WTP gate, ruin and reversibility | Complete in §9 |
-| 10 | Reference-class and open-gap ledger | Observe | Comparable cases, applicability, missing cohorts and source dependence | Pending |
-| 11 | Observation synthesis | Observe | Episodes, artifacts, actors, status quo, counterexamples, consequences | Pending |
-| 12 | Workflow–segment evidence table | Observe | Evidence for and against each fully specified unit | Pending |
-| 13 | Competing theses plus null | Explain | At least five distinct, falsifiable theses and H0 | Pending |
-| 14 | Causal, systems and incentive models | Explain | Mechanisms, counterfactuals, loops, delays, bottlenecks, second-order effects | Pending |
+| 10 | Reference-class and open-gap ledger | Observe | Comparable cases, applicability, missing cohorts and source dependence | Complete in §13.2 and §13.7; 51–500 US/UK coverage remains FAIL |
+| 11 | Observation synthesis | Observe | Episodes, artifacts, actors, status quo, counterexamples, consequences | Complete in §13.3–§13.4 |
+| 12 | Workflow–segment evidence table | Observe | Evidence for and against each fully specified unit | Complete in §13.5 |
+| 13 | Competing theses plus null | Explain | At least five distinct, falsifiable theses and H0 | Complete in §14.2–§14.8 |
+| 14 | Causal, systems and incentive models | Explain | Mechanisms, counterfactuals, loops, delays, bottlenecks, second-order effects | Complete in §14.9–§14.12 |
 | 15 | Disconfirmation and adversarial review | Challenge | Risky predictions, disconfirmers, strongest rival, independent critique | Complete via §15 and the independent review §§4–13 |
 | 16 | Premortem and failure register | Challenge | Adoption, displacement, gaming, review burden, incumbent response, implementation failure | Complete via §15 and the independent review §§14–15 |
 | 17 | Comparative decision table | Decide | Consequence, recurrence, urgency, reachability, status-quo adequacy, switching, burden, budget, evidence | Complete in §16.2–§16.3 |
 | 18 | Opportunity-cost, VoI, reversibility and ruin analysis | Decide | Sensitivity, research value, commitment sizing, tail constraints | Complete in §16.4–§16.9 |
 | 19 | Falsifiable validation protocols | Test | Per-thesis prediction, sample, evidence, WTP test, pass/downweight/kill, smallest test | Complete for selected paired `T1`/`H0` protocol in §17; execution not authorized |
-| 20 | Decision/update record and final audit | Update | Ranked hypotheses or no-clear-winner result, posterior updates, rule-by-rule verification | Pending |
+| 20 | Decision/update record and final audit | Update | Ranked hypotheses or no-clear-winner result, posterior updates, rule-by-rule verification | Complete in §18; result is no market winner and no posterior change |
 
 **FACT.** The method corpus specifies the exact seven-stage order, requires artifacts and advancement gates, and says the status quo must be included in the explanatory and decision set [RDP, “The one-page recommended reasoning stack”](reasoning-decision-principles-2026-08-19.md#the-one-page-recommended-reasoning-stack).
 
@@ -1668,3 +1668,213 @@ If no protocol was executed, Stage 7 must record **no new primary evidence, no p
 | Stage 7 not started | **PASS** | §17.22 leaves update fields blank; §17.23 is a handoff specification, not an update |
 
 **Stage 6 result: PASS (25/25 readiness rules). No thesis has passed, and no protocol has been executed.** Stage 7 has not started. Separate user approval is required before any outreach, document/proxy collection, payment solicitation, configuration, contractual action, or system write.
+
+---
+
+## 18. Stage 7 — Update and desk-research close
+
+### 18.1 No-execution update
+
+**FACT.** No Stage 6 protocol, feasibility screen, outreach, interview, document/proxy collection, payment solicitation, process configuration, contractual action, or system write was executed during this desk-research cycle.
+
+**FACT.** The Stage 6 results shell remains unexecuted. There are:
+
+- no new primary observations;
+- no resolved forecasts or scored predictions;
+- no posterior or probability change;
+- no `T1` or `H0` outcome classification;
+- no qualifying WTP/payment evidence;
+- no new prevalence, consequence, buyer, defensibility, or causal evidence; and
+- no market winner.
+
+**INFERENCE.** Because no likelihood-bearing primary evidence was added after preregistration, the epistemic state remains the bounded desk-research state established in Stages 2–5. Protocol readiness changes the quality of the next test, not the probability that a thesis is true.
+
+### 18.2 Current state of all alternatives
+
+| Alternative | Current epistemic state | Decision disposition | Evidence needed to change state |
+|---|---|---|---|
+| `T1` Renewal decision control | **HYPOTHESIS — unvalidated.** Workflow existence and status-quo variation are documented; target recurrence, material consequence, buyer payment, and defensibility are open. | Selected only for paired validation with `H0`; no outcome classification exists. | Authorized execution of the unchanged §17 paired protocol and mechanical frozen classification. |
+| `T2` Contract-to-revenue continuity | **HYPOTHESIS — unvalidated.** Enterprise workflow is documented; independent target exceptions, buyer, WTP, and standalone advantage are open. | Third conditional path; no current allocation. | `SW3` evidence/authority followed by exact frozen `T2` protocol, not additional anecdotes. |
+| `T3` SOW change/acceptance/billing | **HYPOTHESIS — unvalidated.** Consequence mechanism is documented in bounded contexts; target recurrence, access, causality, and WTP are open. | Second conditional path; no current allocation. | `SW2` access/authority or paired-protocol completion, then exact frozen `T3` protocol. |
+| `T4` Agreement-family resolution | **HYPOTHESIS — unvalidated and host-dependent.** Multi-document truth is real; independent frequency/opportunity status and safe repeatability are open. | No standalone first-order allocation. | `SW4`: an adjudicated `T1`–`T3` residual event caused by family context plus authorized exact `T4` sample. |
+| `T5` Bounded first-pass analysis | **KILL AS WRITTEN.** The current thesis remains a horizontal, category-generic method without one valid denominator/error taxonomy. | No allocation and no revival. | A new hypothesis must first freeze one task, family, jurisdictional scope, authorized reviewer role, and critical-error taxonomy, then re-enter independent Challenge. |
+| `T6` Implementation assurance | **KILL AS WRITTEN unless the frozen repeatability/non-consulting gate clears.** Prospective prevention, standardization, independent payment, and defensibility are unproven. | No allocation. | `SW8`: prospective evidence independently clears the frozen incremental-finding, remediation, agreement, standardized-hours, access and payment conditions. |
+| `H0` Proportionate status quo | **HYPOTHESIS — live.** The status quo is documented as adequate in some contexts and failing in others; its sufficiency boundary/full cost are open. | Paired comparator that can pass and stop `T1`; not assumed true by default. | Authorized paired protocol under compliant process/native control and exact `H0` classification. |
+
+**VALUE JUDGMENT.** This table is a research-state ordering, not a market ranking. `T3` preceding `T2` refers only to conditional validation sequence; it does not assert greater opportunity quality.
+
+### 18.3 Append-only update log
+
+Future work appends rows; it never overwrites the original frame, dispositions, protocol, or prior update.
+
+| Update ID | Date | New observation | Interpretation | Belief/probability change | Decision/action change |
+|---|---|---|---|---|---|
+| `U01` | 2026-08-19 | Required desk corpus registered; no primary evidence added | The decision must be framed as hypothesis selection, not opportunity selection | None assigned | Stage 1 Frame advanced |
+| `U02` | 2026-08-19 | Corpus synthesized with dependencies/counterexamples | Workflow/failure existence is broader than target-cohort evidence; 51–500 US/UK coverage remains inadequate | No numerical probabilities assigned | Stage 2 Observe advanced; coverage FAIL preserved |
+| `U03` | 2026-08-19 | Six distinct theses plus `H0` and causal rivals articulated | Several mechanisms overlap; all material demand/buyer/WTP questions remain open | No numerical probabilities assigned | Stage 3 Explain advanced |
+| `U04` | 2026-08-19 | Independent Challenge completed | `T5` killed as generic; `T6` killed unless repeatable/non-consulting; `H0` strengthened as a required live control | No probability update; research dispositions changed | Stage 4 adversarial-readiness PASS |
+| `U05` | 2026-08-19 | Seven alternatives compared under unchanged evidence | Paired `T1`/`H0` offers the next highest information value at moderate relative burden; this is not a market ranking | No probability update | Stage 5 allocates only the next validation sequence |
+| `U06` | 2026-08-19 | Full paired protocol and conditional cards preregistered; no execution | Readiness and falsifiability improved without new outcome evidence | No probability update | Stage 6 readiness PASS; external action still unauthorized |
+| `U07` | 2026-08-19 | No protocol ran; no result exists | The correct update is no posterior change, no classification, and no winner | **None** | Close desk cycle; retain one separately authorized next action |
+
+### 18.4 Forecast and status scorecard
+
+No probability forecast was assigned, no outcome resolved, and no scoring rule can be applied. `Unscored` means unresolved/never assigned—not a neutral result.
+
+| Forecast/status ID | Preregistered proposition or status | Resolution condition | Current outcome | Score |
+|---|---|---|---|---|
+| `F01` | `T1` meets every frozen pass condition | Authorized §17 execution completes and all `T1` kill/pass conditions are evaluated | Unresolved; protocol not executed | Unscored |
+| `F02` | `H0` meets every frozen pass condition | Same paired execution and exact `H0` classification | Unresolved; protocol not executed | Unscored |
+| `F03` | At least the frozen number of economic buyers make qualifying payments | Payment procedure executes under separate authority | Unresolved; no offer or payment solicitation occurred | Unscored |
+| `F04` | The balanced 51–500 US/UK cohort/event census is feasible | Authorized feasibility gate and screening complete without threshold change | Unresolved; no outreach/screening occurred | Unscored |
+| `F05` | `T3` exact protocol becomes the second feasible path | `SW2` or paired update plus required access/authority | Unresolved; conditional card only | Unscored |
+| `F06` | `T2` exact protocol becomes the third feasible path | `SW3` or later decision record plus required access/authority | Unresolved; conditional card only | Unscored |
+| `F07` | `T4` earns independent host-mechanism testing | `SW4` adjudicated family-context cause and authorized sample | Unresolved; no host event tested | Unscored |
+| `F08` | A new `T5` formulation clears its entry definition | All five dimensions frozen before evidence and new independent challenge | Unresolved; current thesis remains killed | Unscored |
+| `F09` | `T6` clears the repeatability/non-consulting conditions | Prospective exact protocol supplies all frozen evidence | Unresolved; current thesis remains conditionally killed | Unscored |
+
+**VALUE JUDGMENT.** Do not retroactively assign probabilities merely to produce a score. Calibration begins only when a future decision record preregisters a probability, resolution date, and outcome rule before evidence.
+
+### 18.5 Final decision and reopen record
+
+| Field | Final desk-cycle record |
+|---|---|
+| Decision | Close the desk-research cycle with no market winner and retain the paired `T1`/`H0` protocol as the sole next validation allocation |
+| Evidence basis | Required corpus in §5, Stage 2 synthesis, six theses + null, independent review, comparison, and unexecuted preregistration |
+| Current classification | No `T1`/`H0` result; `T2`–`T4` unvalidated; `T5` killed as written; `T6` killed unless its frozen gate clears; `H0` live |
+| WTP | No qualifying payment, solicitation, or buyer commitment |
+| Forecast update | None; no primary evidence or resolved forecast |
+| Winner | None; no startup/market opportunity is selected |
+| Reversibility | Decision is a reversible research allocation; no build, integration, migration, outreach, data collection, payment solicitation, or operational action is authorized |
+| Frozen controls | Independent review §12 and main artifact §17 remain unchanged and controlling |
+| Reopen/switch triggers | Only `SW1`–`SW8` in §16.8, an authorized protocol result, a safety/authority change, or credible new evidence that changes a named gap; anecdotes/vendor claims alone do not reopen |
+| Review discipline | Append new observation first, then interpretation, then disposition; preserve all prior rows and failed gates |
+
+#### Named triggers retained
+
+- `SW1`: paired sample/event feasibility failure—do not weaken the protocol.
+- `SW2`: exact `T3` access and authority becomes feasible while `T1` is not.
+- `SW3`: qualified `T2` residual-suite evidence, audit authority, and funded validation appear.
+- `SW4`: an adjudicated host event shows family context caused the residual failure.
+- `SW5`: `H0` pass and/or `T1` kill—stop `T1` for that unit.
+- `SW6`: `T1` passes every frozen condition—update the workflow hypothesis only.
+- `SW7`: a genuinely new, fully narrowed `T5` hypothesis clears its entry definition and independent Challenge.
+- `SW8`: `T6` prospective evidence clears its repeatability/non-consulting gate.
+
+**VALUE JUDGMENT.** A trigger changes research allocation or reopens a decision; it does not itself count as a thesis pass.
+
+### 18.6 Remaining-gap ledger
+
+| Gap ID | Remaining unknown | Alternatives affected | Evidence required | Current status |
+|---|---|---|---|---|
+| `RG1` | Representative 51–200 and 201–500 US/UK coverage | `T1`–`T5`, `H0` | Balanced authorized sample and complete prospective census | **FAIL retained:** current corpus inadequate |
+| `RG2` | Residual recurrence after compliant process/native control | `T1`–`T4`, `H0` | Exact prospective event protocols | **OPEN GAP** |
+| `RG3` | Verified material consequence and counterfactual | `T1`–`T4` | Bearing-function record/attestation under frozen rule | **OPEN GAP** |
+| `RG4` | User, bearing role, buyer, budget, approver, blocker, implementation-owner alignment | All | Multi-role evidence plus authority/payment record | **OPEN GAP** |
+| `RG5` | Hard WTP | `T1`–`T6` | Non-refundable payment from verified economic buyers | **OPEN GAP; zero evidence** |
+| `RG6` | Full status-quo cost and adequacy boundary | All, especially `H0` | Compliant process/native control, admin, errors and complete event census | **OPEN GAP** |
+| `RG7` | Switching, implementation and ongoing admin burden | `T1`–`T6` | Prospective time/cost/behavior and correction records | **OPEN GAP** |
+| `RG8` | Trust, confidentiality, privilege, jurisdiction and security veto rate | `T1`–`T6` | Authorized decisions with complete veto denominator | **OPEN GAP** |
+| `RG9` | Critical-error and correction-propagation performance | `T1`–`T5` | Frozen taxonomy, complete decisions, corrections and downstream audit | **OPEN GAP** |
+| `RG10` | Defensibility mechanism | `T1`–`T6` | Evidence of distribution, embedded workflow, legitimate data rights, integrations, trust or switching—not labels | **OPEN GAP; zero evidence** |
+| `RG11` | Whether `T4` is independent or a subproblem | `T1`–`T4` | Host-coded residual events and exact `T4` test | **OPEN GAP** |
+| `RG12` | Whether `T6` is repeatable rather than consulting | `T6` | Eight-program frozen test and standardized-effort evidence | **UNRESOLVED; current conditional kill** |
+
+### 18.7 Exact next action
+
+**VALUE JUDGMENT.** The one next action is:
+
+> Ask the founder for a separate authorization decision on Stage 6 §17.1 for the paired `T1`/`H0` validation, explicitly choosing whether to permit the §17.6.1 feasibility work and defining the outreach, artifact/data, payment, existing-system-configuration, operator, stop, retention, and rollback boundaries.
+
+Until that authorization is explicit, do not contact anyone, screen organizations, request artifacts, solicit payment, configure a process/system, or execute any protocol step.
+
+### 18.8 Seven-stage outcome summary
+
+| Stage | Artifact outcome | Method/readiness gate | Thesis/evidence outcome |
+|---|---|---|---|
+| 1. Frame | Decision, labels, unit, actors, alternatives, constraints, provenance and gates fixed | **PASS 15/15** | No thesis evaluated or selected |
+| 2. Observe | Required corpus synthesized with dependency, reference-class, workflow and gap ledgers | **PASS** on 10 evidence-handling rules | **FAIL retained:** 51–500 US/UK coverage insufficient; no prevalence, WTP or winner |
+| 3. Explain | Six distinct theses plus `H0`, causal rivals, second-order effects and disconfirmers | **PASS 13/13** | All theses unvalidated at entry |
+| 4. Challenge | Independent steelmans, overlap audit, premortem, objections and frozen protocols | **PASS 12/12 integration** for adversarial readiness | `T5` killed; `T6` conditional kill; `T1`–`T4` unvalidated; `H0` live |
+| 5. Decide | Thirteen-dimension comparison, VoI, opportunity cost, reversibility, ruin, sensitivity and decision record | **PASS 15/15** decision-process rules | Only paired `T1`/`H0` selected for next validation effort; no market ranking/winner |
+| 6. Test design | Full paired preregistration, conditional cards, authority, guardrails, exact gates and blank results | **PASS 25/25** readiness rules | No execution, observation, payment or thesis classification |
+| 7. Update | Current-state table, append-only log, unscored forecasts, final record, triggers, gaps and audit | **PASS** documentation/decision-update rules | No posterior change, no `T1`/`H0` result, no WTP and no winner |
+
+**VALUE JUDGMENT.** A method/readiness `PASS` proves that the required research artifact or control exists. It never substitutes for a thesis protocol `PASS`. No thesis protocol passed in this cycle because none was executed.
+
+### 18.9 Final provenance register
+
+| ID | Controlling source | Role in final decision | Boundary retained |
+|---|---|---|---|
+| `CDR` | [Contracts domain research](contracts-domain-research/researcher-memo.md) | Legal/domain/lifecycle, company workflows, failure modes | Illustrative, mixed primary/vendor evidence; no target prevalence/WTP |
+| `CSL` | [Contract-solutions landscape](contracts-solutions-landscape-2026-08-19.md) | Status quo, vendor/suite capabilities, pricing and implementation boundaries | Official/vendor disclosure is not independent efficacy |
+| `CFA` | [Community feedback audit](contracts-community-feedback-audit-2026-08-19.md) | Operator/implementer episodes, positive/negative counterexamples | Self-selected, mostly Reddit; no causal/prevalence/buyer inference |
+| `CFA-L` | [Community source ledger](contracts-community-feedback-audit-2026-08-19/source-ledger.csv) | Observation IDs, labels, roles, size/geography clues, limitations | 17 parent URLs and affiliation uncertainty; rows not population units |
+| `CFA-S` | [Community search log](contracts-community-feedback-audit-2026-08-19/search-log.csv) | Query/platform/access provenance | Yield/access differences are not absence of demand |
+| `RDP` | [Decision and research operating system](reasoning-decision-principles-2026-08-19.md) | Seven-stage sequence, evidence discipline, challenge/decision/update method | Method does not validate a contract-market claim |
+| `IAR` | [Independent adversarial review](contract-workflow-opportunity-adversarial-review-2026-08-19.md) | Steelmans, kills, overlap, premortem, exact frozen protocols | Readiness review; no thesis or market winner |
+
+**FACT.** All material external/domain claims in the main artifact trace to the required corpus or the corpus's original links; community episodes retain observation IDs and dependency limitations. No new external evidence was introduced in Stages 5–7.
+
+### 18.10 Twenty-deliverable completion audit
+
+| Deliverable | Result | Deterministic evidence |
+|---|---|---|
+| `D01` Research contract/index | **PASS** | §1 has exactly 20 numbered deliverables and final states |
+| `D02` Decision brief | **PASS** | §2 names decision, owner, objective, deadline and current state |
+| `D03` Scope/exclusions | **PASS** | §3 prohibits product/feature/TAM/forced-winner drift |
+| `D04` Evidence taxonomy | **PASS** | §4 defines the five approved labels and promotion rules |
+| `D05` Provenance/dependencies | **PASS** | §5 and §13.1 register corpus, evidence streams and dedupe |
+| `D06` Workflow analysis unit | **PASS** | §6 contains exactly ten required fields |
+| `D07` Actor/authority/incentives | **PASS** | §7, §13.6 and §14.12 separate all seven roles and burdens |
+| `D08` Alternative/status quo set | **PASS** | §8 includes eight candidate families and `H0`; later work retains six theses + `H0` |
+| `D09` Constraints/values/risk | **PASS** | §9 and §16.7 preserve WTP, authority, trust, ruin and no-winner boundaries |
+| `D10` Reference classes/gaps | **PASS with substantive FAIL retained** | §13.2/§13.7 complete the artifact; target 51–500 US/UK coverage remains inadequate |
+| `D11` Observation synthesis | **PASS** | §13.3–§13.4 separates facts, inferences, counterexamples and source limits |
+| `D12` Workflow–segment evidence | **PASS** | §13.5 compares all candidates while exposing incomplete fields |
+| `D13` Competing theses/null | **PASS** | §14.2–§14.8 contains six complete theses plus live `H0` |
+| `D14` Causal/systems/incentives | **PASS** | §14.9–§14.12 gives rivals, second-order effects, role maps and evidence verdicts |
+| `D15` Independent challenge | **PASS via indexed review** | §15 plus `IAR` §§4–13 contains seven steelmans/tests and frozen protocols |
+| `D16` Premortem/failure register | **PASS via indexed review** | §15 plus `IAR` §§14–15 retains six failure headlines and unresolved objections |
+| `D17` Comparative decision | **PASS** | §16.2–§16.3 covers all seven alternatives and 13 dimensions without summed score |
+| `D18` VoI/opportunity cost/reversibility/ruin | **PASS** | §16.4–§16.10 records sequence, sensitivities, constraints and decision |
+| `D19` Falsifiable protocol | **PASS for readiness only** | §17 preserves exact frozen numbers, full selected protocol, conditional cards, no authority and blank results |
+| `D20` Update/final audit | **PASS** | §18 records no-execution update, all alternatives, log, scorecard, final record, triggers, gaps and audits |
+
+**Overall deliverable result: 20/20 complete.** `D10` truthfully retains the target-cohort coverage `FAIL`; `D19` is ready but unexecuted; neither is a thesis pass.
+
+### 18.11 Final requirement audit
+
+| Requirement | Result | Evidence |
+|---|---|---|
+| Exact order frame → observe → explain → challenge → decide → test → update | **PASS** | §§1, 10 and 18.8 |
+| Five approved evidence labels on material claims | **PASS** | Reading contract and §§4, 18 |
+| Product-agnostic, no existing-product framing | **PASS** | Scope/exclusions and final prohibited-name verification |
+| Required corpus and full provenance | **PASS** | §§5, 13.1, 18.9 plus original observation IDs/links |
+| At least five distinct theses plus null | **PASS** | Six theses `T1`–`T6` plus `H0` in §14 |
+| Workflow-level ten-field unit and complete role separation | **PASS** | §§6–7 and thesis tables/role maps |
+| Status quo as real competitor | **PASS** | `H0` remains live through §§8, 14, 16–18 |
+| Recent episodes/artifacts rather than preference | **PASS for desk evidence; primary validation pending** | §13 cites episodes; §17 requires episode/artifact proof and rejects preferences |
+| No anecdote prevalence or correlated-source inflation | **PASS** | §§5, 13.1 and 17.18 |
+| WTP hard gate with costly commitment | **PASS as rule; no evidence** | §§9.2, 15, 17.15 and 18.1 record zero qualifying payment |
+| Comparative decision covers 13 required dimensions | **PASS** | §§16.2–16.3 and Stage 5 audit |
+| Named defensibility mechanism required, generic labels rejected | **PASS as rule; no evidence** | §§9.4, 14.12, 16.3 and `RG10` |
+| Trust/legal/security/regulatory/implementation constraints | **PASS** | §§9.3, 15.4, 16.7, 17.11/17.13/17.20 |
+| Incentives, principal–agent and second-order effects | **PASS** | §§7, 13.6, 14.10, 17.16 |
+| Reference classes/base rates and open gaps | **PASS** | §13.2 refuses invented base rates; §§13.7/18.6 retain gaps |
+| Opportunity cost, VoI, reversibility, ruin and sensitivity | **PASS** | §§16.4–16.9 |
+| Independent adversarial reviewer distinct from proposer | **PASS** | `IAR` link and §15 review boundary |
+| Exact pass/downweight/kill protocols and no repair | **PASS** | `IAR` §12 and §§15.2, 17.17–17.18 |
+| `T5`/`T6` kills and live `H0` preserved | **PASS** | §§15.2, 16, 18.2 |
+| Full selected protocol plus conditional sequence | **PASS** | §17; paired `T1`/`H0` first, `T3` second conditional, `T2` third conditional, `T4` host-dependent |
+| No protocol execution or inferred authority | **PASS** | §§17.1, 18.1 and 18.7 |
+| No market winner when evidence gates fail | **PASS** | Header, §§18.1, 18.5 and 18.8 |
+| Append-only update, unresolved forecasts, next trigger/action | **PASS** | §§18.3–18.7 |
+| All 20 deliverables complete with honest failure retained | **PASS** | §§1 and 18.10 |
+| Worktree hygiene and unrelated work preserved | **PASS** | Final verification touches only this tracked artifact; the unrelated untracked audit remains untouched |
+
+### 18.12 Final result
+
+**Stage 7 result: PASS (25/25 final requirement rules; `D20` complete).** No primary evidence was collected, no forecast resolved, no probability changed, no thesis received an outcome classification, no qualifying WTP was observed, and no market winner was selected.
+
+**Final research result:** the desk cycle yields a governed set of unvalidated theses, two independent research kills, a live status-quo comparator, one selected paired validation protocol, conditional next paths, and exact authority/safety gates. The only next action is the separate founder authorization decision in §18.7.
