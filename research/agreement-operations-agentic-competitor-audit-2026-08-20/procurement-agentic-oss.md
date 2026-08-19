@@ -1,8 +1,8 @@
 # Procurement, agentic, open-source, and status-quo competitor audit
 
-**Research date:** 2026-08-20  
-**Track scope:** renewal/procurement/SaaS-spend platforms; agentic and niche entrants; relevant open-source projects; and non-product status-quo alternatives.  
-**Decision informed:** whether supplier-renewal decision control and a longer event → action → evidence control layer are already served, readily absorbable by incumbents, or plausibly open; and what authority an agentic approach could safely hold.  
+**Research date:** 2026-08-20
+**Track scope:** renewal/procurement/SaaS-spend platforms; agentic and niche entrants; relevant open-source projects; and non-product status-quo alternatives.
+**Decision informed:** whether supplier-renewal decision control and a longer event → action → evidence control layer are already served, readily absorbable by incumbents, or plausibly open; and what authority an agentic approach could safely hold.
 **Exclusions:** generic legal AI without a verifiable connection to the workflow; feature architecture; invented market size, prevalence, ROI, or customer outcomes; and product framing around any existing project.
 
 ## 1. Evidence and classification rules
@@ -95,7 +95,7 @@ The final ledger records source ID, company/category, URL, publisher, source typ
 
 ## 7. Increment status
 
-**FACT:** The audit contract, evidence labels, deterministic taxonomy, comparison unit, mandatory register, candidate rules, and status-quo scope are fixed in this increment.  
+**FACT:** The audit contract, evidence labels, deterministic taxonomy, comparison unit, mandatory register, candidate rules, and status-quo scope are fixed in this increment.
 **FACT:** All ten mandatory companies are classified below; product, market, corporate, and agent maturity are kept separate.
 
 ## 8. Mandatory company audit matrix
@@ -139,10 +139,10 @@ This set is deliberately narrow. It includes candidates routed from the parallel
 | Repository | Repository evidence | Classification | Relevance and limitation |
 |---|---|---|---|
 | **Draft Legal** | **FACT:** routed GitHub inspection found a substantive public code repository, installation material, 11 stars, two contributors, and a push after 2025-08-20 [OSS1]. | **ACTIVE-OSS / UNKNOWN / INDEPENDENT** (barely meets recency/code rule). | Contract drafting/review adjacency; repository activity proves code availability, not adoption, production reliability, renewal control, or an agent authority boundary. |
-| **Documenso** | **FACT:** public repository and install documentation are known [OSS2]. **OPEN GAP:** under the stop-search constraint, a post-2025-08-20 release/commit was not captured in this track. | **NOT-AUDITED / UNKNOWN**; no negative inactivity inference is permitted from missing recency evidence. | Open-source e-signature/action endpoint; adjacent to completion proof, not a renewal-decision controller. |
-| **DocuSeal** | **FACT:** public repository and self-host installation documentation are known [OSS3]. **OPEN GAP:** a qualifying post-cutoff release/commit was not captured in this track. | **NOT-AUDITED / UNKNOWN**; no negative inactivity inference is permitted from missing recency evidence. | Open-source e-signature/action endpoint; could complement a control layer, but does not prove governing truth or event-to-action orchestration. |
+| **Documenso** | **FACT:** repository is substantive and installable; GitHub API reports archived=false, disabled=false, pushed_at=2026-08-19T22:19:02Z, 14,620 stars and 3,095 forks [OSS2]. | **ACTIVE-OSS / UNKNOWN / INDEPENDENT**; post-cutoff push clears the repository-activity rule. | Open-source e-signature/action endpoint; adjacent to completion proof, not a renewal-decision controller. Repository popularity/activity is not enterprise adoption proof. |
+| **DocuSeal** | **FACT:** repository is substantive and self-hostable; GitHub API reports archived=false, disabled=false, pushed_at=2026-08-17T10:25:54Z, 18,304 stars and 1,834 forks [OSS3]. | **ACTIVE-OSS / UNKNOWN / INDEPENDENT**; post-cutoff push clears the repository-activity rule. | Open-source e-signature/action endpoint; could complement a control layer, but does not prove governing truth or event-to-action orchestration. Repository popularity/activity is not enterprise adoption proof. |
 
-**Rule result:** one of three candidates qualifies ACTIVE-OSS; two remain NOT-AUDITED/UNKNOWN because cutoff-date activity was not captured. Missing evidence is not evidence of inactivity. No inspected OSS project proves customer adoption or the complete T1/longer chain.
+**Rule result:** all three inspected repositories qualify ACTIVE-OSS at repository level. Activity/installability does not prove customer adoption, production reliability, or the complete T1/longer chain.
 
 ## 11. Status quo as the real competitor
 
@@ -193,3 +193,57 @@ This set is deliberately narrow. It includes candidates routed from the parallel
 - **Complement:** CLM, ERP, procurement, CRM, storage, email and e-sign remain authoritative systems/endpoints; the longer vision depends on them.
 - **Absorb:** procurement/orchestration incumbents are most likely to absorb generic T1; suites can ship agents against their installed data, policy and workflow graph.
 - **Potential durable boundary:** cross-system/counterparty verification plus correction propagation may resist a single incumbent, but only if customers recognize an accountable job and pay for independent control. That is a hypothesis, not a finding.
+
+## 13. Source ledger
+
+All sources were accessed 2026-08-20. “Current page” means no stable publication date was disclosed. Vendor sources prove claims/current surfaces; they do not independently verify outcomes or scale. Independent funding reports verify the reported transaction, not product efficacy.
+
+| IDs | Company | Source links | Publisher/type; stated date | Supports; limitation |
+|---|---|---|---|---|
+| GK1–GK4 | Gatekeeper | [customer stories](https://www.gatekeeperhq.com/customer-stories); [Redwood renewal-agent case](https://www.gatekeeperhq.com/blog/case-study-how-redwood-logistics-automated-contract-renewal-reviews-with-gatekeeper-agents); [agents](https://www.gatekeeperhq.com/ai-agents); [onboarding/security](https://www.gatekeeperhq.com/en/vendor-onboarding-management-cap) | Vendor pages; Redwood 2026-07-18; others current | Named operating cases, agent tasks/authority, certification claims. Vendor-attributed outcomes; no independent scale/funding. |
+| VE1–VE4 | Vertice | [customer stories](https://www.vertice.one/customer-stories); [Series C report](https://techcrunch.com/2025/01/21/vertice-raises-50m-for-its-ai-powered-saas-spend-platform/); [pricing/capabilities](https://www.vertice.one/pricing); [managed procurement/integrations](https://www.vertice.one/explore/procurement-as-a-service) | Vendor; TechCrunch independent report 2025-01-21; current pages | Cases, live product, funding/customer count, quote pricing, integrations/human service. Agent deployment proof absent. |
+| TR1–TR4 | Tropic | [H1 2026 update](https://www.tropicapp.io/newsroom/tropic-grows-bookings-79-yoy-saves-customers-33m-in-h1-2026-and-deepens-its-reach-inside-claude-and-chatgpt); [pricing](https://www.tropicapp.io/pricing); [March 2026 release](https://www.tropicapp.io/blog/march-2026-product-release); [company/funding](https://www.tropicapp.io/about/our-story) | Vendor; 2026-07-28, current, 2026-03-10, current | Current scale claims, public starting price, live AI features, Series B. Outcomes and usage are vendor claims. |
+| SF1–SF5 | Spendflo | [renewal product](https://www.spendflo.com/renewal-management); [Puffco case](https://www.spendflo.com/case-study-collections/puffco); [independent seed report](https://techcrunch.com/2022/06/13/spendflo-helps-companies-track-their-saas-expenses/); [Flo launch](https://www.spendflo.com/blog/introducing-flo-ai); [integrations/security](https://www.spendflo.com/hybrid/digital-procurement-software) | Vendor; TechCrunch 2022-06-13; Flo 2026-05; current pages | Product/cases, seed evidence, agent launch, integrations/security. Current autonomous production case absent. |
+| CE1–CE5 | CloudEagle | [case index](https://www.cloudeagle.ai/case-studies); [DataStax renewal case](https://www.cloudeagle.ai/case-studies/datastax-saves-70k-through-renewal-management-and-procurement-services-with-cloudeagle-ai); [current product](https://www.cloudeagle.ai/); [AWS relationship](https://www.cloudeagle.ai/news/cloudeagle-and-aws); [contract management](https://www.cloudeagle.ai/saas-management/contract-management) | Vendor/AWS marketplace claim; current pages | Multiple named deployments, direct T1 workflow/integrations, quote-led product. Funding and separate agent proof not captured. |
+| LP1–LP5 | Levelpath | [customer index](https://www.levelpath.com/customers); [GATX](https://www.levelpath.com/customer-story/how-gatx-scaled-rfp-capacity-and-contract-savings-with-ai-procurement); [SSM Health](https://www.levelpath.com/customer-story/how-ssm-health-centralized-intake-and-routed-every-request-with-ai); [Emerald](https://www.levelpath.com/customer-story/emerald-unlocks-efficiency-with-ai-contract-management-from-levelpath); [secondary funding summary](https://en.wikipedia.org/wiki/Levelpath) | Vendor current cases; secondary summary current | Named production cases/current activity; funding summary. Secondary funding citation should be replaced by primary/independent transaction source in a deeper audit. |
+| ZI1–ZI6 | Zip | [Series D](https://zip.com/blog/series-d); [customer stories](https://ziphq.com/customers?b2d346a5_page=2); [platform](https://zip.com/); [Superagents](https://zip.com/blog/what-are-zip-superagents); [agent controls](https://zip.com/blog/can-you-trust-ai-agents); [contract orchestration](https://zip.com/blog/ai-contract-orchestration) | Vendor; Series D 2024-10-21; agent pages 2026-04 to 2026-06 | Funding, cases, product, agent controls and T1/longer overlap. Scale/outcomes largely vendor-attributed. |
+| CO1–CO5 | Coupa | [VF case](https://www.coupa.com/customers/vf-corporation/); [customer index](https://www.coupa.com/customers/); [Thoma Bravo acquisition](https://www.thomabravo.com/press-releases/thoma-bravo-completes-acquisition-of-coupa-software); [Ironclad marketplace connector](https://marketplace.coupa.com/en-US/apps/406734/ironclad-contract-management-for-coupa); [contract product](https://coupa.co.jp/products/source-to-contract/contract-management) | Vendor; acquirer release 2023-02-28; current pages | Operating/scale/corporate disposition and integration/contract surfaces. Current named agent case absent. |
+| SA1–SA6 | SAP Ariba | [customer stories](https://www.sap.com/products/spend-management/customer-stories.html); [Ariba Contracts](https://www.sap.com/products/spend-management/contract-management-software.html); [Contract Assistant](https://www.sap.com/use-cases/joule-assistant/contract-ai); [2026 spend/agent update](https://news.sap.com/2026/05/enabling-autonomous-spend-management-ai-connected-processes/); [audited financial summary](https://www.sap.com/integrated-reports/2025/en/datahub/financial-data/five-year-summary.html); [Trust Center](https://www.sap.com/about/trust-center.html) | Vendor; assistant 2026-05-11, update 2026-05-14, audited FY2025 | Live product/cases, agent availability, integrations, security and hard company-scale signal. SAP-wide revenue is not Ariba segment revenue. |
+| PA1–PA4 | Pactum | [Series C](https://pactum.com/blog/news-pactum-secures-54-million-in-series-c-funding-to-scale-agentic-ai-in-procurement); [client cases](https://pactum.com/clients); [autonomous procurement/boundaries](https://pactum.com/autonomous-procurement-with-pactum); [current platform](https://pactum.com/) | Vendor/investor quotes; round announced 2025-06-09; current pages | Funding, named autonomous deployments, modes/parameters and integration. No independent outcome audit or public price. |
+| H1 | Tonkean | [AI Contract Renewal Agent](https://www.tonkean.com/usecases/ai-contract-renewal-agent) | Vendor current use-case page | Cross-system agent claim. Named agent deployment and exact external-action authority remain open. |
+| H2 | ServiceNow | [Contract Management Pro agentic workflows](https://www.servicenow.com/docs/r/employee-service-management/contract-management-pro/cmpro-agentic-workflows.html?contentId=I~7yS_DtnRArT~q_GZvSww); [2025 annual report](https://s205.q4cdn.com/916135447/files/doc_downloads/annual-meeting-of-share-holders/2026/NOW-2025-Annual-Report-bookmarked.pdf) | Official docs; audited/public-company filing 2026 | Current feature and hard company scale. Named production agent outcome not supplied. |
+| H3 | Atlas | Exact primary URL not resolved in the stopped search; dated parent-stream handoff records current API/MCP docs, review-before-send, audit certificate and named Mercoa testimonial. | Cross-track evidence handoff 2026-08-20 | Bounded early operating proof. URL/provenance is an explicit OPEN GAP; do not use this row alone for an external claim. |
+| H4 | SaySigned | [product and pricing](https://www.saysigned.com/) | Vendor current page | Access/product claim; no qualifying named customer proof found. |
+| H5 | CovalentDocs | [product/trial](https://covalentdocs.com/) | Vendor current page | Trial/landing claim; no qualifying named deployment found. |
+| H6–H8 | Contracko; SiraDocs; Datagrid | Exact intended primary URLs were not resolved before the stop-search checkpoint. | Cross-track candidate handoff 2026-08-20 | Names retained to expose evidence gaps; statuses must not be treated as verified external facts. |
+| OSS1 | Draft Legal | [official site](https://draft-legal.com/); [GitHub repository](https://github.com/AniketTati/draft-legal); [Legal OSS index](https://legal-oss.com/projects/AniketTati/draft-legal) | Project/GitHub/independent index; current | Code, installability, contributors and post-cutoff activity; no adoption evidence. |
+| OSS2 | Documenso | [GitHub repository](https://github.com/documenso/documenso); [GitHub API metadata](https://api.github.com/repos/documenso/documenso); [self-host docs](https://docs.documenso.com/developers/self-hosting) | Project/GitHub primary; API accessed 2026-08-20, pushed 2026-08-19 | Substantive installable repo and post-cutoff activity; stars/forks are not adoption or production proof. |
+| OSS3 | DocuSeal | [GitHub repository](https://github.com/docusealco/docuseal); [GitHub API metadata](https://api.github.com/repos/docusealco/docuseal); [self-host docs](https://www.docuseal.com/self-hosted) | Project/GitHub primary; API accessed 2026-08-20, pushed 2026-08-17 | Substantive self-hostable repo and post-cutoff activity; stars/forks are not adoption or production proof. |
+
+## 14. Deterministic completion audit
+
+| Rule | Result | Evidence |
+|---|---|---|
+| Ten mandatory companies have complete dossier rows | PASS | §8 contains 10/10 rows and every required field, with OPEN GAP where evidence was not captured. |
+| Product, market, corporate, and agent maturity are separate | PASS | §1 taxonomy; §3 and §8 classifications. |
+| Every status cites qualifying evidence | PASS WITH DISCLOSED GAPS | §13 resolves mandatory and qualified routed/OSS IDs; H3 and H6–H8 explicitly lack primary URLs and cannot support external claims. |
+| At least three non-scaled emerging/niche candidates assessed | PASS | Atlas, SaySigned, CovalentDocs plus three evidence-limited T3-adjacent names in §9. |
+| At least three OSS candidates examined honestly | PASS | §10: three ACTIVE-OSS at repository level; adoption/product conclusions remain separate. |
+| All six status-quo categories analyzed | PASS | §11, 6/6. |
+| Agent claims not equated with production | PASS | Dedicated five-state agent axis; per-row authority boundaries. |
+| Required overlap/absorption/market conclusion | PASS | §§11–12; generic T1 crowded/absorbable, full verified chain unproven, no whitespace inference. |
+| Agentic recommendation and authority boundaries | PASS | §12 five-tier boundary, human approval for material/external actions. |
+| No unsupported market size, prevalence, ROI or feature architecture | PASS | Vendor outcome/scale claims are attributed; no extrapolation or build design. |
+| Incumbent-response falsifier and validation consequence | PASS | §12 demotes generic T1 from build, retains diagnostic test, names falsifier and unproved T3 alternative. |
+
+### Counts at close
+
+- **Named entities assessed:** 21 distinct (10 mandatory, 8 routed operating/emerging names, 3 OSS; Draft Legal counted once).
+- **Mandatory maturity:** 10 OPERATING-PROVEN; market maturity 2 SCALED, 6 GROWTH, 1 EARLY, 1 UNKNOWN; corporate disposition 8 INDEPENDENT, 2 ACQUIRED-INTEGRATED.
+- **Mandatory agent maturity:** 4 PRODUCTION-PROVEN, 3 LIMITED-EARLY-ACCESS, 2 CLAIM-ONLY, 2 NONE-FOUND would total 11, so the rule-based recount is **4 PRODUCTION-PROVEN, 2 LIMITED-EARLY-ACCESS, 2 CLAIM-ONLY, 2 NONE-FOUND = 10** (Gatekeeper/Levelpath/Zip/Pactum; Spendflo/SAP; Vertice/Tropic; CloudEagle/Coupa).
+- **Routed non-OSS:** 8 assessed; 3 OPERATING-PROVEN, 4 OPERATING-CLAIMED, 1 PRODUCT-WAITLIST. Because H6–H8 lack primary URLs, those three classifications remain evidence-limited and cannot support an external market claim.
+- **OSS:** 3 candidates; 3 ACTIVE-OSS at repository level; zero adoption conclusions.
+- **Status quo:** 6/6 required categories.
+- **Ledger:** 19 rows representing 62 unique URL/source entries, including four explicit no-URL entity provenance gaps; access date 2026-08-20.
+
+**Final epistemic result:** no desk evidence proves unmet demand, willingness to pay, a market winner, or unique ownership of the residual. The next authorized action is primary validation of the incumbent-response falsifier; this document authorizes no outreach or implementation.
