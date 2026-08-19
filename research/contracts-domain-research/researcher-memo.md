@@ -189,7 +189,7 @@ These examples are **illustrative, not representative**. Small-company public ev
 
 **INFERENCE — High confidence.** Lenus demonstrates two different archetypes requiring different triggers and destinations: sell-side execution informs finance, while hiring data initiates employment documents. It supports integration and governed self-service, but the extreme volume and highly standardised agreements may not resemble lower-volume, higher-complexity ICP customers.
 
-### 5.3 Enterprise companies (three documented cases)
+### 5.3 Enterprise companies (two counted cases)
 
 #### GitLab — 2,375 team members at 2025-01-31; public sell-side and procurement workflows
 
@@ -205,8 +205,259 @@ These examples are **illustrative, not representative**. Small-company public ev
 
 **INFERENCE — High confidence.** This agreement family would overwhelm a flat document/reminder model. Operational truth depends on hierarchy, country, service, schedule, change order, procedure and time. It is good evidence for Aakd's domain architecture, but it is poor evidence for the initial 50–500 go-to-market segment because its implementation burden is enterprise-grade.
 
-#### Cardinal Infrastructure Group — enterprise construction contract operations
+### 5.4 Size unknown and therefore not counted: Cardinal Infrastructure Group
+
+#### Cardinal Infrastructure Group — public-company construction contract operations
 
 **FACT — High confidence; SEC filing.** Cardinal's 2025 Form 10-K describes monthly contract loss reviews considering performance, site conditions, profitability, claims and change orders; unapproved change orders affect when revenue and cost can be recognised; retainage and billing/progress timing create contract assets and liabilities. The company disclosed $135,647, $4,039,488 and $803,912 of loss-contract provisions for 2025, 2024 and 2023 respectively, and explained a $37.2 million year-over-year increase in contract assets in 2025. [Cardinal Infrastructure 2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm); [filed annual report, 24 April 2026](https://www.sec.gov/Archives/edgar/data/2079999/000119312526177474/2025_annual_report.pdf)
 
 **INFERENCE — High confidence.** Construction turns contract management into continuous financial and project control: scope and acceptance evidence determine change-order recovery, billing, revenue, cash and loss recognition. A renewal reminder would be largely irrelevant; change authority and evidence are the wedge.
+
+## 6. How contracts affect the business process
+
+Contracts translate a business decision into constraints on what teams may sell, buy, deliver, bill, disclose, hire, change and stop. The effect is bidirectional: the contract controls operations, and operational evidence determines whether contractual rights can be exercised.
+
+| Function | Before / at signature | After signature | Observable business effect | Useful measures (not assumed ROI) |
+|---|---|---|---|---|
+| **Sales / revenue operations** | packaging, discount, entity, term, order of precedence, customer paper, approvals, signature authority | provisioning, delivery/acceptance, renewal/upsell, price increase, SLA credits, termination, revenue evidence | deal velocity, margin/risk, booking eligibility, customer experience, revenue timing | intake-to-first-draft; negotiation rounds; approval dwell; signature-to-booking/provision; non-standard term rate; renewal/expansion decision on time |
+| **Procurement / AP** | need, budget, competition, vendor diligence, commercial negotiation, DPA/security, PO and authority | onboarding/payment, performance, credits, spend/usage, risk reviews, price/renewal, transition | spend control, service continuity, third-party risk, realised savings, invoice accuracy | requisition-to-contract; work-before-contract rate; contracted vs invoiced; SLA remedies captured; renewal decisions before notice; dormant/duplicate subscriptions |
+| **Finance / accounting / treasury** | price/payment, tax/entity, revenue/accounting review, funding/covenants, budget commitment | invoice and collections, accrual/revenue recognition, rebates/credits, retainage, covenant reporting, loss/claim estimates | cash timing, close quality, forecast accuracy, revenue/cost recognition, liquidity and audit evidence | contract-to-invoice time; invoice exceptions; DSO by term; unbilled/contract assets; manual revenue adjustments; covenant evidence on time; change-order ageing |
+| **Operations / delivery / customer success** | scope, responsibilities, acceptance, implementation, dependencies, service levels and change process | perform, evidence milestones, manage customer/supplier obligations, incidents, changes, claims, continuity and exit | delivery quality, capacity, margin, customer/supplier relationship, recoverability of out-of-scope work | obligation acceptance rate; on-time milestones; SLA/KPI breaches; accepted vs disputed change orders; unbilled out-of-scope work; evidence completeness |
+| **Security / privacy / IT** | vendor/customer assessment, data mapping, security schedule, DPA/BAA, subprocessors, access | ongoing assurance, incidents and notice, audits, subprocessor changes, deletion/return, access revocation | lawful data use, incident response, auditability, attack surface and exit risk | review completion before access; DPA/BAA coverage; incident-notice timeliness; overdue audit evidence; subprocessor objections; deletion/access-revocation proof |
+| **HR / People Ops** | worker status, offer/contract, pay/benefits, right-to-work, policy incorporation, confidentiality/IP | onboarding/payroll/access, probation, changes, leave/benefits, equity, performance, notice and offboarding | hiring time, payroll accuracy, classification/compliance, IP ownership and employee experience | accepted-offer-to-contract; manual corrections; start-before-completion; contractor/visa/term expiry; policy acknowledgement; offboarding obligations completed |
+| **Governance / legal / board** | entity and authority, reserved matters, deviations, conflicts, material risk, conditions and signing | compliance, claims/disputes, audits, corporate transactions, disclosure, retention/legal hold | enforceability, accountability, audit and due-diligence readiness, litigation position | unauthorized signatures; missing approvals; agreement-family completeness; retrieval time; open high-risk deviations; notice compliance; audit exceptions |
+
+**FACT — High confidence.** GitLab's own workflow connects contract approval to revenue review, booking, licence fulfilment and vendor payment rather than treating legal execution as an isolated endpoint. [GitLab sales order processing](https://handbook.gitlab.com/handbook/sales/field-operations/order-processing/); [GitLab procurement](https://handbook.gitlab.com/handbook/finance/procurement/)
+
+**FACT — High confidence.** IFRS 15 makes customer-contract identification and performance obligations inputs to revenue recognition. Cardinal's filing shows the practical construction version: progress, billing terms, change orders, claims, retainage and loss estimates alter revenue, contract assets/liabilities and cash timing. [IFRS 15](https://www.ifrs.org/issued-standards/list-of-standards/ifrs-15-revenue-from-contracts-with-customers/); [Cardinal 2025 10-K](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm)
+
+**FACT — High confidence.** Security/privacy duties continue after execution. The FTC advises companies to specify vendor security expectations in contracts and verify compliance, while UK ICO and US HHS guidance require processor/business-associate duties including security, incidents, downstream providers and end-of-contract treatment. [FTC vendor security guidance, 2018](https://www.ftc.gov/business-guidance/blog/2018/12/cybersecurity-small-business-vendor-security); [ICO Article 28 terms](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/contracts-and-liabilities-between-controllers-and-processors-multi/what-needs-to-be-included-in-the-contract/); [HHS BAA provisions](https://www.hhs.gov/hipaa/for-professionals/covered-entities/sample-business-associate-agreement-provisions/index.html)
+
+## 7. Failure modes, consequences, controls, and the limits of CLM
+
+### 7.1 Failure-mode matrix
+
+| Failure mode | Lifecycle point | Business consequence | Leading indicator / measurable outcome | Control or intervention |
+|---|---|---|---|---|
+| Wrong entity, counterparty or unauthorized signer | intake / execution | unenforceability risk, tax/payment failure, fraud, re-execution | entity corrections; rejected signatures; unauthorized-signature count | verified legal entity; authority matrix; exact-version approval |
+| Work starts before contract, PO, diligence or condition precedent | intake / mobilisation | unpaid work, unapproved spend, uninsured/security exposure | start-before-contract rate; retrospective POs; access before review | hard/soft gate tied to operational provisioning; exception owner |
+| Old template or unapproved clause | drafting | inconsistent rights, regulatory gaps, avoidable negotiation | template age; unapproved deviation rate; duplicate clause variants | governed templates, playbook, approval thresholds and version lineage |
+| Multiple “final” versions / wrong signed copy | negotiation / execution | signature of unapproved terms; dispute over governing text | post-approval edits; re-executions; orphan redlines | single pen, locked executable, hash/version binding, completion evidence |
+| Missing incorporated schedule, amendment or notice | storage / interpretation | wrong obligation, price, SLA, term or liability conclusion | incomplete family rate; unresolved precedence; orphan amendments | family graph, required-document checklist, precedence/effective-period review |
+| Obligation has no internal owner | mobilisation | missed deliverable, notice, report, credit or compliance duty | ownerless actions; overdue actions; repeated reassignment | named accountable owner acceptance, escalation and reviewer |
+| Date extracted without trigger/condition | mobilisation / monitoring | premature or missed action; false reminders | corrected due dates; reminders without source/condition | model trigger, condition, window, timezone and exact citation; human review |
+| The company's own dependency is missed | delivery | supplier/customer can excuse performance or dispute remedy | blocked actions; remedy denied; missing input/approval evidence | bilateral obligation/dependency map and evidence collection |
+| Informal scope change or waiver | delivery / change | margin leakage, unbillable work, precedent, outdated contract | work without approved change; ageing change requests; email waivers | change request tied to budget, authority, notice and governing family |
+| SLA failure not evidenced or remedy not claimed | delivery | service degradation and lost credits/rights | breach-to-notice time; eligible vs claimed credits; evidence gaps | system-fed measurement, contractual calculation, notice workflow and decision owner |
+| Auto-renewal / termination window missed | renewal | unwanted spend or service loss; lost negotiating leverage | renewal decision after window; emergency terminations | early decision workflow, usage/performance context, compliant notice proof |
+| Data/access not removed at exit | exit | privacy/security exposure, continued fees, regulatory breach | active accounts after termination; missing deletion certificate | exit plan from mobilisation; IAM/task integration; return/delete evidence |
+| Over-retention or premature destruction | close / records | privacy breach, inability to defend claim/audit | records past schedule; deletion under hold; missing retention basis | jurisdiction/record-class schedule, legal hold and defensible disposition |
+| Bad metadata or unreviewed AI output treated as truth | all post-signature | silent wrong action, lost trust, liability | correction rate; unsupported outputs; stale actions after amendment | exact citation, confidence, reviewer, correction propagation and audit trail |
+
+**FACT — High confidence.** UK Government guidance warns that even non-financial changes such as milestone delay or KPI suspension should use formal change control, with authorization, audit trail, updated contract and assessment of interdependencies. It also says dispute handling depends on records and audit trails, and authorities must track their own obligations as well as supplier performance. [Contract Management Foundation takeaway guide, 2026](https://www.gov.uk/government/publications/civil-service-helping-you-with-managing-suppliers-and-contracts/contract-management-training-accreditation-foundation-level-takeaway-guide-html)
+
+**FACT — High confidence.** The UK cross-government review's framework requires clear ownership, proportionate resources, an up-to-date contract incorporating agreed changes, accessible correspondence, performance metrics and documented relationships. A later public-sector summary reports that reviews found weaknesses in governance, multidisciplinary working, performance, risk and modification management; these are public-sector findings and should not be numerically generalized to private midmarket firms. [Cross Government Review of Major Contracts, 2013](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/268800/Cross_Government_Review_of_Major_Contracts_Summary_Report.pdf); [Northern Ireland sourcing toolkit summary, 2022](https://www.finance-ni.gov.uk/sites/default/files/publications/dfp/Sourcing%20Toolkit%20Section%204%20-%20Contract%20Management%20%5Bpdf%20version%2030%20Sep%2022%5D.PDF)
+
+### 7.2 Where CLM helps
+
+**INFERENCE — High confidence.** CLM is well suited to repeated, rules-based coordination:
+
+- one intake and status trail across requester, legal, finance, security/privacy and approvers;
+- template, clause, version and deviation control;
+- authority- and risk-based routing;
+- agreement-family storage, search, metadata and access controls;
+- owned obligations, triggers, notice windows, evidence and escalation;
+- structured changes, renewals and exit;
+- integrations that gate booking, payment, provisioning, onboarding or tickets; and
+- portfolio-level measurement of cycle time, exceptions, obligations and exposure.
+
+The documented GitLab, Burd, Lenus and Cardinal workflows each support a different part of this list; none proves that a single CLM should implement all of it for every company. [GitLab sales workflow](https://handbook.gitlab.com/handbook/sales/field-operations/order-processing/); [Burd](https://contractbook.com/customers/burd-delivery); [Lenus](https://contractbook.com/customers/lenus); [Cardinal 10-K](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm)
+
+### 7.3 Where CLM creates burden or fails
+
+| Burden / risk | Why it happens | What “good” looks like for Aakd |
+|---|---|---|
+| **Implementation tax** | templates, clause/playbook decisions, fields, roles, integrations, migration and access rules require scarce expert time | first useful cited action from one agreement without full migration; progressive configuration |
+| **Process fossilisation** | automating a confused process makes exceptions harder and embeds needless approvals | observe the real workflow first; risk-tiered paths; measurable reason for every approval |
+| **Workflow explosion** | one workflow per contract variant becomes unmaintainable | composable rules and archetype-specific modules; consolidate common stages; version workflow definitions |
+| **Garbage in, structured garbage out** | missing amendments, poor scans, wrong counterparty/entity or stale metadata creates confident errors | family completeness checks, source citations, confidence, review and unresolved-state visibility |
+| **Shadow-system persistence** | sales, procurement and operations stay in CRM/email/tickets when CLM adds another destination | meet users in existing systems; clear system-of-record boundaries; sync status and identifiers |
+| **False legal certainty from AI** | extraction is probabilistic and the governing answer can require hierarchy and legal judgment | suggestions only until reviewed; show exact source and scope; propagate corrections; do not imply legal advice |
+| **Alert fatigue** | date extraction produces too many irrelevant or ownerless reminders | action acceptance, owner, trigger/condition, severity, deduplication and exception view |
+| **Access and confidentiality expansion** | centralising sensitive employment, pricing, M&A and security terms broadens exposure | purpose-specific least privilege, field/document segmentation, access audit and safe outputs |
+| **Administration exceeds value** | low-volume or simple contracts do not justify metadata/review overhead | proportionality by consequence and frequency; disqualify low-pain customers |
+| **Vendor/consulting dependency** | sophisticated workflows require continual specialist maintenance | transparent, portable configuration; self-hosting; bounded managed service with explicit support cost |
+
+**FACT — Medium confidence; vendor case study.** Ruffalo Noel Levitz reported that earlier document automation generated divergent template versions and that its first Ironclad design had 50 workflows later consolidated to 22. This is direct operator-attributed evidence that automation architecture can create maintenance burden, but it is published by Ironclad and not a neutral comparative study. [Ironclad / Ruffalo Noel Levitz case study, accessed 2026-08-19](https://ironcladapp.com/resources/customer-stories/ruffalo-noel-levitz)
+
+**FACT — Medium confidence.** ACC explicitly frames maturity targets as dependent on department size, staffing and budget. That supports proportionate deployment; it does not establish which CLM features cause maturity. [ACC maturity model](https://www.acc.com/resource-library/acc-legal-operations-maturity-model-0)
+
+### 7.4 Outcomes worth measuring
+
+Do not use “contracts processed” or AI extractions as success. Measure the business handoff and error surface:
+
+1. **Activation:** median time from upload/connect to the first reviewed, accepted, owner-bound action.
+2. **Accuracy:** material correction rate; unsupported-action rate; agreement-family completeness; stale-action rate after amendment.
+3. **Execution:** percentage of accepted actions completed on time with required evidence; blocked and exception ageing.
+4. **Consequence:** renewal spend avoided/renegotiated, eligible remedy captured, invoice/change-order recovery, audit issue prevented or hours of verified manual work removed—reported per episode, not as an assumed industry percentage.
+5. **Adoption:** named owners who use the action output in their existing workflow; repeat use on a second family or later event.
+6. **Operational burden:** reviewer minutes per agreement/action, implementation hours, correction/rework, support hours and configuration changes.
+7. **Trust/safety:** excluded-content retrieval attempts, unauthorized reads/writes, actions without citation/review, stale brief acted on.
+
+**CAUTION.** WorldCC has published an often-cited “9.2% of annual revenue” average value erosion figure. Its public summary describes WorldCC research and wide variation, but the figure should remain a practitioner-association claim—not a neutral forecast for Aakd customers—without the underlying sample, construct and applicability being independently established. [WorldCC uncertainty-management summary, published 2022](https://www.worldcc.com/Portals/IACCM/Uncertainty%20Management-Summar.pdf)
+
+## 8. What changes by contract archetype and event
+
+### 8.1 Archetype-specific operating focus
+
+| Archetype | Dominant trigger | What must be modelled beyond generic dates | Evidence of completion | Likely systems of action |
+|---|---|---|---|---|
+| SaaS/customer MSA + order | opportunity/order, go-live, usage, renewal | family hierarchy, entitlements, acceptance, SLA, pricing/usage, revenue obligations, DPA | provisioning, acceptance, usage, invoice, service report | CRM, billing/ERP, support/observability, customer success |
+| Professional-services SOW | milestone, deliverable submission, dependency, change | scope, assumptions, customer dependencies, acceptance window, rates/cap, change authority | deliverable, time/cost, written acceptance or deemed acceptance | PSA/project, time tracking, CRM/ERP |
+| Vendor SaaS / outsourcing | access, service commencement, incident, renewal, exit | security/privacy, SLA/credits, usage, audit, subprocessor, continuity, transition | review, access record, SLA report, credit, deletion/transition | procurement, GRC, IAM/ITSM, AP |
+| Employment / contractor | accepted offer, start, probation, role/pay change, termination | status, jurisdiction, policy incorporation, IP/confidentiality, benefits, notice, right-to-work | signed terms, payroll, access, acknowledgement, offboarding | ATS, HRIS, payroll, IAM |
+| NDA / confidentiality | disclosure, permitted purpose, compelled disclosure, expiry | information scope, exclusions, recipient group, residuals, return/destruction, survival | disclosure log where material, notice, deletion/return | CRM/deal room, repository, security |
+| DPA / BAA | processing/access, incident, subprocessor, data-subject request, termination | controller/processor role, data/purpose, instructions, safeguards, notice clock, downstream flow-down, deletion/audit | assessment, incident timeline, subprocessor record, deletion certificate | privacy/GRC, incident, vendor, data inventory |
+| IP licence/assignment | creation/delivery, territory/channel use, milestone, royalty period | ownership vs licence, field/territory, exclusivity, sublicensing, attribution, royalties, infringement | assignment/instrument, usage/sales report, payment, takedown | product/content, royalty accounting, IP docket |
+| Construction / real estate | site handover, progress, change, inspection, completion, rent review | physical scope, drawings, conditions, retainage, variations, delay, title/repair, insurance | inspection, certificate, approved change, completion, payment | project controls, ERP, facilities/property |
+| Loan / finance | draw, reporting period, ratio test, payment, event of default | covenants, definitions/calculations, collateral, baskets, cure, cross-default, notices | compliance certificate, financials, payment, waiver | treasury, ERP/BI, board/legal |
+| Government / regulated | award, reporting period, audit, performance failure, change | mandatory clauses, flow-downs, public notices, records, regulator rights, eligibility | certified reports, audit trail, performance/change notices | procurement, grant/project, GRC, public reporting |
+
+**FACT — High confidence.** FAR Part 16 shows that fixed-price, cost-reimbursement, incentive, indefinite-delivery and time-and-materials structures deliberately change cost responsibility, incentives and management resources. [FAR Part 16](https://www.acquisition.gov/far/part-16)
+
+**FACT — High confidence.** Form changes too: US copyright assignments generally need a signed writing, England/Wales land-sale contracts need signed writing, and regulated data contracts require prescribed content. [17 U.S.C. §204](https://www.law.cornell.edu/uscode/text/17/204); [LP(MP)A 1989 §2](https://www.legislation.gov.uk/ukpga/1989/34/pdfs/ukpga_19890034_en.pdf); [ICO Article 28 guidance](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/contracts-and-liabilities-between-controllers-and-processors-multi/what-needs-to-be-included-in-the-contract/)
+
+### 8.2 Event-to-action pattern
+
+Every post-signature feature should answer six questions: **What happened? Which governing source applies? What condition/test follows? Who must decide or act? By when? What evidence closes it?**
+
+| Event | Derived action pattern | Common trap |
+|---|---|---|
+| Signature / effective date | complete conditions, provision/onboard, schedule recurring duties, begin billing/performance | assuming signature date equals effective or service start date |
+| Customer/supplier deliverable | inspect against acceptance criteria, accept/reject within window, preserve evidence | reminders without the acceptance test or deemed-acceptance rule |
+| Incident / breach | classify event, start contractual/regulatory clocks, notify authorized recipients, mitigate, reserve rights | extracting one “72 hour” date without knowing awareness, scope or parallel legal clocks |
+| SLA/KPI miss | validate measurement/exclusion, calculate remedy, issue notice, start remediation/escalation | claiming credit without evidence or missing the company's own dependency |
+| Scope or law change | impact assessment, approval, written change, update price/schedule/control, invalidate old actions | implementing through email and leaving the base record stale |
+| Renewal window | review usage/performance/alternatives, decide, negotiate or send compliant notice | generic alert with no decision owner or notice mechanics |
+| M&A/entity change | review assignment/change-of-control, consent/notice, data/entity access and guarantees | searching documents individually and missing family-wide restrictions |
+| Termination / expiry | invoke cure/termination correctly, transition service/data/assets, final account, survival and access removal | treating termination notice as completed exit |
+| Audit/dispute | legal hold, gather governing family and evidence trail, preserve communications and calculations | repository search without version, provenance or permissions |
+
+## 9. Implications and falsifiable hypotheses for Aakd
+
+### 9.1 Recommended product/research position
+
+**RECOMMENDATION — Medium confidence.** Keep Aakd a professional CLM, but validate one narrow journey: **executed agreement family → cited and reviewed action → named operational owner → evidence/exception → reviewer closure**, delivered into one existing work system. Do not lead with full replacement, generic summarisation, or a universal obligation ontology.
+
+Why this follows from the evidence:
+
+- Public operator and regulatory sources show that value is realised after signing through booking, fulfilment, payment, service, controls, change and exit—not by document storage alone. [GitLab sales process](https://handbook.gitlab.com/handbook/sales/field-operations/order-processing/); [GovS 008](https://www.gov.uk/government/publications/government-functional-standard-govs-008-commercial-and-commercial-continuous-improvement-assessment-framework/government-functional-standard-govs-008-commercial-html)
+- The target band plausibly has enough complexity for fragmentation but often a lean legal/operations owner; Tibber, Placemakr and Lenus illustrate the pattern but are vendor-selected cases. [Tibber](https://juro.com/case-studies/tibber); [Placemakr](https://juro.com/case-studies/placemakr); [Lenus](https://contractbook.com/customers/lenus)
+- Agreement-family and event semantics are essential. The Sabre–DXC and Cardinal evidence shows that an isolated clause/date is often not governing or actionable. [Sabre–DXC](https://www.sec.gov/Archives/edgar/data/1597033/000159703321000022/exhibit10103masterservices.htm); [Cardinal](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm)
+
+### 9.2 Ten hypotheses to test—not product facts
+
+| ID | Falsifiable hypothesis | Minimum evidence to support | Evidence that falsifies / forces change |
+|---|---|---|---|
+| **H1 Pain** | In 50–500 employee US/UK B2B service/software/technical firms, at least one material recent failure came from a post-signature handoff, not primarily drafting/negotiation | 5 independent firms with a dated episode, receiver, missing information, consequence and workaround | interviews cluster on pre-signature velocity or repository search with no costly action failure |
+| **H2 Owner** | A recurring operational owner (legal ops, commercial/procurement/finance/service ops) will accept responsibility for a cited action queue | 5 firms name role; 3 let that role review real outputs; accepted ownership survives a second cycle | no role accepts ongoing review/ownership; tasks remain external-counsel or founder work |
+| **H3 Family need** | Material actions often require MSA + SOW/order + amendment/DPA rather than one document | representative corpora show at least 30% of consequential actions change when family context is added | isolated document produces materially correct action in nearly all target workflows |
+| **H4 No-migration activation** | One useful action can be delivered without repository migration or full workflow configuration | median clean-file-to-reviewed-action time meets preregistered target across 3 corpora | setup/mapping/support dominates and customers demand migration before value |
+| **H5 Citation trust** | Exact source, family context and human review materially increase acceptance versus uncited extraction | blinded task comparison shows higher acceptance/lower correction or participants refuse uncited version | citations do not affect decisions, or review burden exceeds value |
+| **H6 Work-system delivery** | Publishing to one existing tool increases completion more than requiring daily CLM login | within-firm pilot comparison on accepted actions and evidence closure | integration adds failure/support burden without adoption gain |
+| **H7 Consequence** | At least one archetype yields a recurring, measurable consequence within 90 days: renewal/notice, SLA/customer commitment, DPA/security evidence, SOW milestone/change | 3 firms observe event; 2 complete second occurrence; consequence and counterfactual documented | triggers are too rare, consequences too soft, or data unavailable |
+| **H8 Willingness to pay** | Economic owners will fund managed operation for the action loop, not just software curiosity | 2 economic owners pay for same workflow and repeat | only free pilots/self-host interest; bespoke service is required each time |
+| **H9 Review burden** | Human review remains below a preregistered minutes/action or minutes/agreement ceiling while catching silent critical errors | measured reviewer time and correction taxonomy on real families | review time approaches manual work or critical unsupported actions occur |
+| **H10 Segment** | 51–200 and 201–500 firms share enough workflow primitives for one product path | same trigger-action-evidence recipe repeats across ≥2 firms in each band | ownership, systems, security or complexity require separate products/services |
+
+### 9.3 Discovery questions that expose real operations
+
+Ask about a recent episode, not opinions about “contract management”:
+
+1. “Show me the last agreement that caused an operational surprise after signature. What happened, who first knew, and what did it cost or delay?”
+2. “Which documents together governed the answer? How did you know you had the latest amendment/order?”
+3. “Who received the handoff after signature? What exact information, condition or evidence was missing?”
+4. “Where was the workaround—spreadsheet, CRM, calendar, ticket, Drive, email, outside counsel—and how often is it maintained?”
+5. “What would a reviewed action have said, who could approve it, and where would it need to appear?”
+6. “What false positive or exposed term would make you stop trusting the system?”
+7. “How was the consequence measured, and who owns budget to prevent the next occurrence?”
+8. “Would you repeat this on a second agreement family or later event without founder help?”
+
+### 9.4 Explicit open gaps
+
+- **OPEN GAP:** No representative evidence yet quantifies post-signature failure incidence in US/UK 50–500 employee firms by the 51–200 and 201–500 bands.
+- **OPEN GAP:** Public case studies over-represent successful CLM adopters and seller-selected outcomes; non-adopters, failed implementations and spreadsheet-sufficient firms are under-observed.
+- **OPEN GAP:** The economic buyer and budget line for a cited-action loop are unvalidated; GC, COO, CFO, CPO and operations are competing hypotheses.
+- **OPEN GAP:** The best first archetype is unknown. Renewal, SLA/customer commitment, DPA/security, and SOW/change each have different frequency, evidence and consequence.
+- **OPEN GAP:** Acceptable extraction error, reviewer time, liability posture and correction propagation have not been measured on representative agreement families.
+- **OPEN GAP:** US state-law differences and UK distinctions among England & Wales, Scotland and Northern Ireland require transaction-specific legal treatment. This memo's UK formation discussion is principally England and Wales.
+- **OPEN GAP:** Self-hosting may appeal to technical/privacy champions but could increase deployment burden for the lean ICP; willingness to operate it is not demonstrated by contract-workflow evidence.
+
+## 10. Evidence table
+
+| Claim | Evidence type | Source / date | Confidence | Company-size basis | Limitations |
+|---|---|---|---|---|---|
+| Contract is enforceable obligation; common elements | legal reference | [Cornell LII](https://www.law.cornell.edu/wex/contract), accessed 2026-08-19 | High | n/a | US state law varies; concise secondary legal synthesis |
+| UCC distinguishes agreement from contract | statutory model text | [UCC §1-201](https://www.law.cornell.edu/ucc/1/1-201), accessed 2026-08-19 | High | n/a | Article/state adoption and non-goods law vary |
+| Goods contracts/orders can form by conduct, promise or shipment | statutory model text | [UCC §§2-204](https://www.law.cornell.edu/ucc/2/2-204), [2-206](https://www.law.cornell.edu/ucc/2/2-206), accessed 2026-08-19 | High | n/a | Goods-specific; state enactments may differ |
+| English-law contract can exist despite no final signed document | apex-court judgment | [RTS v Müller](https://www.supremecourt.uk/cases/uksc-2009-0048), 2010 | High | enterprise parties; size not used | fact-specific; England & Wales law |
+| Employment terms can come from several records and implication | government guidance / court | [GOV.UK](https://www.gov.uk/employment-contracts-and-conditions/contract-terms), [UKSC](https://www.supremecourt.uk/cases/judgments/uksc-2023-0075), accessed 2026-08-19 / 2024 | High | n/a | employment and jurisdiction specific |
+| Signature/formality varies by transaction | statutes / law reform body | [17 USC §204](https://www.law.cornell.edu/uscode/text/17/204); [LP(MP)A 1989](https://www.legislation.gov.uk/ukpga/1989/34/pdfs/ukpga_19890034_en.pdf); [Law Commission](https://lawcom.gov.uk/project/electronic-execution-of-documents/), 1976/1989/2019 | High | n/a | exceptions and transaction-specific formalities require counsel |
+| Enterprise agreement is a multi-document family | executed SEC-filed contract | [Sabre–DXC MSA](https://www.sec.gov/Archives/edgar/data/1597033/000159703321000022/exhibit10103masterservices.htm), filed 2021 | High | Sabre enterprise: 4,650 in [2025 10-K](https://www.sec.gov/Archives/edgar/data/1597033/000162828026008800/sabr-20251231.htm) | one large outsourcing relationship; redactions |
+| Lifecycle includes mobilisation, delivery, change and exit | government professional standard | [UK CM standards](https://www.gov.uk/government/publications/contract-management), 2019; [2026 guide](https://www.gov.uk/government/publications/civil-service-helping-you-with-managing-suppliers-and-contracts/contract-management-training-accreditation-foundation-level-takeaway-guide-html) | High | guidance says proportionate to contract | public-sector context |
+| Fixed-price vs cost reimbursement shifts cost risk/admin | regulation | [FAR Part 16](https://www.acquisition.gov/far/part-16), effective 2026-03-13 | High | n/a | US federal procurement, not all commerce |
+| Data/health contracts impose specific downstream duties | regulator guidance | [ICO](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/contracts-and-liabilities-between-controllers-and-processors-multi/what-needs-to-be-included-in-the-contract/); [HHS](https://www.hhs.gov/hipaa/for-professionals/covered-entities/sample-business-associate-agreement-provisions/index.html), accessed 2026-08-19 / 2013 | High | n/a | role/scope dependent; ICO guidance under 2026 review |
+| Customer contracts determine revenue model inputs | accounting standard | [IFRS 15](https://www.ifrs.org/issued-standards/list-of-standards/ifrs-15-revenue-from-contracts-with-customers/), effective 2018 | High | applies by reporting regime | US GAAP has parallel ASC 606 but not analysed here |
+| SFG automated employment contract workflow | vendor case, customer quote | [Contractbook](https://contractbook.com/customers/sfg), accessed 2026-08-19 | Medium | vendor says 1–10 (small) | Denmark; seller-published; savings unaudited |
+| Burd connects recruit form, contract, onboarding and payroll | vendor case, customer quote | [Contractbook](https://contractbook.com/customers/burd-delivery), accessed 2026-08-19 | Medium | vendor says 11–50 (small) | Denmark; seller-published; savings unaudited |
+| Expo Pass uses contract/Salesforce-linked workflow | vendor case, customer quote | [Juro](https://juro.com/case-studies/expo-pass), accessed 2026-08-19 | Medium | vendor says 50+ and growth history (medium) | exact current size unknown; seller-published |
+| Tibber's 30→330 growth exposed repository/renewal pain | vendor case, customer quote | [Juro](https://juro.com/case-studies/tibber), accessed 2026-08-19 | Medium | vendor documents 330 (medium) | Europe, not US/UK; seller-selected outcome |
+| Placemakr connects HubSpot to contracting and structured data | vendor case, customer quote | [Juro](https://juro.com/case-studies/placemakr), accessed 2026-08-19 | Medium | vendor says 240+ (medium) | US; time estimate unaudited |
+| Lenus connects Salesforce/HRIS contracting to finance/HR | vendor case, customer quote | [Contractbook](https://contractbook.com/customers/lenus), accessed 2026-08-19 | Medium | vendor says 201–500 (medium) | Denmark; very high volume; seller-published |
+| GitLab's contract controls span legal, sales, revenue, fulfilment | company operating handbook / SEC filing | [sales process](https://handbook.gitlab.com/handbook/sales/field-operations/order-processing/); [FY2025 10-K](https://www.sec.gov/Archives/edgar/data/1653482/000162828025014344/gtlb-20250131.htm) | High | 2,375 team members (enterprise) | public process may change; not outcome study |
+| GitLab vendor flow gates work/payment and reviews renewals | company operating handbook | [procurement](https://handbook.gitlab.com/handbook/finance/procurement/); [storage](https://handbook.gitlab.com/handbook/legal/vendor-contract-filing-process/), accessed 2026-08-19 | High | same enterprise SEC basis | self-documented policy, not compliance audit |
+| Cardinal continuously connects contracts to change, loss, revenue and cash | SEC 10-K | [Cardinal 2025 10-K](https://www.sec.gov/Archives/edgar/data/2079999/000119312526120014/cdnl-20251231.htm), filed 2026 | High | enterprise classification based on public-company complexity; employee count not verified | sector-specific; size headcount unknown, so not counted toward size minimum |
+| Contract closeout exceeds expiry | regulation | [FAR 4.804-5](https://www.acquisition.gov/far/4.804-5), effective 2026-03-13 | High | n/a | US federal context |
+| Formal change control needs authority, audit and updated truth | government training guidance | [UK foundation guide](https://www.gov.uk/government/publications/civil-service-helping-you-with-managing-suppliers-and-contracts/contract-management-training-accreditation-foundation-level-takeaway-guide-html), 2026 | High | proportionality noted | public-sector guidance; principles transferable, not prevalence data |
+| Weak contract management manifests across governance/performance/risk | government review | [Cross-government review](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/268800/Cross_Government_Review_of_Major_Contracts_Summary_Report.pdf), 2013 | High for reviewed contracts | major public contracts | old and public-sector-specific; do not generalise rates |
+| CLM workflow count/template automation can create maintenance problems | vendor case, customer quote | [Ironclad / RNL](https://ironcladapp.com/resources/customer-stories/ruffalo-noel-levitz), accessed 2026-08-19 | Medium | company size not verified | seller-published; no neutral comparison |
+| Maturity target should reflect team size/staff/budget | professional-body framework | [ACC model](https://www.acc.com/resource-library/acc-legal-operations-maturity-model-0), 2022/2025 | Medium | explicitly discusses department scale | benchmarking framework, not causal research |
+| 9.2% value erosion is an association claim, not Aakd forecast | practitioner research summary | [WorldCC](https://www.worldcc.com/Portals/IACCM/Uncertainty%20Management-Summar.pdf), 2022 | Low for ICP extrapolation | no segment basis established | public summary lacks enough methodological detail for neutral use |
+
+## 11. Source inventory and completion audit
+
+### Source counts by class
+
+Counts are unique source documents/pages cited in this memo, classified conservatively:
+
+- **Primary / authoritative URLs: 31** — statutes/UCC/FAR, UK Supreme Court, regulator/government guidance, IFRS, SEC filings/exhibits, GitLab's first-party operating handbook, and Cornell's legal reference.
+- **Practitioner standards/research URLs: 3** — the ACC model page and PDF plus the WorldCC uncertainty-research summary.
+- **Vendor-published customer-case URLs: 7** — SFG, Burd, Expo Pass, Tibber, Placemakr, Lenus and RNL; each is labeled where used.
+- **Total unique cited URLs: 41.** Counts were produced by extracting and deduplicating Markdown URLs from this file. This exceeds the minimum 20 sources and minimum 12 primary/authoritative sources.
+
+### Named-company counts by verified/documented size
+
+- **Small (1–50): 2** — SFG (1–10), Burd Delivery (11–50).
+- **Medium (51–500): 4** — Expo Pass (50+ with documented crossing above 50), Tibber (330), Placemakr (240+), Lenus (201–500).
+- **Enterprise (>500): 2 counted** — GitLab (2,375), Sabre (4,650; Sabre–DXC agreement). DXC is a named counterparty but not separately counted; Cardinal is not counted because employee headcount was not verified.
+- **Total counted named examples: 8**; all have direct workflow/impact URLs and explicit evidence limitations.
+
+### Numbered task acceptance checklist
+
+1. **PASS — What makes a contract and contract/agreement/order/policy distinctions.** Covered in §1 with US/England & Wales authority and jurisdiction caveats.
+2. **PASS — Taxonomy.** Covered in §2 across buy-side, sell-side, corporate, employment, data/IP, real estate/finance and regulated contracts.
+3. **PASS — Exact lifecycle.** Covered in §3 with activities, actors, inputs/outputs, systems, controls and evidence across 13 stages.
+4. **PASS — Small/medium/enterprise workflow differences.** Covered in §4; size bands are explicit and not presented as universal definitions.
+5. **PASS — At least six named real-company examples, at least two per size.** Eight counted in §5/§11; two small, four medium, two enterprise; every example has a direct supporting URL and evidence tier.
+6. **PASS — Business-process impact.** Sales, procurement, finance, operations, security/privacy, HR and governance covered in §6 with outcome measures.
+7. **PASS — Failure modes, measurable outcomes, CLM value/burden.** Covered in §7; vendor ROI is labeled and the 9.2% claim is explicitly not neutralised.
+8. **PASS — Archetype/event variation.** Covered in §8 with archetype and event-to-action matrices.
+9. **PASS — Aakd ICP/wedge implications and falsifiable hypotheses.** Covered in §9; ten hypotheses include support and falsification criteria.
+
+## Bottom line for the founder
+
+**FACT.** Contracts are the operating rules of relationships, not a legal-document archive. Their effects appear in CRM booking, procurement and payment, service delivery, revenue recognition, privacy/security, hiring, change, claims and exit. The strongest public evidence shows that a complete process needs governing-family context, authorization, action ownership and operational evidence.
+
+**INFERENCE.** Aakd should initially win by making one consequential post-signature handoff reliable for a lean 50–500 employee operator, with cited reviewed truth and minimal migration—not by promising universal contract intelligence.
+
+**OPEN GAP.** The market case is not yet proven. The next research must collect recent US/UK episodes and representative agreement families, compare the action loop against existing spreadsheets/calendars/CRM/tickets, measure correction and reviewer burden, and obtain payment plus second-cycle use from the same workflow.
