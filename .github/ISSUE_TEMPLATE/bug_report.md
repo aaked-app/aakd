@@ -20,7 +20,7 @@ labels: bug
 
 ## Environment
 
-- ClauseFlow version:
+- Aakd version:
 - Self-hosted / Cloud:
 - OS:
 - Browser:
