@@ -1,7 +1,7 @@
 # Contract-workflow opportunity analysis
 
 **Research date:** 2026-08-19
-**Status:** Stages 1–3 PASS; Stage 4 PASS for adversarial readiness only; Stage 5 not started
+**Status:** Stages 1–5 decision process PASS; no thesis has passed validation; Stage 6 not started
 **Scope:** Product-agnostic research into contract-workflow startup opportunities. This artifact does not evaluate, position, or design an existing product.
 
 ## Reading contract
@@ -36,8 +36,8 @@ The analysis follows the exact sequence **frame → observe → explain → chal
 | 14 | Causal, systems and incentive models | Explain | Mechanisms, counterfactuals, loops, delays, bottlenecks, second-order effects | Pending |
 | 15 | Disconfirmation and adversarial review | Challenge | Risky predictions, disconfirmers, strongest rival, independent critique | Complete via §15 and the independent review §§4–13 |
 | 16 | Premortem and failure register | Challenge | Adoption, displacement, gaming, review burden, incumbent response, implementation failure | Complete via §15 and the independent review §§14–15 |
-| 17 | Comparative decision table | Decide | Consequence, recurrence, urgency, reachability, status-quo adequacy, switching, burden, budget, evidence | Pending |
-| 18 | Opportunity-cost, VoI, reversibility and ruin analysis | Decide | Sensitivity, research value, commitment sizing, tail constraints | Pending |
+| 17 | Comparative decision table | Decide | Consequence, recurrence, urgency, reachability, status-quo adequacy, switching, burden, budget, evidence | Complete in §16.2–§16.3 |
+| 18 | Opportunity-cost, VoI, reversibility and ruin analysis | Decide | Sensitivity, research value, commitment sizing, tail constraints | Complete in §16.4–§16.9 |
 | 19 | Falsifiable validation protocols | Test | Per-thesis prediction, sample, evidence, WTP test, pass/downweight/kill, smallest test | Pending |
 | 20 | Decision/update record and final audit | Update | Ranked hypotheses or no-clear-winner result, posterior updates, rule-by-rule verification | Pending |
 
@@ -985,3 +985,169 @@ The independent review controls any conflict with the thesis proposer's earlier 
 | Stage 5 not started | **PASS** | Status header and this integration stop preserve the sequencing gate |
 
 **Stage 4 integration result: PASS (12/12 rules).** This is a pass of adversarial readiness only. No opportunity thesis has passed primary validation. Stage 5 has not started.
+
+---
+
+## 16. Stage 5 — Decide
+
+### 16.1 Decision standard and qualitative grades
+
+**VALUE JUDGMENT.** Stage 5 decides only which frozen thesis protocol should receive the next primary-validation effort and in what sequence. It does not decide that a market opportunity exists.
+
+**VALUE JUDGMENT.** The comparison uses bounded qualitative grades rather than a summed score:
+
+- **Documented** — direct authoritative/operating evidence establishes the consequence, workflow, or risk in a bounded context; it still does not establish target-cohort prevalence.
+- **Suggestive** — multiple bounded or mixed evidence paths make the mechanism plausible but leave important transfer/dependency gaps.
+- **Thin** — one/few weak, selected, or non-target evidence paths.
+- **Open** — the corpus does not answer the dimension.
+- **Lower / Moderate / High burden** — a relative research/operating judgment from required access, integration, review, administration, and switching; it is not a cost estimate.
+
+**VALUE JUDGMENT.** No grade is converted to points, averaged, or treated as a probability. The decision is based on whether the next protocol can cheaply and safely discriminate a thesis from `H0`, close a decision-critical gap, and avoid a current `KILL` disposition.
+
+### 16.2 Consequence, recurrence, urgency, reachability, status quo, and evidence
+
+| Alternative | Evidenced consequence | Recurrence | Urgency | Target-cohort reachability | Status-quo adequacy | Evidence strength |
+|---|---|---|---|---|---|---|
+| `T1` Renewal decision | **Suggestive:** operators report expiry/renewal on outdated terms; consequence is unquantified in the target cohort | **Open:** portfolio events plainly recur in some organizations, but no qualified denominator exists | **Suggestive:** notice windows create real deadlines; materiality per event is unknown | **Open but comparatively approachable:** procurement/contracts roles and due events are identifiable; balanced US/UK 51–500 access is unproven | **Strong rival:** owner + register + cadence + suite reminder may be sufficient; a working control appears in the same evidence context as failure | **Medium for existence; low for opportunity:** strongest direct episode/counterexample pairing, no target-cohort validation |
+| `T2` Contract-to-revenue continuity | **Documented in enterprise/operator records; thin for target cohort:** booking/fulfillment controls exist, but target loss/delay is unmeasured | **Open:** deal flow can recur, but residual contract-caused exception rate is unknown | **Suggestive:** booking/provisioning delays may affect revenue/customer timing; no verified target episode | **Open:** RevOps/finance roles are identifiable, but recruiting 16 balanced firms and auditing 160 nonstandard deals is access-intensive | **Strong suite rival:** CRM/revenue/order controls already own the receiving state | **High for enterprise workflow existence; low for target transfer, causal dominance, and independent consequence** |
+| `T3` SOW change/acceptance/billing | **Documented in public-company/accounting context; open in target cohort:** change/acceptance affects billing, revenue, margin, and claims | **Open:** project events likely recur, but no 51–500 event census exists | **Potentially high but unverified:** performed work and cash timing can be time-sensitive | **Open and sector-dependent:** requires delivery + finance access and 160 traceable events across balanced firms | **Strong rival:** PSA/ERP/project controls plus disciplined change policy may be enough; commercial discretion/customer delay may dominate | **High for domain mechanism; low for target recurrence, causality, and reachability** |
+| `T4` Agreement-family resolution | **Documented high-severity mechanisms:** wrong governing context can affect notices, price, SLA, incident, or remedies; target incidence is unknown | **Open and plausibly low-frequency:** the review treats rarity as a central objection | **Event-dependent:** potentially urgent at incident/notice/dispute, otherwise episodic | **Low relative reachability:** needs complete families, five questions per organization, expert adjudication, and legal/security authorization | **Strong rival:** counsel + document hygiene may be safer and proportionate | **High for multi-document domain reality; thin for target frequency and independent opportunity status** |
+| `T5` Bounded first-pass analysis | **Mixed self-reported outcomes; no benchmarked target consequence** | **Open:** the category pools tasks/families and therefore has no valid denominator | **Open:** capacity pain may be salient, but urgency is task-specific | **Not eligible:** current category definition fails the entry gate | **Strong rival:** checklist + manual review/general model/incumbent specialist tool | **Insufficient as a thesis:** independent review assigns `KILL AS WRITTEN` |
+| `T6` Implementation assurance | **Suggestive severe case consequences:** unusable subscriptions, failed migrations, services cost, and successful counterexamples are reported | **Low-frequency per buyer:** transformation programs are episodic; recurrence would be across customers | **Program-dependent:** potentially urgent after commitment, but access arrives late and prevention is unproven | **Low:** eight prospective enterprise programs, cross-vendor access, security, and before-outcome observation are difficult | **Strong rival:** vendor/partner/PMO governance may perform the same job | **Medium for implementation variability; insufficient for prospective prevention/repeatability; killed unless gate clears** |
+| `H0` Process/status quo | **Documented both as success and failure:** adequate controls exist in some contexts; hidden/manual failure cost is unmeasured | **Open by workflow:** adequacy boundary lacks denominators | **Usually lower immediate procurement urgency:** process correction can begin quickly; tail failures may still be urgent | **Comparatively reachable:** can be tested inside the same organizations/events as each challenged thesis | **It is the comparator:** no new system wins unless compliant process/native configuration leaves material residual failure | **High that it can work sometimes; low for the boundary where it fails** |
+
+**INFERENCE.** `T1` has the most diagnostic current contrast—not the strongest market proof—because failure and a working process control appear in the same operator context and the frozen protocol tests both `T1` and `H0` on the same renewal decisions.
+
+**INFERENCE.** `T2` and `T3` have more directly economic outcome mechanisms, but their target-cohort evidence and event access are weaker, and their incumbent systems own the operational data needed to test them.
+
+**INFERENCE.** `T4` is a high-severity enabling mechanism that should not be treated as an independent first priority until an operating workflow shows family context is the residual cause.
+
+### 16.3 Switching, burden, buyer, trust, WTP, defensibility, and disconfirmation
+
+| Alternative | Switching cost | Implementation/admin burden | Buyer/budget path | Trust/legal/security risk | WTP state | Defensibility state | Strongest disconfirming evidence/control |
+|---|---|---|---|---|---|---|---|
+| `T1` | **Moderate:** terms/dates/owners/context must be imported or maintained; can coexist with current tools | **Moderate:** lead-time rules, ownership, context, notice verification, admin time, and alert fatigue | **Open:** CPO/CFO/COO and procurement/spend budgets are hypotheses; no verified buyer has paid | **Moderate:** stale/amended notice terms can create false confidence; consequential notice needs human authority | **None:** `0` qualifying paid commitments | **Open:** embedded decision history/integration is only a hypothesis and incumbents can copy/configure it | Same-thread working Excel/Power Automate control; frozen process-first control kills/downweights if it resolves decisions cheaply |
+| `T2` | **High:** CRM/order/billing/process mappings and user adoption; suite already has installed advantage | **High:** exception mapping, integration, version/correction propagation, receiving-team controls | **Open:** CRO/COO/CFO/RevOps path crosses multiple budgets and authorities | **Moderate–High:** customer/DPA/security content and wrong downstream writes create review and correction exposure | **None** | **Weak/open:** deep integration could create switching cost, but suite vendors own stronger distribution/data position | Native CRM/order correction; low residual exception rate, ≥80% incumbent removal, receiving-team rejection, or no payment |
+| `T3` | **High:** project/PSA/ERP, finance, customer authority, and delivery habits must align | **High:** event logging, scope/acceptance rules, evidence, and customer/internal approvals; formality can slow delivery | **Open:** COO/CFO/services operations; no buyer or budget evidence | **High:** wrong scope/acceptance/billing treatment can create dispute/accounting consequences | **None** | **Open:** project-to-contract-to-billing integration is plausible but suite/service incumbents are strong | PSA/process-first correction; commercial discretion/customer delay/noncompliance explaining ≥75%, no net time gain, or no payment |
+| `T4` | **High:** family linking, effective periods, precedence, review, and access segmentation | **Very high:** complete-family collection and blind expert adjudication; continuing correction propagation | **Open:** legal ops/outside-counsel/risk budget; frequency may not justify a recurring line | **Very high / tail constrained:** privilege, confidentiality, cross-border data, and a single false governing answer can cause disproportionate harm | **None** | **Open:** trusted corrected relationship history could compound, but incumbents/counsel already address it | Organized-family/counsel control; ≤3/60 changed dispositions, any critical false certainty, no review-time reduction, high veto, or no payment |
+| `T5` | **Not decision-eligible:** switching depends on the missing task/family/scope definition | **Very high until narrowed:** benchmark, playbook, model, review, correction, and maintenance burden cannot be pooled | **Open:** legal budget and reviewer authority unresolved | **Very high:** critical-error, privilege/confidentiality, provider, nondeterminism, and automation-bias exposure | **None** | **No evidenced mechanism:** generic human review is a safety control, not defensibility | **Current `KILL`:** category-definition failure; any future new hypothesis must meet the exact entry gate and zero-tolerance critical-error protocol |
+| `T6` | **High:** sensitive enterprise program access and overlapping vendor/PMO responsibility | **Very high and consulting-prone:** organization-specific taxonomy, politics, systems, and expert interpretation | **Open:** GC/CIO/CPO/transformation; anecdotes show spend, not independent assurance budget | **Very high:** portfolio, privilege, personal data, architecture, cross-border access, and contested responsibility | **None** | **Unproven and structurally weak:** reputation/benchmark might compound, but know-how may remain in people and incumbents can package checks | **Current conditional `KILL`:** normal controls duplicate findings, custom work dominates, findings do not change decisions, veto, or no payment |
+| `H0` | **Lower new-vendor switching:** existing tools/process retained; behavior change still costs time | **Low–Moderate but not free:** ownership, cadence, configuration, training, audit, and key-person risk must be costed | **Existing budget:** labor/suite/counsel/process time; avoids a new line | **Moderate:** manual drift, access/version errors, and invisible exceptions remain; no new processor reduces some data risk | **Not required for a new vendor:** but alternative payment is part of the kill test | **Not applicable:** it is the opportunity-cost baseline | Persistent material failures despite ≥90% compliant control, low event performance, and paid alternatives are all required to kill it |
+
+**FACT.** No thesis has a qualifying paid commitment or demonstrated defensibility mechanism; `T5` and `T6` retain their independent-review `KILL` dispositions [review §12.2](contract-workflow-opportunity-adversarial-review-2026-08-19.md#122-thesis-specific-protocols).
+
+**VALUE JUDGMENT.** Because all WTP and defensibility states are open, Stage 5 cannot select a startup opportunity. It can only choose the next highest-value falsification effort.
+
+### 16.4 Opportunity cost
+
+**VALUE JUDGMENT.** Running every frozen protocol now is dominated by sequential learning:
+
+- `T1`/`H0` requires a balanced 16-organization sample and prospective renewal decisions; the same control tests a dedicated-workflow thesis and the null without a second recruitment program.
+- `T2` and `T3` each require 160 event traces across two functional roles after an incumbent correction. Running both before learning whether target buyers permit event-level audit would split scarce recruitment, data authority, and research operations.
+- `T4` requires expert adjudication of 60 consequential questions and complete families; starting it before a host workflow demonstrates family context as the residual cause spends the highest trust/review budget on a potentially subordinate mechanism.
+- `T5` and `T6` are killed in current form; allocating validation effort to them would violate the independent gate.
+- A broad interview round would have lower operational cost but cannot satisfy the episode, process-control, WTP, or prospective denominator rules and therefore has low decision value.
+
+**INFERENCE.** The main opportunity cost of choosing `T1`/`H0` first is delaying potentially more economically direct `T2`/`T3` learning. The compensating benefit is a cleaner, more reversible test of whether observed pain survives a cheap process correction and reaches a buyer.
+
+### 16.5 Value of information
+
+| Candidate validation | Decision it can change | Relative information value | Cost/delay/risk judgment | Stage 5 allocation |
+|---|---|---|---|---|
+| Paired `T1` + `H0` frozen protocol | Whether renewal failures survive disciplined ownership/cadence, produce verified consequence, and trigger payment across all geo/size cells | **High for the next decision:** directly resolves governance-vs-information and user-vs-buyer uncertainty in one sample | **Moderate relative burden; reversible:** identifiable events and redacted notice/decision proxies may suffice, subject to authority | **FIRST** — sole next primary-validation allocation |
+| `T3` protocol | Whether contract/change/acceptance evidence causes repeated billing/cash/margin failure after PSA/process correction | **Potentially high:** economic consequence is concrete if access exists | **High access/coordination burden:** delivery + finance + customer evidence; trust/accounting risk | **SECOND, conditional** on documented access to the frozen sample/events and authorized economic-buyer participation after `T1`/`H0` results |
+| `T2` protocol | Whether contract-caused revenue exceptions remain after native CRM/order correction | **Potentially high but suite-dependent:** can eliminate or validate a broad continuity mechanism | **High integration/data burden:** 160 nonstandard deals, receiving-team adoption, suite response | **THIRD, conditional** on evidence that target firms have sufficient nonstandard volume and native controls do not already dominate |
+| `T4` protocol | Whether family context independently changes consequential disposition safely and efficiently | **High mechanism information, lower first-order priority:** may explain `T1`–`T3` rather than stand alone | **Very high expert/trust/tail burden:** zero critical false certainty required | **HOST-DEPENDENT ONLY** — run after a `T1`–`T3` residual episode identifies family context as the causal crux |
+| `T5` protocol | A future narrowed hypothesis could test one bounded review task | **Not available in current thesis:** definition gate failed | **Very high review/security risk** | **NO ALLOCATION — KILLED AS WRITTEN** |
+| `T6` protocol | Whether assurance is prospective, incremental, standardized, and paid | **Not available until repeatability/non-consulting gate is cleared** | **Very high enterprise access and consulting-drift risk** | **NO ALLOCATION — CURRENT CONDITIONAL KILL** |
+
+**VALUE JUDGMENT.** “First,” “second,” and “third” rank research sequence only. They do not rank market attractiveness, expected company value, or probability of success.
+
+### 16.6 Reversibility and commitment size
+
+**VALUE JUDGMENT.** The next commitment is limited to preregistering and executing the already frozen paired `T1`/`H0` validation protocol. No build, integration, migration, or operational write is authorized by this decision.
+
+**INFERENCE.** The research allocation is reversible before participant recruitment and at each authority/data-access gate. It becomes costlier to reverse after a balanced sample is recruited and a 30-day process-first control begins, so sample-cell, channel, authority, and event-volume eligibility must be checked before commitment.
+
+**VALUE JUDGMENT.** `T2`–`T4` receive no concurrent full-protocol allocation. They remain recorded options whose later activation requires the switch conditions in §16.8; `T5` and `T6` remain killed under their current dispositions.
+
+### 16.7 Ruin, rights, and tail constraints
+
+**VALUE JUDGMENT.** The following constraints override information value and expected commercial upside:
+
+1. no unauthorized contract, privileged, personal, security, or third-party-confidential data enters research;
+2. no research output sends, changes, or recommends a binding notice, invoice, legal position, accounting treatment, renewal/termination, or operational system state;
+3. every consequential interpretation remains with the organization's authorized legal/functional decision owner;
+4. a critical false-certainty event, unauthorized disclosure, or uncontrolled downstream propagation stops the affected test and invalidates its performance result;
+5. US and UK samples/results remain separate and no jurisdictional rule is generalized silently; and
+6. excluded/vetoed organizations remain in the denominator/accounting required by the frozen protocol rather than disappearing from the result.
+
+**INFERENCE.** These constraints make `T4` a later, host-dependent test and keep `T5` in its current killed state; their potential information value cannot override asymmetric legal/confidentiality harm.
+
+### 16.8 Sensitivity and decision-switch conditions
+
+The allocation changes only when one of these named conditions occurs:
+
+| Switch ID | New evidence/condition | Decision consequence |
+|---|---|---|
+| `SW1` | The balanced `T1` sample or ≥40 due decisions cannot be recruited/authorized without changing frozen definitions | Do not loosen the protocol; record feasibility failure and reassess `T3` access before allocating another full validation |
+| `SW2` | Before `T1` recruitment, a qualified `T3` sponsor set can provide the exact balanced sample, 160 authorized events, delivery + finance confirmation, and verified buyer participation while `T1` cannot | Move `T3` ahead of `T1`; protocol and kill conditions remain unchanged |
+| `SW3` | Qualified `T2` buyers document recent residual contract-caused exceptions after native CRM/order correction, authorize the 160-deal audit, and fund the named validation | Move `T2` ahead of the unstarted `T3` sequence; do not treat this as thesis validation until the full protocol passes |
+| `SW4` | A `T1`–`T3` residual episode is independently adjudicated as caused by family/effective-period context, and authorized organizations can supply the exact `T4` sample with expert review | Activate `T4` as a host-mechanism test; do not count the host episode twice |
+| `SW5` | The paired `T1`/`H0` process-first control meets the `H0` pass and/or `T1` kill conditions | Stop `T1`; retain `H0` for that unit and apply the evidence to whether broader contract-workflow research remains worth its opportunity cost |
+| `SW6` | `T1` passes every frozen condition, including cross-cell residual failure, verified consequence, and payment | Advance only to Stage 7 update/decision review for `T1`; it becomes a validated workflow hypothesis under the protocol, not automatically a startup winner |
+| `SW7` | A newly formulated `T5` meets all five entry dimensions before evidence collection | Treat it as a new hypothesis requiring independent challenge and fresh protocol application; the current `T5` remains killed |
+| `SW8` | Prospective `T6` evidence independently clears its repeatability/non-consulting entry and frozen conditions | Reopen through a new decision record; the current no-allocation decision remains correct until then |
+
+**VALUE JUDGMENT.** Vendor announcements, additional anecdotes, enthusiastic interviews, letters of intent, free pilots, or revised post-result thresholds do not switch the decision.
+
+### 16.9 Exploration versus exploitation
+
+**INFERENCE.** This program remains in exploration: no workflow has passed WTP, repeatability, or defensibility gates, so “exploiting” a favored thesis through implementation would be premature.
+
+**VALUE JUDGMENT.** Exploration is concentrated rather than parallelized: run one paired `T1`/`H0` protocol, preserve `T2`/`T3` as conditional next options, and activate `T4` only when a host workflow exposes its mechanism. This protects evidence quality and avoids turning limited access into shallow, incomparable interviews.
+
+**VALUE JUDGMENT.** Exploitation begins only after a frozen protocol passes and Stage 7 records the update; even then, a workflow pass does not establish defensibility or a company-level strategy without the remaining evidence.
+
+### 16.10 Provisional decision record
+
+| Field | Record |
+|---|---|
+| Decision | **VALUE JUDGMENT:** allocate the next primary-validation effort solely to the paired `T1` renewal-decision and `H0` process/native-control protocol; do not start `T2`–`T6` concurrently |
+| Date / owner | 2026-08-19 / founder as allocation owner; research lead executes only after Stage 6 preregistration authority |
+| Objective | Maximize decision-relevant evidence about whether a recurring contract-workflow failure survives a fair, low-cost incumbent correction and reaches a verified economic buyer |
+| Why this alternative | `T1` has the cleanest current failure/control contrast, identifiable prospective events, moderate relative research burden, and a shared sample that tests `H0` |
+| Why `T2` lost now | Target exceptions and reachability are unproven; suite-native correction and 160-deal access make it a higher-cost first test |
+| Why `T3` lost now | Consequence mechanism is attractive but target evidence/access are absent; 160 delivery-to-finance event traces impose higher coordination and accounting risk |
+| Why `T4` lost now | It may be subordinate to `T1`–`T3`, is plausibly low-frequency, and carries the highest expert-review/trust/tail burden |
+| Why `T5` lost | Independent disposition is `KILL AS WRITTEN`; no current allocation or revival is allowed |
+| Why `T6` lost | Independent disposition is `KILL AS WRITTEN unless` repeatability/non-consulting conditions clear; no current allocation |
+| Why `H0` does not lose | It is the paired process-first comparator and can win for the selected workflow/population |
+| Opportunity cost | Delays direct learning on `T2`/`T3`; avoids simultaneous high-cost recruitment, integration, and event-audit programs |
+| Reversibility | Research allocation is reversible before recruitment/authority gates; no build, migration, integration, or external operational action is authorized |
+| Ruin/rights boundary | §16.7 constraints override continuation and invalidate unsafe performance evidence |
+| Sensitivity | Switch only under `SW1`–`SW8`; no informal evidence or post-result threshold repair qualifies |
+| Review trigger | Completion/kill/feasibility failure of the frozen `T1`/`H0` protocol, or a preregistered switch condition before it starts |
+| Current conclusion | **No market winner. No thesis has passed.** One paired protocol has the highest next-step information value under the stated judgments |
+
+### 16.11 Stage 5 gate audit
+
+| Decision-process rule | Result | Evidence |
+|---|---|---|
+| All seven alternatives compared | **PASS** | §§16.2–16.3 include `T1`–`T6` and `H0` |
+| All 13 required comparison dimensions explicit | **PASS** | §16.2 covers consequence, recurrence, urgency, reachability, status-quo adequacy, evidence strength; §16.3 covers switching, implementation/admin, buyer/budget, trust/legal/security, WTP, defensibility, and disconfirming evidence |
+| Qualitative reasoning, no decorative total score | **PASS** | §16.1 defines bounded grades and prohibits point conversion/averaging |
+| Independent dispositions preserved | **PASS** | `T1`–`T4` unvalidated; `T5` no allocation/killed; `T6` no allocation/conditional kill; `H0` live throughout |
+| Opportunity cost explicit | **PASS** | §16.4 names delayed alternatives and avoided parallel cost |
+| Value of information explicit | **PASS** | §16.5 states which decision each protocol can change, burden, and allocation |
+| Reversibility and commitment sizing explicit | **PASS** | §16.6 limits authorization to one research protocol and no build/operational write |
+| Ruin/tail/rights constraints screen before value | **PASS** | §16.7 defines six overriding stop/authority/data boundaries |
+| Sensitivity and switch evidence explicit | **PASS** | §16.8 records eight named switch conditions and non-switching evidence |
+| Exploration versus exploitation explicit | **PASS** | §16.9 keeps the program in concentrated exploration until frozen gates pass |
+| Compact decision record present | **PASS** | §16.10 records allocation, alternatives, rationale, opportunity cost, reversibility, constraints, sensitivity, and trigger |
+| `D17` and `D18` marked complete | **PASS** | §1 index points to §§16.2–16.9 |
+| No primary research, winner, prevalence, TAM/ROI, protocol change, product design, or implementation | **PASS** | Stage 5 uses existing evidence and frozen protocols only; decision concerns research allocation |
+| Decision-process PASS distinguished from thesis PASS | **PASS** | Header and §16.10 state no thesis has passed; this audit evaluates only process completeness |
+| Stage 6 not started | **PASS** | No protocol is executed here; preregistration/primary validation remains outside Stage 5 |
+
+**Stage 5 result: PASS (15/15 decision-process rules). No opportunity thesis passes.** The provisional decision allocates the next primary-validation effort to the paired frozen `T1`/`H0` protocol. Stage 6 has not started.
