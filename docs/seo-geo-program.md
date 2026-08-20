@@ -202,7 +202,8 @@ Each CTA event contains only fixed `page_path`, `cta_name`,
 `google_organic`, `bing_organic`, `known_ai_referral`, `other_referral`, and
 `direct_or_unknown`. The PostHog SDK also supplies pseudonymous `distinct_id`,
 `$device_id`, event UUID, `$insert_id`, `$lib`, `$lib_version`, and `$time`
-values. Events must never include a raw referrer or domain, URL query value,
+values, plus the public PostHog project `token` required for ingestion. Events
+must never include a raw referrer or domain, URL query value,
 UTM or campaign value, contract text, document name, user-entered content,
 secret, or customer-specific identifier.
 

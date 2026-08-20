@@ -82,6 +82,11 @@ function hasPublicAnalyticsConsent(): boolean {
   }
 }
 
+function publicProjectToken(value: unknown): string | null {
+  const configuredToken = process.env.NEXT_PUBLIC_POSTHOG_KEY
+  return typeof value === "string" && value === configuredToken ? value : null
+}
+
 export function publicPageviewUrl(origin: string, pathname: string, consent: string | null): string | null {
   if (consent !== "accepted" || pathname !== "/") return null
   return `${origin}/`
@@ -90,6 +95,9 @@ export function publicPageviewUrl(origin: string, pathname: string, consent: str
 export function sanitizePublicMarketingEvent(event: CaptureResult | null): CaptureResult | null {
   if (!event) return null
 
+  const token = publicProjectToken(event.properties.token)
+  if (!token) return null
+
   const { distinct_id, $device_id, $insert_id, $lib, $lib_version, $time } = event.properties
 
   if (event.event === "$pageview") {
@@ -97,6 +105,7 @@ export function sanitizePublicMarketingEvent(event: CaptureResult | null): Captu
       uuid: event.uuid,
       event: "$pageview",
       properties: {
+        token,
         distinct_id,
         $device_id,
         $insert_id,
@@ -123,6 +132,7 @@ export function sanitizePublicMarketingEvent(event: CaptureResult | null): Captu
     uuid: event.uuid,
     event: event.event,
     properties: {
+      token,
       distinct_id,
       $device_id,
       $insert_id,

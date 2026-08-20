@@ -19,7 +19,7 @@ exact reviewed hostname. Google covers `google.com`, `www.google.com`,
 `www.bing.com`; known AI referrals cover exactly `chatgpt.com`,
 `perplexity.ai`, `claude.ai`, `copilot.microsoft.com`, and `gemini.google.com`.
 Other subdomains stay `other_referral`. The PostHog client also
-supplies pseudonymous `distinct_id` and `$device_id` values, a
+supplies its public project `token`, pseudonymous `distinct_id` and `$device_id` values, a
 pseudonymous event UUID and `$insert_id`, its library name and version, and
 event time.
 It does not send the landing-page query string, UTM or campaign values,

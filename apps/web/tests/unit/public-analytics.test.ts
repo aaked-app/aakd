@@ -63,6 +63,7 @@ describe("public analytics pageviews", () => {
       uuid: "event-id",
       event: "$pageview",
       properties: {
+        token: "test-public-key",
         distinct_id: "anonymous-id",
         $current_url: "https://aakd.app/?token=secret&search=private",
         $referrer: "https://example.test/?invite=secret",
@@ -72,6 +73,7 @@ describe("public analytics pageviews", () => {
       uuid: "event-id",
       event: "$pageview",
       properties: {
+        token: "test-public-key",
         distinct_id: "anonymous-id",
         $device_id: undefined,
         $insert_id: undefined,
@@ -91,6 +93,7 @@ describe("public analytics pageviews", () => {
       uuid: "event-id",
       event: "github_outbound_clicked",
       properties: {
+        token: "test-public-key",
         distinct_id: "anonymous-id",
         cta_name: "hero_view_github",
         destination_class: "github",
@@ -104,6 +107,7 @@ describe("public analytics pageviews", () => {
       uuid: "event-id",
       event: "github_outbound_clicked",
       properties: {
+        token: "test-public-key",
         distinct_id: "anonymous-id",
         $device_id: undefined,
         $insert_id: undefined,
@@ -120,7 +124,16 @@ describe("public analytics pageviews", () => {
     expect(sanitizePublicPageview({
       uuid: "event-id",
       event: "unapproved_event",
-      properties: {},
+      properties: { token: "test-public-key" },
+    })).toBeNull()
+
+    expect(sanitizePublicPageview({
+      uuid: "event-id",
+      event: "github_outbound_clicked",
+      properties: {
+        token: "different-project-key",
+        cta_name: "hero_view_github",
+      },
     })).toBeNull()
   })
 
