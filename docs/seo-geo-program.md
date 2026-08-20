@@ -193,14 +193,23 @@ After those assets are reproducible, the next educational pages may cover:
 
 Add only consent-aware public-site events:
 
-- `marketing_cta_clicked`
 - `github_outbound_clicked`
 - `self_hosting_guide_opened`
 - `registration_started`
 
-Each event may include page path, CTA name, destination class, referrer domain,
-and UTM campaign fields. It must never include contract text, document names,
-user-entered content, secrets, or customer-specific data.
+Each CTA event contains only fixed `page_path`, `cta_name`,
+`destination_class`, and `source_class` values. The allowed source classes are
+`google_organic`, `bing_organic`, `known_ai_referral`, `other_referral`, and
+`direct_or_unknown`. The PostHog SDK also supplies pseudonymous `distinct_id`,
+`$device_id`, event UUID, `$insert_id`, `$lib`, `$lib_version`, and `$time`
+values, plus the public PostHog project `token` required for ingestion. Events
+must never include a raw referrer or domain, URL query value,
+UTM or campaign value, contract text, document name, user-entered content,
+secret, or customer-specific identifier.
+
+Only the first successful high-intent CTA event in one loaded browser runtime
+is emitted. A reload or new tab resets that in-memory unit and can overcount;
+it is not a unique person or customer measure.
 
 Review weekly by indexed status, page, query cluster, country, source, and CTA.
 Track US and UK evidence separately. A useful 90-day outcome is an indexed
