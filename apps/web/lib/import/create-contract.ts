@@ -209,7 +209,7 @@ export async function createImportedContractForRow(
       // this exact job row even before an ImportRow exists, then re-read via
       // the upsert below. The transaction-scoped lock is released on commit
       // or rollback and prevents two contracts for one source row.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${row.jobId})::int, ${row.rowIndex}::int)`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${row.jobId})::int, ${row.rowIndex}::int)`
       const claimed = await tx.importRow.upsert({
         where: { jobId_rowIndex: { jobId: row.jobId, rowIndex: row.rowIndex } },
         create: { jobId: row.jobId, rowIndex: row.rowIndex, sourceRef: row.sourceRef, status: "pending" },

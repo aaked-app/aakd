@@ -37,6 +37,7 @@ interface FormData {
   currency: string
   paymentTerms: string
   autoRenewal: boolean
+  renewalReminderEnabled: boolean
   renewalDate: string
   noticePeriodDays: string
   governingLaw: string
@@ -53,6 +54,7 @@ const defaultFormData: FormData = {
   currency: "USD",
   paymentTerms: "",
   autoRenewal: false,
+  renewalReminderEnabled: true,
   renewalDate: "",
   noticePeriodDays: "",
   governingLaw: "",
@@ -131,9 +133,15 @@ function UploadScreen({
 
   const handleFile = useCallback(
     (file: File) => {
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+      const isDocx = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.toLowerCase().endsWith(".docx")
+      if (!isPdf && !isDocx) {
+        toast.error(t("uploadHint"))
+        return
+      }
       setPendingFile(file)
     },
-    [],
+    [t],
   )
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -258,6 +266,7 @@ function ReviewScreen({
   submitting,
   onFormChange,
   onToggleRenewal,
+  onToggleRenewalReminder,
   onBack,
   onSubmit,
   onChangeFile,
@@ -271,6 +280,7 @@ function ReviewScreen({
   submitting: boolean
   onFormChange: (key: keyof FormData, value: string) => void
   onToggleRenewal: () => void
+  onToggleRenewalReminder: () => void
   onBack: () => void
   onSubmit: () => void
   onChangeFile: () => void
@@ -473,6 +483,24 @@ function ReviewScreen({
               </button>
             </div>
 
+            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t("fields.renewalDate")}</p>
+                <p className="text-xs text-muted-foreground">{t("autoRenewalDescription")}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleRenewalReminder}
+                className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t("fields.renewalDate")}
+                aria-pressed={formData.renewalReminderEnabled}
+              >
+                <span className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors", formData.renewalReminderEnabled ? "bg-primary" : "bg-muted")}>
+                  <span className={cn("pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transition-transform", formData.renewalReminderEnabled ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0")} />
+                </span>
+              </button>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="governingLaw">{t("governingLaw")}</Label>
               <Input
@@ -596,6 +624,11 @@ export default function NewContractPage() {
   function toggleRenewal() {
     touchedFieldsRef.current.add("autoRenewal")
     setFormData((prev) => ({ ...prev, autoRenewal: !prev.autoRenewal }))
+  }
+
+  function toggleRenewalReminder() {
+    touchedFieldsRef.current.add("renewalReminderEnabled")
+    setFormData((prev) => ({ ...prev, renewalReminderEnabled: !prev.renewalReminderEnabled }))
   }
 
   async function requestExtraction(selectedFile: File, fallbackTitle: string) {
@@ -740,6 +773,7 @@ export default function NewContractPage() {
         noticePeriodDays: formData.noticePeriodDays ? Number(formData.noticePeriodDays) : undefined,
         governingLaw: formData.governingLaw || undefined,
         autoRenewal: formData.autoRenewal,
+        renewalReminderEnabled: formData.renewalReminderEnabled,
         notes: formData.description || undefined,
       }
 
@@ -770,6 +804,7 @@ export default function NewContractPage() {
           { field: "currency",         rawValue: formData.currency === "OTHER" ? "USD" : formData.currency },
           { field: "governingLaw",     rawValue: formData.governingLaw },
           { field: "autoRenewal",      rawValue: String(formData.autoRenewal) },
+          { field: "renewalReminderEnabled", rawValue: String(formData.renewalReminderEnabled) },
           { field: "renewalDate",      rawValue: formData.renewalDate },
           { field: "noticePeriodDays", rawValue: formData.noticePeriodDays },
         ]
@@ -859,6 +894,7 @@ export default function NewContractPage() {
           submitting={submitting}
           onFormChange={updateField}
           onToggleRenewal={toggleRenewal}
+          onToggleRenewalReminder={toggleRenewalReminder}
           onBack={handleChangeFile}
           onSubmit={handleSubmit}
           onChangeFile={handleChangeFile}

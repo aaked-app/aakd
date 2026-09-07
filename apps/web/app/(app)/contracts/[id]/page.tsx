@@ -124,7 +124,7 @@ const STATUS_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   INTERNAL_REVIEW:     ALL_STATUSES.filter((s) => s !== "INTERNAL_REVIEW"),
   PENDING_APPROVAL:    ALL_STATUSES.filter((s) => s !== "PENDING_APPROVAL"),
   AWAITING_SIGNATURE:  ALL_STATUSES.filter((s) => s !== "AWAITING_SIGNATURE"),
-  ACTIVE:              ALL_STATUSES.filter((s) => s !== "ACTIVE"),
+  ACTIVE:              ["EXPIRED", "TERMINATED", "ARCHIVED"],
   EXPIRED:             ALL_STATUSES.filter((s) => s !== "EXPIRED"),
   TERMINATED:          ALL_STATUSES.filter((s) => s !== "TERMINATED"),
   ARCHIVED:            ["DRAFT"],
@@ -2392,6 +2392,15 @@ export default function ContractDetailPage() {
                       onChange={(e) => setEditForm((p) => ({ ...p, renewalDate: e.target.value || null }))}
                     />
                   </div>
+                  <label className="flex min-h-11 items-center gap-3 rounded-md border border-border px-3 text-sm sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={editForm.renewalReminderEnabled !== false}
+                      onChange={(e) => setEditForm((p) => ({ ...p, renewalReminderEnabled: e.target.checked }))}
+                      className="size-4 accent-primary"
+                    />
+                    <span>{tWorkspace("renewals")}</span>
+                  </label>
                 </div>
               </section>
 

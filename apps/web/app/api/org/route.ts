@@ -10,7 +10,7 @@ const logoUrlSchema = z.string().refine(
 )
 
 const UpdateOrgSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   domain: z.string().max(200).optional(),
   timezone: z.string().max(100).optional(),
   industry: z.string().max(100).optional(),
@@ -69,7 +69,7 @@ export async function PATCH(req: Request) {
     const org = await prisma.organization.update({
       where: { id: ctx.organizationId },
       data: {
-        ...(parsed.data.name ? { name: parsed.data.name } : {}),
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
         ...("logo" in parsed.data ? { logo: parsed.data.logo } : {}),
         metadata: JSON.stringify(meta),
       },

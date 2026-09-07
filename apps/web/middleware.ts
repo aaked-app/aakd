@@ -80,6 +80,9 @@ export function middleware(req: NextRequest) {
   }
 
   if (!sessionToken) {
+    if (pathname.startsWith("/api/")) {
+      return finalize(req, ensureLocaleCookie(req, NextResponse.json({ error: "Unauthorized" }, { status: 401 })), requestId)
+    }
     const loginUrl = new URL("/login", req.url)
     loginUrl.searchParams.set("callbackUrl", pathname)
     return finalize(req, ensureLocaleCookie(req, NextResponse.redirect(loginUrl)), requestId)
