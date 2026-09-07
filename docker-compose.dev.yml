@@ -83,6 +83,11 @@ services:
     environment:
       NODE_ENV: development
       RUNTIME_NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      DOCUSEAL_API_URL: http://docuseal:3000
 
   # Distributed tracing UI — http://localhost:16686 (enable with OTEL_ENABLED=true)
   jaeger:

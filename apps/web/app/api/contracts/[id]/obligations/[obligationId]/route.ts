@@ -27,7 +27,7 @@ const PatchObligationSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   clauseReference: z.string().max(200).nullable().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z.union([z.string().date(), z.string().datetime({ offset: true })]).nullable().optional(),
   assigneeId: z.string().nullable().optional(),
   reminderDays: z.number().int().min(1).max(30).optional(),
   status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED"]).optional(),

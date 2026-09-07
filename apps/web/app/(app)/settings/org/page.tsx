@@ -158,7 +158,10 @@ export default function OrgSettingsPage() {
       setPersistedLogoUrl(logoUrl)
       toast.success(t("orgUpdated"))
       if (activeOrg?.id) {
-        await organization.setActive({ organizationId: activeOrg.id }).catch(() => {})
+        // The PATCH is already committed. Refreshing Better Auth's active-org
+        // cookie is best-effort and must not turn a successful save into a
+        // misleading failure toast.
+        void organization.setActive({ organizationId: activeOrg.id }).catch(() => {})
       }
     } catch {
       setLogoUrl(persistedLogoUrl)
