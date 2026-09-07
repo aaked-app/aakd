@@ -14,7 +14,7 @@ import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 const CreateContractSchema = z.object({
-  title: z.string().min(1).max(500),
+  title: z.string().trim().min(1).max(500),
   contractType: z.enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"]).optional(),
   counterpartyName: z.string().optional(),
   counterpartyContact: z.string().email().optional().or(z.literal("")),
@@ -147,6 +147,9 @@ export async function POST(req: Request) {
     // Strip any HTML tags from free-text fields to prevent XSS persistence
     const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "")
     if (rest.title) rest.title = stripHtml(rest.title)
+    if (!rest.title.trim()) {
+      return Response.json({ error: "Contract title is required" }, { status: 422 })
+    }
     if (rest.counterpartyName) rest.counterpartyName = stripHtml(rest.counterpartyName)
     if (rest.notes) rest.notes = stripHtml(rest.notes)
 

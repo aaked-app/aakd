@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { getContractAiExtractQueue } from "@/lib/jobs/queues"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import crypto from "node:crypto"
 
 // ─── POST /api/contracts/[id]/extractions/rerun ───────────────────────────────
 // Re-enqueues the AI extraction job for a contract using its stored extracted
@@ -42,11 +43,29 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       )
     }
 
-    await getContractAiExtractQueue().add("ai_extract", {
+    const queue = getContractAiExtractQueue()
+    const inFlight = typeof queue.getJobs === "function"
+      ? await queue.getJobs(["waiting", "active", "delayed", "paused"], 0, -1)
+      : []
+    if (inFlight.some((job) => job.data.contractId === params.id)) {
+      return Response.json(
+        { error: "extraction_in_progress", message: "An AI extraction is already in progress for this contract." },
+        { status: 409 },
+      )
+    }
+
+    const sourceHash = crypto.createHash("sha256").update(contract.extractedText).digest("hex").slice(0, 16)
+    const jobId = `manual-ai-extract:${params.id}:${sourceHash}`
+    if (typeof queue.getJob === "function") {
+      const existingJob = await queue.getJob(jobId)
+      if (existingJob) await existingJob.remove().catch(() => undefined)
+    }
+
+    await queue.add("ai_extract", {
       contractId: params.id,
       organizationId: ctx.organizationId,
       extractedText: contract.extractedText,
-    })
+    }, { jobId })
 
     await writeActivity(
       params.id,

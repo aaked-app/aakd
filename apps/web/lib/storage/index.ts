@@ -37,6 +37,15 @@ export const storage = {
     return getSignedUrl(getS3(), new GetObjectCommand({ Bucket: getBucket(), Key: key }), { expiresIn })
   },
 
+  async getObject(key: string): Promise<{ body: Uint8Array; contentType?: string }> {
+    const result = await getS3().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }))
+    if (!result.Body) throw new Error("Stored object has no body")
+    return {
+      body: await result.Body.transformToByteArray(),
+      contentType: result.ContentType,
+    }
+  },
+
   async delete(key: string): Promise<void> {
     await getS3().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }))
   },

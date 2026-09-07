@@ -12,7 +12,7 @@ import { captureServerEvent } from "@/lib/posthog-server"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { Prisma } from "@prisma/client"
 
-// GET /api/contracts/[id]/upload?fileId=... — generate a signed download URL
+// GET /api/contracts/[id]/upload?fileId=... — return a same-origin file URL or stream the file
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
   const ctx = await resolveAuth(req)
@@ -32,13 +32,31 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
 
     const file = await prisma.contractFile.findUnique({
       where: { id: fileId },
-      select: { id: true, contractId: true, storageKey: true },
+      select: { id: true, contractId: true, storageKey: true, filename: true, mimeType: true },
     })
     if (!file || file.contractId !== params.id)
       return Response.json({ error: "Not Found" }, { status: 404 })
 
-    const signedUrl = await storage.getSignedDownloadUrl(file.storageKey)
-    return Response.json({ url: signedUrl })
+    const stream = url.searchParams.get("stream") === "1"
+    if (stream) {
+      try {
+        const object = await storage.getObject(file.storageKey)
+        const inline = url.searchParams.get("inline") === "1"
+        return new Response(Buffer.from(object.body), {
+          headers: {
+            "Content-Type": object.contentType ?? file.mimeType ?? "application/octet-stream",
+            "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${file.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}"`,
+            "Cache-Control": "private, no-store",
+          },
+        })
+      } catch (error) {
+        logger.error({ err: error, contractId: params.id, fileId }, "[upload] file stream failed")
+        return Response.json({ error: "File unavailable" }, { status: 404 })
+      }
+    }
+
+    const proxyUrl = `/api/contracts/${encodeURIComponent(params.id)}/upload?fileId=${encodeURIComponent(fileId)}&stream=1&inline=1`
+    return Response.json({ url: proxyUrl })
   })
 }
 
@@ -249,7 +267,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue document.convert job")
     }
 
-    const downloadUrl = await storage.getSignedDownloadUrl(key)
+    const downloadUrl = `/api/contracts/${encodeURIComponent(params.id)}/upload?fileId=${encodeURIComponent(contractFile.id)}&stream=1&download=1`
 
     captureServerEvent(ctx.userId, "file_uploaded", {
       mimeType,

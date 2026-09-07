@@ -5,7 +5,7 @@ const db = {
   contract: { create: vi.fn() },
   activity: { create: vi.fn() },
   contractFile: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
-  $queryRaw: vi.fn(),
+  $executeRaw: vi.fn(),
   $transaction: vi.fn(),
 }
 
@@ -35,7 +35,7 @@ describe("transactional imported contract rows", () => {
     db.contractFile.create.mockResolvedValue({ id: "file-1" })
     db.contractFile.update.mockResolvedValue({})
     db.contractFile.findFirst.mockResolvedValue(null)
-    db.$queryRaw.mockResolvedValue([])
+    db.$executeRaw.mockResolvedValue(0)
     db.importRow.update.mockResolvedValue({})
     db.$transaction.mockImplementation(async (fn) => fn(db))
     vi.mocked(storage.upload).mockResolvedValue("key")
@@ -54,8 +54,8 @@ describe("transactional imported contract rows", () => {
   it("uses the PostgreSQL two-integer advisory-lock signature", async () => {
     await createImportedContractForRow({ title: "Contract" }, context, row)
 
-    expect(db.$queryRaw).toHaveBeenCalledOnce()
-    const [segments, jobId, rowIndex] = db.$queryRaw.mock.calls[0]
+    expect(db.$executeRaw).toHaveBeenCalledOnce()
+    const [segments, jobId, rowIndex] = db.$executeRaw.mock.calls[0]
     expect(Array.from(segments)).toEqual([
       "SELECT pg_advisory_xact_lock(hashtext(",
       ")::int, ",
@@ -156,7 +156,7 @@ describe("transactional imported contract rows", () => {
     ])
 
     expect(results).toEqual(["contract-1", "contract-1"])
-    expect(db.$queryRaw).toHaveBeenCalledTimes(2)
+    expect(db.$executeRaw).toHaveBeenCalledTimes(2)
     expect(db.contract.create).toHaveBeenCalledOnce()
     const [firstKey, secondKey] = vi.mocked(storage.upload).mock.calls.map(([key]) => key)
     expect(firstKey).not.toBe(secondKey)

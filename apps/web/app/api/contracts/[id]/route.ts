@@ -30,7 +30,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 const isoDate = z.union([z.string().date(), z.string().datetime({ offset: true })])
 
 const UpdateContractSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
+  title: z.string().trim().min(1).max(500).optional(),
   contractType: z.enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"]).nullable().optional(),
   status: z.enum(["DRAFT", "INTERNAL_REVIEW", "PENDING_APPROVAL", "AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "ARCHIVED"]).optional(),
   counterpartyName: z.string().nullable().optional(),
@@ -164,6 +164,12 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
 
     // Strip any HTML tags from free-text fields to prevent XSS persistence
     const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "")
+    if (rest.title !== undefined) {
+      rest.title = stripHtml(rest.title)
+      if (!rest.title.trim()) {
+        return Response.json({ error: "Contract title is required" }, { status: 422 })
+      }
+    }
     if (rest.counterpartyName) rest.counterpartyName = stripHtml(rest.counterpartyName)
     if (rest.notes) rest.notes = stripHtml(rest.notes)
     if (rest.governingLaw) rest.governingLaw = stripHtml(rest.governingLaw)

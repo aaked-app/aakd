@@ -147,10 +147,8 @@ export async function GET(req: Request) {
       _sum: { value: true },
       _count: { _all: true },
     })
-    const valueByType = valueGrouped
-      .filter((g) => g.contractType !== null)
-      .map((g) => ({
-        contractType: g.contractType as string,
+    const valueByType = valueGrouped.map((g) => ({
+        contractType: g.contractType ?? "UNCATEGORIZED",
         totalValue: g._sum.value ?? 0,
         count: g._count._all,
       }))
