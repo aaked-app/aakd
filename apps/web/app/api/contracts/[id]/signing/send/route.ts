@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
 import { createTemplate, addFieldsToTemplate, createSubmission } from "@/lib/docuseal"
+import { getDocuSealConfig } from "@/lib/signature/config"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 // ─── POST /api/contracts/[id]/signing/send ────────────────────────────────────
@@ -56,7 +57,8 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       )
     }
 
-    if (!process.env.DOCUSEAL_API_KEY) {
+    const docuSealConfig = await getDocuSealConfig(ctx.organizationId)
+    if (!docuSealConfig && !process.env.DOCUSEAL_API_KEY) {
       return Response.json({ error: "E-signature not configured" }, { status: 503 })
     }
 
@@ -99,7 +101,9 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     const pdfBuffer = Buffer.from(arrayBuffer)
 
     // ── upload to DocuSeal as a template ──────────────────────────────────────
-    const template = await createTemplate(contract.title, pdfBuffer)
+    const template = docuSealConfig
+      ? await createTemplate(contract.title, pdfBuffer, docuSealConfig)
+      : await createTemplate(contract.title, pdfBuffer)
     if (!template) {
       return Response.json({ error: "Failed to create DocuSeal template" }, { status: 500 })
     }
@@ -113,17 +117,19 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     // Templates created from a PDF have no fields by default; DocuSeal will
     // reject a submission on a field-less template with 422.
     if (template.attachmentUuid) {
-      const fieldsOk = await addFieldsToTemplate(template.id, template.attachmentUuid, signerRoles)
+      const fieldsOk = docuSealConfig
+        ? await addFieldsToTemplate(template.id, template.attachmentUuid, signerRoles, docuSealConfig)
+        : await addFieldsToTemplate(template.id, template.attachmentUuid, signerRoles)
       if (!fieldsOk) {
         return Response.json({ error: "Failed to configure signing fields on template" }, { status: 500 })
       }
     }
 
     // ── create submission with ALL signers simultaneously ─────────────────────
-    const submission = await createSubmission(
-      template.id,
-      signers.map((s, i) => ({ email: s.email, name: s.name, role: signerRoles[i] })),
-    )
+    const signerPayload = signers.map((s, i) => ({ email: s.email, name: s.name, role: signerRoles[i] }))
+    const submission = docuSealConfig
+      ? await createSubmission(template.id, signerPayload, docuSealConfig)
+      : await createSubmission(template.id, signerPayload)
 
     if (!submission) {
       return Response.json({ error: "Failed to create DocuSeal submission" }, { status: 500 })

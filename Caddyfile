@@ -40,23 +40,6 @@ www.{$DOMAIN} {
   }
 }
 
-# ── DocuSeal (e-signatures) ──────────────────────────────────────────────────
-sign.{$DOMAIN} {
-  reverse_proxy docuseal:3000
-
-  header {
-    Strict-Transport-Security "max-age=31536000"
-    X-Content-Type-Options "nosniff"
-    X-Frame-Options "DENY"
-    Referrer-Policy "strict-origin-when-cross-origin"
-    Permissions-Policy "camera=(), microphone=(), geolocation=()"
-    X-Permitted-Cross-Domain-Policies "none"
-    -Server
-  }
-
-  encode gzip
-}
-
 # ── MinIO console (storage admin — optional, comment out to disable) ─────────
 # storage.{$DOMAIN} {
 #   reverse_proxy minio:9001

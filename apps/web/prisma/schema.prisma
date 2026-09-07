@@ -43,6 +43,7 @@ model User {
   actionEvidenceRecorded      ContractActionEvidence[]     @relation("ActionEvidenceRecorder")
   subTasksCompleted           ObligationSubTask[]          @relation("SubTaskCompleter")
   crmIntegrationsConnected    CrmIntegration[]             @relation("CrmIntegrationConnectedBy")
+  signatureIntegrationsConnected SignatureIntegration[]     @relation("SignatureIntegrationConnectedBy")
   crmLinksCreated             CrmLink[]                    @relation("CrmLinkCreator")
   importJobsCreated           ImportJob[]                  @relation("ImportJobCreator")
   googleDriveConnected        GoogleDriveIntegration[]     @relation("GoogleDriveConnectedBy")
@@ -115,6 +116,7 @@ model Organization {
   obligationSuggestions   ContractObligationSuggestion[]
   actions                 ContractAction[]
   crmIntegrations         CrmIntegration[]
+  signatureIntegration    SignatureIntegration?
   importJobs              ImportJob[]
   googleDriveIntegration  GoogleDriveIntegration?
   notifications           Notification[]
@@ -859,6 +861,27 @@ enum CrmProvider {
   HUBSPOT
   SALESFORCE
   PIPEDRIVE
+}
+
+enum SignatureProvider {
+  DOCUSEAL
+}
+
+model SignatureIntegration {
+  id                    String            @id @default(cuid())
+  organizationId        String            @unique
+  organization           Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider              SignatureProvider
+  baseUrl               String
+  encryptedApiKey       String
+  encryptedWebhookSecret String?
+  enabled               Boolean           @default(true)
+  connectedById         String
+  connectedBy           User              @relation("SignatureIntegrationConnectedBy", fields: [connectedById], references: [id])
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([organizationId, provider])
 }
 
 // ─── M10: Migration / Import Tools ────────────────────────────────────────────

@@ -72,6 +72,7 @@ services:
     restart: unless-stopped
 
   docuseal:
+    profiles: ["signing"]
     image: docuseal/docuseal:latest
     ports:
       - "3001:3000"
@@ -120,7 +121,7 @@ services:
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
       # E-signature (DocuSeal)
-      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-http://docuseal:3000}
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
@@ -165,7 +166,7 @@ services:
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
       # E-signature (DocuSeal)
-      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-http://docuseal:3000}
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:

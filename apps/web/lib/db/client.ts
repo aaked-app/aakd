@@ -21,6 +21,7 @@ const ORG_SCOPED_MODELS = new Set([
   "ContractAction",
   // M9: CRM integrations
   "CrmIntegration",
+  "SignatureIntegration",
   // M10: Import / migration tools
   "ImportJob",
   "DocumentSnapshot", "OrgAiConfig", "ClauseSnippet",

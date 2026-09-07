@@ -87,10 +87,9 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_SECURE: "false"
-      DOCUSEAL_API_URL: http://docuseal:3000
-
   # Distributed tracing UI — http://localhost:16686 (enable with OTEL_ENABLED=true)
   jaeger:
+    profiles: ["observability"]
     image: jaegertracing/all-in-one:1.57
     ports:
       - "16686:16686"   # Jaeger UI

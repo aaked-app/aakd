@@ -159,8 +159,70 @@ function CategoryTabs({
 
 // ─── E-Signature Section ──────────────────────────────────────────────────
 
-function ESignatureSection() {
+type SignatureStatus = {
+  connected: boolean
+  integration: { provider: string; baseUrl: string; connectedAt: string; connectedBy: { name: string } } | null
+}
+
+function ESignatureSection({
+  status,
+  canManage,
+  onRefresh,
+}: {
+  status: SignatureStatus | null
+  canManage: boolean
+  onRefresh: () => void
+}) {
   const t = useTranslations("settingsIntegrations")
+  const [open, setOpen] = useState(false)
+  const [baseUrl, setBaseUrl] = useState("https://api.docuseal.com")
+  const [apiKey, setApiKey] = useState("")
+  const [webhookSecret, setWebhookSecret] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  useEffect(() => {
+    if (status?.integration?.baseUrl) setBaseUrl(status.integration.baseUrl)
+  }, [status?.integration?.baseUrl])
+
+  async function connect() {
+    setSaving(true)
+    try {
+      const res = await fetch("/api/org/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "DOCUSEAL", baseUrl, apiKey, webhookSecret }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? "connect")
+      }
+      toast.success(t("signatureConnected"))
+      setApiKey("")
+      setWebhookSecret("")
+      setOpen(false)
+      onRefresh()
+    } catch (error) {
+      toast.error(error instanceof Error && error.message !== "connect" ? error.message : t("signatureConnectFailed"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function disconnect() {
+    setDisconnecting(true)
+    try {
+      const res = await fetch("/api/org/signature", { method: "DELETE" })
+      if (!res.ok) throw new Error("disconnect")
+      toast.success(t("signatureDisconnected"))
+      onRefresh()
+    } catch {
+      toast.error(t("signatureDisconnectFailed"))
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-[var(--radius)] border border-border bg-card p-5">
@@ -171,8 +233,8 @@ function ESignatureSection() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <h2 className="text-sm font-semibold">DocuSeal</h2>
-                <ConnectedBadge />
+                <h2 className="text-sm font-semibold">DocuSeal Cloud or self-hosted</h2>
+                {status?.connected ? <ConnectedBadge /> : <StatusBadge label={t("notConnected")} variant="muted" />}
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("docuSealDescription")}
@@ -182,16 +244,36 @@ function ESignatureSection() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              toast.info(
-                t("docuSealConfigured"),
-              )
-            }
+            disabled={!canManage}
+            onClick={() => setOpen(true)}
           >
-            {t("configure")}
+            {status?.connected ? t("reconfigure") : t("connect")}
           </Button>
+          {status?.connected && (
+            <Button variant="ghost" size="sm" className="min-h-11 text-destructive" disabled={!canManage || disconnecting} onClick={() => void disconnect()}>
+              {disconnecting ? t("disconnecting") : t("disconnect")}
+            </Button>
+          )}
         </div>
+        {status?.connected && status.integration && (
+          <p className="mt-3 text-xs text-muted-foreground">{status.integration.baseUrl}</p>
+        )}
       </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("connectDocuSeal")}</DialogTitle>
+            <DialogDescription>{t("connectDocuSealDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5"><Label htmlFor="docuseal-base-url">{t("docuSealUrl")}</Label><Input id="docuseal-base-url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.docuseal.com" /></div>
+            <div className="space-y-1.5"><Label htmlFor="docuseal-api-key">{t("docuSealApiKey")}</Label><Input id="docuseal-api-key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={t("docuSealApiKeyPlaceholder")} /></div>
+            <div className="space-y-1.5"><Label htmlFor="docuseal-webhook-secret">{t("docuSealWebhookSecret")}</Label><Input id="docuseal-webhook-secret" type="password" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} placeholder={t("optional")} /></div>
+            <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href="https://docuseal.com" target="_blank" rel="noreferrer">{t("openDocuSeal")} <ExternalLink className="h-3.5 w-3.5" /></a>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>{t("cancel")}</Button><Button onClick={() => void connect()} disabled={!canManage || !baseUrl || !apiKey || saving}>{saving ? t("connecting") : t("connect")}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -584,6 +666,7 @@ export default function IntegrationsPage() {
   const [activeCategory, setActiveCategory] = useState<Category>("CRM")
   const [slackCount, setSlackCount] = useState(0)
   const [teamsCount, setTeamsCount] = useState(0)
+  const [signatureStatus, setSignatureStatus] = useState<SignatureStatus | null>(null)
 
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
@@ -630,6 +713,15 @@ export default function IntegrationsPage() {
       .catch(() => {})
     return () => controller.abort()
   }, [])
+
+  const fetchSignatureStatus = useCallback(() => {
+    fetch("/api/org/signature")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setSignatureStatus(data) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchSignatureStatus() }, [fetchSignatureStatus])
 
   useEffect(() => {
     if (!session?.user) return
@@ -757,7 +849,7 @@ export default function IntegrationsPage() {
             onUpdateSetting={updateSetting}
           />
         ) : null}
-        {activeCategory === "E-Signature" && <ESignatureSection />}
+        {activeCategory === "E-Signature" && <ESignatureSection status={signatureStatus} canManage={canManage} onRefresh={fetchSignatureStatus} />}
         {activeCategory === "Cloud Storage" && <CloudStorageSection />}
         {activeCategory === "Communication" && (
           <CommunicationSection slackCount={slackCount} teamsCount={teamsCount} />

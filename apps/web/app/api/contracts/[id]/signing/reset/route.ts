@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { archiveSubmission } from "@/lib/docuseal"
+import { getDocuSealConfig } from "@/lib/signature/config"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
 
@@ -66,7 +67,10 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 
     // Best-effort void on DocuSeal — don't block reset if it fails
     if (contract.docusealSubmissionId) {
-      const voided = await archiveSubmission(Number(contract.docusealSubmissionId))
+      const docuSealConfig = await getDocuSealConfig(ctx.organizationId)
+      const voided = docuSealConfig
+        ? await archiveSubmission(Number(contract.docusealSubmissionId), docuSealConfig)
+        : await archiveSubmission(Number(contract.docusealSubmissionId))
       if (!voided) {
         logger.warn(
           { submissionId: contract.docusealSubmissionId, contractId: params.id },
