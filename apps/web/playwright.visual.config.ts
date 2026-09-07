@@ -16,6 +16,10 @@ const locales = [
 export default defineConfig({
   ...baseConfig,
   testMatch: "visual-matrix.spec.ts",
+  // The base functional config excludes this file because it requires the
+  // seeded auth-state setup below. The visual config is the intentional
+  // owner, so opt back in explicitly.
+  testIgnore: [],
   globalSetup: "./tests/e2e/visual-global.setup.ts",
   globalTeardown: "./tests/e2e/visual-global.teardown.ts",
   fullyParallel: false,

@@ -28,6 +28,14 @@ describe("local contract extraction fallback", () => {
     expect(fields[0]).toMatchObject({ field: "startDate", sourcePage: 2 })
   })
 
+  it("attributes a single-page PDF extraction to page one when the boundary is retained", () => {
+    const fields = extractLocalFields("MASTER SERVICES AGREEMENT\nEffective Date: January 15, 2025\f")
+    expect(fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "contractType", sourcePage: 1 }),
+      expect.objectContaining({ field: "startDate", sourcePage: 1 }),
+    ]))
+  })
+
   it("only derives renewal facts from an unambiguous, associated clause", () => {
     const positive = extractDeterministicRenewalTerms("Other notices require 10 days written notice.\fThis agreement automatically renews unless either party gives 1200 days written notice.")
     expect(positive.autoRenewal).toMatchObject({ value: true, sourcePage: 2 })

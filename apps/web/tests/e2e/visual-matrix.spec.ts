@@ -289,6 +289,14 @@ test.describe("Phase 1 Action Journey E2E", () => {
     await page.getByRole("button", { name: "Complete" }).click()
     await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`${actionPath}$`))
+
+    // Leave the seeded action available for the remaining locale/viewport
+    // projects. The completion assertion above proves the transition; reopen
+    // is deterministic cleanup for this shared visual fixture.
+    await page.getByRole("button", { name: "Reopen" }).click()
+    await expect(page.getByText("In progress", { exact: true }).first()).toBeVisible()
+    await page.getByRole("combobox", { name: "Owner" }).selectOption(VISUAL_FIXTURE_IDS.owner)
+    await page.getByRole("button", { name: "Save owner" }).click()
   })
 })
 
