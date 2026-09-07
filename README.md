@@ -2,15 +2,16 @@
 
 **Turn executed contracts into reviewed, owned actions.**
 
-Aakd is an open-source, self-hostable contract operations workspace. It helps a
-team move from an executed PDF or DOCX to cited contract facts, assigned
-obligations, deadlines, approvals, and completion evidence.
+Aakd is an open-source, self-hostable contract lifecycle management platform
+for reviewed, source-linked contract operations. It helps a team move from an
+executed PDF or DOCX to cited contract facts, assigned obligations, deadlines,
+approvals, and completion evidence.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-[Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md) · [Discord community](https://discord.gg/23hntCVty)
+[Website](https://aakd.app) · [Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md) · [Discord community](https://discord.gg/23hntCVty)
 
 > Aakd is an early open-source release. Customer validation is in progress.
 > It is not a hosted service, legal-advice product, compliance certification,
@@ -215,5 +216,8 @@ For security vulnerabilities, use the private reporting process in
 
 ## License
 
-Aakd is licensed under [AGPL-3.0](LICENSE). Commercial licensing is available
-for white-labeling or SaaS redistribution.
+Aakd is licensed under [AGPL-3.0](LICENSE). Paid hosting, deployment, and
+consulting services are permitted under the AGPL. If you modify Aakd and make
+it available to users over a network, the AGPL requires offering those users
+the corresponding source for that modified version. Alternative proprietary
+license terms are not generally offered at this time.

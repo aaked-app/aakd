@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import LandingPage, * as LandingModule from "@/app/page"
 import ar from "@/messages/ar.json"
@@ -7,6 +7,12 @@ import de from "@/messages/de.json"
 import en from "@/messages/en.json"
 import es from "@/messages/es.json"
 import fr from "@/messages/fr.json"
+
+const capturePublicMarketingEvent = vi.hoisted(() => vi.fn())
+
+vi.mock("@/components/providers/posthog-provider", () => ({
+  capturePublicMarketingEvent,
+}))
 
 function getMessage(messages: Record<string, unknown>, key: string): string {
   const value = key.split(".").reduce<unknown>((current, segment) => {
@@ -22,6 +28,10 @@ vi.mock("next-intl", () => ({
 }))
 
 describe("LandingPage", () => {
+  beforeEach(() => {
+    capturePublicMarketingEvent.mockClear()
+  })
+
   it("leads with the reviewed-action outcome and names the CLM category", () => {
     render(<LandingPage />)
 
@@ -153,6 +163,29 @@ describe("LandingPage", () => {
     )
 
     expect(container.querySelectorAll('a[href="#"]')).toHaveLength(0)
+  })
+
+  it("instruments every high-intent registration and GitHub destination once at the link", () => {
+    const { container } = render(<LandingPage />)
+    const githubLinks = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href^="https://github.com/"]'))
+
+    for (const link of githubLinks) fireEvent.click(link)
+    for (const link of screen.getAllByRole("link", { name: "Create workspace" })) fireEvent.click(link)
+
+    expect(githubLinks).toHaveLength(7)
+    expect(capturePublicMarketingEvent.mock.calls).toEqual([
+      ["hero_view_github"],
+      ["self_hosting_guide"],
+      ["final_view_github"],
+      ["footer_self_hosting"],
+      ["footer_api_reference"],
+      ["footer_security"],
+      ["footer_view_github"],
+      ["header_create_workspace"],
+      ["menu_create_workspace"],
+      ["hero_create_workspace"],
+      ["final_create_workspace"],
+    ])
   })
 
   it("keeps the complete landing copy contract in every supported locale", () => {

@@ -4,6 +4,16 @@ All notable changes to Aakd are documented in this file.
 
 ---
 
+## [1.3.1] — 2026-08-19
+
+### Fixed
+
+- **Agreement workspace** — restored the established contract-workspace presentation after the experimental operations redesign, while retaining the underlying safety and data improvements.
+- **Public web** — redirects `www.aakd.app` to the canonical `aakd.app` host.
+- **Activation** — corrected onboarding AI setup and public-release surfaces following the 1.3.0 release.
+
+---
+
 ## [1.3.0] — 2026-08-19
 
 ### Added
