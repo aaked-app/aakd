@@ -332,7 +332,15 @@
     "accept": "Annehmen",
     "reject": "Ablehnen",
     "accepted": "Angenommen",
-    "rejected": "Abgelehnt"
+    "rejected": "Abgelehnt",
+    "rejectSuggestionTitle": "Vorschlag ablehnen",
+    "rejectSuggestionDescription": "Ersetzen Sie den vorgeschlagenen Wert oder lassen Sie das Feld leer, um ihn aus der Vertragsübersicht zu entfernen.",
+    "replacementValue": "Ersatzwert",
+    "replacementValuePlaceholder": "Optionaler Ersatz",
+    "replacementValueHint": "Leer lassen, um den vorgeschlagenen Wert abzulehnen und zu löschen.",
+    "rejectAndClear": "Ablehnen und löschen",
+    "saveReplacement": "Ersatz speichern",
+    "cancel": "Abbrechen"
   }
   },
   "auth": {

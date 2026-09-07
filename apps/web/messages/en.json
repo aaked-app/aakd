@@ -332,7 +332,15 @@
     "accept": "Accept",
     "reject": "Reject",
     "accepted": "Accepted",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "rejectSuggestionTitle": "Reject this suggestion",
+    "rejectSuggestionDescription": "Replace the suggested value, or leave it empty to clear this field from the contract summary.",
+    "replacementValue": "Replacement value",
+    "replacementValuePlaceholder": "Optional replacement",
+    "replacementValueHint": "Leave this blank to reject and clear the suggested value.",
+    "rejectAndClear": "Reject and clear",
+    "saveReplacement": "Save replacement",
+    "cancel": "Cancel"
   }
   },
   "auth": {

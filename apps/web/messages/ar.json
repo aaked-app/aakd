@@ -332,7 +332,15 @@
     "accept": "قبول",
     "reject": "رفض",
     "accepted": "تم القبول",
-    "rejected": "تم الرفض"
+    "rejected": "تم الرفض",
+    "rejectSuggestionTitle": "رفض هذا الاقتراح",
+    "rejectSuggestionDescription": "استبدل القيمة المقترحة أو اتركها فارغة لإزالتها من ملخص العقد.",
+    "replacementValue": "القيمة البديلة",
+    "replacementValuePlaceholder": "بديل اختياري",
+    "replacementValueHint": "اتركه فارغًا لرفض القيمة المقترحة ومسحها.",
+    "rejectAndClear": "رفض ومسح",
+    "saveReplacement": "حفظ البديل",
+    "cancel": "إلغاء"
   }
   },
   "auth": {

@@ -332,7 +332,15 @@
     "accept": "Aceptar",
     "reject": "Rechazar",
     "accepted": "Aceptado",
-    "rejected": "Rechazado"
+    "rejected": "Rechazado",
+    "rejectSuggestionTitle": "Rechazar esta sugerencia",
+    "rejectSuggestionDescription": "Sustituye el valor sugerido o déjalo vacío para quitarlo del resumen del contrato.",
+    "replacementValue": "Valor de reemplazo",
+    "replacementValuePlaceholder": "Reemplazo opcional",
+    "replacementValueHint": "Déjalo vacío para rechazar y borrar el valor sugerido.",
+    "rejectAndClear": "Rechazar y borrar",
+    "saveReplacement": "Guardar reemplazo",
+    "cancel": "Cancelar"
   }
   },
   "auth": {

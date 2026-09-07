@@ -285,6 +285,59 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
     expect(prisma.contract.update).not.toHaveBeenCalled()
   })
 
+  it("rejects and clears the matching canonical summary value", async () => {
+    const canonicalDate = new Date("2024-01-01T00:00:00.000Z")
+    vi.mocked(prisma.contract.findUnique)
+      .mockResolvedValueOnce(mockContract as any)
+      .mockResolvedValueOnce({ startDate: canonicalDate } as any)
+    vi.mocked(prisma.aIExtraction.findUnique)
+      .mockResolvedValueOnce({ ...mockExtraction, rawValue: "2024-01-01" } as any)
+      .mockResolvedValueOnce({ ...mockExtraction, rawValue: "2024-01-01" } as any)
+      .mockResolvedValueOnce({ ...mockExtraction, rawValue: "2024-01-01", status: "rejected" } as any)
+    vi.mocked(prisma.aIExtraction.update).mockResolvedValueOnce({ ...mockExtraction, status: "rejected" } as any)
+    vi.mocked(prisma.contract.update).mockResolvedValueOnce({} as any)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/extractions/route")
+    const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extractionId: "extraction-1", action: "reject" }),
+    })
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+
+    expect(res.status).toBe(200)
+    expect(prisma.contract.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "contract-1" },
+      data: { startDate: null },
+    }))
+  })
+
+  it("accepts a replacement value when rejecting a suggestion", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    vi.mocked(prisma.aIExtraction.findUnique)
+      .mockResolvedValueOnce(mockExtraction as any)
+      .mockResolvedValueOnce(mockExtraction as any)
+      .mockResolvedValueOnce({ ...mockExtraction, rawValue: "2025-06-01", status: "accepted", extractedBy: "user" } as any)
+    vi.mocked(prisma.aIExtraction.update).mockResolvedValueOnce({ ...mockExtraction, rawValue: "2025-06-01", status: "accepted" } as any)
+    vi.mocked(prisma.contract.update).mockResolvedValueOnce({} as any)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/extractions/route")
+    const req = new Request("http://localhost/api/contracts/contract-1/extractions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extractionId: "extraction-1", action: "reject", replacementValue: "2025-06-01" }),
+    })
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+
+    expect(res.status).toBe(200)
+    expect(prisma.aIExtraction.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { rawValue: "2025-06-01", extractedBy: "user", status: "accepted" },
+    }))
+    expect(prisma.contract.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { startDate: new Date("2025-06-01") },
+    }))
+  })
+
   it("returns 404 when contract is from different org (org isolation)", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
       id: "contract-1",
