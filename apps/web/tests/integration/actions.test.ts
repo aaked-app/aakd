@@ -141,7 +141,8 @@ describe("GET /api/actions", () => {
 
   it("returns the first five actions in the exact dashboard priority order", async () => {
     const rows = [
-      { ...baseAction, id: "other", status: "ACKNOWLEDGED", dueDate: new Date("2026-10-01"), createdAt: new Date("2026-08-01") },
+      // Keep this outside the due-soon window so the test does not expire as time advances.
+      { ...baseAction, id: "other", status: "ACKNOWLEDGED", dueDate: new Date(Date.now() + 31 * 86_400_000), createdAt: new Date("2026-08-01") },
       { ...baseAction, id: "review", status: "PENDING_REVIEW", dueDate: null, createdAt: new Date("2026-08-01") },
       { ...baseAction, id: "blocked", status: "BLOCKED", dueDate: null, createdAt: new Date("2026-08-02") },
       { ...baseAction, id: "stale", status: "STALE", dueDate: new Date("2026-08-30"), createdAt: new Date("2026-08-01") },
