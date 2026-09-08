@@ -265,8 +265,8 @@ jobs:
           DIRECT_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/clauseflow
           REDIS_URL=redis://:phase0-e2e-redis@localhost:6379
           BETTER_AUTH_SECRET=phase0-e2e-auth-secret-32-chars
-          BETTER_AUTH_URL=http://localhost:3000
-          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          BETTER_AUTH_URL=http://127.0.0.1:3000
+          NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
           INTERNAL_APP_URL=http://localhost:3000
           NOTIFICATION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000001
           STORAGE_ENDPOINT=http://localhost:9000
