@@ -11,7 +11,12 @@ vi.mock("@/lib/context", () => ({
   requestContext: { run: vi.fn((_ctx, fn) => fn()) },
 }))
 
+vi.mock("@/lib/posthog-server", () => ({
+  captureServerEvent: vi.fn(),
+}))
+
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { captureServerEvent } from "@/lib/posthog-server"
 
 const sessionCtx = {
   userId: "user-1",
@@ -288,6 +293,33 @@ describe("PATCH /api/actions/[id] commands", () => {
       userId: "user-1",
       action: "ACTION_REVIEWED",
     }) })
+  })
+
+  it("records privacy-minimal activation timing after the first review without changing the transition", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "test-posthog-key")
+    vi.mocked(prisma.contractAction.findFirst)
+      .mockResolvedValueOnce(baseAction as never)
+      .mockResolvedValueOnce({ ...baseAction, status: "PROPOSED", reviewStatus: "reviewed", version: 2 } as never)
+    vi.mocked(prisma.contractAction.updateMany).mockResolvedValueOnce({ count: 1 })
+    vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-activation-1" } as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      createdAt: new Date(Date.now() - 90_000),
+    } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/action-1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "validate", expectedVersion: 1 }),
+    }), { params: { id: "action-1" } })
+
+    expect(response.status).toBe(200)
+    expect(captureServerEvent).toHaveBeenCalledWith("user-1", "activation_action_reviewed", {
+      action_kind: "OBLIGATION",
+      minutes_since_signup: expect.any(Number),
+    })
+    expect(prisma.contractAction.updateMany).toHaveBeenCalledTimes(1)
+    vi.unstubAllEnvs()
   })
 
   it("requires the configured evidence kind before completion", async () => {
