@@ -32,7 +32,7 @@ const priorityOne: RouteCheck[] = [
   { name: "contract-new", path: "/contracts/new" },
   { name: "obligations", path: "/obligations", headingKey: "obligations.title", readyText: "Send non-renewal notice" },
   { name: "obligation-detail", path: `/contracts/${seededContractId}/obligations/${seededObligationId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
-  { name: "actions", path: "/actions", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
+  { name: "actions", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
   { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
   { name: "renewals", path: "/renewals", headingKey: "renewals.title", readyText: "Northwind Services Agreement" },
   { name: "analytics", path: "/analytics", headingKey: "analytics.title" },
@@ -42,7 +42,7 @@ const priorityOne: RouteCheck[] = [
 
 const phaseOneActionJourney: RouteCheck[] = [
   { name: "action-dashboard", path: "/dashboard", readyText: "Send non-renewal notice" },
-  { name: "action-queue", path: "/actions", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
+  { name: "action-queue", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
   { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
   { name: "action-confirmation", path: `/contracts/${seededContractId}`, heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" }, readyText: "Send non-renewal notice" },
 ]

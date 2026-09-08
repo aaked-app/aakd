@@ -4,7 +4,6 @@ import { createRequire } from "node:module"
 import path from "node:path"
 import { request, type FullConfig } from "@playwright/test"
 import { hashPassword } from "better-auth/crypto"
-import { loadEnvConfig } from "@next/env"
 
 import {
   VISUAL_AUTH_STATE,
@@ -17,12 +16,13 @@ import {
   assertVisualFixtureEnabled,
   seedVisualFixture,
 } from "./visual-fixture"
+import { loadRootComposeEnv } from "./root-env"
 
 export default async function visualGlobalSetup(_config: FullConfig) {
   // Playwright runs this setup from apps/web, while local development secrets
   // deliberately live at the repository root. Load that root explicitly so
   // fixture seeding uses the same local database as the app under test.
-  loadEnvConfig(path.resolve(process.cwd(), "../.."))
+  loadRootComposeEnv()
   assertVisualFixtureEnabled(process.env)
   // Playwright transpiles required TypeScript modules, while native dynamic
   // import bypasses that transform. Keep this load after Next has populated env.
