@@ -1,6 +1,6 @@
 # Current-head Phase 0/1 release acceptance matrix — 2026-09-08
 
-**Candidate:** `d4fe2fd` (PR #36, `test: verify MCP with standards client`)
+**Candidate:** `4aed272` (PR #38, `feat: instrument activation review timing`)
 
 **Decision:** `ENGINEERING_READY_LOCAL / PRODUCT_GATES_OPEN`
 
@@ -16,7 +16,7 @@ claim that the Phase 0 or Phase 1 product gates have passed.
 | TypeScript | `PASS_LOCAL` | `pnpm --filter web typecheck` |
 | Lint | `PASS_LOCAL` | Zero errors; existing warnings remain |
 | Production build | `PASS_LOCAL` | `pnpm build` completed successfully |
-| Functional browser E2E | `PASS_REMOTE` | Public CI run `34189837571`, job `101945456045`: the full functional browser suite passed against isolated dependencies, including the standards-based MCP client replay. |
+| Functional browser E2E | `PASS_REMOTE` | Public CI run `34192696894`, job `101953833055`: the full functional browser suite passed after rerun against isolated dependencies, including the standards-based MCP client replay. |
 | Visual/localization matrix | `PASS_LOCAL` | Full 234-test matrix: 224 passed, 10 intentional skips, zero failures with per-project auth-state isolation. |
 | Tenant isolation | `PASS_LOCAL` | 11/11 isolation tests passed |
 | Targeted security/integration matrix | `PASS_LOCAL` | 260/260 passed |
@@ -30,7 +30,8 @@ claim that the Phase 0 or Phase 1 product gates have passed.
 | Worker extraction | `PASS_LOCAL` | Worker restarted with the candidate code and contract creation/operations E2E passed |
 | Working tree | `PASS_LOCAL` | Clean `main`; candidate committed locally |
 | Full Phase 0 verification runner | `PASS_LOCAL` | `bash scripts/verify-phase-0.sh` completed successfully, including self-hosting validation, typecheck, lint, full tests, isolation tests, and production build |
-| Public CI | `PASS_REMOTE` | PR #36 merged as `d4fe2fd`; TypeScript, Lint, Prisma migrations, Production container images, Self-hosting configuration, Functional browser E2E, Unit & Integration Tests, and Build all passed. |
+| Public CI | `PASS_REMOTE` | PR #38 merged as `4aed272`; TypeScript, Lint, Prisma migrations, Production container images, Self-hosting configuration, Functional browser E2E, Unit & Integration Tests, and Build all passed after the failed jobs were rerun. |
+| Activation instrumentation | `PASS_REMOTE` | Public CI run `34192696894`, including the rerun of job `101954012209`, passed the privacy-minimal activation timing integration test; reviewed actions record only action kind and minutes since account creation when operator telemetry is configured. |
 | Standards MCP client compatibility | `PASS_REMOTE` | Public CI run `34189837571`, job `101945456045`, exercised a real `@modelcontextprotocol/sdk` Streamable HTTP client: UI-created API key, MCP handshake, `tools/list`, `list_contracts`, and key revocation. |
 | HTTP MCP compatibility replay | `PASS_LOCAL` | `scripts/verify-mcp-http.sh` passed against the running candidate with a disposable read-only `cf_live_` key: initialize, initialized notification (202), 15 tools, ping, list_contracts, and text-read/write scope guards; key deleted after replay |
 
@@ -59,7 +60,7 @@ claim that the Phase 0 or Phase 1 product gates have passed.
 | Team Brief and exception handoff | `PASS_LOCAL` | Named-recipient, reviewed-action snapshots, acknowledgement and exception filtering are implemented and integration-tested |
 | Agent boundary | `PASS_REMOTE` | Standards SDK Streamable HTTP replay passed in public CI; real Claude/Codex desktop client replay remains external |
 | Corpus quality | `OPEN` | At least 100 documents across three contract types with measured precision/recall |
-| Activation time | `OPEN` | Instrumented customer sessions |
+| Activation time | `OPEN` | Instrumentation is now present; customer sessions are still required to establish the median signup-to-first-confirmed-action. |
 | Silent critical errors | `OPEN` | Real-corpus review ledger |
 | Repeat use | `OPEN` | Two organizations complete a second comparable cycle |
 | Managed-operation funding | `OPEN` | Two qualified organizations fund the same offer |
