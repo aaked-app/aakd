@@ -278,6 +278,7 @@ jobs:
           SMTP_PORT=1025
           SMTP_SECURE=false
           SMTP_FROM=e2e@aakd.test
+          DOCUSEAL_SECRET_KEY_BASE=phase0-e2e-docuseal-secret
           DOCUSEAL_API_URL=https://api.docuseal.com
           EOF
           echo "AAKD_E2E_ENV=${e2e_env}" >>"${GITHUB_ENV}"
