@@ -282,11 +282,22 @@ jobs:
           DOCUSEAL_API_URL=https://api.docuseal.com
           EOF
           echo "AAKD_E2E_ENV=${e2e_env}" >>"${GITHUB_ENV}"
+          compose_override="${RUNNER_TEMP}/aakd-e2e-compose.yml"
+          cat >"${compose_override}" <<'EOF'
+          services:
+            db:
+              ports:
+                - "5432:5432"
+            redis:
+              ports:
+                - "6379:6379"
+          EOF
+          echo "AAKD_E2E_COMPOSE=${compose_override}" >>"${GITHUB_ENV}"
       - name: Boot disposable dependencies
         shell: bash
         run: |
           set -euo pipefail
-          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml)
+          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml -f "${AAKD_E2E_COMPOSE}")
           "${compose[@]}" up -d db redis minio createbuckets mailpit
           db_ready=0
           redis_ready=0
@@ -312,7 +323,7 @@ jobs:
           . "${AAKD_E2E_ENV}"
           set +a
           export PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000
-          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml)
+          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml -f "${AAKD_E2E_COMPOSE}")
           web_pid=""
           worker_pid=""
           cleanup() {
