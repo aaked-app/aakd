@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test"
 
 import baseConfig from "./playwright.config"
+import { visualAuthStateForProject } from "./tests/e2e/visual-constants"
 
 const viewports = [
   { name: "mobile", viewport: { width: 320, height: 720 } },
@@ -36,6 +37,7 @@ export default defineConfig({
       use: {
         viewport: screen.viewport,
         locale: language.locale,
+        storageState: visualAuthStateForProject(`${language.name}-${screen.name}`),
         colorScheme: "light" as const,
         reducedMotion: "reduce" as const,
         timezoneId: "UTC",
