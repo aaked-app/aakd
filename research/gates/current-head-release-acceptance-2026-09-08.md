@@ -1,6 +1,6 @@
 # Current-head Phase 0/1 release acceptance matrix — 2026-09-08
 
-**Candidate:** `94b6596` (`ci: validate pinned caddy configuration`)
+**Candidate:** `7683449` (`ci: enforce functional browser e2e`)
 
 **Decision:** `ENGINEERING_READY_LOCAL / PRODUCT_GATES_OPEN`
 
@@ -16,7 +16,7 @@ claim that the Phase 0 or Phase 1 product gates have passed.
 | TypeScript | `PASS_LOCAL` | `pnpm --filter web typecheck` |
 | Lint | `PASS_LOCAL` | Zero errors; existing warnings remain |
 | Production build | `PASS_LOCAL` | `pnpm build` completed successfully |
-| Functional browser E2E | `PASS_LOCAL` | 20/20 passed |
+| Functional browser E2E | `PASS_REMOTE` | Public CI run `34188515440`, job `101941600473`: all 20 Playwright tests passed against fresh PostgreSQL, Redis, MinIO, and Mailpit with the app and worker running from source. |
 | Visual/localization matrix | `PASS_LOCAL` | Full 234-test matrix: 224 passed, 10 intentional skips, zero failures with per-project auth-state isolation. |
 | Tenant isolation | `PASS_LOCAL` | 11/11 isolation tests passed |
 | Targeted security/integration matrix | `PASS_LOCAL` | 260/260 passed |
@@ -39,7 +39,7 @@ claim that the Phase 0 or Phase 1 product gates have passed.
 | --- | --- | --- |
 | Truthful capability surface | `PASS_LOCAL` | Recheck after any release/deployment change |
 | Auth, tenant isolation, MCP scope enforcement | `PASS_LOCAL` | HTTP MCP compatibility replay passed with a disposable scoped key; external Claude/Codex client compatibility remains validation work |
-| Cited first useful action | `PASS_LOCAL` | Clean-install replay still required |
+| Cited first useful action | `PASS_REMOTE` | Public functional browser E2E exercised first-use registration, organization creation, contract creation, upload, operations, AI configuration, and responsive onboarding. |
 | Clean install and Compose replay | `PASS_REMOTE_PARTIAL` | Fresh production PostgreSQL/Redis/MinIO/app/worker plus backup/restore replay passed in public CI run `34185424014`; Caddy syntax is validated in run `34186052985`, while real DNS/certificate issuance and authenticated browser replay remain open |
 | Repeated target failure | `OPEN` | Evidence from at least five organizations |
 | Representative corpora | `OPEN` | Three organizations and the agreed document corpus |
