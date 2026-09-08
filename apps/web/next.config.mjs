@@ -9,6 +9,9 @@ const withNextIntl = createNextIntlPlugin("./i18n.ts")
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The functional E2E harness uses 127.0.0.1 while the dev server binds
+  // localhost. Allow that loopback origin for Next's development assets.
+  allowedDevOrigins: ["127.0.0.1"],
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Expose signing feature flag to the client — derived from DOCUSEAL_API_KEY
   // so users never need to set a separate toggle. No key = signing hidden.

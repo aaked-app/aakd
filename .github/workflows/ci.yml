@@ -237,3 +237,127 @@ jobs:
           "${compose[@]}" exec -T db dropdb -U postgres aakd_restore_probe
           echo "Fresh production runtime smoke passed: migrations, app health, object storage, Redis, worker startup, and backup/restore."
           smoke_passed=1
+
+  functional-e2e:
+    name: Functional browser E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Create isolated E2E environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          e2e_env="${RUNNER_TEMP}/aakd-e2e.env"
+          cat >"${e2e_env}" <<'EOF'
+          POSTGRES_PASSWORD=phase0-e2e-postgres
+          REDIS_PASSWORD=phase0-e2e-redis
+          DATABASE_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/clauseflow
+          DIRECT_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/clauseflow
+          REDIS_URL=redis://:phase0-e2e-redis@localhost:6379
+          BETTER_AUTH_SECRET=phase0-e2e-auth-secret-32-chars
+          BETTER_AUTH_URL=http://127.0.0.1:3000
+          NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+          INTERNAL_APP_URL=http://localhost:3000
+          NOTIFICATION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000001
+          STORAGE_ENDPOINT=http://localhost:9000
+          STORAGE_BUCKET=clauseflow
+          STORAGE_ACCESS_KEY=minioadmin
+          STORAGE_SECRET_KEY=minioadmin
+          STORAGE_REGION=us-east-1
+          SMTP_HOST=localhost
+          SMTP_PORT=1025
+          SMTP_SECURE=false
+          SMTP_FROM=e2e@aakd.test
+          DOCUSEAL_SECRET_KEY_BASE=phase0-e2e-docuseal-secret
+          DOCUSEAL_API_URL=https://api.docuseal.com
+          EOF
+          echo "AAKD_E2E_ENV=${e2e_env}" >>"${GITHUB_ENV}"
+          compose_override="${RUNNER_TEMP}/aakd-e2e-compose.yml"
+          cat >"${compose_override}" <<'EOF'
+          services:
+            db:
+              ports:
+                - "5432:5432"
+            redis:
+              ports:
+                - "6379:6379"
+          EOF
+          echo "AAKD_E2E_COMPOSE=${compose_override}" >>"${GITHUB_ENV}"
+      - name: Boot disposable dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml -f "${AAKD_E2E_COMPOSE}")
+          "${compose[@]}" up -d db redis minio createbuckets mailpit
+          db_ready=0
+          redis_ready=0
+          for attempt in $(seq 1 30); do
+            if "${compose[@]}" exec -T db pg_isready -U postgres -d clauseflow >/dev/null 2>&1; then
+              db_ready=1
+            fi
+            if "${compose[@]}" exec -T redis redis-cli -a phase0-e2e-redis ping 2>/dev/null | grep -qx PONG; then
+              redis_ready=1
+            fi
+            if [ "${db_ready}" -eq 1 ] && [ "${redis_ready}" -eq 1 ]; then
+              break
+            fi
+            sleep 2
+          done
+          test "${db_ready}" -eq 1
+          test "${redis_ready}" -eq 1
+      - name: Run migrations and browser tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          . "${AAKD_E2E_ENV}"
+          set +a
+          export PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000
+          compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml -f "${AAKD_E2E_COMPOSE}")
+          web_pid=""
+          worker_pid=""
+          cleanup() {
+            if [ -n "${web_pid}" ]; then kill "${web_pid}" 2>/dev/null || true; fi
+            if [ -n "${worker_pid}" ]; then kill "${worker_pid}" 2>/dev/null || true; fi
+            if [ -n "${web_pid}" ]; then wait "${web_pid}" 2>/dev/null || true; fi
+            if [ -n "${worker_pid}" ]; then wait "${worker_pid}" 2>/dev/null || true; fi
+            "${compose[@]}" down --volumes --remove-orphans || true
+          }
+          trap cleanup EXIT
+          pnpm --filter web db:generate
+          pnpm --filter web db:migrate:prod
+          pnpm --filter web exec playwright install --with-deps chromium
+          pnpm dev >"${RUNNER_TEMP}/aakd-e2e-web.log" 2>&1 &
+          web_pid=$!
+          pnpm --filter web worker:start >"${RUNNER_TEMP}/aakd-e2e-worker.log" 2>&1 &
+          worker_pid=$!
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://localhost:3000/api/health >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "${ready}" -eq 1
+          pnpm --filter web test:e2e
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: functional-e2e-diagnostics
+          path: |
+            apps/web/playwright-report
+            ${{ runner.temp }}/aakd-e2e-web.log
+            ${{ runner.temp }}/aakd-e2e-worker.log
+          if-no-files-found: ignore
