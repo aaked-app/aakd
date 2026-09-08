@@ -140,6 +140,25 @@ describe("GET /api/actions", () => {
     expect(invalid.status).toBe(422)
   })
 
+  it("provides one exception view for stale, overdue, blocked, missing-evidence, and failed-delivery work", async () => {
+    vi.mocked(prisma.contractAction.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractAction.count).mockResolvedValueOnce(0)
+    const { GET } = await import("@/app/api/actions/route")
+    const response = await GET(new Request("http://localhost/api/actions?view=exceptions"))
+
+    expect(response.status).toBe(200)
+    expect(prisma.contractAction.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        organizationId: "org-1",
+        OR: expect.arrayContaining([
+          expect.objectContaining({ status: { in: ["PROPOSED", "PENDING_REVIEW", "BLOCKED", "STALE"] } }),
+          expect.objectContaining({ evidenceRequired: { not: null }, evidence: { none: { reviewStatus: "VERIFIED" } } }),
+          expect.objectContaining({ deliveries: { some: { status: "failed" } } }),
+        ]),
+      }),
+    }))
+  })
+
   it("returns the first five actions in the exact dashboard priority order", async () => {
     const rows = [
       // Keep this outside the due-soon window so the test does not expire as time advances.
