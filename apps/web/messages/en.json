@@ -983,7 +983,7 @@
     "subtitle": "Review, assign and complete the work your agreements require.",
     "refresh": "Refresh",
     "filtersLabel": "Action status filters",
-    "views": { "my_work": "My work", "needs_review": "Needs review", "due_soon": "Due soon", "blocked": "Blocked", "completed": "Completed" },
+    "views": { "my_work": "My work", "needs_review": "Needs review", "due_soon": "Due soon", "blocked": "Blocked", "exceptions": "Exceptions", "completed": "Completed", "open": "Open" },
     "kindFilter": "Action type", "ownerFilter": "Owner", "allKinds": "All action types", "allOwners": "All owners",
     "open": "Open",
     "retry": "Retry",
