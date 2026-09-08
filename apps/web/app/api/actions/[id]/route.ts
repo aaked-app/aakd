@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { actionDetailSelect, toActionDetail } from "@/lib/actions/dto"
 import { SECURE_HEADERS } from "@/lib/api-headers"
+import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 import { actionApprovalState } from "@/lib/actions/approval-gate"
 
@@ -60,6 +61,27 @@ async function findAction(id: string, organizationId: string, includeSourceText:
     where: { id, organizationId },
     select: actionDetailSelect(includeSourceText),
   })
+}
+
+async function captureActivationReview(ctx: { userId: string }, actionKind: string) {
+  // Activation measurement is optional operator telemetry. Never make a
+  // reviewed action depend on PostHog availability, and never send contract
+  // identifiers, titles, source text, or organization identifiers.
+  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: { createdAt: true },
+    })
+    if (!user?.createdAt) return
+    const minutesSinceSignup = Math.max(0, Math.round((Date.now() - user.createdAt.getTime()) / 60_000))
+    captureServerEvent(ctx.userId, "activation_action_reviewed", {
+      action_kind: actionKind,
+      minutes_since_signup: minutesSinceSignup,
+    })
+  } catch {
+    // Telemetry is non-critical and must never change the action outcome.
+  }
 }
 
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
@@ -238,6 +260,9 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
     })
 
     if (!updated) return Response.json({ error: "action_version_conflict" }, { status: 409, headers: SECURE_HEADERS })
+    if (command.command === "validate") {
+      await captureActivationReview(ctx, existing.kind)
+    }
     return Response.json(toActionDetail(updated as never, true), { headers: SECURE_HEADERS })
   })
 }
