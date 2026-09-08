@@ -158,7 +158,7 @@ jobs:
         with:
           context: .
           file: apps/web/Dockerfile
-          push: false
+          load: true
           tags: aakd-app:ci
           cache-from: type=gha,scope=aakd-web
           cache-to: type=gha,mode=max,scope=aakd-web
@@ -167,7 +167,55 @@ jobs:
         with:
           context: .
           file: apps/web/Dockerfile.worker
-          push: false
+          load: true
           tags: aakd-worker:ci
           cache-from: type=gha,scope=aakd-worker
           cache-to: type=gha,mode=max,scope=aakd-worker
+      - name: Boot a fresh production runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_env="${RUNNER_TEMP}/aakd-smoke.env"
+          smoke_override="${RUNNER_TEMP}/aakd-smoke.override.yml"
+          cat >"${smoke_env}" <<'EOF'
+          DOMAIN=localhost
+          POSTGRES_PASSWORD=phase0-smoke-postgres
+          REDIS_PASSWORD=phase0-smoke-redis
+          MINIO_ROOT_USER=phase0smoke
+          MINIO_ROOT_PASSWORD=phase0-smoke-minio
+          BETTER_AUTH_SECRET=phase0-smoke-auth-secret-32-chars
+          NOTIFICATION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000001
+          DOCUSEAL_SECRET_KEY_BASE=phase0-smoke-docuseal-secret
+          DOCUSEAL_IMAGE=docuseal/docuseal@sha256:063f9b89fa99816d0c2f90c33e4e176ecbbdf8cddd4958e40562643d0431dfbc
+          EOF
+          cat >"${smoke_override}" <<'EOF'
+          services:
+            app:
+              image: aakd-app:ci
+            worker:
+              image: aakd-worker:ci
+          EOF
+          compose=(docker compose --env-file "${smoke_env}" -f docker-compose.prod.yml -f "${smoke_override}")
+          cleanup() { "${compose[@]}" down --volumes --remove-orphans; }
+          trap cleanup EXIT
+          "${compose[@]}" up -d --no-build db redis minio createbuckets app worker
+          ready=0
+          for attempt in $(seq 1 60); do
+            if "${compose[@]}" exec -T app node -e "fetch(process.env.INTERNAL_APP_URL + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "${ready}" -eq 1
+          "${compose[@]}" exec -T app npx prisma migrate status >/dev/null
+          worker_ready=0
+          for attempt in $(seq 1 30); do
+            if "${compose[@]}" logs worker 2>&1 | grep -F '[worker] ClauseFlow BullMQ worker started' >/dev/null; then
+              worker_ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "${worker_ready}" -eq 1
+          echo "Fresh production runtime smoke passed: migrations, app health, object storage, Redis, and worker startup."
