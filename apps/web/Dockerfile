@@ -46,6 +46,10 @@ COPY --from=builder /app/apps/web/prisma.config.ts ./
 # Prisma 7 loads this config before Next's standalone trace. Keep the
 # explicit env loader available in the minimal runner image for migrations.
 COPY --from=builder /app/apps/web/node_modules/@next/env ./node_modules/@next/env
+# prisma.config.ts also parses a root .env when one is present. The standalone
+# Next trace does not include this CLI-only dependency, so copy the locked
+# runtime module explicitly for `prisma migrate deploy` at startup.
+COPY --from=builder /app/node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv ./node_modules/dotenv
 # With outputFileTracingRoot set to the monorepo root, the standalone
 # output mirrors the monorepo structure: server.js lives at apps/web/server.js
 # and root node_modules are at the top level.
