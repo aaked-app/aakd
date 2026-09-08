@@ -1,4 +1,6 @@
 import { expect, request as playwrightRequest, test, type Page, type TestInfo } from "@playwright/test"
+import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 
 import en from "@/messages/en.json"
 import ar from "@/messages/ar.json"
@@ -352,6 +354,48 @@ test.describe("Priority 2 authenticated visual matrix", () => {
       expect(revokedResponse.status()).toBe(401)
     } finally {
       await api.dispose()
+    }
+  })
+
+  test("a standards MCP client can discover and call the protected tools", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "en-desktop", "Run once against the seeded English desktop workspace")
+
+    await page.addInitScript(() => localStorage.setItem("cf_onboarding_done", "1"))
+    await page.goto("/settings/api-keys")
+    await expect(page.getByRole("heading", { name: "API Keys" })).toBeVisible()
+    await page.getByRole("button", { name: "Create new key" }).click()
+    const keyName = `E2E MCP SDK ${Date.now()}`
+    await page.getByLabel("Key name").fill(keyName)
+    const createResponse = page.waitForResponse((response) => response.url().endsWith("/api/org/api-keys") && response.request().method() === "POST")
+    await page.getByRole("button", { name: "Create key" }).click()
+    expect((await createResponse).status()).toBe(201)
+
+    const rawKeyInput = page.locator('input[readonly]').first()
+    await expect(rawKeyInput).toBeVisible({ timeout: 15_000 })
+    const rawKey = await rawKeyInput.inputValue()
+    expect(rawKey).toMatch(/^cf_live_/)
+    await page.getByRole("button", { name: "Done" }).click()
+
+    const baseURL = testInfo.project.use.baseURL ?? "http://localhost:3000"
+    const client = new Client({ name: "aakd-playwright-mcp-client", version: "1.0.0" })
+    const transport = new StreamableHTTPClientTransport(new URL("/api/mcp", baseURL), {
+      requestInit: { headers: { Authorization: `Bearer ${rawKey}` } },
+    })
+
+    try {
+      await client.connect(transport)
+      const tools = await client.listTools()
+      expect(tools.tools.map((tool) => tool.name)).toContain("list_contracts")
+      const result = await client.callTool({ name: "list_contracts", arguments: { limit: 10 } })
+      expect(result.isError).not.toBe(true)
+      expect(Array.isArray(result.content) && result.content[0]).toMatchObject({ type: "text" })
+    } finally {
+      await client.close()
+      page.once("dialog", (dialog) => dialog.accept())
+      const revokeResponse = page.waitForResponse((response) => response.url().includes("/api/org/api-keys/") && response.request().method() === "DELETE")
+      const keyCard = page.getByText(keyName, { exact: true }).locator("..").locator("..")
+      await keyCard.getByRole("button", { name: "Revoke" }).click()
+      expect((await revokeResponse).status()).toBe(204)
     }
   })
 })
