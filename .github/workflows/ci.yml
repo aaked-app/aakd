@@ -196,7 +196,15 @@ jobs:
               image: aakd-worker:ci
           EOF
           compose=(docker compose --env-file "${smoke_env}" -f docker-compose.prod.yml -f "${smoke_override}")
-          cleanup() { "${compose[@]}" down --volumes --remove-orphans; }
+          smoke_passed=0
+          cleanup() {
+            if [ "${smoke_passed}" -ne 1 ]; then
+              echo 'Fresh production runtime smoke failed; service state and logs follow.'
+              "${compose[@]}" ps || true
+              "${compose[@]}" logs --no-color app worker db redis minio || true
+            fi
+            "${compose[@]}" down --volumes --remove-orphans
+          }
           trap cleanup EXIT
           "${compose[@]}" up -d --no-build db redis minio createbuckets app worker
           ready=0
@@ -219,3 +227,4 @@ jobs:
           done
           test "${worker_ready}" -eq 1
           echo "Fresh production runtime smoke passed: migrations, app health, object storage, Redis, and worker startup."
+          smoke_passed=1
