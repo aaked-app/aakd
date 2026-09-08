@@ -92,6 +92,7 @@ identical tracked content at the time of this check).
 | --- | --- | --- |
 | Full Phase 0 verification on current checkout | `PASS_LOCAL` | `bash scripts/verify-phase-0.sh` completed successfully on 2026-09-08: 101 test files / 1,545 tests, 11 isolation tests, typecheck, lint, and production build all passed. |
 | Working tree and branch synchronization | `PASS_LOCAL` | Clean `internal-main`; `origin/main` points to `797168a`; `public/main` content comparison is clean. |
+| Public CI for synchronized acceptance record | `PASS_REMOTE` | PR #40, merged as `f14fc4e6205cc987dc887bb48e22d38684938fbc`; run `34194444198` passed TypeScript, lint, Prisma migrations, self-hosting, build, unit/integration, production-container, and functional-browser checks after the failed functional job was rerun. |
 | Customer, deployment, and economic gates | `OPEN` | This re-verification changes no external state and supplies no customer corpus, live deployment, repeat-use, support, or funding evidence. |
 
 The build emits expected configuration warnings when production secrets and
