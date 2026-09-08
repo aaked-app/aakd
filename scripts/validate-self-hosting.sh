@@ -32,6 +32,14 @@ EOF
 
 validate_docuseal_image "docuseal/docuseal@sha256:063f9b89fa99816d0c2f90c33e4e176ecbbdf8cddd4958e40562643d0431dfbc"
 
+# Validate the exact reverse-proxy configuration used by production. This
+# catches malformed placeholders and directives before a host requests TLS.
+docker run --rm --network none \
+  --env DOMAIN=example.com \
+  --volume "$ROOT_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+  caddy validate --config /etc/caddy/Caddyfile
+
 docker compose --env-file "$TEMP_ENV" -f docker-compose.yml config --quiet
 docker compose --env-file "$TEMP_ENV" -f docker-compose.prod.yml config --quiet
 
