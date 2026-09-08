@@ -428,6 +428,49 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
     expect(prisma.contractActionEvidenceReview.create).toHaveBeenCalledWith({ data: expect.objectContaining({ evidenceId: "evidence-1", status: "VERIFIED", reviewedById: "user-1" }) })
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "ACTION_EVIDENCE_VERIFIED", contractActionId: "action-1" }) })
   })
+
+  it("only lets the assigned member self-attest submitted evidence", async () => {
+    vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
+      id: "evidence-1",
+      actionId: "action-1",
+      reviewStatus: "SUBMITTED",
+      action: { contractId: "contract-1", assigneeId: "user-1" },
+    } as never)
+    vi.mocked(prisma.contractActionEvidenceReview.create).mockResolvedValueOnce({ id: "review-1" } as never)
+    vi.mocked(prisma.contractActionEvidence.update).mockResolvedValueOnce({ id: "evidence-1", reviewStatus: "SELF_ATTESTED" } as never)
+    vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-1" } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "SELF_ATTESTED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: "evidence-1", reviewStatus: "SELF_ATTESTED" })
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "ACTION_EVIDENCE_SELF_ATTESTED" }) })
+  })
+
+  it("does not allow self-attestation to overwrite an existing review", async () => {
+    vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
+      id: "evidence-1",
+      actionId: "action-1",
+      reviewStatus: "REJECTED",
+      action: { contractId: "contract-1", assigneeId: "user-1" },
+    } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "SELF_ATTESTED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: "self_attestation_only_for_submitted_evidence" })
+    expect(prisma.contractActionEvidenceReview.create).not.toHaveBeenCalled()
+  })
 })
 
 describe("POST /api/actions/[id]/deliver", () => {

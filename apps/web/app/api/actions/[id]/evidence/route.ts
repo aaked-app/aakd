@@ -11,7 +11,7 @@ const EvidenceSchema = z.object({
   sourceUrl: z.string().url().max(2000).optional(),
 })
 const ReviewSchema = z.object({
-  decision: z.enum(["VERIFIED", "REJECTED"]),
+  decision: z.enum(["SELF_ATTESTED", "VERIFIED", "REJECTED"]),
   comment: z.string().max(4000).optional(),
 })
 
@@ -98,9 +98,15 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
 
     const evidence = await prisma.contractActionEvidence.findFirst({
       where: { id: params.id, action: { organizationId: ctx.organizationId } },
-      select: { id: true, actionId: true, reviewStatus: true, action: { select: { contractId: true } } },
+      select: { id: true, actionId: true, reviewStatus: true, action: { select: { contractId: true, assigneeId: true } } },
     })
     if (!evidence) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
+    if (parsed.data.decision === "SELF_ATTESTED" && evidence.action.assigneeId !== ctx.userId) {
+      return Response.json({ error: "assignee_self_attestation_required" }, { status: 403, headers: SECURE_HEADERS })
+    }
+    if (parsed.data.decision === "SELF_ATTESTED" && evidence.reviewStatus !== "SUBMITTED") {
+      return Response.json({ error: "self_attestation_only_for_submitted_evidence" }, { status: 409, headers: SECURE_HEADERS })
+    }
 
     const reviewed = await prisma.$transaction(async (tx) => {
       await tx.contractActionEvidenceReview.create({
@@ -121,7 +127,7 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
           contractId: evidence.action.contractId,
           contractActionId: evidence.actionId,
           userId: ctx.userId,
-          action: parsed.data.decision === "VERIFIED" ? "ACTION_EVIDENCE_VERIFIED" : "ACTION_EVIDENCE_REJECTED",
+          action: parsed.data.decision === "VERIFIED" ? "ACTION_EVIDENCE_VERIFIED" : parsed.data.decision === "SELF_ATTESTED" ? "ACTION_EVIDENCE_SELF_ATTESTED" : "ACTION_EVIDENCE_REJECTED",
           detail: `Completion evidence ${parsed.data.decision.toLowerCase()}`,
           metadata: { evidenceId: evidence.id, comment: parsed.data.comment?.trim() || null, requestSource: ctx.source, requestId: ctx.requestId },
         },

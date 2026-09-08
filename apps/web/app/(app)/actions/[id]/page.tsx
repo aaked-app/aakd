@@ -140,14 +140,14 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
     }
   }
 
-  async function reviewEvidence(evidenceId: string, decision: "VERIFIED" | "REJECTED") {
+  async function reviewEvidence(evidenceId: string, decision: "SELF_ATTESTED" | "VERIFIED" | "REJECTED") {
     setWorking(true)
     setError(null)
     try {
       const response = await fetch(`/api/actions/${evidenceId}/evidence`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision, ...(decision === "REJECTED" ? { comment: "Evidence requires correction" } : {}) }),
+      body: JSON.stringify({ decision, ...(decision === "REJECTED" ? { comment: "Evidence requires correction" } : {}) }),
       })
       if (!response.ok) throw new Error("evidence_review")
       setSuccess(t("reviewSaved"))
@@ -221,7 +221,7 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
         <section className="rounded-xl border bg-card p-5">
           <h2 className="font-semibold">{t("evidenceTitle")}</h2>
           {canWrite ? <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={evidenceNote} onChange={(event) => setEvidenceNote(event.target.value)} placeholder={t("evidencePlaceholder")} aria-label={t("evidenceInput")} /><Button variant="outline" disabled={working || !evidenceNote.trim()} onClick={() => void addEvidence()}>{t("addEvidence")}</Button></div> : <p className="mt-3 text-sm text-muted-foreground">{t("readOnlyDescription")}</p>}
-          {action.evidence.length ? <ul className="mt-4 space-y-2">{action.evidence.map((item) => <li key={item.id} className="rounded-md bg-muted/40 p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p>{item.note || item.kind}</p><p className="mt-1 text-xs text-muted-foreground">{item.recordedBy?.name ?? t("recordedByMember")} · {dateFormatter.format(new Date(item.createdAt))}</p></div><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{item.reviewStatus}</span>{canWrite && item.reviewStatus !== "VERIFIED" && <Button size="sm" variant="outline" disabled={working} onClick={() => void reviewEvidence(item.id, "VERIFIED")}>Verify</Button>}{canWrite && item.reviewStatus !== "REJECTED" && <Button size="sm" variant="ghost" disabled={working} onClick={() => void reviewEvidence(item.id, "REJECTED")}>Reject</Button>}</div></div>{item.reviews?.map((review) => <p key={review.id} className="mt-2 text-xs text-muted-foreground">{review.status} · {review.reviewedBy?.name ?? t("recordedByMember")}{review.comment ? ` · ${review.comment}` : ""}</p>)}</li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">{t("noEvidence")}</p>}
+          {action.evidence.length ? <ul className="mt-4 space-y-2">{action.evidence.map((item) => <li key={item.id} className="rounded-md bg-muted/40 p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p>{item.note || item.kind}</p><p className="mt-1 text-xs text-muted-foreground">{item.recordedBy?.name ?? t("recordedByMember")} · {dateFormatter.format(new Date(item.createdAt))}</p></div><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{item.reviewStatus}</span>{canWrite && action.assignee?.id === session?.user?.id && item.reviewStatus === "SUBMITTED" && <Button size="sm" variant="outline" disabled={working} onClick={() => void reviewEvidence(item.id, "SELF_ATTESTED")}>Self-attest</Button>}{canWrite && item.reviewStatus !== "VERIFIED" && <Button size="sm" variant="outline" disabled={working} onClick={() => void reviewEvidence(item.id, "VERIFIED")}>Verify</Button>}{canWrite && item.reviewStatus !== "REJECTED" && <Button size="sm" variant="ghost" disabled={working} onClick={() => void reviewEvidence(item.id, "REJECTED")}>Reject</Button>}</div></div>{item.reviews?.map((review) => <p key={review.id} className="mt-2 text-xs text-muted-foreground">{review.status} · {review.reviewedBy?.name ?? t("recordedByMember")}{review.comment ? ` · ${review.comment}` : ""}</p>)}</li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">{t("noEvidence")}</p>}
         </section>
 
         <section className="rounded-xl border bg-card p-5">
