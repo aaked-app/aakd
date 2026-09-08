@@ -284,6 +284,8 @@ test.describe("Phase 1 Action Journey E2E", () => {
     await page.getByRole("textbox", { name: "Completion evidence" }).fill("Notice draft reviewed and retained")
     await page.getByRole("button", { name: "Add evidence" }).click()
     await expect(page.getByText("Notice draft reviewed and retained")).toBeVisible()
+    await page.getByRole("button", { name: "Verify" }).click()
+    await expect(page.getByText("VERIFIED", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Acknowledge" }).click()
     await page.getByRole("button", { name: "Start work" }).click()
     await page.getByRole("button", { name: "Complete" }).click()

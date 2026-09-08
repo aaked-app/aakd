@@ -145,10 +145,10 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       return Response.json({ error: "action_assignee_required" }, { status: 422, headers: SECURE_HEADERS })
     }
     if (command.command === "complete" && existing.evidenceRequired) {
-      const hasRequiredEvidence = existing.evidence.some((item) => item.kind === existing.evidenceRequired)
+      const hasRequiredEvidence = existing.evidence.some((item) => item.kind === existing.evidenceRequired && item.reviewStatus === "VERIFIED")
       if (!hasRequiredEvidence) {
         return Response.json(
-          { error: "completion_evidence_required", requiredKind: existing.evidenceRequired },
+          { error: "completion_verified_evidence_required", requiredKind: existing.evidenceRequired },
           { status: 422, headers: SECURE_HEADERS },
         )
       }

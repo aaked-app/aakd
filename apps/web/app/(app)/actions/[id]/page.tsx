@@ -29,7 +29,7 @@ type ActionDetail = {
   contract: { id: string; title: string; counterpartyName: string | null }
   assignee: { id: string; name: string } | null
   approvals: Array<{ id: string; status: string; required: boolean; actionVersion: number | null; step: number; comment: string | null; decidedAt: string | null; createdAt: string; requestedBy: { id: string; name: string } | null; assignedTo: { id: string; name: string } | null }>
-  evidence: Array<{ id: string; kind: string; note: string | null; sourceUrl: string | null; recordedBy?: { name: string }; createdAt: string }>
+  evidence: Array<{ id: string; kind: string; note: string | null; sourceUrl: string | null; reviewStatus: string; reviews?: Array<{ id: string; status: string; comment: string | null; reviewedBy?: { name: string }; createdAt: string }>; recordedBy?: { name: string }; createdAt: string }>
   activities: Array<{ id: string; action: string; detail: string | null; actorLabel: string; user?: { name: string } | null; createdAt: string }>
 }
 type OrgMember = { userId: string; user: { id: string; name: string; email: string } }
@@ -140,6 +140,25 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
     }
   }
 
+  async function reviewEvidence(evidenceId: string, decision: "VERIFIED" | "REJECTED") {
+    setWorking(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/actions/${evidenceId}/evidence`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, ...(decision === "REJECTED" ? { comment: "Evidence requires correction" } : {}) }),
+      })
+      if (!response.ok) throw new Error("evidence_review")
+      setSuccess(t("reviewSaved"))
+      await load()
+    } catch {
+      setError(t("evidenceError"))
+    } finally {
+      setWorking(false)
+    }
+  }
+
   async function sendEmail() {
     if (!action) return
     setWorking(true)
@@ -202,7 +221,7 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
         <section className="rounded-xl border bg-card p-5">
           <h2 className="font-semibold">{t("evidenceTitle")}</h2>
           {canWrite ? <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={evidenceNote} onChange={(event) => setEvidenceNote(event.target.value)} placeholder={t("evidencePlaceholder")} aria-label={t("evidenceInput")} /><Button variant="outline" disabled={working || !evidenceNote.trim()} onClick={() => void addEvidence()}>{t("addEvidence")}</Button></div> : <p className="mt-3 text-sm text-muted-foreground">{t("readOnlyDescription")}</p>}
-          {action.evidence.length ? <ul className="mt-4 space-y-2">{action.evidence.map((item) => <li key={item.id} className="rounded-md bg-muted/40 p-3 text-sm"><p>{item.note || item.kind}</p><p className="mt-1 text-xs text-muted-foreground">{item.recordedBy?.name ?? t("recordedByMember")} · {dateFormatter.format(new Date(item.createdAt))}</p></li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">{t("noEvidence")}</p>}
+          {action.evidence.length ? <ul className="mt-4 space-y-2">{action.evidence.map((item) => <li key={item.id} className="rounded-md bg-muted/40 p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p>{item.note || item.kind}</p><p className="mt-1 text-xs text-muted-foreground">{item.recordedBy?.name ?? t("recordedByMember")} · {dateFormatter.format(new Date(item.createdAt))}</p></div><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{item.reviewStatus}</span>{canWrite && item.reviewStatus !== "VERIFIED" && <Button size="sm" variant="outline" disabled={working} onClick={() => void reviewEvidence(item.id, "VERIFIED")}>Verify</Button>}{canWrite && item.reviewStatus !== "REJECTED" && <Button size="sm" variant="ghost" disabled={working} onClick={() => void reviewEvidence(item.id, "REJECTED")}>Reject</Button>}</div></div>{item.reviews?.map((review) => <p key={review.id} className="mt-2 text-xs text-muted-foreground">{review.status} · {review.reviewedBy?.name ?? t("recordedByMember")}{review.comment ? ` · ${review.comment}` : ""}</p>)}</li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">{t("noEvidence")}</p>}
         </section>
 
         <section className="rounded-xl border bg-card p-5">

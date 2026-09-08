@@ -10,6 +10,10 @@ const EvidenceSchema = z.object({
   note: z.string().max(4000).optional(),
   sourceUrl: z.string().url().max(2000).optional(),
 })
+const ReviewSchema = z.object({
+  decision: z.enum(["VERIFIED", "REJECTED"]),
+  comment: z.string().max(4000).optional(),
+})
 
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
@@ -67,5 +71,64 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       recordedById: evidence.recordedById,
       createdAt: evidence.createdAt,
     }, { status: 201, headers: SECURE_HEADERS })
+  })
+}
+
+export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
+  const params = await props.params
+  const ctx = await resolveAuth(req)
+  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
+  if (ctx.source !== "session") return Response.json({ error: "human_session_required" }, { status: 403, headers: SECURE_HEADERS })
+  if (!WRITERS.has(ctx.role)) return Response.json({ error: "Forbidden" }, { status: 403, headers: SECURE_HEADERS })
+
+  return requestContext.run(ctx, async () => {
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400, headers: SECURE_HEADERS })
+    }
+    const parsed = ReviewSchema.safeParse(body)
+    if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422, headers: SECURE_HEADERS })
+    if (parsed.data.decision === "REJECTED" && !parsed.data.comment?.trim()) {
+      return Response.json({ error: "review_comment_required" }, { status: 422, headers: SECURE_HEADERS })
+    }
+
+    const evidence = await prisma.contractActionEvidence.findFirst({
+      where: { id: params.id, action: { organizationId: ctx.organizationId } },
+      select: { id: true, actionId: true, reviewStatus: true, action: { select: { contractId: true } } },
+    })
+    if (!evidence) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
+
+    const reviewed = await prisma.$transaction(async (tx) => {
+      await tx.contractActionEvidenceReview.create({
+        data: {
+          evidenceId: evidence.id,
+          status: parsed.data.decision,
+          comment: parsed.data.comment?.trim() || null,
+          reviewedById: ctx.userId,
+        },
+      })
+      const updated = await tx.contractActionEvidence.update({
+        where: { id: evidence.id },
+        data: { reviewStatus: parsed.data.decision },
+        select: { id: true, reviewStatus: true },
+      })
+      await tx.activity.create({
+        data: {
+          contractId: evidence.action.contractId,
+          contractActionId: evidence.actionId,
+          userId: ctx.userId,
+          action: parsed.data.decision === "VERIFIED" ? "ACTION_EVIDENCE_VERIFIED" : "ACTION_EVIDENCE_REJECTED",
+          detail: `Completion evidence ${parsed.data.decision.toLowerCase()}`,
+          metadata: { evidenceId: evidence.id, comment: parsed.data.comment?.trim() || null, requestSource: ctx.source, requestId: ctx.requestId },
+        },
+      })
+      return updated
+    })
+
+    return Response.json(reviewed, { headers: SECURE_HEADERS })
   })
 }

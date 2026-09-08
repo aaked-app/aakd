@@ -32,8 +32,17 @@ type ActionEvidenceRow = {
   note: string | null
   sourceUrl: string | null
   recordedById: string
+  reviewStatus: string
   createdAt: Date
   recordedBy?: { id: string; name: string }
+  reviews?: Array<{
+    id: string
+    status: string
+    comment: string | null
+    reviewedById: string
+    createdAt: Date
+    reviewedBy?: { id: string; name: string }
+  }>
 }
 
 type ActionDeliveryRow = {
@@ -114,8 +123,20 @@ export function actionDetailSelect(includeSourceText: boolean) {
         note: true,
         sourceUrl: true,
         recordedById: true,
+        reviewStatus: true,
         createdAt: true,
         recordedBy: { select: { id: true, name: true } },
+        reviews: {
+          orderBy: { createdAt: "desc" as const },
+          select: {
+            id: true,
+            status: true,
+            comment: true,
+            reviewedById: true,
+            createdAt: true,
+            reviewedBy: { select: { id: true, name: true } },
+          },
+        },
       },
     },
     deliveries: {
@@ -198,7 +219,16 @@ export function toActionDetail(action: ActionDetailRow, includeSourceText: boole
       note: item.note,
       sourceUrl: item.sourceUrl,
       recordedById: item.recordedById,
+      reviewStatus: item.reviewStatus,
       recordedBy: item.recordedBy,
+      reviews: item.reviews?.map((review) => ({
+        id: review.id,
+        status: review.status,
+        comment: review.comment,
+        reviewedById: review.reviewedById,
+        reviewedBy: review.reviewedBy,
+        createdAt: review.createdAt,
+      })),
       createdAt: item.createdAt,
     })),
     deliveries: action.deliveries.map((item) => ({
