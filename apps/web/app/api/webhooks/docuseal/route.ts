@@ -2,7 +2,8 @@ import { createHmac, timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
-import { isAllowedDocuSealUrl } from "@/lib/docuseal"
+import { isAllowedDocuSealUrl, isAllowedDocuSealUrlFor } from "@/lib/docuseal"
+import { getDocuSealConfig, getDocuSealWebhookSecret } from "@/lib/signature/config"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
@@ -37,8 +38,8 @@ type SigningStatus = "completed" | "declined" | "expired" | "failed"
  *   - Secret is not configured (fail-secure — prevents forged webhook acceptance)
  *   - Signature header is missing or invalid
  */
-function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
-  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET
+function verifySignature(rawBody: string, signatureHeader: string | null, configuredSecret?: string | null): boolean {
+  const secret = configuredSecret ?? process.env.DOCUSEAL_WEBHOOK_SECRET
   if (!secret) {
     // No secret configured — reject all webhook requests to prevent forged events
     logger.error(
@@ -86,16 +87,33 @@ export async function POST(req: Request) {
   // Read raw body first — needed for HMAC verification
   const rawBody = await req.text()
 
-  const signatureHeader = req.headers.get("x-docuseal-signature")
-  if (!verifySignature(rawBody, signatureHeader)) {
-    return Response.json({ error: "Invalid or missing signature" }, { status: 403 })
-  }
-
   let payload: DocuSealWebhookPayload
   try {
     payload = JSON.parse(rawBody) as DocuSealWebhookPayload
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  // Resolve the organization from the submission identifier before verifying
+  // the signature. The identifier is used only for an exact database lookup;
+  // no payload data is processed until HMAC verification succeeds.
+  const signatureHeader = req.headers.get("x-docuseal-signature")
+  let verified = verifySignature(rawBody, signatureHeader, process.env.DOCUSEAL_WEBHOOK_SECRET)
+  if (!verified) {
+    const submissionId = payload.data?.submission_id ?? payload.data?.id
+    const submissionContract = submissionId == null
+      ? null
+      : await prisma.contract.findFirst({
+          where: { docusealSubmissionId: String(submissionId) },
+          select: { id: true, organizationId: true },
+        })
+    const integrationSecret = submissionContract
+      ? await getDocuSealWebhookSecret(submissionContract.organizationId)
+      : null
+    verified = verifySignature(rawBody, signatureHeader, integrationSecret)
+  }
+  if (!verified) {
+    return Response.json({ error: "Invalid or missing signature" }, { status: 403 })
   }
 
   const { data } = payload
@@ -105,17 +123,17 @@ export async function POST(req: Request) {
     payload.event_type.toLowerCase() === "form.completed" &&
     data.submission_id != null
   ) {
-    const submissionContract = await prisma.contract.findFirst({
+    const signerSubmissionContract = await prisma.contract.findFirst({
       where: { docusealSubmissionId: String(data.submission_id) },
       select: { id: true },
     })
 
-    if (submissionContract) {
+    if (signerSubmissionContract) {
       // Match by externalId — DocuSeal sends the numeric submitter id as data.id
       // and optionally the slug. Try both.
       const signerWhere = data.slug
-        ? { contractId: submissionContract.id, externalId: data.slug }
-        : { contractId: submissionContract.id, externalId: String(data.id) }
+        ? { contractId: signerSubmissionContract.id, externalId: data.slug }
+        : { contractId: signerSubmissionContract.id, externalId: String(data.id) }
 
       await prisma.contractSigner.updateMany({
         where: signerWhere,
@@ -126,7 +144,7 @@ export async function POST(req: Request) {
       fireAndLog(
         prisma.activity.create({
           data: {
-            contractId: submissionContract.id,
+            contractId: signerSubmissionContract.id,
             userId: null,
             actorLabel: "System",
             action: "SIGNED",
@@ -200,7 +218,10 @@ export async function POST(req: Request) {
   }
 
   // SSRF guard: only fetch from the configured DocuSeal host
-  if (!isAllowedDocuSealUrl(signedDocUrl)) {
+  const docuSealConfig = await getDocuSealConfig(contract.organizationId)
+  if (docuSealConfig
+    ? !isAllowedDocuSealUrlFor(signedDocUrl, docuSealConfig)
+    : !isAllowedDocuSealUrl(signedDocUrl)) {
     logger.error({ url: signedDocUrl }, "[docuseal-webhook] rejected document URL from disallowed host")
     return Response.json({ ok: true })
   }

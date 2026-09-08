@@ -19,7 +19,7 @@ const ACTION_STATUSES = [
 ] as const
 const OPEN_STATUSES = ["PROPOSED", "PENDING_REVIEW", "ACKNOWLEDGED", "IN_PROGRESS", "BLOCKED", "STALE"] as const
 const ACTION_KINDS = ["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"] as const
-const ACTION_VIEWS = ["my_work", "needs_review", "due_soon", "blocked", "completed", "dashboard", "open"] as const
+const ACTION_VIEWS = ["my_work", "needs_review", "due_soon", "blocked", "exceptions", "completed", "dashboard", "open"] as const
 const QuerySchema = z.object({
   view: z.enum(ACTION_VIEWS).optional(),
   status: z.enum(ACTION_STATUSES).optional(),
@@ -58,6 +58,14 @@ export async function GET(req: Request) {
       dueDate: { gte: now, lte: new Date(now.getTime() + 30 * DAY_MS) },
     })
     if (view === "blocked") Object.assign(where, { status: "BLOCKED" })
+    if (view === "exceptions") Object.assign(where, {
+      OR: [
+        { status: { in: ["PROPOSED", "PENDING_REVIEW", "BLOCKED", "STALE"] } },
+        { dueDate: { lt: now }, status: { notIn: ["COMPLETED", "DISMISSED"] } },
+        { evidenceRequired: { not: null }, evidence: { none: { reviewStatus: "VERIFIED" } } },
+        { deliveries: { some: { status: "failed" } } },
+      ],
+    })
     if (view === "completed") Object.assign(where, { status: "COMPLETED" })
     if (view === "dashboard" || view === "open") Object.assign(where, { status: { in: [...OPEN_STATUSES] } })
 

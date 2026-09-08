@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { remindSubmitter } from "@/lib/docuseal"
+import { getDocuSealConfig } from "@/lib/signature/config"
 import { z } from "zod"
 
 // ─── POST /api/contracts/[id]/signing/remind ──────────────────────────────────
@@ -70,7 +71,9 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       )
     }
 
-    await remindSubmitter(signer.externalId)
+    const docuSealConfig = await getDocuSealConfig(ctx.organizationId)
+    if (docuSealConfig) await remindSubmitter(signer.externalId, docuSealConfig)
+    else await remindSubmitter(signer.externalId)
 
     return Response.json({ success: true })
   })

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { storage } from "@/lib/storage"
 import { createTemplate, createSubmission } from "@/lib/docuseal"
+import { getDocuSealConfig } from "@/lib/signature/config"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { captureServerEvent } from "@/lib/posthog-server"
 
@@ -58,7 +59,8 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     }
 
     // ── DocuSeal configured? ──────────────────────────────────────────────────
-    if (!process.env.DOCUSEAL_API_KEY) {
+    const docuSealConfig = await getDocuSealConfig(ctx.organizationId)
+    if (!docuSealConfig && !process.env.DOCUSEAL_API_KEY) {
       return Response.json({ error: "E-signature not configured" }, { status: 503 })
     }
 
@@ -82,7 +84,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     const pdfBuffer = Buffer.from(arrayBuffer)
 
     // ── upload to DocuSeal as a template ──────────────────────────────────────
-    const template = await createTemplate(contract.title, pdfBuffer)
+    const template = await createTemplate(contract.title, pdfBuffer, docuSealConfig ?? undefined)
     if (!template) {
       return Response.json({ error: "Failed to create DocuSeal template" }, { status: 500 })
     }
@@ -107,7 +109,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     // ── create submission ─────────────────────────────────────────────────────
     const submission = await createSubmission(template.id, [
       { email: signerEmail, name: signerName, role: "Signer 1" },
-    ])
+    ], docuSealConfig ?? undefined)
 
     if (!submission) {
       return Response.json({ error: "Failed to create DocuSeal submission" }, { status: 500 })

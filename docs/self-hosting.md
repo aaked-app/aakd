@@ -79,6 +79,10 @@ This starts:
 - **Aakd app** — Next.js 16 web application on port 3000
 - **Aakd worker** — BullMQ background worker (text extraction, AI, alerts, email)
 
+DocuSeal is not started by default. Connect DocuSeal Cloud or another DocuSeal
+server from Settings → Integrations → E-signature. The bundled server remains
+available for local testing with `docker compose --profile signing up`.
+
 ### 4. Run database migrations
 
 On first boot the app container runs migrations automatically. To run them manually:
@@ -194,6 +198,12 @@ Aakd supports three AI backends. Set `AI_PROVIDER` to select one, or leave it em
 Works with any SMTP provider: Gmail, SendGrid, Postmark, AWS SES, Mailgun, etc.
 
 ### E-Signature (DocuSeal)
+
+The recommended setup is per-organization configuration from Settings →
+Integrations → E-signature. Each organization can connect DocuSeal Cloud or a
+self-hosted DocuSeal URL; API keys and webhook secrets are encrypted at rest.
+The environment variables below remain as a backwards-compatible fallback for
+single-tenant deployments and older installations.
 
 | Variable | Description |
 |---|---|

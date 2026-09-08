@@ -7,6 +7,10 @@ export const VISUAL_AUTH_STATE = path.join(
   "owner.json",
 )
 
+export function visualAuthStateForProject(projectName: string) {
+  return path.join(process.cwd(), "test-results", ".auth", `owner-${projectName}.json`)
+}
+
 export const VISUAL_NO_ORG_AUTH_STATE = path.join(
   process.cwd(),
   "test-results",

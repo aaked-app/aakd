@@ -100,8 +100,6 @@ cp .env.example .env
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 openssl rand -hex 32      # ENCRYPTION_KEY
 openssl rand -hex 32      # NOTIFICATION_ENCRYPTION_KEY
-openssl rand -hex 64      # DOCUSEAL_SECRET_KEY_BASE
-
 docker compose up
 ```
 
@@ -110,14 +108,17 @@ an account and organization. Repository, uploads, manual metadata, approvals,
 obligations, and signing can be tried without an AI provider. Add an AI key in
 Settings only if you want AI-assisted features.
 
-The local stack also includes PostgreSQL, Redis, MinIO, Mailpit, DocuSeal, and
-the background worker. Their local endpoints and credentials are documented in
-[`docs/self-hosting.md`](docs/self-hosting.md).
+The local stack also includes PostgreSQL, Redis, MinIO, Mailpit, and the
+background worker. E-signature is an optional connection: open Settings →
+Integrations → E-signature and connect DocuSeal Cloud or your own DocuSeal
+server. To run the bundled signing server instead, use
+`docker compose --profile signing up`.
 
 ## Deploy it yourself
 
 For a single Ubuntu VM, the production installer configures the web app, worker,
-PostgreSQL, Redis, S3-compatible storage, DocuSeal, Caddy, and backups:
+PostgreSQL, Redis, S3-compatible storage, Caddy, and backups. E-signature is
+connected separately from the Integrations page:
 
 ```bash
 git clone https://github.com/aaked-app/aakd.git ~/aakd

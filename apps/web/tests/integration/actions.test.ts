@@ -72,6 +72,7 @@ const baseAction = {
     storageKey: "org-1/private/evidence.pdf",
     sourceUrl: null,
     recordedById: "user-1",
+    reviewStatus: "VERIFIED",
     createdAt: new Date("2026-08-18T11:00:00.000Z"),
     recordedBy: { id: "user-1", name: "Wassim" },
   }],
@@ -137,6 +138,25 @@ describe("GET /api/actions", () => {
 
     const invalid = await GET(new Request("http://localhost/api/actions?view=everything"))
     expect(invalid.status).toBe(422)
+  })
+
+  it("provides one exception view for stale, overdue, blocked, missing-evidence, and failed-delivery work", async () => {
+    vi.mocked(prisma.contractAction.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractAction.count).mockResolvedValueOnce(0)
+    const { GET } = await import("@/app/api/actions/route")
+    const response = await GET(new Request("http://localhost/api/actions?view=exceptions"))
+
+    expect(response.status).toBe(200)
+    expect(prisma.contractAction.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        organizationId: "org-1",
+        OR: expect.arrayContaining([
+          expect.objectContaining({ status: { in: ["PROPOSED", "PENDING_REVIEW", "BLOCKED", "STALE"] } }),
+          expect.objectContaining({ evidenceRequired: { not: null }, evidence: { none: { reviewStatus: "VERIFIED" } } }),
+          expect.objectContaining({ deliveries: { some: { status: "failed" } } }),
+        ]),
+      }),
+    }))
   })
 
   it("returns the first five actions in the exact dashboard priority order", async () => {
@@ -285,7 +305,7 @@ describe("PATCH /api/actions/[id] commands", () => {
     }), { params: { id: "action-1" } })
 
     expect(response.status).toBe(422)
-    expect(await response.json()).toEqual({ error: "completion_evidence_required", requiredKind: "completion_note" })
+    expect(await response.json()).toEqual({ error: "completion_verified_evidence_required", requiredKind: "completion_note" })
     expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
   })
 
@@ -363,6 +383,93 @@ describe("PATCH /api/actions/[id] commands", () => {
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual(expect.objectContaining({ error: "invalid_action_transition" }))
+  })
+})
+
+describe("PATCH /api/actions/[id]/evidence review", () => {
+  beforeEach(resetActionMocks)
+
+  it("requires a rejection reason and does not write a review", async () => {
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "REJECTED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: "review_comment_required" })
+    expect(prisma.contractActionEvidence.findFirst).not.toHaveBeenCalled()
+  })
+
+  it("appends a human verification decision and audits it within the organization", async () => {
+    vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
+      id: "evidence-1",
+      actionId: "action-1",
+      reviewStatus: "SUBMITTED",
+      action: { contractId: "contract-1" },
+    } as never)
+    vi.mocked(prisma.contractActionEvidenceReview.create).mockResolvedValueOnce({ id: "review-1" } as never)
+    vi.mocked(prisma.contractActionEvidence.update).mockResolvedValueOnce({ id: "evidence-1", reviewStatus: "VERIFIED" } as never)
+    vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-1" } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "VERIFIED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: "evidence-1", reviewStatus: "VERIFIED" })
+    expect(prisma.contractActionEvidence.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "evidence-1", action: { organizationId: "org-1" } },
+    }))
+    expect(prisma.contractActionEvidenceReview.create).toHaveBeenCalledWith({ data: expect.objectContaining({ evidenceId: "evidence-1", status: "VERIFIED", reviewedById: "user-1" }) })
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "ACTION_EVIDENCE_VERIFIED", contractActionId: "action-1" }) })
+  })
+
+  it("only lets the assigned member self-attest submitted evidence", async () => {
+    vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
+      id: "evidence-1",
+      actionId: "action-1",
+      reviewStatus: "SUBMITTED",
+      action: { contractId: "contract-1", assigneeId: "user-1" },
+    } as never)
+    vi.mocked(prisma.contractActionEvidenceReview.create).mockResolvedValueOnce({ id: "review-1" } as never)
+    vi.mocked(prisma.contractActionEvidence.update).mockResolvedValueOnce({ id: "evidence-1", reviewStatus: "SELF_ATTESTED" } as never)
+    vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-1" } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "SELF_ATTESTED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: "evidence-1", reviewStatus: "SELF_ATTESTED" })
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "ACTION_EVIDENCE_SELF_ATTESTED" }) })
+  })
+
+  it("does not allow self-attestation to overwrite an existing review", async () => {
+    vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
+      id: "evidence-1",
+      actionId: "action-1",
+      reviewStatus: "REJECTED",
+      action: { contractId: "contract-1", assigneeId: "user-1" },
+    } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "SELF_ATTESTED" }),
+    }), { params: { id: "evidence-1" } })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: "self_attestation_only_for_submitted_evidence" })
+    expect(prisma.contractActionEvidenceReview.create).not.toHaveBeenCalled()
   })
 })
 

@@ -1,10 +1,9 @@
 import { createRequire } from "node:module"
-import { loadEnvConfig } from "@next/env"
-
 import { assertVisualFixtureEnabled, cleanupVisualFixture } from "./visual-fixture"
+import { loadRootComposeEnv } from "./root-env"
 
 export default async function visualGlobalTeardown() {
-  loadEnvConfig(process.cwd())
+  loadRootComposeEnv()
   assertVisualFixtureEnabled(process.env)
   const requireAfterEnv = createRequire(__filename)
   const { prisma } = requireAfterEnv("@/lib/db/client") as typeof import("@/lib/db/client")

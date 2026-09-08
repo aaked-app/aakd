@@ -73,6 +73,7 @@ services:
 
   # ── DocuSeal (self-hosted e-signatures) ──────────────────────────────────
   docuseal:
+    profiles: ["signing"]
     # The deployer must choose a reviewed immutable digest.
     image: ${DOCUSEAL_IMAGE:?DOCUSEAL_IMAGE must be set to a reviewed DocuSeal digest}
     volumes:
@@ -124,7 +125,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@${DOMAIN}}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # DocuSeal
-      DOCUSEAL_API_URL: http://docuseal:3000
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
@@ -168,7 +169,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@${DOMAIN}}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
-      DOCUSEAL_API_URL: http://docuseal:3000
+      DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
@@ -193,7 +194,6 @@ services:
       DOMAIN: ${DOMAIN}
     depends_on:
       - app
-      - docuseal
     restart: unless-stopped
 
   # ── PostgreSQL daily backup ──────────────────────────────────────────────

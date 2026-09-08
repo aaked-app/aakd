@@ -332,7 +332,15 @@
     "accept": "Annehmen",
     "reject": "Ablehnen",
     "accepted": "Angenommen",
-    "rejected": "Abgelehnt"
+    "rejected": "Abgelehnt",
+    "rejectSuggestionTitle": "Vorschlag ablehnen",
+    "rejectSuggestionDescription": "Ersetzen Sie den vorgeschlagenen Wert oder lassen Sie das Feld leer, um ihn aus der Vertragsübersicht zu entfernen.",
+    "replacementValue": "Ersatzwert",
+    "replacementValuePlaceholder": "Optionaler Ersatz",
+    "replacementValueHint": "Leer lassen, um den vorgeschlagenen Wert abzulehnen und zu löschen.",
+    "rejectAndClear": "Ablehnen und löschen",
+    "saveReplacement": "Ersatz speichern",
+    "cancel": "Abbrechen"
   }
   },
   "auth": {
@@ -1002,6 +1010,7 @@
     "actions": { "changeRole": "Mitgliederrolle ändern", "removeMember": "Mitglied entfernen", "resendInvitation": "Einladung erneut senden", "cancelInvitation": "Einladung abbrechen" }
   },
   "settingsIntegrations": {
+    "reconfigure": "Neu konfigurieren", "optional": "Optional", "connecting": "Wird verbunden…", "signatureConnected": "DocuSeal verbunden", "signatureConnectFailed": "DocuSeal konnte nicht verbunden werden", "signatureDisconnected": "DocuSeal getrennt", "signatureDisconnectFailed": "DocuSeal konnte nicht getrennt werden", "connectDocuSeal": "DocuSeal verbinden", "connectDocuSealDescription": "Verwenden Sie DocuSeal Cloud oder Ihren eigenen DocuSeal-Server.", "docuSealUrl": "DocuSeal-URL", "docuSealApiKey": "API-Schlüssel", "docuSealApiKeyPlaceholder": "DocuSeal-API-Schlüssel einfügen", "docuSealWebhookSecret": "Webhook-Geheimnis", "openDocuSeal": "DocuSeal öffnen",
     "title": "Integrationen", "subtitle": "Verbinden Sie Aakd mit den bereits verwendeten Werkzeugen.", "categoriesLabel": "Integrationskategorien", "categories": { "CRM": "CRM", "E-Signature": "Elektronische Signatur", "Cloud Storage": "Cloud-Speicher", "Communication": "Kommunikation", "Accounting": "Buchhaltung", "Developer": "Entwicklung" },
     "soon": "Bald", "connected": "Verbunden", "notConnected": "Nicht verbunden", "notConfigured": "Nicht konfiguriert", "active": "Aktiv", "connect": "Verbinden", "disconnect": "Trennen", "disconnecting": "Wird getrennt…", "configure": "Konfigurieren", "connectProvider": "{provider} verbinden", "configureNotifications": "In Benachrichtigungen konfigurieren", "manageWebhooks": "Webhooks verwalten", "manageApiKeys": "API-Schlüssel verwalten", "channelCountOne": "{count} Kanal", "channelCountMany": "{count} Kanäle",
     "docuSealDescription": "Open-Source-E-Signatur für Vertragsunterzeichnungen", "docuSealConfigured": "DocuSeal wird über Umgebungsvariablen konfiguriert. Siehe Self-Hosting-Anleitung.",

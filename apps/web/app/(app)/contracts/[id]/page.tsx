@@ -329,6 +329,8 @@ export default function ContractDetailPage() {
   const [extractions, setExtractions] = useState<AIExtraction[]>([])
   const [extractionPolling, setExtractionPolling] = useState(false)
   const [updatingExtractionId, setUpdatingExtractionId] = useState<string | null>(null)
+  const [replacementExtraction, setReplacementExtraction] = useState<AIExtraction | null>(null)
+  const [replacementValue, setReplacementValue] = useState("")
   const [rerunningExtraction, setRerunningExtraction] = useState(false)
   const extractionPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
@@ -662,14 +664,14 @@ export default function ContractDetailPage() {
     setArchiveOpen(false)
   }
 
-  async function handleExtraction(extractionId: string, action: "accept" | "reject") {
+  async function handleExtraction(extractionId: string, action: "accept" | "reject", replacement?: string) {
     if (updatingExtractionId) return
     setUpdatingExtractionId(extractionId)
     try {
       const res = await fetch(`/api/contracts/${id}/extractions`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, extractionId }),
+        body: JSON.stringify({ action, extractionId, ...(action === "reject" ? { replacementValue: replacement } : {}) }),
       })
       if (!res.ok) {
         toast.error("Failed to update extraction")
@@ -678,10 +680,19 @@ export default function ContractDetailPage() {
       setExtractions((prev) =>
         prev.map((e) =>
           e.id === extractionId
-            ? { ...e, status: action === "accept" ? "accepted" : "rejected" }
+            ? {
+                ...e,
+                status: action === "accept" || replacement?.trim() ? "accepted" : "rejected",
+                ...(replacement?.trim() ? { rawValue: replacement.trim(), extractedBy: "user" } : {}),
+              }
             : e,
         ),
       )
+      setReplacementExtraction(null)
+      setReplacementValue("")
+      // Rejected suggestions can clear a canonical summary field; reload the
+      // contract so the overview always reflects the review decision.
+      void fetchContract()
     } catch {
       toast.error("Failed to update extraction")
     } finally {
@@ -1689,7 +1700,10 @@ export default function ContractDetailPage() {
                               variant="outline"
                               size="sm"
                             className="min-h-11 text-xs flex-1"
-                              onClick={() => handleExtraction(e.id, "reject")}
+                              onClick={() => {
+                                setReplacementExtraction(e)
+                                setReplacementValue("")
+                              }}
                               disabled={updatingExtractionId !== null}
                             >
                               {tWorkspace("reject")}
@@ -1713,6 +1727,55 @@ export default function ContractDetailPage() {
             )}
           </div>
         </TabsContent>
+
+        <Dialog open={replacementExtraction !== null} onOpenChange={(open) => {
+          if (!open) {
+            setReplacementExtraction(null)
+            setReplacementValue("")
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{tWorkspace("rejectSuggestionTitle")}</DialogTitle>
+              <DialogDescription>{tWorkspace("rejectSuggestionDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="replacement-value">{tWorkspace("replacementValue")}</Label>
+              <Input
+                id="replacement-value"
+                value={replacementValue}
+                onChange={(event) => setReplacementValue(event.target.value)}
+                placeholder={tWorkspace("replacementValuePlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground">{tWorkspace("replacementValueHint")}</p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setReplacementExtraction(null)
+                  setReplacementValue("")
+                }}
+              >{tWorkspace("cancel")}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={updatingExtractionId !== null || !replacementExtraction}
+                onClick={() => replacementExtraction && handleExtraction(replacementExtraction.id, "reject", replacementValue)}
+              >
+                {tWorkspace("rejectAndClear")}
+              </Button>
+              <Button
+                type="button"
+                disabled={updatingExtractionId !== null || !replacementExtraction || !replacementValue.trim()}
+                onClick={() => replacementExtraction && handleExtraction(replacementExtraction.id, "reject", replacementValue)}
+              >
+                {tWorkspace("saveReplacement")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Approvals */}
         <TabsContent value="approvals" className="flex-1 overflow-auto m-0 border-0">

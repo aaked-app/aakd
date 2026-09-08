@@ -332,7 +332,15 @@
     "accept": "Accept",
     "reject": "Reject",
     "accepted": "Accepted",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "rejectSuggestionTitle": "Reject this suggestion",
+    "rejectSuggestionDescription": "Replace the suggested value, or leave it empty to clear this field from the contract summary.",
+    "replacementValue": "Replacement value",
+    "replacementValuePlaceholder": "Optional replacement",
+    "replacementValueHint": "Leave this blank to reject and clear the suggested value.",
+    "rejectAndClear": "Reject and clear",
+    "saveReplacement": "Save replacement",
+    "cancel": "Cancel"
   }
   },
   "auth": {
@@ -975,7 +983,7 @@
     "subtitle": "Review, assign and complete the work your agreements require.",
     "refresh": "Refresh",
     "filtersLabel": "Action status filters",
-    "views": { "my_work": "My work", "needs_review": "Needs review", "due_soon": "Due soon", "blocked": "Blocked", "completed": "Completed" },
+    "views": { "my_work": "My work", "needs_review": "Needs review", "due_soon": "Due soon", "blocked": "Blocked", "exceptions": "Exceptions", "completed": "Completed", "open": "Open" },
     "kindFilter": "Action type", "ownerFilter": "Owner", "allKinds": "All action types", "allOwners": "All owners",
     "open": "Open",
     "retry": "Retry",
@@ -990,7 +998,7 @@
     "acknowledge": "Acknowledge", "sendReminder": "Send cited email", "openAction": "Review action",
     "sourceCited": "Source cited", "humanReviewed": "Human reviewed", "evidenceRecorded": "Evidence recorded", "reviewRequired": "Review required", "evidenceNeeded": "Evidence needed",
     "backToQueue": "Back to action queue", "trustRail": "Action trust status", "sourceAndRequirement": "Source and requirement", "sourceUnavailable": "No source excerpt is available for this manually entered action.", "condition": "Condition",
-    "history": "Action history", "noHistory": "No action history yet.", "recordedByMember": "Workspace member", "noEvidence": "No completion evidence recorded yet.", "nextStep": "Next step", "reviewAndValidate": "Review and validate", "startWork": "Start work", "reopen": "Reopen", "assignment": "Owner", "saveOwner": "Save owner", "blockedWork": "Blocked work", "blockReason": "What is blocking this action?", "markBlocked": "Mark blocked", "completeNeedsEvidence": "Add the required evidence before completing this action.",
+    "history": "Action history", "noHistory": "No action history yet.", "recordedByMember": "Workspace member", "noEvidence": "No completion evidence recorded yet.", "nextStep": "Next step", "reviewAndValidate": "Review and validate", "startWork": "Start work", "reopen": "Reopen", "assignment": "Owner", "saveOwner": "Save owner", "blockedWork": "Blocked work", "blockReason": "What is blocking this action?", "markBlocked": "Mark blocked", "completeNeedsEvidence": "Add and verify the required evidence before completing this action.", "verifyEvidence": "Verify", "rejectEvidence": "Reject",
     "reviewSaved": "Source review saved.", "acknowledgedSuccess": "Action acknowledged.", "startedSuccess": "Work started.", "completedSuccess": "Action completed with evidence.", "reopenedSuccess": "Action reopened.", "assignedSuccess": "Owner updated.", "blockedSuccess": "Action marked as blocked.", "evidenceAdded": "Evidence recorded.", "evidenceError": "Evidence could not be recorded. Nothing else changed.", "emailQueued": "The cited email was queued for the assigned member.", "emailError": "The email could not be queued. No other channel was used.", "commandError": "The action could not be updated ({code}). Refresh and try again.",
     "complete": "Complete", "evidenceTitle": "Evidence", "evidenceInput": "Completion evidence", "evidencePlaceholder": "What proves this action is complete?", "addEvidence": "Add evidence",
     "statuses": { "PROPOSED": "Proposed", "PENDING_REVIEW": "Needs review", "ACKNOWLEDGED": "Acknowledged", "IN_PROGRESS": "In progress", "COMPLETED": "Completed", "BLOCKED": "Blocked", "STALE": "Needs source review", "DISMISSED": "Dismissed" },
@@ -1142,7 +1150,7 @@
   },
   "settingsIntegrations": {
     "title": "Integrations", "subtitle": "Connect Aakd to the tools your team already uses.", "categoriesLabel": "Integration categories", "categories": { "CRM": "CRM", "E-Signature": "E-signature", "Cloud Storage": "Cloud storage", "Communication": "Communication", "Accounting": "Accounting", "Developer": "Developer" },
-    "soon": "Soon", "connected": "Connected", "notConnected": "Not connected", "notConfigured": "Not configured", "active": "Active", "connect": "Connect", "disconnect": "Disconnect", "disconnecting": "Disconnecting…", "configure": "Configure", "connectProvider": "Connect {provider}", "configureNotifications": "Configure in Notifications", "manageWebhooks": "Manage webhooks", "manageApiKeys": "Manage API keys", "channelCountOne": "{count} channel", "channelCountMany": "{count} channels",
+    "soon": "Soon", "connected": "Connected", "notConnected": "Not connected", "notConfigured": "Not configured", "active": "Active", "connect": "Connect", "disconnect": "Disconnect", "disconnecting": "Disconnecting…", "configure": "Configure", "reconfigure": "Reconfigure", "connectProvider": "Connect {provider}", "configureNotifications": "Configure in Notifications", "manageWebhooks": "Manage webhooks", "manageApiKeys": "Manage API keys", "channelCountOne": "{count} channel", "channelCountMany": "{count} channels", "optional": "Optional", "connecting": "Connecting…", "signatureConnected": "DocuSeal connected", "signatureConnectFailed": "Could not connect DocuSeal", "signatureDisconnected": "DocuSeal disconnected", "signatureDisconnectFailed": "Failed to disconnect DocuSeal", "connectDocuSeal": "Connect DocuSeal", "connectDocuSealDescription": "Use DocuSeal Cloud or your own DocuSeal server. Aakd will test the connection before saving it.", "docuSealUrl": "DocuSeal URL", "docuSealApiKey": "API key", "docuSealApiKeyPlaceholder": "Paste your DocuSeal API key", "docuSealWebhookSecret": "Webhook secret", "openDocuSeal": "Open DocuSeal",
     "docuSealDescription": "Open-source e-signature for contract signing", "docuSealConfigured": "DocuSeal is configured through environment variables. See the self-hosting guide.",
     "descriptions": { "googleDrive": "Import contracts directly from your Google Drive folders.", "dropbox": "Sync and import contracts from Dropbox.", "oneDrive": "Connect to Microsoft OneDrive for contract storage.", "slack": "Receive contract event notifications in your Slack channels.", "teams": "Receive contract event notifications in Microsoft Teams channels.", "quickBooks": "Sync contract values and billing data with QuickBooks.", "xero": "Connect contract financials to your Xero accounting.", "webhooks": "Receive real-time HTTP notifications for contract events.", "restApi": "Access Aakd programmatically using Bearer API keys.", "zapier": "Connect Aakd to 5,000+ apps through Zapier automation.", "make": "Build workflows with Aakd and Make." },
     "providerDescriptions": { "HUBSPOT": "Connect HubSpot to link deals and sync contract status.", "SALESFORCE": "Connect Salesforce to link opportunities and sync contract status.", "PIPEDRIVE": "Connect Pipedrive to link deals and sync contract status." },

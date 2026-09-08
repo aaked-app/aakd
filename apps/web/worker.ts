@@ -162,8 +162,12 @@ async function extractPdfTextWithPoppler(buffer: Buffer): Promise<string | null>
   try {
     await fs.writeFile(pdfPath, buffer)
     const { stdout } = await execAsync(`pdftotext -layout "${pdfPath}" -`, { maxBuffer: 2 * 1024 * 1024 })
-    const text = stdout.trim()
-    return text.length > 0 ? text : null
+    // Keep form-feed page boundaries for citation attribution. A one-page
+    // fallback may otherwise have no delimiter at all, even though its
+    // extracted facts still belong to page 1.
+    const text = stdout.replace(/[ \t\r\n]+$/, "")
+    const pageAwareText = text.includes("\f") ? text : `${text}\f`
+    return text.length > 0 ? pageAwareText : null
   } catch (err) {
     logger.warn({ err }, "[extract] poppler text extraction failed")
     return null
@@ -360,7 +364,10 @@ const extractWorker = new Worker<ContractExtractJobData>(
             return `${pageText}\f`
           },
         })
-        extractedText = result.text?.trim() ?? null
+        // Do not use String.trim(): it removes the trailing form-feed that
+        // pagerender adds for the final PDF page and makes page-1 citations
+        // impossible for single-page documents.
+        extractedText = result.text?.replace(/[ \t\r\n]+$/, "") || null
         logger.debug({ fileId, chars: extractedText?.length ?? 0 }, "[extract] PDF text extracted")
       } catch (err) {
         // pdf-parse can throw on malformed/corrupted PDFs (e.g. "bad XRef entry").

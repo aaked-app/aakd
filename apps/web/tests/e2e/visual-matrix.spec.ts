@@ -2,7 +2,7 @@ import { expect, request as playwrightRequest, test, type Page, type TestInfo } 
 
 import en from "@/messages/en.json"
 import ar from "@/messages/ar.json"
-import { VISUAL_AUTH_STATE, VISUAL_FIXTURE_IDS, VISUAL_NO_ORG_AUTH_STATE } from "./visual-constants"
+import { VISUAL_FIXTURE_IDS, VISUAL_NO_ORG_AUTH_STATE } from "./visual-constants"
 
 type AppLocale = "en" | "ar"
 type Messages = Record<string, unknown>
@@ -32,7 +32,7 @@ const priorityOne: RouteCheck[] = [
   { name: "contract-new", path: "/contracts/new" },
   { name: "obligations", path: "/obligations", headingKey: "obligations.title", readyText: "Send non-renewal notice" },
   { name: "obligation-detail", path: `/contracts/${seededContractId}/obligations/${seededObligationId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
-  { name: "actions", path: "/actions", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
+  { name: "actions", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
   { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
   { name: "renewals", path: "/renewals", headingKey: "renewals.title", readyText: "Northwind Services Agreement" },
   { name: "analytics", path: "/analytics", headingKey: "analytics.title" },
@@ -42,7 +42,7 @@ const priorityOne: RouteCheck[] = [
 
 const phaseOneActionJourney: RouteCheck[] = [
   { name: "action-dashboard", path: "/dashboard", readyText: "Send non-renewal notice" },
-  { name: "action-queue", path: "/actions", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
+  { name: "action-queue", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
   { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
   { name: "action-confirmation", path: `/contracts/${seededContractId}`, heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" }, readyText: "Send non-renewal notice" },
 ]
@@ -184,7 +184,6 @@ test.describe("Priority 0 public visual matrix", () => {
 })
 
 test.describe("Priority 1 seeded visual matrix", () => {
-  test.use({ storageState: VISUAL_AUTH_STATE })
   for (const route of priorityOne) {
     test(route.name, async ({ page }, testInfo) => verifyRoute(page, testInfo, route))
   }
@@ -254,14 +253,12 @@ test.describe("No-organization activation shell visual proof", () => {
 })
 
 test.describe("Phase 1 Action Journey visual proof", () => {
-  test.use({ storageState: VISUAL_AUTH_STATE })
   for (const route of phaseOneActionJourney) {
     test(route.name, async ({ page }, testInfo) => verifyRoute(page, testInfo, route))
   }
 })
 
 test.describe("Phase 1 Action Journey E2E", () => {
-  test.use({ storageState: VISUAL_AUTH_STATE })
   test("review, assign, deliver a deep link, record evidence and complete", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "en-desktop", "One deterministic stateful journey is sufficient")
     await page.addInitScript(() => localStorage.setItem("cf_onboarding_done", "1"))
@@ -271,9 +268,12 @@ test.describe("Phase 1 Action Journey E2E", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Send non-renewal notice" })).toBeVisible()
     await expect(page.getByText("Either party may terminate by giving at least 30 days' written notice.")).toBeVisible()
 
-    await page.getByRole("combobox", { name: "Owner" }).selectOption(VISUAL_FIXTURE_IDS.legal)
-    await page.getByRole("button", { name: "Save owner" }).click()
-    await expect(page.getByRole("status")).toContainText("Owner updated")
+    const ownerSelect = page.getByRole("combobox", { name: "Owner" })
+    if (await ownerSelect.inputValue() !== VISUAL_FIXTURE_IDS.legal) {
+      await ownerSelect.selectOption(VISUAL_FIXTURE_IDS.legal)
+      await page.getByRole("button", { name: "Save owner" }).click()
+      await expect(page.getByRole("status")).toContainText("Owner updated")
+    }
 
     const delivery = page.waitForResponse((response) => response.url().endsWith(`/api/actions/${seededActionId}/deliver`) && response.request().method() === "POST")
     await page.getByRole("button", { name: "Send cited email" }).click()
@@ -284,16 +284,30 @@ test.describe("Phase 1 Action Journey E2E", () => {
     await page.getByRole("textbox", { name: "Completion evidence" }).fill("Notice draft reviewed and retained")
     await page.getByRole("button", { name: "Add evidence" }).click()
     await expect(page.getByText("Notice draft reviewed and retained")).toBeVisible()
+    const verifyResponse = page.waitForResponse((response) => response.url().includes("/api/actions/") && response.url().endsWith("/evidence") && response.request().method() === "PATCH")
+    await page.getByRole("button", { name: "Verify" }).click()
+    const verifyResult = await verifyResponse
+    expect(verifyResult.status()).toBe(200)
+    await expect(page.getByText("VERIFIED", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Acknowledge" }).click()
     await page.getByRole("button", { name: "Start work" }).click()
     await page.getByRole("button", { name: "Complete" }).click()
     await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`${actionPath}$`))
+
+    // Leave the seeded action available for the remaining locale/viewport
+    // projects. The completion assertion above proves the transition; reopen
+    // is deterministic cleanup for this shared visual fixture.
+    await page.getByRole("button", { name: "Reopen" }).click()
+    await expect(page.getByText("In progress", { exact: true }).first()).toBeVisible()
+    if (await ownerSelect.inputValue() !== VISUAL_FIXTURE_IDS.owner) {
+      await ownerSelect.selectOption(VISUAL_FIXTURE_IDS.owner)
+      await page.getByRole("button", { name: "Save owner" }).click()
+    }
   })
 })
 
 test.describe("Priority 2 authenticated visual matrix", () => {
-  test.use({ storageState: VISUAL_AUTH_STATE })
   for (const route of priorityTwoAuthenticated) {
     test(route.name, async ({ page }, testInfo) => verifyRoute(page, testInfo, route))
   }
@@ -349,7 +363,6 @@ test.describe("Priority 2 public visual matrix", () => {
 })
 
 test.describe("paused template routes", () => {
-  test.use({ storageState: VISUAL_AUTH_STATE })
   for (const path of ["/templates", "/templates/new", "/templates/e2e-visual/edit"]) {
     test(`${path} redirects without loading template APIs`, async ({ page }) => {
       const templateRequests: string[] = []

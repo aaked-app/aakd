@@ -5,8 +5,16 @@
  */
 import { logger } from "@/lib/logger"
 
-const BASE = process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com"
-const KEY = process.env.DOCUSEAL_API_KEY
+export type DocuSealConfig = { baseUrl: string; apiKey: string }
+
+const ENV_CONFIG: DocuSealConfig = {
+  baseUrl: process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com",
+  apiKey: process.env.DOCUSEAL_API_KEY ?? "",
+}
+
+function activeConfig(config?: DocuSealConfig): DocuSealConfig {
+  return config ?? ENV_CONFIG
+}
 
 /**
  * SSRF guard. DocuSeal returns signed-PDF URLs in its webhooks and submission
@@ -16,6 +24,10 @@ const KEY = process.env.DOCUSEAL_API_KEY
  * internal address (e.g. cloud metadata service).
  */
 export function isAllowedDocuSealUrl(url: string): boolean {
+  return isAllowedDocuSealUrlFor(url, ENV_CONFIG)
+}
+
+export function isAllowedDocuSealUrlFor(url: string, config: DocuSealConfig): boolean {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -26,7 +38,7 @@ export function isAllowedDocuSealUrl(url: string): boolean {
 
   let baseHost: string
   try {
-    baseHost = new URL(BASE).hostname
+    baseHost = new URL(config.baseUrl).hostname
   } catch {
     return false
   }
@@ -34,15 +46,29 @@ export function isAllowedDocuSealUrl(url: string): boolean {
   return parsed.hostname === baseHost
 }
 
-function authHeaders(): Record<string, string> {
+function authHeaders(config: DocuSealConfig): Record<string, string> {
   return {
-    "X-Auth-Token": KEY ?? "",
+    "X-Auth-Token": config.apiKey,
   }
 }
 
 function warnMissing(): null {
   logger.warn("[docuseal] DOCUSEAL_API_KEY is not configured — skipping DocuSeal call")
   return null
+}
+
+export async function testDocuSealConnection(config: DocuSealConfig): Promise<boolean> {
+  if (!config.apiKey) return false
+  try {
+    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/templates?limit=1`, {
+      method: "GET",
+      headers: authHeaders(config),
+      signal: AbortSignal.timeout(10_000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 // ─── createTemplate ───────────────────────────────────────────────────────────
@@ -56,15 +82,17 @@ function warnMissing(): null {
 export async function createTemplate(
   name: string,
   pdfBuffer: Buffer,
+  config?: DocuSealConfig,
 ): Promise<{ id: number; attachmentUuid: string | null } | null> {
-  if (!KEY) return warnMissing()
+  const active = activeConfig(config)
+  if (!active.apiKey) return warnMissing()
 
   const base64File = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`
 
-  const res = await fetch(`${BASE}/templates/pdf`, {
+  const res = await fetch(`${active.baseUrl}/templates/pdf`, {
     method: "POST",
     headers: {
-      ...authHeaders(),
+      ...authHeaders(active),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -98,8 +126,10 @@ export async function addFieldsToTemplate(
   templateId: number,
   attachmentUuid: string,
   roles: string[],
+  config?: DocuSealConfig,
 ): Promise<boolean> {
-  if (!KEY) return false
+  const active = activeConfig(config)
+  if (!active.apiKey) return false
 
   const fields = roles.map((role, i) => ({
     name: `Signature ${i + 1}`,
@@ -118,10 +148,10 @@ export async function addFieldsToTemplate(
     ],
   }))
 
-  const res = await fetch(`${BASE}/templates/${templateId}`, {
+  const res = await fetch(`${active.baseUrl}/templates/${templateId}`, {
     method: "PUT",
     headers: {
-      ...authHeaders(),
+      ...authHeaders(active),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ fields }),
@@ -156,13 +186,15 @@ export interface DocuSealSubmission {
 export async function createSubmission(
   templateId: number,
   signers: { email: string; name: string; role: string }[],
+  config?: DocuSealConfig,
 ): Promise<DocuSealSubmission | null> {
-  if (!KEY) return warnMissing()
+  const active = activeConfig(config)
+  if (!active.apiKey) return warnMissing()
 
-  const res = await fetch(`${BASE}/submissions`, {
+  const res = await fetch(`${active.baseUrl}/submissions`, {
     method: "POST",
     headers: {
-      ...authHeaders(),
+      ...authHeaders(active),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -212,11 +244,12 @@ export async function createSubmission(
  * Send a reminder email to a specific submitter.
  * POST /submitters/{slug}/remind
  */
-export async function remindSubmitter(slug: string): Promise<boolean> {
-  if (!KEY) return false
-  const res = await fetch(`${BASE}/submitters/${slug}/remind`, {
+export async function remindSubmitter(slug: string, config?: DocuSealConfig): Promise<boolean> {
+  const active = activeConfig(config)
+  if (!active.apiKey) return false
+  const res = await fetch(`${active.baseUrl}/submitters/${slug}/remind`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: authHeaders(active),
   })
   return res.ok
 }
@@ -228,11 +261,12 @@ export async function remindSubmitter(slug: string): Promise<boolean> {
  * PUT /submissions/:id/archive
  * Returns true on success, false if unconfigured or on error.
  */
-export async function archiveSubmission(submissionId: number): Promise<boolean> {
-  if (!KEY) return false
-  const res = await fetch(`${BASE}/submissions/${submissionId}/archive`, {
+export async function archiveSubmission(submissionId: number, config?: DocuSealConfig): Promise<boolean> {
+  const active = activeConfig(config)
+  if (!active.apiKey) return false
+  const res = await fetch(`${active.baseUrl}/submissions/${submissionId}/archive`, {
     method: "PUT",
-    headers: authHeaders(),
+    headers: authHeaders(active),
   })
   if (!res.ok) {
     const text = await res.text().catch(() => "")
@@ -257,12 +291,14 @@ export interface DocuSealSubmissionDetail {
  */
 export async function getSubmission(
   submissionId: number,
+  config?: DocuSealConfig,
 ): Promise<DocuSealSubmissionDetail | null> {
-  if (!KEY) return warnMissing()
+  const active = activeConfig(config)
+  if (!active.apiKey) return warnMissing()
 
-  const res = await fetch(`${BASE}/submissions/${submissionId}`, {
+  const res = await fetch(`${active.baseUrl}/submissions/${submissionId}`, {
     method: "GET",
-    headers: authHeaders(),
+    headers: authHeaders(active),
   })
 
   if (!res.ok) {

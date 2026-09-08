@@ -19,8 +19,10 @@ const ORG_SCOPED_MODELS = new Set([
   "ContractObligation",
   // M14: Phase 1 action ledger
   "ContractAction",
+  "TeamBrief",
   // M9: CRM integrations
   "CrmIntegration",
+  "SignatureIntegration",
   // M10: Import / migration tools
   "ImportJob",
   "DocumentSnapshot", "OrgAiConfig", "ClauseSnippet",

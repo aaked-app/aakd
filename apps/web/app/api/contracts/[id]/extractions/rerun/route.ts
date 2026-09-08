@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
-import { getContractAiExtractQueue } from "@/lib/jobs/queues"
+import { contractExtractQueue, getContractAiExtractQueue } from "@/lib/jobs/queues"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import crypto from "node:crypto"
 
@@ -29,7 +29,16 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   return requestContext.run(ctx, async () => {
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { id: true, organizationId: true, extractedText: true },
+      select: {
+        id: true,
+        organizationId: true,
+        extractedText: true,
+        files: {
+          where: { isLatest: true },
+          select: { id: true, storageKey: true },
+          take: 1,
+        },
+      },
     })
 
     if (!contract || contract.organizationId !== ctx.organizationId) {
@@ -37,6 +46,23 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     }
 
     if (!contract.extractedText) {
+      const latestFile = contract.files?.[0]
+      if (latestFile) {
+        // Text extraction is deliberately worker-owned. A user can reach this
+        // button while the upload pipeline is still processing, so resume that
+        // pipeline instead of reporting that the document was never uploaded.
+        await contractExtractQueue.add("extract", {
+          contractId: params.id,
+          organizationId: ctx.organizationId,
+          fileId: latestFile.id,
+          storageKey: latestFile.storageKey,
+          preserveUserFields: true,
+        }, { jobId: `manual-contract-text:${latestFile.id}:${Date.now()}` })
+        return Response.json(
+          { queued: true, stage: "text_extraction", message: "The document is still being prepared. Extraction will start when its text is ready." },
+          { status: 202 },
+        )
+      }
       return Response.json(
         { error: "no_text", message: "No extracted text found. Upload a document first." },
         { status: 422 },

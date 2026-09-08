@@ -128,12 +128,13 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 // ─── PATCH /api/contracts/[id]/extractions ────────────────────────────────────
 // Actions:
 //   { action: "accept",     extractionId: string }           — mark accepted + write to contract
-//   { action: "reject",     extractionId: string }           — mark rejected
+//   { action: "reject",     extractionId: string, replacementValue?: string }
+//                                                          — reject, optionally replace
 //   { action: "edit",       extractionId: string, newValue } — update rawValue then accept
 
 const PatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("accept"),     extractionId: z.string().min(1) }),
-  z.object({ action: z.literal("reject"),     extractionId: z.string().min(1) }),
+  z.object({ action: z.literal("reject"),     extractionId: z.string().min(1), replacementValue: z.string().optional() }),
   z.object({ action: z.literal("edit"),       extractionId: z.string().min(1), newValue: z.string().min(1) }),
 ])
 
@@ -161,6 +162,14 @@ function isCoercedValueValid(value: unknown): boolean {
   if (typeof value === "number") return Number.isFinite(value)
   if (value instanceof Date) return !Number.isNaN(value.getTime())
   return value !== undefined
+}
+
+function canonicalValueMatchesRaw(canonical: unknown, raw: string, coerced: unknown): boolean {
+  if (canonical instanceof Date && coerced instanceof Date) {
+    return canonical.getTime() === coerced.getTime()
+  }
+  if (typeof canonical === "number" && typeof coerced === "number") return canonical === coerced
+  return canonical === coerced || String(canonical ?? "") === raw
 }
 
 export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
@@ -274,26 +283,79 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
         `)
         const current = await tx.aIExtraction.findUnique({
           where: { id: extractionId },
-          select: { id: true, contractId: true, field: true, status: true },
+          select: { id: true, contractId: true, field: true, rawValue: true, status: true },
         })
         if (!current || current.contractId !== params.id) return { kind: "missing" as const }
         // Accepted values are a reviewed canonical decision. Corrections must
         // be explicit edits, never a later rejection that strands the value.
         if (current.status === "accepted") return { kind: "accepted" as const }
+        const mapping = FIELD_MAP[current.field]
+        const replacement = body.replacementValue?.trim() ?? ""
+        if (replacement) {
+          const coerced = mapping?.coerce(replacement)
+          if (mapping && !isCoercedValueValid(coerced)) {
+            return { kind: "invalid" as const, field: current.field }
+          }
+          await tx.aIExtraction.update({
+            where: { id: extractionId },
+            data: { rawValue: replacement, extractedBy: "user", status: "accepted" },
+          })
+          if (mapping) {
+            await tx.contract.update({ where: { id: params.id }, data: { [mapping.column]: coerced } })
+          }
+          await tx.activity.create({
+            data: {
+              contractId: params.id,
+              userId: ctx.userId,
+              action: "METADATA_UPDATED",
+              detail: `Replaced AI extraction for field "${current.field}"`,
+            },
+          })
+          if (ALERT_TRIGGERING_FIELDS.has(current.field)) await projectRenewalActions(contract.organizationId, tx)
+          return { kind: "replaced" as const, field: current.field }
+        }
+
+        // A rejected suggestion must not continue to appear in the summary.
+        // Clear only when the canonical value still equals the suggestion; a
+        // later human edit remains authoritative and is never overwritten.
+        let cleared = false
+        if (mapping) {
+          const currentContract = await tx.contract.findUnique({
+            where: { id: params.id },
+            select: { [mapping.column]: true } as Prisma.ContractSelect,
+          }) as Record<string, unknown> | null
+          const rawValue = current.rawValue ?? ""
+          const coerced = mapping.coerce(rawValue)
+          if (currentContract && rawValue && isCoercedValueValid(coerced) && canonicalValueMatchesRaw(currentContract[mapping.column], rawValue, coerced)) {
+            await tx.contract.update({
+              where: { id: params.id },
+              data: { [mapping.column]: mapping.column === "autoRenewal" ? false : null },
+            })
+            cleared = true
+          }
+        }
         await tx.aIExtraction.update({ where: { id: extractionId }, data: { status: "rejected" } })
         await tx.activity.create({
           data: {
             contractId: params.id,
             userId: ctx.userId,
             action: "METADATA_UPDATED",
-            detail: `Rejected AI extraction for field "${current.field}"`,
+            detail: `Rejected AI extraction for field "${current.field}"${cleared ? " and cleared the contract value" : ""}`,
           },
         })
-        return { kind: "rejected" as const }
+        return { kind: "rejected" as const, field: current.field, cleared }
       })
       if (rejected.kind === "missing") return Response.json({ error: "Not Found" }, { status: 404 })
       if (rejected.kind === "accepted") {
         return Response.json({ error: "Accepted facts must be corrected, not rejected." }, { status: 409 })
+      }
+      if (rejected.kind === "invalid") {
+        return Response.json({ error: "Replacement value failed type coercion", field: rejected.field }, { status: 422 })
+      }
+      if (rejected.kind === "replaced") {
+        await regenerateAlertsIfTouched(params.id, [rejected.field])
+      } else if (rejected.kind === "rejected") {
+        await regenerateAlertsIfTouched(params.id, [rejected.field])
       }
     }
 

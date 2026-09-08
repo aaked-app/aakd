@@ -28,10 +28,10 @@ type Action = {
   contract: { id: string; title: string; counterpartyName: string | null }
   assignee: { id: string; name: string } | null
 }
-type ActionView = "my_work" | "needs_review" | "due_soon" | "blocked" | "completed"
+type ActionView = "my_work" | "needs_review" | "due_soon" | "blocked" | "exceptions" | "completed" | "open"
 type Member = { userId: string; user: { id: string; name: string; email: string } }
 
-const ACTION_VIEWS: ActionView[] = ["my_work", "needs_review", "due_soon", "blocked", "completed"]
+const ACTION_VIEWS: ActionView[] = ["my_work", "needs_review", "due_soon", "blocked", "exceptions", "completed", "open"]
 const ACTION_KINDS = ["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"] as const
 
 function dateLabel(value: string | null, locale: string) {
@@ -116,7 +116,7 @@ export default function ActionsPage() {
       <div className="flex flex-wrap gap-2" role="group" aria-label={t("filtersLabel")}>
         {ACTION_VIEWS.map((value) => (
           <Button key={value} variant={view === value ? "default" : "outline"} size="sm" onClick={() => updateFilter("view", value)}>
-            {t(`views.${value}`)}
+            {value === "exceptions" ? "Exceptions" : value === "open" ? t("open") : t(`views.${value}`)}
           </Button>
         ))}
       </div>
