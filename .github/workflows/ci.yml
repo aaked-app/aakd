@@ -145,3 +145,29 @@ jobs:
         run: |
           bash -n scripts/deploy.sh scripts/update.sh scripts/doctor.sh scripts/backup.sh scripts/restore.sh scripts/validate-self-hosting.sh
           bash scripts/validate-self-hosting.sh
+
+  container-images:
+    name: Production container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          tags: aakd-app:ci
+          cache-from: type=gha,scope=aakd-web
+          cache-to: type=gha,mode=max,scope=aakd-web
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile.worker
+          push: false
+          tags: aakd-worker:ci
+          cache-from: type=gha,scope=aakd-worker
+          cache-to: type=gha,mode=max,scope=aakd-worker
