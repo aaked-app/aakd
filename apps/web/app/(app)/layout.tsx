@@ -315,6 +315,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: t("renewals"),    href: "/renewals",    icon: RefreshCw },
         { label: t("obligations"), href: "/obligations", icon: Target },
         ...(isActionLedgerUiEnabled() ? [{ label: t("actions"), href: "/actions", icon: ListChecks }] : []),
+        ...(isActionLedgerUiEnabled() ? [{ label: "Team briefs", href: "/briefs", icon: FileText }] : []),
         { label: t("analytics"),   href: "/analytics",   icon: BarChart2 },
       ],
     },

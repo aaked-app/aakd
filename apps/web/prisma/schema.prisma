@@ -42,6 +42,8 @@ model User {
   actionsCreated              ContractAction[]             @relation("ActionCreator")
   actionEvidenceRecorded      ContractActionEvidence[]     @relation("ActionEvidenceRecorder")
   actionEvidenceReviews       ContractActionEvidenceReview[] @relation("ActionEvidenceReviewer")
+  publishedTeamBriefs         TeamBrief[]                   @relation("TeamBriefPublisher")
+  teamBriefAudience           TeamBrief[]                   @relation("TeamBriefAudience")
   subTasksCompleted           ObligationSubTask[]          @relation("SubTaskCompleter")
   crmIntegrationsConnected    CrmIntegration[]             @relation("CrmIntegrationConnectedBy")
   signatureIntegrationsConnected SignatureIntegration[]     @relation("SignatureIntegrationConnectedBy")
@@ -116,6 +118,7 @@ model Organization {
   obligations             ContractObligation[]
   obligationSuggestions   ContractObligationSuggestion[]
   actions                 ContractAction[]
+  teamBriefs              TeamBrief[]
   crmIntegrations         CrmIntegration[]
   signatureIntegration    SignatureIntegration?
   importJobs              ImportJob[]
@@ -705,6 +708,7 @@ model ContractAction {
   deliveries  ContractActionDelivery[]
   approvals   Approval[]
   activities  Activity[]               @relation("ContractActionActivities")
+  briefItems  TeamBriefItem[]
   createdAt   DateTime                 @default(now())
   updatedAt   DateTime                 @updatedAt
 
@@ -714,6 +718,47 @@ model ContractAction {
   @@index([contractId, kind])
   @@index([sourceObligationId])
   @@index([sourceAlertId])
+}
+
+/// A reviewed, source-linked handoff to one explicitly named member.
+/// Items are snapshots of action facts at publication time, not new contract truth.
+model TeamBrief {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  status         String       @default("PUBLISHED")
+  publishedById  String
+  publishedBy    User         @relation("TeamBriefPublisher", fields: [publishedById], references: [id])
+  audienceUserId String
+  audienceUser   User         @relation("TeamBriefAudience", fields: [audienceUserId], references: [id])
+  acknowledgedAt DateTime?
+  createdAt      DateTime     @default(now())
+  items          TeamBriefItem[]
+
+  @@index([organizationId, createdAt])
+  @@index([audienceUserId, createdAt])
+}
+
+model TeamBriefItem {
+  id             String       @id @default(cuid())
+  briefId        String
+  brief          TeamBrief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  actionId       String
+  action         ContractAction @relation(fields: [actionId], references: [id], onDelete: Restrict)
+  actionVersion  Int
+  title          String
+  description    String?
+  condition      String?
+  dueDate        DateTime?
+  sourceText     String?
+  sourcePage     Int?
+  confidence     Float?
+  assigneeId     String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([briefId, actionId])
+  @@index([actionId])
 }
 
 model ContractActionEvidence {
