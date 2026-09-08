@@ -288,8 +288,22 @@ jobs:
           set -euo pipefail
           compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml)
           "${compose[@]}" up -d db redis minio createbuckets mailpit
-          "${compose[@]}" exec -T db pg_isready -U postgres -d clauseflow
-          "${compose[@]}" exec -T redis redis-cli -a phase0-e2e-redis ping | grep -qx PONG
+          db_ready=0
+          redis_ready=0
+          for attempt in $(seq 1 30); do
+            if "${compose[@]}" exec -T db pg_isready -U postgres -d clauseflow >/dev/null 2>&1; then
+              db_ready=1
+            fi
+            if "${compose[@]}" exec -T redis redis-cli -a phase0-e2e-redis ping 2>/dev/null | grep -qx PONG; then
+              redis_ready=1
+            fi
+            if [ "${db_ready}" -eq 1 ] && [ "${redis_ready}" -eq 1 ]; then
+              break
+            fi
+            sleep 2
+          done
+          test "${db_ready}" -eq 1
+          test "${redis_ready}" -eq 1
       - name: Run migrations and browser tests
         shell: bash
         run: |
@@ -297,6 +311,7 @@ jobs:
           set -a
           . "${AAKD_E2E_ENV}"
           set +a
+          export PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000
           compose=(docker compose --env-file "${AAKD_E2E_ENV}" -f docker-compose.yml)
           web_pid=""
           worker_pid=""
