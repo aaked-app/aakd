@@ -6,6 +6,7 @@ FROM base AS deps
 WORKDIR /app
 # Copy manifests first — this layer is cached until a manifest changes
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/.npmrc ./.npmrc
 COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile
 
@@ -28,7 +29,12 @@ FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f60937229
 WORKDIR /app
 ENV NODE_ENV=production
 # prisma CLI needed for migrate deploy at container start
-RUN npm install -g prisma@7.9.1
+RUN npm install -g prisma@7.9.1 \
+  --fetch-retries=5 \
+  --fetch-retry-factor=2 \
+  --fetch-retry-mintimeout=10000 \
+  --fetch-retry-maxtimeout=120000 \
+  --fetch-timeout=120000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/prisma ./prisma

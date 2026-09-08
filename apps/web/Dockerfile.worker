@@ -3,6 +3,7 @@ RUN npm install -g pnpm@10.33.3
 WORKDIR /app
 # Copy manifests first — cached until a manifest changes
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/.npmrc ./.npmrc
 COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile \
   && pnpm --filter web deploy --prod --legacy /prod
@@ -13,10 +14,20 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 workerjs && adduser --system --uid 1001 --ingroup workerjs workerjs
 # LibreOffice is used by the document.convert worker to convert PDF→DOCX before
 # parsing with mammoth, which preserves tables, headings, and structure.
-RUN apk add --no-cache libreoffice poppler-utils
+RUN for attempt in 1 2 3 4 5; do \
+    apk add --no-cache libreoffice poppler-utils && exit 0; \
+    echo "apk dependency install failed (attempt ${attempt}/5), retrying"; \
+    sleep $((attempt * 5)); \
+  done; \
+  exit 1
 # Prisma CLI is needed only while building the generated worker client; keeping
 # it global avoids shipping the full development dependency tree.
-RUN npm install -g prisma@7.9.1
+RUN npm install -g prisma@7.9.1 \
+  --fetch-retries=5 \
+  --fetch-retry-factor=2 \
+  --fetch-retry-mintimeout=10000 \
+  --fetch-retry-maxtimeout=120000 \
+  --fetch-timeout=120000
 
 # Use a portable production-only dependency tree instead of copying the entire
 # workspace store and development dependencies into the worker image.
