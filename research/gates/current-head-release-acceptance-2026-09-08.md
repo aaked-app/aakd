@@ -79,3 +79,22 @@ claim that the Phase 0 or Phase 1 product gates have passed.
    those gates.
 4. After those gates pass, run independent QA/security review on the exact
    release commit, then push and deploy.
+
+## 2026-09-08 current-head re-verification addendum
+
+The synchronized internal checkout was re-verified after the activation
+instrumentation and acceptance-ledger commits. The exact local commit is
+`797168a044f85a12b17cfb2906b6cfbd9d2dca13`; the synchronized public `main`
+content is `9969f6979a7b67c3df04123a88047e10bcb6c184` (different ancestry,
+identical tracked content at the time of this check).
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Full Phase 0 verification on current checkout | `PASS_LOCAL` | `bash scripts/verify-phase-0.sh` completed successfully on 2026-09-08: 101 test files / 1,545 tests, 11 isolation tests, typecheck, lint, and production build all passed. |
+| Working tree and branch synchronization | `PASS_LOCAL` | Clean `internal-main`; `origin/main` points to `797168a`; `public/main` content comparison is clean. |
+| Customer, deployment, and economic gates | `OPEN` | This re-verification changes no external state and supplies no customer corpus, live deployment, repeat-use, support, or funding evidence. |
+
+The build emits expected configuration warnings when production secrets and
+`BETTER_AUTH_URL` are intentionally absent from the local build environment;
+the self-hosting validator and production runtime smoke require those values
+at deployment time. These warnings are not evidence of a production failure.
