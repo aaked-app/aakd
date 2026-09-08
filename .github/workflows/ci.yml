@@ -226,5 +226,14 @@ jobs:
             sleep 2
           done
           test "${worker_ready}" -eq 1
-          echo "Fresh production runtime smoke passed: migrations, app health, object storage, Redis, and worker startup."
+          backup_file="${RUNNER_TEMP}/aakd-smoke.sql.gz"
+          "${compose[@]}" exec -T db pg_dump -U postgres -d clauseflow | gzip -c >"${backup_file}"
+          test -s "${backup_file}"
+          gzip -t "${backup_file}"
+          "${compose[@]}" exec -T db createdb -U postgres aakd_restore_probe
+          gunzip -c "${backup_file}" | "${compose[@]}" exec -T db psql -U postgres -d aakd_restore_probe -v ON_ERROR_STOP=1 >/dev/null
+          restored_table="$(${compose[@]} exec -T db psql -U postgres -d aakd_restore_probe -tAc "select to_regclass('public._prisma_migrations')")"
+          test "${restored_table}" = "_prisma_migrations"
+          "${compose[@]}" exec -T db dropdb -U postgres aakd_restore_probe
+          echo "Fresh production runtime smoke passed: migrations, app health, object storage, Redis, worker startup, and backup/restore."
           smoke_passed=1
