@@ -1,5 +1,6 @@
+# syntax=docker/dockerfile:1.7
 FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
-RUN npm install -g pnpm@10.33.3
+RUN --mount=type=cache,id=aakd-npm,target=/root/.npm npm install -g pnpm@10.33.3
 
 # ── deps: install all workspace deps with lockfile ───────────────────────────
 FROM base AS deps
@@ -8,7 +9,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/.npmrc ./.npmrc
 COPY apps/web/package.json ./apps/web/
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=aakd-pnpm-store,target=/root/.local/share/pnpm/store \
+  pnpm install --frozen-lockfile
 
 # ── builder: compile the Next.js app ─────────────────────────────────────────
 FROM base AS builder
@@ -29,7 +31,8 @@ FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f60937229
 WORKDIR /app
 ENV NODE_ENV=production
 # prisma CLI needed for migrate deploy at container start
-RUN npm install -g prisma@7.9.1 \
+RUN --mount=type=cache,id=aakd-npm,target=/root/.npm \
+  npm install -g prisma@7.9.1 \
   --fetch-retries=5 \
   --fetch-retry-factor=2 \
   --fetch-retry-mintimeout=10000 \
