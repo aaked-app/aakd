@@ -12,7 +12,8 @@ export type ExtractionSeed = ExtractionSeedField & {
  * Preserve the user's provenance when Pass-1 values are copied into the
  * contract workspace. A touched field is a manual fact, even when its first
  * value came from extraction; untouched extracted fields remain reviewable AI
- * facts. Empty fields are never persisted as extraction rows.
+ * facts. Explicit manual clears are retained to prevent enrichment restoring
+ * a value the user deliberately removed.
  */
 export function buildExtractionSeedPayload(
   fields: ExtractionSeedField[],
@@ -22,7 +23,7 @@ export function buildExtractionSeedPayload(
 ): ExtractionSeed[] {
   return fields
     .filter(({ field, rawValue }) =>
-      rawValue !== "" && rawValue != null &&
+      (rawValue !== "" || touchedFields.has(field)) && rawValue != null &&
       (touchedFields.has(field) || aiFields.has(field)),
     )
     .map(({ field, rawValue }) => {

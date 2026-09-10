@@ -58,6 +58,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_PRIVATE_ORIGINS: ${OLLAMA_PRIVATE_ORIGINS:-}
       # Local-only SMTP sink for exercising delivery without a real provider.
       SMTP_HOST: mailpit
       SMTP_PORT: 1025

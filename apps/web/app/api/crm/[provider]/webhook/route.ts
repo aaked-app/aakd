@@ -61,6 +61,14 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ pro
   }
 
   const matchedIntegration = matched
+  const currentMember = await prisma.member.findFirst({
+    where: {
+      organizationId: matchedIntegration.organizationId,
+      userId: matchedIntegration.connectedById,
+    },
+    select: { id: true },
+  })
+  if (!currentMember) return new Response(null, { status: 200 })
   // Establish a request context so the org-scope Prisma middleware injects
   // organizationId on the contract / crmLink writes below. Without this the
   // webhook handler would write outside the multi-tenancy guard.
@@ -68,6 +76,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ pro
     {
       organizationId: matchedIntegration.organizationId,
       userId: matchedIntegration.connectedById,
+      memberId: currentMember.id,
       role: "admin",
       scopes: ["read", "write"],
       source: "api_key",
@@ -105,7 +114,11 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ pro
           // can't push DRAFT/PENDING_APPROVAL contracts straight to ACTIVE.
           try {
             await prisma.contract.update({
-              where: { id: link.contractId, status: "AWAITING_SIGNATURE" },
+              where: {
+                id: link.contractId,
+                organizationId: matchedIntegration.organizationId,
+                status: "AWAITING_SIGNATURE",
+              },
               data: { status: "ACTIVE" },
             })
 

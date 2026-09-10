@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { Prisma } from "@prisma/client"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
@@ -25,6 +26,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -95,6 +97,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   const dealId = (parsed.data.externalDealId ?? parsed.data.dealId)!
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },

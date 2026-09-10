@@ -1,311 +1,99 @@
-import { createHmac, timingSafeEqual } from "crypto"
-import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
-import { storage } from "@/lib/storage"
-import { isAllowedDocuSealUrl, isAllowedDocuSealUrlFor } from "@/lib/docuseal"
-import { getDocuSealConfig, getDocuSealWebhookSecret } from "@/lib/signature/config"
-import { enqueueNotification } from "@/lib/notifications/fanout"
-import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
-import { fireAndLog } from "@/lib/utils/fire-and-log"
-import { logger } from "@/lib/logger"
+import { createHash, createHmac, timingSafeEqual } from "crypto"
+import { z } from "zod"
+import { DOCUSEAL_JSON_BODY_LIMIT } from "@/lib/docuseal"
+import { signingSyncQueue } from "@/lib/jobs/queues"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
+import { getDocuSealWebhookIntegration } from "@/lib/signature/config"
+import { docuSealEnvironmentProviderId } from "@/lib/signature/resolve-config"
 
-// ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
-// Receives DocuSeal webhook events.
-// This route is intentionally unauthenticated — DocuSeal calls it directly.
-// We return 200 for all events to prevent DocuSeal retries on ignored events.
-//
-// Security: if DOCUSEAL_WEBHOOK_SECRET is set, the X-DocuSeal-Signature header
-// must be a valid HMAC-SHA256 signature of the raw request body.
+const webhookSchema = z.object({
+  event_type: z.string().min(1).max(100),
+  timestamp: z.string().max(100).optional(),
+  data: z.object({
+    id: z.number().int().positive(),
+    submission_id: z.number().int().positive().optional(),
+    status: z.string().max(100).optional(),
+    slug: z.string().max(500).optional(),
+  }).passthrough(),
+}).passthrough()
 
-interface DocuSealWebhookPayload {
-  event_type: string
-  data: {
-    id: number
-    status?: string
-    submission_id?: number   // present on form.* events (individual signer)
-    slug?: string            // submitter slug
-    documents?: { url: string }[]
-  }
-}
-
-type SigningStatus = "completed" | "declined" | "expired" | "failed"
-
-/**
- * Verify the HMAC-SHA256 signature from DocuSeal.
- * Returns true only when:
- *   - Secret is configured AND signature matches
- * Returns false (reject) when:
- *   - Secret is not configured (fail-secure — prevents forged webhook acceptance)
- *   - Signature header is missing or invalid
- */
-function verifySignature(rawBody: string, signatureHeader: string | null, configuredSecret?: string | null): boolean {
-  const secret = configuredSecret ?? process.env.DOCUSEAL_WEBHOOK_SECRET
-  if (!secret) {
-    // No secret configured — reject all webhook requests to prevent forged events
-    logger.error(
-      "[DocuSeal webhook] DOCUSEAL_WEBHOOK_SECRET is not set — rejecting all webhook calls. " +
-      "Set this variable to enable DocuSeal webhook processing.",
-    )
-    return false
-  }
-
-  if (!signatureHeader) {
-    return false
-  }
-
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
-
-  // Support both plain hex and "sha256=<hex>" formats
-  const provided = signatureHeader.startsWith("sha256=")
-    ? signatureHeader.slice(7)
-    : signatureHeader
-
+async function readBoundedBody(req: Request): Promise<Buffer> {
+  // The fallback only supports test harnesses that replace the DocuSeal module;
+  // production always imports the exported canonical limit.
+  const maxBytes = Number.isSafeInteger(DOCUSEAL_JSON_BODY_LIMIT)
+    ? DOCUSEAL_JSON_BODY_LIMIT
+    : 1024 * 1024
+  const declared = Number(req.headers.get("content-length") ?? "0")
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error("payload_too_large")
+  if (!req.body) return Buffer.alloc(0)
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
   try {
-    return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(provided, "hex"))
-  } catch {
-    // Lengths differ — definitely invalid
-    return false
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > maxBytes) throw new Error("payload_too_large")
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
   }
+  return Buffer.concat(chunks, total)
 }
 
-function normalizeSigningStatus(payload: DocuSealWebhookPayload): SigningStatus | null {
-  const eventType = payload.event_type.toLowerCase()
-  const dataStatus = payload.data.status?.toLowerCase()
-
-  // Individual signer completed — not a terminal submission event
-  if (eventType === "form.completed" && payload.data.submission_id != null) return null
-
-  if (eventType === "submission.completed" || dataStatus === "completed") return "completed"
-  if (eventType === "form.declined" || dataStatus === "declined") return "declined"
-  if (eventType === "form.expired" || dataStatus === "expired") return "expired"
-  if (eventType === "form.failed" || dataStatus === "failed") return "failed"
-
-  return null
+function validSignature(raw: Buffer, supplied: string | null, secret: string | null | undefined): boolean {
+  if (!supplied || !secret) return false
+  const value = supplied.startsWith("sha256=") ? supplied.slice(7) : supplied
+  if (!/^[a-f\d]{64}$/i.test(value)) return false
+  const expected = createHmac("sha256", secret).update(raw).digest()
+  return timingSafeEqual(expected, Buffer.from(value, "hex"))
 }
 
 export async function POST(req: Request) {
-  // Read raw body first — needed for HMAC verification
-  const rawBody = await req.text()
-
-  let payload: DocuSealWebhookPayload
+  let raw: Buffer
   try {
-    payload = JSON.parse(rawBody) as DocuSealWebhookPayload
+    raw = await readBoundedBody(req)
+  } catch {
+    return Response.json({ error: "payload_too_large" }, { status: 413 })
+  }
+
+  let json: unknown
+  try {
+    json = JSON.parse(raw.toString("utf8"))
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 })
   }
+  const parsed = webhookSchema.safeParse(json)
+  if (!parsed.success) return Response.json({ error: "Invalid webhook payload" }, { status: 422 })
 
-  // Resolve the organization from the submission identifier before verifying
-  // the signature. The identifier is used only for an exact database lookup;
-  // no payload data is processed until HMAC verification succeeds.
-  const signatureHeader = req.headers.get("x-docuseal-signature")
-  let verified = verifySignature(rawBody, signatureHeader, process.env.DOCUSEAL_WEBHOOK_SECRET)
-  if (!verified) {
-    const submissionId = payload.data?.submission_id ?? payload.data?.id
-    const submissionContract = submissionId == null
-      ? null
-      : await prisma.contract.findFirst({
-          where: { docusealSubmissionId: String(submissionId) },
-          select: { id: true, organizationId: true },
-        })
-    const integrationSecret = submissionContract
-      ? await getDocuSealWebhookSecret(submissionContract.organizationId)
-      : null
-    verified = verifySignature(rawBody, signatureHeader, integrationSecret)
-  }
-  if (!verified) {
+  const integrationId = new URL(req.url).searchParams.get("integrationId")
+  const integration = integrationId ? await getDocuSealWebhookIntegration(integrationId) : null
+  const envBaseUrl = process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com"
+  const providerId = integration?.providerId ?? (integrationId ? null : docuSealEnvironmentProviderId(envBaseUrl))
+  const secret = integration?.secret ?? (integrationId ? null : process.env.DOCUSEAL_WEBHOOK_SECRET)
+  if (!providerId || !validSignature(raw, req.headers.get("x-docuseal-signature"), secret)) {
     return Response.json({ error: "Invalid or missing signature" }, { status: 403 })
   }
-
-  const { data } = payload
-
-  // ── individual signer completed (form.completed with submission_id) ────────
-  if (
-    payload.event_type.toLowerCase() === "form.completed" &&
-    data.submission_id != null
-  ) {
-    const signerSubmissionContract = await prisma.contract.findFirst({
-      where: { docusealSubmissionId: String(data.submission_id) },
-      select: { id: true },
-    })
-
-    if (signerSubmissionContract) {
-      // Match by externalId — DocuSeal sends the numeric submitter id as data.id
-      // and optionally the slug. Try both.
-      const signerWhere = data.slug
-        ? { contractId: signerSubmissionContract.id, externalId: data.slug }
-        : { contractId: signerSubmissionContract.id, externalId: String(data.id) }
-
-      await prisma.contractSigner.updateMany({
-        where: signerWhere,
-        data: { status: "signed", signedAt: new Date() },
-      })
-
-      // Write an activity row so the feed shows each individual signer completing
-      fireAndLog(
-        prisma.activity.create({
-          data: {
-            contractId: signerSubmissionContract.id,
-            userId: null,
-            actorLabel: "System",
-            action: "SIGNED",
-            detail: `Signer ${data.slug ?? data.id} completed signing`,
-          },
-        }),
-        "prisma.activity.create:signerCompleted",
-      )
-    }
-
-    return Response.json({ ok: true })
+  if (isAgreementAccessEmergencyDenyAll()) {
+    return Response.json({ error: "service_unavailable" }, { status: 503 })
   }
 
-  const signingStatus = normalizeSigningStatus(payload)
-
-  // Only process terminal signing states — acknowledge all others silently
-  if (!signingStatus) {
-    return Response.json({ ok: true })
-  }
-
-  // ── find the contract by submission ID ────────────────────────────────────
-  const contract = await prisma.contract.findFirst({
-    where: { docusealSubmissionId: String(data.id) },
-    select: {
-      id: true,
-      title: true,
-      organizationId: true,
-      ownerId: true,
-    },
-  })
-
-  // If not found, return 200 so DocuSeal stops retrying
-  if (!contract) {
-    return Response.json({ ok: true })
-  }
-
-  if (signingStatus !== "completed") {
-    await prisma.contract.update({
-      where: { id: contract.id, organizationId: contract.organizationId, status: "AWAITING_SIGNATURE" },
-      data: { signingStatus },
-    })
-
-    await writeActivity(
-      contract.id,
-      null,
-      "UPDATED",
-      `DocuSeal submission #${data.id} marked ${signingStatus}`,
-    )
-
-    if (signingStatus === "declined" || signingStatus === "expired") {
-      await enqueueNotification("contract.signing_declined", contract.id, null, {
-        signingStatus,
-      })
-      await writeInAppToOrgMembers(
-        contract.organizationId,
-        contract.id,
-        "contract.signing_declined",
-        `Signing ${signingStatus}`,
-        `"${contract.title}" signing was ${signingStatus} by the counterparty`,
-      )
-    }
-
-    return Response.json({ ok: true })
-  }
-
-  // ── download signed PDF from DocuSeal ─────────────────────────────────────
-  const signedDocUrl = data.documents?.[0]?.url
-  if (!signedDocUrl) {
-    logger.warn({ submissionId: data.id }, "[docuseal-webhook] no document URL in completed submission")
-    return Response.json({ ok: true })
-  }
-
-  // SSRF guard: only fetch from the configured DocuSeal host
-  const docuSealConfig = await getDocuSealConfig(contract.organizationId)
-  if (docuSealConfig
-    ? !isAllowedDocuSealUrlFor(signedDocUrl, docuSealConfig)
-    : !isAllowedDocuSealUrl(signedDocUrl)) {
-    logger.error({ url: signedDocUrl }, "[docuseal-webhook] rejected document URL from disallowed host")
-    return Response.json({ ok: true })
-  }
-
-  const signedRes = await fetch(signedDocUrl)
-  if (!signedRes.ok) {
-    logger.error({ status: signedRes.status, submissionId: data.id }, "[docuseal-webhook] failed to download signed PDF")
-    return Response.json({ ok: true })
-  }
-
-  const arrayBuffer = await signedRes.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
-  // ── upload signed PDF to S3 ───────────────────────────────────────────────
-  const newKey = storage.storageKey(
-    contract.organizationId,
-    contract.id,
-    `signed_${Date.now()}.pdf`,
-  )
-  await storage.upload(newKey, buffer, "application/pdf")
-
-  // ── mark all signers as signed ────────────────────────────────────────────
-  await prisma.contractSigner.updateMany({
-    where: { contractId: contract.id },
-    data: { status: "signed", signedAt: new Date() },
-  })
-
-  // ── version bookkeeping ───────────────────────────────────────────────────
-  const latestFile = await prisma.contractFile.findFirst({
-    where: { contractId: contract.id, isLatest: true },
-    orderBy: { version: "desc" },
-    select: { id: true, version: true },
-  })
-
-  const nextVersion = (latestFile?.version ?? 0) + 1
-
-  // Mark previous latest file as no longer latest, then create the signed file
-  await prisma.$transaction([
-    ...(latestFile
-      ? [
-          prisma.contractFile.update({
-            where: { id: latestFile.id },
-            data: { isLatest: false },
-          }),
-        ]
-      : []),
-    prisma.contractFile.create({
-      data: {
-        contractId: contract.id,
-        filename: "signed_document.pdf",
-        storageKey: newKey,
-        mimeType: "application/pdf",
-        sizeBytes: buffer.length,
-        isSigned: true,
-        isLatest: true,
-        version: nextVersion,
-        uploadedById: contract.ownerId,
-      },
-    }),
-    prisma.contract.update({
-      where: { id: contract.id, organizationId: contract.organizationId, status: "AWAITING_SIGNATURE" },
-      data: {
-        status: "ACTIVE",
-        signingStatus: "completed",
-        signingUrl: null,
-      },
-    }),
-  ])
-
-  await writeActivity(
-    contract.id,
-    null,
-    "SIGNED",
-    `Contract signed via DocuSeal (submission #${data.id})`,
-  )
-
-  await enqueueNotification("contract.signed", contract.id, null, {})
-  await writeInAppToOrgMembers(
-    contract.organizationId,
-    contract.id,
-    "contract.signed",
-    "Contract signed",
-    `"${contract.title}" has been fully signed`,
-  )
-
+  const submissionId = String(parsed.data.data.submission_id ?? parsed.data.data.id)
+  const eventKey = createHash("sha256").update(JSON.stringify({
+    providerId,
+    event: parsed.data.event_type,
+    timestamp: parsed.data.timestamp ?? null,
+    submissionId,
+    submitterId: parsed.data.data.id,
+    status: parsed.data.data.status ?? null,
+  })).digest("hex")
+  await signingSyncQueue.add("sync", {
+    triggeredAt: parsed.data.timestamp ?? new Date().toISOString(),
+    submissionId,
+    providerId,
+    organizationId: integration?.organizationId,
+  }, { jobId: `docuseal-webhook-${eventKey}` })
   return Response.json({ ok: true })
 }

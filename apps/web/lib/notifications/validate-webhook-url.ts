@@ -3,6 +3,7 @@ import net from "net"
 
 // Patterns matching RFC-1918, loopback, link-local, and other reserved ranges
 const BLOCKED_IP_RANGES = [
+  /^::$/,                            // IPv6 unspecified can reach this host
   /^127\./,                          // loopback IPv4
   /^10\./,                           // RFC-1918
   /^172\.(1[6-9]|2[0-9]|3[01])\./,  // RFC-1918
@@ -11,30 +12,25 @@ const BLOCKED_IP_RANGES = [
   /^0\./,                            // reserved / "this" network
   /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./, // CGNAT RFC-6598
   /^::1$/,                           // IPv6 loopback
-  /^fc00:/i,                         // IPv6 unique local
-  /^fd[0-9a-f]{2}:/i,               // IPv6 unique local
+  /^f[cd][0-9a-f]{2}:/i,             // IPv6 unique local
   /^fe80:/i,                         // IPv6 link-local
   /^0\.0\.0\.0$/,                    // unspecified
 ]
 
-// Narrower blocklist for the Ollama connectivity-test endpoint
-// (org/ai-config/test). A self-hosted Ollama server legitimately runs on an
-// RFC-1918 LAN address (or a Docker service hostname resolving to one) — that
-// range must stay reachable. Only reject ranges that are NEVER a legitimate
-// Ollama target: loopback, link-local (which covers the cloud metadata IP
-// 169.254.169.254), and their IPv6 equivalents.
+// These destinations remain forbidden even when an operator explicitly
+// allowlists an organization-controlled Ollama origin.
 const NEVER_LEGITIMATE_IP_RANGES = [
+  /^::$/,                            // IPv6 unspecified can reach this host
   /^127\./,                          // loopback IPv4
   /^169\.254\./,                     // link-local (AWS IMDS / GCP metadata)
   /^::1$/,                           // IPv6 loopback
-  /^fc00:/i,                         // IPv6 unique local
-  /^fd[0-9a-f]{2}:/i,               // IPv6 unique local
   /^fe80:/i,                         // IPv6 link-local
 ]
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "0.0.0.0",
+  "::",
   "::1",
   "ip6-localhost",
   "ip6-loopback",
@@ -77,6 +73,74 @@ function matchesAny(ip: string, ranges: RegExp[]): boolean {
   if (ranges.some((re) => re.test(ip))) return true
   const embedded = extractEmbeddedIPv4(ip)
   return embedded !== null && ranges.some((re) => re.test(embedded))
+}
+
+export function canonicalProviderOrigin(url: URL): string {
+  const port = url.port || (url.protocol === "https:" ? "443" : "80")
+  return `${url.protocol}//${url.hostname.toLowerCase()}:${port}`
+}
+
+function hasExplicitPort(value: string): boolean {
+  const authority = value.slice(value.indexOf("//") + 2)
+  return authority.startsWith("[") ? /\]:\d+$/.test(authority) : /:\d+$/.test(authority)
+}
+
+/**
+ * Returns true only when the exact canonical origin is in the operator's
+ * comma-separated private-origin allowlist. One malformed or unsafe entry
+ * invalidates the whole allowlist so configuration mistakes fail closed.
+ */
+export function isPrivateProviderOriginAllowed(url: URL, configuredValue?: string): boolean {
+  const configured = configuredValue?.trim()
+  if (!configured) return false
+
+  const allowed = new Set<string>()
+  for (const rawEntry of configured.split(",")) {
+    const entry = rawEntry.trim()
+    try {
+      const candidate = new URL(entry)
+      const hostname = stripBrackets(candidate.hostname.toLowerCase())
+      if (
+        !entry ||
+        !["http:", "https:"].includes(candidate.protocol) ||
+        candidate.username || candidate.password || candidate.search || candidate.hash ||
+        candidate.pathname !== "/" ||
+        !hasExplicitPort(entry) ||
+        BLOCKED_HOSTNAMES.has(hostname) ||
+        (net.isIP(hostname) !== 0 && matchesAny(hostname, NEVER_LEGITIMATE_IP_RANGES))
+      ) {
+        return false
+      }
+      allowed.add(canonicalProviderOrigin(candidate))
+    } catch {
+      return false
+    }
+  }
+
+  return allowed.has(canonicalProviderOrigin(url))
+}
+
+export function isOllamaPrivateOriginAllowed(url: URL): boolean {
+  return isPrivateProviderOriginAllowed(url, process.env.OLLAMA_PRIVATE_ORIGINS)
+}
+
+/** Enforced again on the exact address used by the outbound socket. */
+export function assertProviderConnectionAddress(address: string, allowPrivate = false): void {
+  const ip = stripBrackets(address)
+  if (!net.isIP(ip) || matchesAny(ip, NEVER_LEGITIMATE_IP_RANGES)
+    || /^0\./.test(ip) || /^(22[4-9]|23\d|24\d|25[0-5])\./.test(ip)
+    || /^fe[89ab][0-9a-f]:/i.test(ip) || /^ff/i.test(ip)
+    || (!allowPrivate && matchesAny(ip, BLOCKED_IP_RANGES))) {
+    throw new Error("Provider connection address is not allowed")
+  }
+}
+
+export function assertOllamaConnectionAddress(address: string, allowPrivate = false): void {
+  try {
+    assertProviderConnectionAddress(address, allowPrivate)
+  } catch {
+    throw new Error("Ollama connection address is not allowed")
+  }
 }
 
 /**
@@ -169,20 +233,26 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
 }
 
 /**
- * Validates the base URL for the Ollama connectivity-test endpoint
- * (org/ai-config/test). Deliberately narrower than validateWebhookUrl: this
- * product is self-hostable, and a self-hosted Ollama server legitimately
- * runs on an RFC-1918 LAN address (e.g. 192.168.1.10, or a Docker service
- * name that resolves to one) — that range must stay reachable. Only rejects
- * targets that are never legitimate here: loopback, link-local (including
- * the cloud metadata IP 169.254.169.254), and their IPv6 equivalents.
+ * Organization-controlled Ollama URLs deny private destinations by default.
+ * A self-hosting operator can approve one exact private origin through
+ * OLLAMA_PRIVATE_ORIGINS. Loopback, link-local and metadata destinations are
+ * never accepted through this organization-controlled path.
  *
  * Throws an Error with a user-friendly message when the URL is rejected.
  */
 export async function validateOllamaTestUrl(urlString: string): Promise<void> {
+  let url: URL
+  try {
+    url = new URL(urlString)
+  } catch {
+    throw new Error("Invalid URL format")
+  }
+  const privateOriginAllowed = isOllamaPrivateOriginAllowed(url)
   return checkUrlAgainstRanges(
     urlString,
-    NEVER_LEGITIMATE_IP_RANGES,
-    "Ollama URL resolves to a loopback or link-local address, which is never a valid target",
+    privateOriginAllowed ? NEVER_LEGITIMATE_IP_RANGES : BLOCKED_IP_RANGES,
+    privateOriginAllowed
+      ? "Ollama URL resolves to a loopback or link-local address, which is never a valid target"
+      : "Ollama URL resolves to a private or internal address that is not operator-approved",
   )
 }

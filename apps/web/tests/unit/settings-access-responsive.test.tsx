@@ -25,10 +25,11 @@ describe("Core Settings & Access contracts", () => {
     expect(profile).not.toMatch(/Phone|Job Title|Department|Change Password|Two-Factor|Active Sessions|Coming soon/)
   })
 
-  it("removes ignored API-key description and exposes only existing scopes", () => {
+  it("removes ignored API-key description and exposes governed proposal scopes", () => {
     const page = source("app/(app)/settings/api-keys/page.tsx")
     expect(page).not.toMatch(/keyDescription|descriptionOptional/)
-    expect(page).toContain('["read", "text_read", "write"]')
+    expect(page).toContain('["read", "text_read", "action_propose"]')
+    expect(page).not.toContain('value: ["read", "text_read", "write"]')
     expect(page).toContain("JSON.stringify({ name: keyName, scopes })")
     for (const field of ["scopes", "lastUsedAt", "expiresAt", "revokedAt"]) expect(page).toContain(field)
   })

@@ -1,5 +1,8 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
-import { requestContext } from "@/lib/context"
+import { hasAgreementAccess, lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
+import { hasRole } from "@/lib/auth/roles"
+import { requestContext, type RequestContext } from "@/lib/context"
+import { withTransactionRetry } from "@/lib/db/transaction-retry"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { Prisma } from "@prisma/client"
@@ -30,6 +33,21 @@ const READ_ONLY_STATUSES = new Set([
   "ARCHIVED",
 ])
 
+class DocumentSaveError extends Error {
+  constructor(readonly status: number, message: string) { super(message) }
+}
+
+async function assertCurrentSavePermission(tx: Prisma.TransactionClient, ctx: RequestContext, contractId: string) {
+  const permission = await lockCurrentAgreementPermission(tx, ctx, contractId)
+  if (!permission) throw new DocumentSaveError(404, "Not Found")
+  if (!hasRole(permission.role, "member")) throw new DocumentSaveError(403, "Forbidden")
+  const current = await tx.contract.findFirst({
+    where: { id: contractId, organizationId: ctx.organizationId }, select: { status: true },
+  })
+  if (!current) throw new DocumentSaveError(404, "Not Found")
+  if (READ_ONLY_STATUSES.has(current.status)) throw new DocumentSaveError(422, "read_only_status")
+}
+
 // Accept either:
 // - legacy Slate array: [...nodes]
 // - TipTap doc object: { type: "doc", content: [...nodes] }
@@ -51,8 +69,10 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) return Response.json({ error: "text_read scope required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Verify org access explicitly — belt-and-suspenders alongside middleware.
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
@@ -88,6 +108,7 @@ export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: 
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     let body: unknown
     try {
       body = await req.json()
@@ -137,7 +158,9 @@ export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: 
         )
       }
       try {
-        const created = await prisma.contractDocument.create({
+        const created = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
+        await assertCurrentSavePermission(tx, ctx, params.id)
+        const document = await tx.contractDocument.create({
           data: {
             contractId: params.id,
             content: sanitizedContent,
@@ -147,9 +170,12 @@ export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: 
           },
           select: { id: true, wordCount: true, version: true, updatedAt: true },
         })
-        await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED")
+        await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED", undefined, undefined, tx)
+        return document
+        }, { isolationLevel: "Serializable" }))
         return Response.json({ document: created })
       } catch (err) {
+        if (err instanceof DocumentSaveError) return Response.json({ error: err.message }, { status: err.status })
         // P2002 = a concurrent first-save just won the race.
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
           return Response.json(
@@ -168,8 +194,11 @@ export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: 
       )
     }
 
-    const updated = await prisma.contractDocument.update({
-      where: { contractId: params.id },
+    try {
+    const updated = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
+    await assertCurrentSavePermission(tx, ctx, params.id)
+    const document = await tx.contractDocument.update({
+      where: { contractId: params.id, version: existing.version },
       data: {
         content: sanitizedContent,
         wordCount: parsed.data.wordCount,
@@ -178,7 +207,16 @@ export async function PUT(req: Request, props: { params: AsyncRouteParams<{ id: 
       },
       select: { id: true, wordCount: true, version: true, updatedAt: true },
     })
-    await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED")
+    await writeActivity(params.id, ctx.userId, "DOCUMENT_SAVED", undefined, undefined, tx)
+    return document
+    }, { isolationLevel: "Serializable" }))
     return Response.json({ document: updated })
+    } catch (error) {
+      if (error instanceof DocumentSaveError) return Response.json({ error: error.message }, { status: error.status })
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        return Response.json({ error: "conflict" }, { status: 409 })
+      }
+      throw error
+    }
   })
 }

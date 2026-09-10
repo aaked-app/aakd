@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import fc from "fast-check"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AcceptInvitationPage from "@/app/accept-invitation/page"
@@ -8,6 +9,7 @@ import LoginPage from "@/app/(auth)/login/page"
 import ForgotPasswordPage from "@/app/(auth)/forgot-password/page"
 import ResetPasswordPage from "@/app/(auth)/reset-password/page"
 import AuthLayout from "@/app/(auth)/layout"
+import { authErrorMessageKey } from "@/lib/auth/error-message"
 import ar from "@/messages/ar.json"
 import de from "@/messages/de.json"
 import en from "@/messages/en.json"
@@ -246,6 +248,58 @@ describe("authentication presentation", () => {
     expect(Object.keys(ar.auth).sort()).toEqual(englishKeys)
   })
 
+  it("maps every 429 envelope to safe rate-limit feedback regardless of payload text", () => {
+    fc.assert(
+      fc.property(
+        fc.option(fc.string(), { nil: undefined }),
+        fc.option(fc.string(), { nil: undefined }),
+        (code, message) => {
+          expect(authErrorMessageKey({ status: 429, code, message })).toBe("rateLimited")
+        },
+      ),
+    )
+  })
+
+  it("handles empty, huge, and hostile auth error envelopes without leaking them", () => {
+    expect(authErrorMessageKey(undefined)).toBe("authUnavailable")
+    expect(authErrorMessageKey({ status: 429 })).toBe("rateLimited")
+    expect(authErrorMessageKey({ status: 429, message: "x".repeat(10 * 1024 * 1024) })).toBe(
+      "rateLimited",
+    )
+    expect(
+      authErrorMessageKey({
+        status: 429,
+        code: "USER_ALREADY_EXISTS_<script>\u0000 العربية",
+        message: "'; DROP TABLE session; --",
+      }),
+    ).toBe("rateLimited")
+  })
+
+  it("shows actionable rate-limit feedback when registration receives HTTP 429", async () => {
+    signUpEmail.mockResolvedValue({
+      data: null,
+      error: {
+        status: 429,
+        error: "Rate limit exceeded",
+        message: "database_connection_string",
+        retryAfter: 60,
+      },
+    })
+    render(<RegisterPage />)
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane Smith" } })
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "jane@example.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many attempts. Please wait one minute and try again.",
+    )
+    expect(screen.queryByText("database_connection_string")).not.toBeInTheDocument()
+    expect(push).not.toHaveBeenCalled()
+    expect(posthogCapture).not.toHaveBeenCalled()
+  })
+
   it("uses localized safe sign-in feedback and 44px controls", async () => {
     signInEmail.mockResolvedValue({ error: { message: "database_connection_string" } })
     render(<LoginPage />)
@@ -344,6 +398,18 @@ describe("authentication presentation", () => {
     expect(await screen.findByRole("heading", { name: "Check your email" })).toBeInTheDocument()
     expect(screen.queryByText("unknown_account")).not.toBeInTheDocument()
     vi.unstubAllGlobals()
+  })
+
+  it("lets the long Spanish reset action wrap without widening the auth workspace", () => {
+    locale = "es"
+    render(<AuthLayout><ForgotPasswordPage /></AuthLayout>)
+
+    expect(screen.getByRole("button", { name: "Enviar enlace de restablecimiento" })).toHaveClass(
+      "min-w-0",
+      "whitespace-normal",
+      "h-auto",
+      "min-h-11",
+    )
   })
 
   it("uses localized safe reset feedback without exposing the token or provider message", async () => {

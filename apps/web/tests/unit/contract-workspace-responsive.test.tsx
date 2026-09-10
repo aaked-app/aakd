@@ -9,6 +9,7 @@ let hasAssignedPendingApproval = false
 let includeContractFile = false
 let includeRiskAnalysis = false
 let locale = "en"
+let contractStatus = "DRAFT"
 const push = vi.fn()
 const router = { push }
 
@@ -57,6 +58,8 @@ const copy: Record<string, string> = {
   previewFile: "Preview file",
   downloadFile: "Download file",
   deleteFile: "Delete file",
+  uploadFile: "Upload file",
+  sourceUploadUnavailable: "Source upload is unavailable for your role or this agreement's current status.",
   currentVersion: "Current version",
   filesEyebrow: "Document record",
   filesTitle: "File ledger",
@@ -193,7 +196,7 @@ const contract = {
 function apiResponse(url: string) {
   if (url === "/api/contracts/contract-1") {
     return {
-      contract,
+      contract: { ...contract, status: contractStatus },
       files: includeContractFile ? [{
         id: "file-1",
         filename: "Master-services-agreement.pdf",
@@ -268,6 +271,7 @@ describe("contract workspace responsive hierarchy", () => {
     includeContractFile = false
     includeRiskAnalysis = false
     locale = "en"
+    contractStatus = "DRAFT"
     push.mockReset()
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString()
@@ -430,7 +434,52 @@ describe("contract workspace responsive hierarchy", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Files/ }))
     expect(screen.getByRole("button", { name: "Preview file" })).toHaveClass("min-h-11", "min-w-11")
     expect(screen.getByRole("button", { name: "Download file" })).toHaveClass("min-h-11", "min-w-11")
-    expect(screen.getByRole("button", { name: "Delete file" })).toHaveClass("min-h-11", "min-w-11")
+    expect(screen.queryByRole("button", { name: "Delete file" })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { role: "viewer", status: "DRAFT", file: false },
+    { role: "admin", status: "ACTIVE", file: true },
+    { role: "admin", status: "ARCHIVED", file: false },
+  ])("does not offer source upload for $role on $status with existing file $file", async ({ role, status, file }) => {
+    memberRole = role
+    contractStatus = status
+    includeContractFile = file
+    tabParam = "documents"
+    render(<ContractDetailPage />)
+    await screen.findByRole("heading", { name: "File ledger" })
+    expect(screen.getByRole("button", { name: "Upload file" })).toBeDisabled()
+  })
+
+  it("keeps a rejected source upload visible with an inline explanation", async () => {
+    tabParam = "documents"
+    const fetch = globalThis.fetch
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/upload") && init?.method === "POST") return Response.json({ error: "read_only_status" }, { status: 422 })
+      return fetch(input, init)
+    }))
+    render(<ContractDetailPage />)
+    await screen.findByRole("heading", { name: "File ledger" })
+    fireEvent.click(screen.getByRole("button", { name: "Upload file" }))
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [new File(["%PDF-1.4"], "replacement.pdf", { type: "application/pdf" })] } })
+    fireEvent.click(screen.getByRole("button", { name: "upload" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Source upload is unavailable")
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(screen.getByText("replacement.pdf")).toBeVisible()
+  })
+
+  it("does not retain a cancelled file as an invisible upload payload", async () => {
+    tabParam = "documents"
+    render(<ContractDetailPage />)
+    await screen.findByRole("heading", { name: "File ledger" })
+    fireEvent.click(screen.getByRole("button", { name: "Upload file" }))
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [new File(["%PDF-1.4"], "cancelled.pdf", { type: "application/pdf" })] } })
+    expect(screen.getByRole("button", { name: "upload" })).toBeEnabled()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Upload file" }))
+    expect(screen.queryByText("cancelled.pdf")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "upload" })).toBeDisabled()
   })
 
   it("does not leave the current document version label hard-coded to English", async () => {

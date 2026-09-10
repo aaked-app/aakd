@@ -8,6 +8,19 @@ node_modules
 **/.env
 **/.env.*
 !**/.env.example
+# Assistant, planning, research, and deployment metadata are not build inputs.
+**/AGENTS.md
+**/CLAUDE.md
+**/.claude
+**/.codex
+**/.vercel
+.agents
+.specify
+.seo
+research
+specs
+reports
+production-e2e-audit-*.md
 **/coverage
 **/*.log
 **/.worker-dist

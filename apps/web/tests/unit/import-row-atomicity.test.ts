@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const db = {
   importRow: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
   contract: { create: vi.fn() },
+  member: { findUnique: vi.fn() },
+  contractAccessGrant: { create: vi.fn() },
   activity: { create: vi.fn() },
   contractFile: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
   $executeRaw: vi.fn(),
@@ -31,6 +33,8 @@ describe("transactional imported contract rows", () => {
     db.importRow.findUnique.mockResolvedValue(null)
     db.importRow.upsert.mockResolvedValue({ status: "pending", contractId: null })
     db.contract.create.mockResolvedValue({ id: "contract-1" })
+    db.member.findUnique.mockResolvedValue({ id: "member-1" })
+    db.contractAccessGrant.create.mockResolvedValue({ id: "grant-1" })
     db.activity.create.mockResolvedValue({})
     db.contractFile.create.mockResolvedValue({ id: "file-1" })
     db.contractFile.update.mockResolvedValue({})
@@ -63,6 +67,18 @@ describe("transactional imported contract rows", () => {
     ])
     expect(jobId).toBe(row.jobId)
     expect(rowIndex).toBe(row.rowIndex)
+    expect(db.contractAccessGrant.create).toHaveBeenCalledWith({ data: {
+      organizationId: "org-1", contractId: "contract-1", memberId: "member-1", grantedById: "user-1",
+    } })
+  })
+
+  it("rejects an import whose owner membership was removed and never queues extraction", async () => {
+    db.member.findUnique.mockResolvedValue(null)
+    await expect(createImportedContractForRow({ title: "Contract", file }, context, row)).rejects.toThrow("import_owner_membership_required")
+    expect(db.contractAccessGrant.create).not.toHaveBeenCalled()
+    expect(db.importRow.update).not.toHaveBeenCalled()
+    expect(contractExtractQueue.add).not.toHaveBeenCalled()
+    expect(storage.delete).toHaveBeenCalledWith(vi.mocked(storage.upload).mock.calls[0][0])
   })
 
   it("uploads the staged object before opening the database transaction", async () => {

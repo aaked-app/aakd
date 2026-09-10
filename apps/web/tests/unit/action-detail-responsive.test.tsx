@@ -1,15 +1,18 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Suspense } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import ActionDetailPage from "@/app/(app)/actions/[id]/page"
 import en from "@/messages/en.json"
+import fr from "@/messages/fr.json"
+import de from "@/messages/de.json"
+import es from "@/messages/es.json"
 import ar from "@/messages/ar.json"
 
 let locale = "en"
 let role = "member"
 const replace = vi.fn()
 const router = { replace }
-const catalogs = { en, ar }
+const catalogs = { en, fr, de, es, ar }
 
 function translate(namespace: string, key: string, values?: Record<string, unknown>) {
   const value = `${namespace}.${key}`.split(".").reduce<unknown>((current, segment) =>
@@ -41,9 +44,11 @@ vi.mock("@/lib/auth/client", () => ({
 }))
 
 const action = {
-  id: "action-1", title: "Send report", description: "Monthly report", condition: "Section 4",
-  dueDate: "2026-09-01T00:00:00.000Z", sourceText: "Provider shall send a report.", sourcePage: 3,
+  id: "action-1", kind: "OBLIGATION", title: "Send report", description: "Monthly report", condition: "Section 4",
+  dueDate: "2026-09-01T00:00:00.000Z", noticeDate: null, sourceText: "Provider shall send a report.", sourcePage: 3,
   confidence: 0.9, reviewStatus: "reviewed", status: "IN_PROGRESS", version: 4, hasCitation: true,
+  proposalOrigin: "api_key", proposalSourceVersion: 3,
+  proposalAttribution: "Acceptance agent (cf_live_test)",
   evidenceRequired: "completion_note", contract: { id: "contract-1", title: "Northwind MSA", counterpartyName: "Northwind" },
   assignee: { id: "user-1", name: "Wassim" },
   approvals: [{ id: "approval-1", status: "approved", required: true, actionVersion: 4, step: 1, comment: null, decidedAt: "2026-08-18T10:00:00.000Z", createdAt: "2026-08-18T09:00:00.000Z", requestedBy: { id: "user-1", name: "Wassim" }, assignedTo: { id: "reviewer-1", name: "Reviewer" } }],
@@ -74,9 +79,17 @@ describe("Action detail approval and role presentation", () => {
       await renderActionPage()
       expect(await screen.findByText(action.title)).toBeInTheDocument()
       expect(screen.getByText(translate("actionQueue", "approvalStatuses.approved"))).toBeInTheDocument()
+      expect(screen.getByText(`${translate("actionQueue", "agentProposal")}: Acceptance agent (cf_live_test) · ${translate("actionQueue", "proposalSourceVersion", { version: 3 })}`)).toBeInTheDocument()
       expect(screen.getByRole("button", { name: translate("actionQueue", "complete") })).toBeEnabled()
     })
   }
+
+  it("keeps the action review copy complete in all five supported locales", () => {
+    const reviewKeys = ["reviewKindLabel", "reviewNoticeDateLabel", "reviewNoticeDateHelp"] as const
+    for (const language of [en, fr, de, es, ar]) {
+      for (const key of reviewKeys) expect(language.actionQueue[key]).toEqual(expect.any(String))
+    }
+  })
 
   it("shows viewers a read-only explanation instead of mutation controls", async () => {
     role = "viewer"
@@ -84,6 +97,51 @@ describe("Action detail approval and role presentation", () => {
     expect(await screen.findByText(action.title)).toBeInTheDocument()
     expect(screen.getByText(translate("actionQueue", "readOnly"))).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: translate("actionQueue", "complete") })).not.toBeInTheDocument()
+  })
+
+  it("lets a human complete a missing deadline or condition before validating", async () => {
+    const pending = {
+      ...action,
+      kind: "RENEWAL_NOTICE",
+      condition: null,
+      dueDate: null,
+      noticeDate: "2026-11-01T00:00:00.000Z",
+      status: "PENDING_REVIEW",
+      reviewStatus: "pending",
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/api/actions/") && init?.method === "PATCH") {
+        return new Response(JSON.stringify({ ...pending, condition: "When requested", status: "PROPOSED", reviewStatus: "reviewed", version: 5 }), { status: 200 })
+      }
+      return String(input).includes("/api/actions/")
+        ? new Response(JSON.stringify(pending), { status: 200 })
+        : new Response(JSON.stringify([]), { status: 200 })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    await renderActionPage()
+
+    const validate = await screen.findByRole("button", { name: translate("actionQueue", "reviewAndValidate") })
+    expect(validate).toBeDisabled()
+    expect(screen.getByLabelText(translate("actionQueue", "reviewKindLabel"))).toHaveValue("RENEWAL_NOTICE")
+    expect(screen.getByLabelText(translate("actionQueue", "reviewNoticeDateLabel"))).toHaveValue("2026-11-01")
+    fireEvent.change(screen.getByLabelText(translate("actionQueue", "reviewKindLabel")), { target: { value: "OBLIGATION" } })
+    expect(screen.queryByLabelText(translate("actionQueue", "reviewNoticeDateLabel"))).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(translate("actionQueue", "reviewConditionLabel")), { target: { value: "When requested" } })
+    expect(validate).toBeEnabled()
+    fireEvent.click(validate)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/actions/action-1", expect.objectContaining({ method: "PATCH" })))
+    const patch = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]
+    expect(JSON.parse(String(patch?.body))).toMatchObject({
+      command: "validate",
+      expectedVersion: 4,
+      kind: "OBLIGATION",
+      title: "Send report",
+      condition: "When requested",
+      dueDate: null,
+      noticeDate: null,
+      evidenceRequired: "completion_note",
+    })
   })
 
   it("redirects without reading action data when the UI rollout flag is off", async () => {

@@ -8,6 +8,18 @@ function request(path: string) {
 }
 
 describe("public password recovery routes", () => {
+  it.each(["Bearer wrong-prefix", "Bearer ", "Basic unsupported"])("does not bypass browser origin validation with %s", authorization => {
+    const response = middleware(new NextRequest("https://aakd.example/api/contracts", {
+      method: "POST", headers: { Authorization: authorization, Origin: "https://untrusted.example", Cookie: "better-auth.session_token=synthetic" },
+    }))
+    expect(response.status).toBe(403)
+  })
+
+  it.each(["Bearer cf_live_synthetic", "bearer cf_live_synthetic"])("lets %s reach definitive key authentication without a cookie", authorization => {
+    const response = middleware(new NextRequest("https://aakd.example/api/contracts", { headers: { Authorization: authorization } }))
+    expect(response.headers.get("x-middleware-next")).toBe("1")
+  })
+
   it.each([
     "/forgot-password",
     "/reset-password?token=reset-token",

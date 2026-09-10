@@ -6,6 +6,10 @@ import { SECURE_HEADERS } from "@/lib/api-headers"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { z } from "zod"
 import { actionApprovalState } from "@/lib/actions/approval-gate"
+import { agreementRelationWhere, lockCurrentAgreementPermission, type AgreementPrincipal } from "@/lib/auth/agreement-access"
+import { hasCurrentAgentActionSource } from "@/lib/contracts/source-binding"
+import { createHash } from "node:crypto"
+import { ACTION_PROPOSAL_KINDS, actionDateSemanticIssue } from "@/lib/actions/agent-proposal-schema"
 
 const WRITERS = new Set(["owner", "admin", "legal", "member"])
 
@@ -13,10 +17,12 @@ const BaseCommandSchema = z.object({ expectedVersion: z.number().int().nonnegati
 const CommandSchema = z.discriminatedUnion("command", [
   BaseCommandSchema.extend({
     command: z.literal("validate"),
+    kind: z.enum(ACTION_PROPOSAL_KINDS).optional(),
     title: z.string().min(1).max(300).optional(),
     description: z.string().max(2000).nullable().optional(),
     condition: z.string().max(2000).nullable().optional(),
     dueDate: z.string().datetime().nullable().optional(),
+    noticeDate: z.string().datetime().nullable().optional(),
     evidenceRequired: z.string().min(1).max(80).nullable().optional(),
   }),
   BaseCommandSchema.extend({ command: z.literal("assign"), assigneeId: z.string().min(1) }),
@@ -56,11 +62,32 @@ function canReadSourceText(ctx: { source: "session" | "api_key"; scopes?: string
   return ctx.source === "session" || ctx.scopes?.includes("text_read") === true
 }
 
-async function findAction(id: string, organizationId: string, includeSourceText: boolean) {
+async function findAction(id: string, ctx: AgreementPrincipal, includeSourceText: boolean) {
   return prisma.contractAction.findFirst({
-    where: { id, organizationId },
+    where: { id, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
     select: actionDetailSelect(includeSourceText),
   })
+}
+
+async function resolveProposalAttribution(
+  action: { proposedByPrincipalType?: string | null; proposedByPrincipalId?: string | null },
+  ctx: AgreementPrincipal & { source: "session" | "api_key" },
+): Promise<string | null> {
+  if (ctx.source !== "session" || !action.proposedByPrincipalType || !action.proposedByPrincipalId) return null
+  if (action.proposedByPrincipalType === "api_key") {
+    const key = await prisma.apiKey.findUnique({
+      where: { id: action.proposedByPrincipalId },
+      select: { organizationId: true, name: true, prefix: true },
+    })
+    if (key?.organizationId === ctx.organizationId) return `${key.name} (${key.prefix})`
+  } else if (action.proposedByPrincipalType === "session_member") {
+    const member = await prisma.member.findFirst({
+      where: { id: action.proposedByPrincipalId, organizationId: ctx.organizationId },
+      select: { user: { select: { name: true } } },
+    })
+    if (member) return member.user.name
+  }
+  return `SHA-256 ${createHash("sha256").update(action.proposedByPrincipalId).digest("hex")}`
 }
 
 async function captureActivationReview(ctx: { userId: string }, actionKind: string) {
@@ -91,9 +118,10 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
 
   return requestContext.run(ctx, async () => {
     const includeSourceText = canReadSourceText(ctx)
-    const action = await findAction(params.id, ctx.organizationId, includeSourceText)
+    const action = await findAction(params.id, ctx, includeSourceText)
     if (!action) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
-    return Response.json(toActionDetail(action as never, includeSourceText), { headers: SECURE_HEADERS })
+    const attribution = await resolveProposalAttribution(action, ctx)
+    return Response.json(toActionDetail(action as never, includeSourceText, attribution), { headers: SECURE_HEADERS })
   })
 }
 
@@ -123,7 +151,7 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
     }
 
     const command = parsed.data
-    const existing = await findAction(params.id, ctx.organizationId, false)
+    const existing = await findAction(params.id, ctx, false)
     if (!existing) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
     if (existing.version !== command.expectedVersion) {
       return Response.json(
@@ -147,21 +175,39 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
 
     if (command.command === "assign") {
       const member = await prisma.member.findFirst({
-        where: { userId: command.assigneeId, organizationId: ctx.organizationId },
+        where: {
+          userId: command.assigneeId,
+          organizationId: ctx.organizationId,
+          accessGrants: {
+            some: { organizationId: ctx.organizationId, contractId: existing.contractId },
+          },
+        },
         select: { userId: true },
       })
-      if (!member) return Response.json({ error: "invalid_assignee" }, { status: 422, headers: SECURE_HEADERS })
+      if (!member) return Response.json({ error: "action_recipient_access_required" }, { status: 422, headers: SECURE_HEADERS })
     }
+    let reviewedKind: (typeof ACTION_PROPOSAL_KINDS)[number] | undefined
+    let reviewedNoticeDate: string | null | undefined
     if (command.command === "validate") {
+      reviewedKind = command.kind ?? existing.kind as (typeof ACTION_PROPOSAL_KINDS)[number]
       const effectiveDueDate = command.dueDate === undefined ? existing.dueDate : command.dueDate
       const effectiveCondition = command.condition === undefined ? existing.condition : command.condition
       const effectiveEvidence = command.evidenceRequired === undefined ? existing.evidenceRequired : command.evidenceRequired
+      reviewedNoticeDate = reviewedKind === "RENEWAL_NOTICE"
+        ? command.noticeDate === undefined ? existing.noticeDate?.toISOString() ?? null : command.noticeDate
+        : null
       if (!effectiveDueDate && !effectiveCondition) {
         return Response.json({ error: "action_deadline_or_condition_required" }, { status: 422, headers: SECURE_HEADERS })
       }
       if (!effectiveEvidence) {
         return Response.json({ error: "action_evidence_requirement_required" }, { status: 422, headers: SECURE_HEADERS })
       }
+      const dateIssue = actionDateSemanticIssue({
+        kind: reviewedKind,
+        dueDate: effectiveDueDate instanceof Date ? effectiveDueDate.toISOString() : effectiveDueDate,
+        noticeDate: reviewedNoticeDate,
+      })
+      if (dateIssue) return Response.json({ error: dateIssue }, { status: 422, headers: SECURE_HEADERS })
     }
     if (command.command === "acknowledge" && !existing.assigneeId) {
       return Response.json({ error: "action_assignee_required" }, { status: 422, headers: SECURE_HEADERS })
@@ -184,10 +230,12 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
           status: "PROPOSED",
           reviewStatus: "reviewed",
           staleAt: null,
+          kind: reviewedKind,
           title: command.title,
           description: command.description,
           condition: command.condition,
           dueDate: command.dueDate === undefined ? undefined : command.dueDate ? new Date(command.dueDate) : null,
+          noticeDate: reviewedNoticeDate ? new Date(reviewedNoticeDate) : null,
           evidenceRequired: command.evidenceRequired,
         })
         break
@@ -200,9 +248,37 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       case "dismiss": data.status = "DISMISSED"; data.escalationState = command.reason; break
     }
 
+    let currentAccessDenied = false
+    let sourceStale = false
     const updated = await prisma.$transaction(async (tx) => {
+      if (command.command === "validate" && existing.proposedByPrincipalType) {
+        const permission = await lockCurrentAgreementPermission(tx, ctx, existing.contractId)
+        if (!permission || !WRITERS.has(permission.role)) {
+          currentAccessDenied = true
+          return null
+        }
+        const currentContract = await tx.contract.findFirst({
+          where: { id: existing.contractId, organizationId: ctx.organizationId },
+          select: {
+            extractedText: true,
+            extractedSourceFileId: true,
+            extractedSourceFileVersion: true,
+            extractedSourceHash: true,
+            files: { where: { isLatest: true }, select: { id: true, version: true }, take: 1 },
+          },
+        })
+        if (!currentContract || !hasCurrentAgentActionSource(existing, currentContract, currentContract.files[0])) {
+          sourceStale = true
+          return null
+        }
+      }
       const result = await tx.contractAction.updateMany({
-        where: { id: existing.id, organizationId: ctx.organizationId, version: command.expectedVersion },
+        where: {
+          id: existing.id,
+          organizationId: ctx.organizationId,
+          version: command.expectedVersion,
+          contract: agreementRelationWhere(ctx),
+        },
         data: data as never,
       })
       if (result.count !== 1) return null
@@ -254,15 +330,18 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       }
 
       return tx.contractAction.findFirst({
-        where: { id: existing.id, organizationId: ctx.organizationId },
+        where: { id: existing.id, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
         select: actionDetailSelect(true),
       })
     })
 
+    if (currentAccessDenied) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
+    if (sourceStale) return Response.json({ error: "action_stale_review_required" }, { status: 409, headers: SECURE_HEADERS })
     if (!updated) return Response.json({ error: "action_version_conflict" }, { status: 409, headers: SECURE_HEADERS })
     if (command.command === "validate") {
-      await captureActivationReview(ctx, existing.kind)
+      await captureActivationReview(ctx, reviewedKind ?? existing.kind)
     }
-    return Response.json(toActionDetail(updated as never, true), { headers: SECURE_HEADERS })
+    const attribution = await resolveProposalAttribution(updated, ctx)
+    return Response.json(toActionDetail(updated as never, true, attribution), { headers: SECURE_HEADERS })
   })
 }

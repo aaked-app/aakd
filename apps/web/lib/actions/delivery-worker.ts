@@ -1,8 +1,12 @@
 import type { EmailJobData } from "@/lib/jobs/queues"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 
 type ActionDeliveryJob = Extract<EmailJobData, { kind: "action_delivery" }>
 
 type DeliveryDb = {
+  contractAccessGrant: {
+    findFirst(args: Record<string, unknown>): Promise<{ id: string } | null>
+  }
   contractActionDelivery: {
     update(args: {
       where: { id: string }
@@ -22,6 +26,21 @@ export async function processActionDelivery(
     send: (job: ActionDeliveryJob) => Promise<void>
   },
 ): Promise<void> {
+  if (isAgreementAccessEmergencyDenyAll()) return
+  const grant = await dependencies.db.contractAccessGrant.findFirst({
+    where: {
+      contractId: job.contractId,
+      member: { userId: job.recipientUserId },
+    },
+    select: { id: true },
+  })
+  if (!grant) {
+    await dependencies.db.contractActionDelivery.update({
+      where: { id: job.deliveryId },
+      data: { status: "failed", errorCode: "recipient_access_revoked" },
+    })
+    return
+  }
   try {
     await dependencies.send(job)
   } catch (error) {

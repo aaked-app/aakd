@@ -106,7 +106,8 @@ export default function ApiKeysPage() {
   function scopeLabel(scope: string) {
     if (scope === "read") return t("scopeRead")
     if (scope === "text_read") return t("scopeTextRead")
-    if (scope === "write") return t("scopeWrite")
+    if (scope === "action_propose") return t("scopeActionPropose")
+    if (scope === "write") return t("scopeLegacyWrite")
     return scope
   }
 
@@ -230,7 +231,7 @@ export default function ApiKeysPage() {
               {[
                 { value: ["read"], label: t("readOnly") },
                 { value: ["read", "text_read"], label: t("readContent") },
-                { value: ["read", "text_read", "write"], label: t("readWrite") },
+                { value: ["read", "text_read", "action_propose"], label: t("readAndPropose") },
               ].map((option) => <label key={option.value.join(",")} className="flex min-h-11 items-center gap-2 rounded-md border p-3"><input type="radio" name="scopes" checked={scopes.join() === option.value.join()} onChange={() => setScopes(option.value)} />{option.label}</label>)}
             </fieldset>
             <div className="flex justify-end gap-2 pt-2">

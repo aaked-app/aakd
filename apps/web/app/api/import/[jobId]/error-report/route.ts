@@ -4,6 +4,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
 import { logger } from "@/lib/logger"
+import { hasImportJobAccess } from "@/lib/auth/import-job-access"
 
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ jobId: string }> }) {
   const params = await props.params;
@@ -24,26 +25,36 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ jobI
 
     const job = await importJobModel.findUnique({
       where: { id: params.jobId },
-      select: { id: true, organizationId: true, errorReportKey: true },
+      select: { id: true, organizationId: true, errorReportKey: true, createdById: true },
     })
     if (!job || job.organizationId !== ctx.organizationId) {
+      return Response.json({ error: "Not Found" }, { status: 404 })
+    }
+    if (!(await hasImportJobAccess(prisma, ctx, job))) {
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
     if (!job.errorReportKey) {
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
 
-    let signedUrl: string
     try {
-      signedUrl = await storage.getSignedDownloadUrl(job.errorReportKey, 3600)
-    } catch (err) {
-      logger.error({ err, importJobId: params.jobId }, "[import.error-report] failed to sign url")
-      return Response.json({ error: "signing_failed" }, { status: 502 })
+      const object = await storage.getObject(job.errorReportKey, 50 * 1024 * 1024)
+      // Revocation while storage is being read must also prevent the response.
+      if (!(await hasImportJobAccess(prisma, ctx, job))) {
+        return Response.json({ error: "Not Found" }, { status: 404 })
+      }
+      return new Response(Buffer.from(object.body), {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="import-errors.csv"',
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      })
+    } catch {
+      logger.error({ importJobId: params.jobId }, "[import.error-report] download failed")
+      return Response.json({ error: "download_failed" }, { status: 502 })
     }
-
-    return new Response(null, {
-      status: 302,
-      headers: { Location: signedUrl },
-    })
   })
 }

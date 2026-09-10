@@ -12,6 +12,8 @@ vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock("@/lib/notifications/crypto", () => ({ decrypt: vi.fn().mockReturnValue("synthetic-provider-key") }))
+
 vi.mock("@/lib/context", () => ({
   requestContext: { run: vi.fn((ctx, fn) => fn()) },
 }))
@@ -51,6 +53,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 const adminCtx = {
   userId: "user-admin",
   organizationId: "org-1",
+  memberId: "member-admin",
   role: "admin",
   source: "session" as const,
   requestId: "req-test",
@@ -62,6 +65,7 @@ const memberCtx = { ...adminCtx, role: "member" }
 function resetMocks() {
   vi.clearAllMocks()
   vi.mocked(requireWriteScope).mockReturnValue(null)
+  vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
 }
 
 beforeEach(resetMocks)
@@ -450,6 +454,7 @@ describe("GET /api/ai-status", () => {
     vi.mocked(prisma.orgAiConfig.findUnique).mockResolvedValueOnce({
       provider: "anthropic",
       model: "claude-haiku-4-5",
+      encryptedKey: "synthetic-ciphertext",
     } as any)
     const { GET } = await import("@/app/api/ai-status/route")
     const req = new Request("http://localhost/api/ai-status")
@@ -765,7 +770,7 @@ describe("GET /api/templates/[id]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1")
-    const res = await GET(req, { params: { id: "tpl-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -774,7 +779,7 @@ describe("GET /api/templates/[id]", () => {
     vi.mocked(prisma.contractTemplate.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1")
-    const res = await GET(req, { params: { id: "tpl-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -786,7 +791,7 @@ describe("GET /api/templates/[id]", () => {
     } as any)
     const { GET } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1")
-    const res = await GET(req, { params: { id: "tpl-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -795,7 +800,7 @@ describe("GET /api/templates/[id]", () => {
     vi.mocked(prisma.contractTemplate.findUnique).mockResolvedValueOnce(mockTemplate as any)
     const { GET } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1")
-    const res = await GET(req, { params: { id: "tpl-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -804,7 +809,7 @@ describe("GET /api/templates/[id]", () => {
     vi.mocked(prisma.contractTemplate.findUnique).mockResolvedValueOnce(mockTemplate as any)
     const { GET } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1")
-    const res = await GET(req, { params: { id: "tpl-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe("tpl-1")
@@ -833,7 +838,7 @@ describe("PATCH /api/templates/[id]", () => {
       body: JSON.stringify({ name: "Updated Name" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "tpl-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -845,7 +850,7 @@ describe("PATCH /api/templates/[id]", () => {
       body: JSON.stringify({ name: "Updated Name" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "tpl-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -858,7 +863,7 @@ describe("PATCH /api/templates/[id]", () => {
       body: JSON.stringify({ name: "Updated Name" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "tpl-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -876,7 +881,7 @@ describe("PATCH /api/templates/[id]", () => {
       }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "tpl-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("duplicate_variable_names")
@@ -897,7 +902,7 @@ describe("PATCH /api/templates/[id]", () => {
       body: JSON.stringify({ name: "Updated NDA" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "tpl-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.name).toBe("Updated NDA")
@@ -919,7 +924,7 @@ describe("DELETE /api/templates/[id]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -927,7 +932,7 @@ describe("DELETE /api/templates/[id]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -935,7 +940,7 @@ describe("DELETE /api/templates/[id]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -944,7 +949,7 @@ describe("DELETE /api/templates/[id]", () => {
     vi.mocked(prisma.contractTemplate.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -953,7 +958,7 @@ describe("DELETE /api/templates/[id]", () => {
     vi.mocked(prisma.contractTemplate.findUnique).mockResolvedValueOnce(existingTemplate as any)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -966,7 +971,7 @@ describe("DELETE /api/templates/[id]", () => {
     } as any)
     const { DELETE } = await import("@/app/api/templates/[id]/route")
     const req = new Request("http://localhost/api/templates/tpl-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tpl-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(204)
     // Verify soft-delete: update called with isArchived=true, not a hard delete
     expect(prisma.contractTemplate.update).toHaveBeenCalledWith(
@@ -1006,7 +1011,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify(validUseBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -1018,7 +1023,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify(validUseBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -1034,7 +1039,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify(validUseBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -1047,7 +1052,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify({ title: "Test Contract", values: {} }), // missing party_name
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("missing_required_variables")
@@ -1065,7 +1070,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify(validUseBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.contractId).toBe("contract-new")
@@ -1082,7 +1087,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify(validUseBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(201)
   })
 
@@ -1099,7 +1104,7 @@ describe("POST /api/templates/[id]/use", () => {
       body: JSON.stringify({ title: "Test", folderId: "folder-missing", values: {} }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "tpl-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "tpl-1" }) })
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/folder/i)

@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { SECURE_HEADERS } from "@/lib/api-headers"
+import { agreementAccessWhere } from "@/lib/auth/agreement-access"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -16,11 +17,10 @@ export async function GET(req: Request) {
 
   return requestContext.run(ctx, async () => {
     const contracts = await prisma.contract.findMany({
-      where: {
-        organizationId: ctx.organizationId,
+      where: agreementAccessWhere(ctx, {
         autoRenewal: true,
         status: { not: "ARCHIVED" },
-      },
+      }),
       select: {
         id: true,
         title: true,

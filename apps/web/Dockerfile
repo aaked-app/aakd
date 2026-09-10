@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
+FROM node@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS base
 RUN --mount=type=cache,id=aakd-npm,target=/root/.npm npm install -g pnpm@10.33.3
 
 # ── deps: install all workspace deps with lockfile ───────────────────────────
@@ -15,6 +15,8 @@ RUN --mount=type=cache,id=aakd-pnpm-store,target=/root/.local/share/pnpm/store \
 # ── builder: compile the Next.js app ─────────────────────────────────────────
 FROM base AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED=false
+ENV NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED=${NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED}
 # Root node_modules (pnpm virtual store)
 COPY --from=deps /app/node_modules ./node_modules
 # Workspace-local node_modules — Docker dereferences symlinks so binaries
@@ -27,7 +29,7 @@ RUN node_modules/.bin/prisma generate
 RUN pnpm run build
 
 # ── runner: minimal production image ─────────────────────────────────────────
-FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
+FROM node@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # prisma CLI needed for migrate deploy at container start

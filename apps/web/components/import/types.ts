@@ -8,7 +8,7 @@ export interface ImportJob {
   totalRows: number
   succeededRows: number
   failedRows: number
-  errorReportKey: string | null
+  hasErrorReport: boolean
   createdAt: string
   completedAt: string | null
   createdBy: { name: string }
@@ -23,7 +23,7 @@ export interface ImportRow {
 }
 
 export interface ImportJobDetail {
-  job: ImportJob & { errorReportKey: string | null }
+  job: ImportJob
   rows: ImportRow[]
 }
 

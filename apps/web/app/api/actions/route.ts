@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { ACTION_LIST_SELECT, toActionListItem } from "@/lib/actions/dto"
 import { orderPriorityActions } from "@/lib/actions/priority"
 import { SECURE_HEADERS } from "@/lib/api-headers"
+import { agreementRelationWhere } from "@/lib/auth/agreement-access"
 import type { Prisma } from "@prisma/client"
 import { z } from "zod"
 
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
     const now = new Date()
     const where: Prisma.ContractActionWhereInput = {
       organizationId: ctx.organizationId,
+      contract: agreementRelationWhere(ctx),
       ...(status ? { status } : {}),
       ...(ownerId ? { assigneeId: ownerId } : {}),
       ...(contractId ? { contractId } : {}),

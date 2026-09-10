@@ -11,7 +11,7 @@ approvals, and completion evidence.
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-[Website](https://aakd.app) · [Documentation](docs/) · [Roadmap](PRODUCT.md) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md) · [Discord community](https://discord.gg/23hntCVty)
+[Website](https://aakd.app) · [Documentation](docs/) · [Issues](../../issues) · [Discussions](../../discussions) · [Releases](../../releases) · [Security](SECURITY.md) · [Discord community](https://discord.gg/23hntCVty)
 
 > Aakd is an early open-source release. Customer validation is in progress.
 > It is not a hosted service, legal-advice product, compliance certification,
@@ -65,7 +65,7 @@ creation into cited extraction review, obligations, approvals, and reminders.
 - Obligation and renewal views with owners, deadlines, reminders, and audit
   history.
 - Organization-scoped approvals, comments, notifications, and activity logs.
-- Optional DocuSeal signing integration.
+- Existing stored DocuSeal signing records remain viewable. Automatic status updates and signed-document intake require an explicitly verified provider binding; historical rows remain unbound after upgrade. New sends, reminders, and resets are temporarily paused.
 - Optional AI through a provider key or local Ollama deployment.
 - REST API and a scoped MCP endpoint for agent-assisted, human-controlled
   workflows.
@@ -78,8 +78,7 @@ enterprise identity features are later phases. The code for some of these
 surfaces remains in the repository, but they are not part of the Phase 0
 promise.
 
-See [`PRODUCT.md`](PRODUCT.md) for the product constitution and [`docs/`](docs/)
-for deployment and API documentation.
+See [`docs/`](docs/) for deployment and API documentation.
 
 ## Try it locally
 
@@ -105,14 +104,13 @@ docker compose up
 
 Open [http://localhost:3000](http://localhost:3000). The first signup creates
 an account and organization. Repository, uploads, manual metadata, approvals,
-obligations, and signing can be tried without an AI provider. Add an AI key in
+obligations, and existing signature records can be reviewed without an AI provider. Add an AI key in
 Settings only if you want AI-assisted features.
 
 The local stack also includes PostgreSQL, Redis, MinIO, Mailpit, and the
-background worker. E-signature is an optional connection: open Settings →
-Integrations → E-signature and connect DocuSeal Cloud or your own DocuSeal
-server. To run the bundled signing server instead, use
-`docker compose --profile signing up`.
+background worker. DocuSeal can be connected for stored signing records, but
+automatic updates require an explicitly verified provider binding. Historical
+rows remain unbound after upgrade. New sends, reminders, and resets are paused.
 
 ## Deploy it yourself
 
@@ -155,8 +153,21 @@ opt-in: use Ollama locally or bring your own provider key. Aakd stores the
 source text and citation for AI-derived fields so a reviewer can inspect and
 correct them.
 
+Scanned-PDF OCR runs locally in the worker using a bundled English model.
+English is the only supported OCR language; interface translations do not
+extend OCR language support. Review scanned text and its page citations before
+using extracted facts. See [OCR limits](docs/self-hosting.md#scanned-pdf-ocr).
+
 Do not treat an AI result as legal advice or as an automatic approval. Review
 contract facts and obligations before relying on them.
+
+Provider adapters are not a guarantee that every model works. The current
+candidate has synthetic live OpenAI verification for connection testing,
+extraction, cited questions, clause explanations and risk analysis. Anthropic
+and Ollama adapters have automated coverage, but their live end-to-end paths
+have not been verified for this candidate. Test your chosen provider and model
+with synthetic documents before supplying confidential agreements. Customer
+corpus accuracy and embedding-model compatibility remain separate checks.
 
 ## Architecture
 
@@ -166,11 +177,11 @@ contract facts and obligations before relying on them.
 - **Jobs:** BullMQ and Redis, with a separate worker process
 - **Files:** S3-compatible storage, MinIO in the local stack
 - **AI:** Anthropic, OpenAI, or Ollama through the existing provider layer
-- **Signing:** DocuSeal integration
+- **Signing:** view stored DocuSeal records; verified bindings can process updates, while historical rows remain unbound and new sends, reminders, and resets stay paused
 
 The main application lives in `apps/web`. The worker is
-`apps/web/worker.ts`. Start with [`CLAUDE.md`](CLAUDE.md) and
-[`AGENTS.md`](AGENTS.md) when contributing.
+`apps/web/worker.ts`. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md)
+when contributing.
 
 ## Verify a release candidate
 
@@ -209,11 +220,9 @@ For security vulnerabilities, use the private reporting process in
 
 ## Documentation
 
-- [Product constitution and roadmap](PRODUCT.md)
 - [Self-hosting guide](docs/self-hosting.md)
 - [API reference](docs/api-reference.md)
 - [Analytics and privacy information](docs/analytics-privacy.md)
-- [Community launch checklist](docs/community-launch-checklist.md)
 
 ## License
 
@@ -222,3 +231,6 @@ consulting services are permitted under the AGPL. If you modify Aakd and make
 it available to users over a network, the AGPL requires offering those users
 the corresponding source for that modified version. Alternative proprietary
 license terms are not generally offered at this time.
+
+Bundled third-party assets retain their own licenses. See
+[third-party notices](THIRD_PARTY_NOTICES.md) for the English OCR model.

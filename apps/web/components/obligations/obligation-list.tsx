@@ -125,6 +125,7 @@ export function ObligationList({
 
   useEffect(() => {
     if (!jobId) return
+    autoExtractionAttemptedRef.current = true
     setExtracting(true)
 
     let cancelled = false
@@ -133,7 +134,8 @@ export function ObligationList({
         const res = await fetch(
           `/api/contracts/${contractId}/obligations/extract?jobId=${encodeURIComponent(jobId)}`
         )
-        if (!res.ok || cancelled) return
+        if (cancelled) return
+        if (!res.ok) throw new Error("Extraction status unavailable")
 
         const data = await res.json()
 
@@ -184,7 +186,7 @@ export function ObligationList({
     // State updates are asynchronous. Keep a synchronous guard as well so a
     // double click cannot enqueue two extraction jobs before `extracting`
     // reaches the button.
-    if (extractionRequestRef.current) return
+    if (!canCreate || extractionRequestRef.current) return
     if (!hasContractFile) {
       toast.error(t("uploadSourceFirst"))
       return
@@ -252,6 +254,7 @@ export function ObligationList({
   // written to the obligation ledger until the user reviews and saves one.
   useEffect(() => {
     if (
+      !canCreate ||
       autoExtractionAttemptedRef.current ||
       !hasExtractedText ||
       !hasContractFile ||
@@ -262,7 +265,7 @@ export function ObligationList({
     }
     autoExtractionAttemptedRef.current = true
     void extractWithAI()
-  }, [hasExtractedText, hasContractFile, obligations.length, jobId])
+  }, [canCreate, hasExtractedText, hasContractFile, obligations.length, jobId])
 
   function openEdit(ob: Obligation) {
     setEditing(ob)

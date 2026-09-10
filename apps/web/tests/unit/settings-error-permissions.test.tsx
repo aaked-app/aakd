@@ -210,7 +210,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
       createdAt: "2026-01-01T00:00:00Z", lastUsedAt: null, expiresAt: null, revokedAt: null,
     }])))
     render(<ApiKeysPage />)
-    expect(await screen.findByText(/apiKeys\.scopeRead, apiKeys\.scopeTextRead, apiKeys\.scopeWrite/)).toBeInTheDocument()
+    expect(await screen.findByText(/apiKeys\.scopeRead, apiKeys\.scopeTextRead, apiKeys\.scopeLegacyWrite/)).toBeInTheDocument()
     expect(screen.queryByText(/read, text_read, write/)).not.toBeInTheDocument()
   })
 
@@ -228,7 +228,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "apiKeys.createNewKey" }))
     fireEvent.change(screen.getByRole("textbox", { name: "apiKeys.keyName" }), { target: { value: "Broad key" } })
-    fireEvent.click(screen.getByRole("radio", { name: "apiKeys.readWrite" }))
+    fireEvent.click(screen.getByRole("radio", { name: "apiKeys.readAndPropose" }))
     fireEvent.click(screen.getByRole("button", { name: "apiKeys.createKey" }))
     expect(await screen.findByDisplayValue("cf_live_secret_1")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "apiKeys.done" }))
@@ -238,7 +238,7 @@ describe("Settings error, permission, and accessibility behavior", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "apiKeys.keyName" }), { target: { value: "Second key" } })
     fireEvent.click(screen.getByRole("button", { name: "apiKeys.createKey" }))
     expect(await screen.findByDisplayValue("cf_live_secret_2")).toBeInTheDocument()
-    expect(submittedScopes).toEqual([["read", "text_read", "write"], ["read"]])
+    expect(submittedScopes).toEqual([["read", "text_read", "action_propose"], ["read"]])
   })
 
   it("renders localized member roles and remove action labels", async () => {

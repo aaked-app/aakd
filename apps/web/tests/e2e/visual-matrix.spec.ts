@@ -4,20 +4,23 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import en from "@/messages/en.json"
 import ar from "@/messages/ar.json"
+import fr from "@/messages/fr.json"
+import de from "@/messages/de.json"
+import es from "@/messages/es.json"
 import { VISUAL_FIXTURE_IDS, VISUAL_NO_ORG_AUTH_STATE } from "./visual-constants"
 
-type AppLocale = "en" | "ar"
+type AppLocale = "en" | "ar" | "fr" | "de" | "es"
 type Messages = Record<string, unknown>
 type RouteCheck = {
   name: string
   path: string
   headingKey?: string
-  heading?: Record<AppLocale, string>
+  heading?: string
   requiresPrimaryControl?: boolean
   readyText?: string
 }
 
-const messages = { en, ar } satisfies Record<AppLocale, Messages>
+const messages = { en, ar, fr, de, es } satisfies Record<AppLocale, Messages>
 const seededContractId = VISUAL_FIXTURE_IDS.contracts[0]
 const seededObligationId = VISUAL_FIXTURE_IDS.obligations[0]
 const seededActionId = VISUAL_FIXTURE_IDS.actions[0]
@@ -30,14 +33,15 @@ const priorityZero: RouteCheck[] = [
 const priorityOne: RouteCheck[] = [
   { name: "dashboard", path: "/dashboard", readyText: "Woodgrove Customer Agreement" },
   { name: "contracts", path: "/contracts", headingKey: "contracts.title", readyText: "Northwind Services Agreement" },
-  { name: "contract-detail", path: `/contracts/${seededContractId}`, heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" } },
+  { name: "contract-detail", path: `/contracts/${seededContractId}`, heading: "Northwind Services Agreement" },
   { name: "contract-new", path: "/contracts/new" },
   { name: "obligations", path: "/obligations", headingKey: "obligations.title", readyText: "Send non-renewal notice" },
-  { name: "obligation-detail", path: `/contracts/${seededContractId}/obligations/${seededObligationId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
+  { name: "obligation-detail", path: `/contracts/${seededContractId}/obligations/${seededObligationId}`, heading: "Send non-renewal notice" },
   { name: "actions", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
-  { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
+  { name: "action-detail", path: `/actions/${seededActionId}`, heading: "Send non-renewal notice" },
   { name: "renewals", path: "/renewals", headingKey: "renewals.title", readyText: "Northwind Services Agreement" },
   { name: "analytics", path: "/analytics", headingKey: "analytics.title" },
+  { name: "briefs", path: "/briefs", headingKey: "briefs.title" },
   { name: "search", path: "/search?q=Northwind", readyText: "Northwind Services Agreement" },
   { name: "onboarding", path: "/onboarding", headingKey: "onboarding.title" },
 ]
@@ -45,8 +49,8 @@ const priorityOne: RouteCheck[] = [
 const phaseOneActionJourney: RouteCheck[] = [
   { name: "action-dashboard", path: "/dashboard", readyText: "Send non-renewal notice" },
   { name: "action-queue", path: "/actions?view=open", headingKey: "actionQueue.title", readyText: "Send non-renewal notice" },
-  { name: "action-detail", path: `/actions/${seededActionId}`, heading: { en: "Send non-renewal notice", ar: "Send non-renewal notice" } },
-  { name: "action-confirmation", path: `/contracts/${seededContractId}`, heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" }, readyText: "Send non-renewal notice" },
+  { name: "action-detail", path: `/actions/${seededActionId}`, heading: "Send non-renewal notice" },
+  { name: "action-confirmation", path: `/contracts/${seededContractId}`, heading: "Northwind Services Agreement", readyText: "Send non-renewal notice" },
 ]
 
 const priorityTwoAuthenticated: RouteCheck[] = [
@@ -71,7 +75,7 @@ const priorityTwoPublic: RouteCheck[] = [
 
 function localeFor(testInfo: TestInfo): AppLocale {
   const locale = testInfo.project.metadata.appLocale
-  if (locale !== "en" && locale !== "ar") throw new Error(`Unsupported visual locale: ${String(locale)}`)
+  if (locale !== "en" && locale !== "ar" && locale !== "fr" && locale !== "de" && locale !== "es") throw new Error(`Unsupported visual locale: ${String(locale)}`)
   return locale
 }
 
@@ -149,7 +153,7 @@ async function verifyRoute(page: Page, testInfo: TestInfo, route: RouteCheck) {
   const heading = page.getByRole("heading", { level: 1 }).first()
   await routeExpect(heading).toBeVisible()
   if (route.headingKey) await routeExpect(heading).toContainText(messageAt(locale, route.headingKey))
-  if (route.heading) await routeExpect(heading).toContainText(route.heading[locale])
+  if (route.heading) await routeExpect(heading).toContainText(route.heading)
   if (route.readyText) {
     await routeExpect(page.getByText(route.readyText).filter({ visible: true }).first()).toBeVisible()
   }
@@ -203,7 +207,7 @@ test.describe("Priority 1 seeded visual matrix", () => {
     await verifyRoute(page, testInfo, {
       name: "contract-detail-tabs",
       path: `/contracts/${seededContractId}`,
-      heading: { en: "Northwind Services Agreement", ar: "Northwind Services Agreement" },
+      heading: "Northwind Services Agreement",
     })
 
     const locale = localeFor(testInfo)

@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 
@@ -11,14 +12,32 @@ export async function GET(req: Request) {
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    const grants = isAgreementAccessEmergencyDenyAll()
+      ? []
+      : await prisma.contractAccessGrant.findMany({
+        where: { organizationId: ctx.organizationId, memberId: ctx.memberId },
+        select: { contractId: true },
+      })
+    const accessibleContractIds = grants.map((grant) => grant.contractId)
     // `org.invited` notifications are stored under the *inviting* org's ID —
     // an org the invitee hasn't joined yet and therefore isn't their active org.
-    // We widen the query with an OR so those cross-org invitations still surface.
+    // Only a human session may see cross-org invitations. A key's authority
+    // stops at the organization for which it was issued.
     const notifWhere = {
-      userId: ctx.userId,
-      OR: [
-        { organizationId: ctx.organizationId },
-        { eventName: "org.invited" },
+      AND: [
+        { userId: ctx.userId },
+        {
+          OR: [
+            { organizationId: ctx.organizationId },
+            ...(ctx.source === "session" ? [{ eventName: "org.invited" }] : []),
+          ],
+        },
+        {
+          OR: [
+            { contractId: null },
+            { organizationId: ctx.organizationId, contractId: { in: accessibleContractIds } },
+          ],
+        },
       ],
     }
 
@@ -44,6 +63,9 @@ export async function GET(req: Request) {
       }),
     ])
 
-    return Response.json({ notifications, unreadCount })
+    return Response.json({ notifications: ctx.source === "session" ? notifications : notifications.map(row => ({
+      id: row.id, contractId: row.contractId, eventName: row.eventName,
+      title: row.title, read: row.read, readAt: row.readAt, createdAt: row.createdAt,
+    })), unreadCount })
   })
 }

@@ -1,6 +1,8 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { agreementAccessWhere } from "@/lib/auth/agreement-access"
+import { activityMetadata, canReadContractText } from "@/lib/auth/read-projections"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -19,7 +21,7 @@ export async function GET(req: Request) {
     const days   = parseInt(url.searchParams.get("days") ?? "0", 10) // 7 | 30 | 90 | 0 = all
 
     const where: Record<string, unknown> = {
-      contract: { organizationId: ctx.organizationId },
+      contract: agreementAccessWhere(ctx),
     }
 
     if (action) where.action = action
@@ -47,6 +49,6 @@ export async function GET(req: Request) {
       prisma.activity.count({ where }),
     ])
 
-    return Response.json({ activities, total, page, limit })
+    return Response.json({ activities: canReadContractText(ctx) ? activities : activities.map(activityMetadata), total, page, limit })
   })
 }

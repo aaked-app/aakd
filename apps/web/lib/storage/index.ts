@@ -28,8 +28,11 @@ function getBucket(): string {
 }
 
 export const storage = {
-  async upload(key: string, body: Buffer | Uint8Array, contentType: string): Promise<string> {
-    await getS3().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: contentType }))
+  async upload(key: string, body: Buffer | Uint8Array, contentType: string, options?: { abortSignal?: AbortSignal }): Promise<string> {
+    await getS3().send(
+      new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: contentType }),
+      options?.abortSignal ? { abortSignal: options.abortSignal } : undefined,
+    )
     return key
   },
 
@@ -37,9 +40,35 @@ export const storage = {
     return getSignedUrl(getS3(), new GetObjectCommand({ Bucket: getBucket(), Key: key }), { expiresIn })
   },
 
-  async getObject(key: string): Promise<{ body: Uint8Array; contentType?: string }> {
+  async getObject(key: string, maxBytes?: number): Promise<{ body: Uint8Array; contentType?: string }> {
+    if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) {
+      throw new Error("Invalid stored object size limit")
+    }
     const result = await getS3().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }))
     if (!result.Body) throw new Error("Stored object has no body")
+    if (maxBytes !== undefined) {
+      const reader = result.Body.transformToWebStream().getReader()
+      const chunks: Uint8Array[] = []
+      let length = 0
+      try {
+        if (result.ContentLength !== undefined && result.ContentLength > maxBytes) {
+          throw new Error("Stored object exceeds size limit")
+        }
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          length += value.byteLength
+          if (length > maxBytes) throw new Error("Stored object exceeds size limit")
+          chunks.push(value)
+        }
+        return { body: Buffer.concat(chunks, length), contentType: result.ContentType }
+      } catch (error) {
+        await reader.cancel().catch(() => undefined)
+        throw error
+      } finally {
+        reader.releaseLock()
+      }
+    }
     return {
       body: await result.Body.transformToByteArray(),
       contentType: result.ContentType,

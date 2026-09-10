@@ -54,6 +54,14 @@ vi.mock("@/lib/docuseal", () => ({
   archiveSubmission: vi.fn().mockResolvedValue(true),
 }))
 
+vi.mock("@/lib/signature/config", () => ({
+  getDocuSealConfigResolution: vi.fn().mockResolvedValue({
+    configured: false,
+    config: { baseUrl: "https://api.docuseal.example", apiKey: "test-key" },
+    providerId: "environment:test-provider",
+  }),
+}))
+
 vi.mock("@/lib/logger", () => ({
   logger: {
     info: vi.fn(),
@@ -70,14 +78,19 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 const adminCtx = {
   userId: "user-admin",
   organizationId: "org-1",
+  memberId: "member-admin",
   role: "admin",
   source: "session" as const,
   requestId: "req-test",
 }
 
-const legalCtx = { ...adminCtx, role: "legal", userId: "user-legal" }
-const memberCtx = { ...adminCtx, role: "member", userId: "user-member" }
-const viewerCtx = { ...adminCtx, role: "viewer", userId: "user-viewer" }
+const legalCtx = { ...adminCtx, role: "legal", userId: "user-legal", memberId: "member-legal" }
+const memberCtx = { ...adminCtx, role: "member", userId: "user-member", memberId: "member-member" }
+const viewerCtx = { ...adminCtx, role: "viewer", userId: "user-viewer", memberId: "member-viewer" }
+
+beforeEach(() => {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 function mockAuth(ctx: typeof adminCtx | null) {
   vi.mocked(resolveAuth).mockResolvedValue(ctx as Awaited<ReturnType<typeof resolveAuth>>)
@@ -92,13 +105,9 @@ const baseContract = {
   status: "DRAFT",
   docusealSubmissionId: null as string | null,
   signingStatus: null as string | null,
+  signatureProviderId: "environment:test-provider",
   counterpartyContact: "alice@acme.com",
   counterpartyName: "ACME Corp",
-}
-
-const awaitingContract = {
-  ...baseContract,
-  status: "AWAITING_SIGNATURE",
 }
 
 const signerAlice = {
@@ -125,20 +134,6 @@ const signerBob = {
   createdAt: new Date("2024-01-02"),
 }
 
-const mockFile = {
-  id: "file-1",
-  contractId: "contract-1",
-  filename: "agreement.pdf",
-  storageKey: "orgs/org-1/contracts/contract-1/agreement.pdf",
-  mimeType: "application/pdf",
-  sizeBytes: 2048,
-  isSigned: false,
-  isLatest: true,
-  version: 1,
-  uploadedById: "user-admin",
-  createdAt: new Date(),
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   _clearStore()
@@ -148,12 +143,20 @@ beforeEach(() => {
 // ─── GET /api/contracts/[id]/signing ─────────────────────────────────────────
 
 describe("GET /api/contracts/[id]/signing", () => {
+  it("denies a same-organization admin without a contract grant", async () => {
+    mockAuth(adminCtx)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+    const { GET } = await import("@/app/api/contracts/[id]/signing/route")
+    const response = await GET(new Request("http://localhost/api/contracts/contract-1/signing"), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(response.status).toBe(404)
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
+  })
   it("returns 401 when unauthenticated", async () => {
     mockAuth(null)
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -167,7 +170,7 @@ describe("GET /api/contracts/[id]/signing", () => {
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -178,7 +181,7 @@ describe("GET /api/contracts/[id]/signing", () => {
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -190,7 +193,7 @@ describe("GET /api/contracts/[id]/signing", () => {
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -215,7 +218,7 @@ describe("GET /api/contracts/[id]/signing", () => {
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -232,7 +235,7 @@ describe("GET /api/contracts/[id]/signing", () => {
     const { GET } = await import("@/app/api/contracts/[id]/signing/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/signing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -252,7 +255,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -266,7 +269,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -280,7 +283,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -298,7 +301,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -316,7 +319,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -333,7 +336,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: "not-json",
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -348,7 +351,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice" }), // missing email
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -363,7 +366,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "not-an-email" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -379,7 +382,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -399,7 +402,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com", isInternal: false }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -429,7 +432,7 @@ describe("POST /api/contracts/[id]/signing/signers", () => {
         body: JSON.stringify({ name: "Alice", email: "alice@acme.com" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(201)
   })
@@ -445,7 +448,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -457,7 +460,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -473,7 +476,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -489,7 +492,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -505,7 +508,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-999", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-999" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-999" }) },
     )
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -524,7 +527,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -539,7 +542,7 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
       new Request("http://localhost/api/contracts/contract-1/signing/signers/signer-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", signerId: "signer-1" } },
+      { params: Promise.resolve({ id: "contract-1", signerId: "signer-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -550,655 +553,76 @@ describe("DELETE /api/contracts/[id]/signing/signers/[signerId]", () => {
   })
 })
 
-// ─── POST /api/contracts/[id]/signing/remind ─────────────────────────────────
+// ─── Signing provider mutations temporarily paused ───────────────────────────
 
-describe("POST /api/contracts/[id]/signing/remind", () => {
+describe("POST /api/contracts/[id]/signing/remind (temporarily paused)", () => {
   it("returns 401 when unauthenticated", async () => {
     mockAuth(null)
     const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-1" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/remind", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
-  it("returns 403 when role is member", async () => {
-    mockAuth(memberCtx)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-1" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(403)
-  })
-
-  it("returns 404 when contract belongs to another org", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...baseContract,
-      organizationId: "org-attacker",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-1" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(404)
-  })
-
-  it("returns 400 for invalid JSON body", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: "not-json",
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-  })
-
-  it("returns 400 for missing signerId", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({}),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-  })
-
-  it("returns 404 when signer not found on the contract", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    vi.mocked(prisma.contractSigner.findFirst).mockResolvedValueOnce(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-999" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.error).toBe("Signer not found")
-  })
-
-  it("returns 400 when signer is already signed (non-pending)", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    vi.mocked(prisma.contractSigner.findFirst).mockResolvedValueOnce({
-      ...signerBob,
-      status: "signed",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-2" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/pending/)
-  })
-
-  it("returns 400 when signer has no externalId (submission not sent)", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    vi.mocked(prisma.contractSigner.findFirst).mockResolvedValueOnce({
-      ...signerAlice,
-      status: "pending",
-      externalId: null,
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-1" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/not been sent/)
-  })
-
-  it("sends reminder and returns success", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(baseContract as any)
-    vi.mocked(prisma.contractSigner.findFirst).mockResolvedValueOnce({
-      ...signerAlice,
-      status: "pending",
-      externalId: "slug-abc",
-    } as any)
+  it("rejects API keys and pauses a granted session without provider egress", async () => {
     const { remindSubmitter } = await import("@/lib/docuseal")
     const { POST } = await import("@/app/api/contracts/[id]/signing/remind/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/remind", {
-        method: "POST",
-        body: JSON.stringify({ signerId: "signer-1" }),
-        headers: { "Content-Type": "application/json" },
-      }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(remindSubmitter).toHaveBeenCalledWith("slug-abc")
-  })
-})
-
-// ─── POST /api/contracts/[id]/signing/reset ───────────────────────────────────
-
-describe("POST /api/contracts/[id]/signing/reset", () => {
-  it("returns 401 when unauthenticated", async () => {
-    mockAuth(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(401)
-  })
-
-  it("returns 403 when role is member", async () => {
-    mockAuth(memberCtx)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(403)
-  })
-
-  it("returns 404 when contract belongs to another org", async () => {
+    mockAuth({ ...adminCtx, source: "api_key", apiKeyId: "key-1", scopes: ["write"] } as never)
+    expect((await POST(new Request("http://localhost/api/contracts/contract-1/signing/remind", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })).status).toBe(403)
     mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "declined",
-      organizationId: "org-attacker",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(404)
-  })
-
-  it("returns 400 when contract is not AWAITING_SIGNATURE", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...baseContract,
-      status: "DRAFT",
-      signingStatus: "declined",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/AWAITING_SIGNATURE/)
-  })
-
-  it("returns 400 when signingStatus is 'sent' (not resettable)", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "sent",
-      docusealSubmissionId: "99",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/declined.*expired.*failed/i)
-  })
-
-  it("returns 400 when signingStatus is null (not resettable)", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: null,
-      docusealSubmissionId: null,
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-  })
-
-  it("resets declined signing: voids DocuSeal, resets signers, clears submission", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "declined",
-      docusealSubmissionId: "99",
-    } as any)
-    vi.mocked(prisma.contractSigner.updateMany).mockResolvedValueOnce({ count: 2 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce(awaitingContract as any)
-    const { archiveSubmission } = await import("@/lib/docuseal")
-    const { writeActivity } = await import("@/lib/db/activity")
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ok).toBe(true)
-    expect(archiveSubmission).toHaveBeenCalledWith(99)
-    expect(prisma.contractSigner.updateMany).toHaveBeenCalledWith({
-      where: { contractId: "contract-1" },
-      data: { status: "not_sent", externalId: null, signedAt: null },
-    })
-    expect(prisma.contract.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "contract-1" },
-        data: expect.objectContaining({
-          docusealSubmissionId: null,
-          signingStatus: null,
-          signingUrl: null,
-        }),
-      }),
-    )
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      adminCtx.userId,
-      "UPDATED",
-      expect.stringContaining("99"),
-    )
-  })
-
-  it("resets expired signing", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "expired",
-      docusealSubmissionId: "100",
-    } as any)
-    vi.mocked(prisma.contractSigner.updateMany).mockResolvedValueOnce({ count: 1 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce(awaitingContract as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    expect((await res.json()).ok).toBe(true)
-  })
-
-  it("resets failed signing", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "failed",
-      docusealSubmissionId: "101",
-    } as any)
-    vi.mocked(prisma.contractSigner.updateMany).mockResolvedValueOnce({ count: 1 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce(awaitingContract as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    expect((await res.json()).ok).toBe(true)
-  })
-
-  it("continues reset even when DocuSeal archive fails (best-effort)", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "declined",
-      docusealSubmissionId: "99",
-    } as any)
-    vi.mocked(prisma.contractSigner.updateMany).mockResolvedValueOnce({ count: 1 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce(awaitingContract as any)
-    const { archiveSubmission } = await import("@/lib/docuseal")
-    vi.mocked(archiveSubmission).mockResolvedValueOnce(false)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    // Should still succeed — archive failure is non-blocking
-    expect(res.status).toBe(200)
-    expect((await res.json()).ok).toBe(true)
-    // Signer reset and contract update should still have been called
-    expect(prisma.contractSigner.updateMany).toHaveBeenCalled()
-    expect(prisma.contract.update).toHaveBeenCalled()
-  })
-
-  it("skips DocuSeal archive when no submissionId", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      signingStatus: "declined",
-      docusealSubmissionId: null,
-    } as any)
-    vi.mocked(prisma.contractSigner.updateMany).mockResolvedValueOnce({ count: 0 } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce(awaitingContract as any)
-    const { archiveSubmission } = await import("@/lib/docuseal")
-    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    expect(archiveSubmission).not.toHaveBeenCalled()
-  })
-})
-
-// ─── POST /api/contracts/[id]/signing/send ────────────────────────────────────
-
-describe("POST /api/contracts/[id]/signing/send", () => {
-  beforeEach(() => {
-    process.env.DOCUSEAL_API_KEY = "test-docuseal-key"
-    // Mock global fetch for file download
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(1024),
-    }))
-  })
-
-  it("returns 401 when unauthenticated", async () => {
-    mockAuth(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(401)
-  })
-
-  it("returns 403 when role is member", async () => {
-    mockAuth(memberCtx)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(403)
-  })
-
-  it("returns 403 when role is viewer", async () => {
-    mockAuth(viewerCtx)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(403)
-  })
-
-  it("returns 404 when contract belongs to another org", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      organizationId: "org-attacker",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(404)
-  })
-
-  it("returns 400 when contract status is not AWAITING_SIGNATURE", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...baseContract,
-      status: "DRAFT",
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/AWAITING_SIGNATURE/)
-  })
-
-  it("returns 503 when DOCUSEAL_API_KEY is not configured", async () => {
-    delete process.env.DOCUSEAL_API_KEY
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/remind", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.error).toBe("E-signature not configured")
+    expect(await res.json()).toEqual({ error: "signing_reminder_temporarily_unavailable" })
+    expect(remindSubmitter).not.toHaveBeenCalled()
+  })
+})
+
+describe("POST /api/contracts/[id]/signing/reset (temporarily paused)", () => {
+  it("returns 401 when unauthenticated", async () => {
+    mockAuth(null)
+    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(401)
   })
 
-  it("returns 409 when submission already sent", async () => {
+  it("preserves provider and local state for a granted legal session", async () => {
     mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      docusealSubmissionId: "99",
-    } as any)
+    const { archiveSubmission } = await import("@/lib/docuseal")
+    const { POST } = await import("@/app/api/contracts/[id]/signing/reset/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/reset", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "signing_reset_temporarily_unavailable" })
+    expect(archiveSubmission).not.toHaveBeenCalled()
+    expect(prisma.contractSigner.updateMany).not.toHaveBeenCalled()
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+  })
+})
+
+describe("POST /api/contracts/[id]/signing/send (temporarily paused)", () => {
+  it("rejects API keys before agreement lookup or provider egress", async () => {
+    mockAuth({ ...adminCtx, source: "api_key", apiKeyId: "key-1", scopes: ["write"] } as never)
+    const { createSubmission } = await import("@/lib/docuseal")
     const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.error).toMatch(/already sent/)
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(403)
+    expect(createSubmission).not.toHaveBeenCalled()
   })
 
-  it("returns 400 when no signers are configured", async () => {
+  it("returns 404 for a session without exact agreement access", async () => {
     mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([])
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/at least one signer/)
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(404)
   })
 
-  it("returns 400 when no file is attached", async () => {
+  it("returns the explicit pause response without provider egress", async () => {
     mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe("No file attached to this contract")
-  })
-
-  it("creates template and submission, then persists signers and returns submissionId", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice, signerBob] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    // $transaction is handled by setup.ts mock (iterates array form)
-    vi.mocked(prisma.contractSigner.update)
-      .mockResolvedValueOnce({ ...signerAlice, externalId: "slug-abc", status: "pending" } as any)
-      .mockResolvedValueOnce({ ...signerBob, externalId: "slug-def", status: "pending" } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce({
-      ...awaitingContract,
-      docusealSubmissionId: "99",
-      signingStatus: "sent",
-    } as any)
     const { createTemplate, createSubmission } = await import("@/lib/docuseal")
-    vi.mocked(createTemplate).mockResolvedValueOnce({ id: 42, attachmentUuid: null })
-    vi.mocked(createSubmission).mockResolvedValueOnce({
-      id: 99,
-      submitters: [
-        { slug: "slug-abc", embed_src: "https://docuseal.com/s/slug-abc" },
-        { slug: "slug-def", embed_src: "https://docuseal.com/s/slug-def" },
-      ],
-    })
-    const { writeActivity } = await import("@/lib/db/activity")
     const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.submissionId).toBe(99)
-    expect(body.signingStatus).toBe("sent")
-    expect(createTemplate).toHaveBeenCalled()
-    expect(createSubmission).toHaveBeenCalledWith(
-      42,
-      expect.arrayContaining([
-        expect.objectContaining({ email: "alice@acme.com" }),
-        expect.objectContaining({ email: "bob@acme.com" }),
-      ]),
-    )
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      adminCtx.userId,
-      "SENT_FOR_SIGNATURE",
-      expect.stringContaining("2"),
-    )
-  })
-
-  it("adds fields to template when attachmentUuid is present", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    vi.mocked(prisma.contractSigner.update).mockResolvedValueOnce({
-      ...signerAlice,
-      externalId: "slug-abc",
-      status: "pending",
-    } as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce({
-      ...awaitingContract,
-      docusealSubmissionId: "99",
-      signingStatus: "sent",
-    } as any)
-    const { createTemplate, addFieldsToTemplate, createSubmission } = await import("@/lib/docuseal")
-    vi.mocked(createTemplate).mockResolvedValueOnce({ id: 42, attachmentUuid: "uuid-123" })
-    vi.mocked(addFieldsToTemplate).mockResolvedValueOnce(true)
-    vi.mocked(createSubmission).mockResolvedValueOnce({
-      id: 99,
-      submitters: [{ slug: "slug-abc", embed_src: "https://docuseal.com/s/slug-abc" }],
-    })
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(200)
-    expect(addFieldsToTemplate).toHaveBeenCalledWith(42, "uuid-123", ["Signer 1"])
-  })
-
-  it("returns 500 when createTemplate returns null", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    const { createTemplate } = await import("@/lib/docuseal")
-    vi.mocked(createTemplate).mockResolvedValueOnce(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(500)
-    const body = await res.json()
-    expect(body.error).toMatch(/template/)
-  })
-
-  it("returns 500 when createSubmission returns null", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    const { createTemplate, createSubmission } = await import("@/lib/docuseal")
-    vi.mocked(createTemplate).mockResolvedValueOnce({ id: 42, attachmentUuid: null })
-    vi.mocked(createSubmission).mockResolvedValueOnce(null)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(500)
-    const body = await res.json()
-    expect(body.error).toMatch(/submission/)
-  })
-
-  it("returns 500 when file download fails", async () => {
-    mockAuth(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(awaitingContract as any)
-    vi.mocked(prisma.contractSigner.findMany).mockResolvedValueOnce([signerAlice] as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false, status: 403 }))
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(500)
-    const body = await res.json()
-    expect(body.error).toMatch(/download/)
-  })
-
-  // Org-isolation: org B cannot send for signing a contract owned by org A
-  it("org-isolation: returns 404 when contract belongs to a different org", async () => {
-    const orgBCtx = { ...adminCtx, organizationId: "org-b" }
-    mockAuth(orgBCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...awaitingContract,
-      organizationId: "org-1", // org A
-    } as any)
-    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
-    const res = await POST(
-      new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }),
-      { params: { id: "contract-1" } },
-    )
-    expect(res.status).toBe(404) // not 403 — never leak existence
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual(expect.objectContaining({ error: "signing_send_temporarily_unavailable" }))
+    expect(createTemplate).not.toHaveBeenCalled()
+    expect(createSubmission).not.toHaveBeenCalled()
   })
 })

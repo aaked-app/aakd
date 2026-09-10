@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { z } from "zod"
+import { agreementRelationWhere } from "@/lib/auth/agreement-access"
 
 const WRITERS = new Set(["owner", "admin", "legal", "member"])
 const EvidenceSchema = z.object({
@@ -26,7 +27,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 
   return requestContext.run(ctx, async () => {
     const action = await prisma.contractAction.findFirst({
-      where: { id: params.id, organizationId: ctx.organizationId },
+      where: { id: params.id, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
       select: { id: true, contractId: true, status: true },
     })
     if (!action) return Response.json({ error: "Not Found" }, { status: 404 })
@@ -95,9 +96,15 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
     if (parsed.data.decision === "REJECTED" && !parsed.data.comment?.trim()) {
       return Response.json({ error: "review_comment_required" }, { status: 422, headers: SECURE_HEADERS })
     }
+    if (parsed.data.decision !== "SELF_ATTESTED" && !new Set(["owner", "admin", "legal"]).has(ctx.role)) {
+      return Response.json({ error: "reviewer_role_required" }, { status: 403, headers: SECURE_HEADERS })
+    }
 
     const evidence = await prisma.contractActionEvidence.findFirst({
-      where: { id: params.id, action: { organizationId: ctx.organizationId } },
+      where: {
+        id: params.id,
+        action: { organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
+      },
       select: { id: true, actionId: true, reviewStatus: true, action: { select: { contractId: true, assigneeId: true } } },
     })
     if (!evidence) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })

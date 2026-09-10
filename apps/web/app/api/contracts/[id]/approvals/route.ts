@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
@@ -8,6 +9,7 @@ import { enqueueNotification } from "@/lib/notifications/fanout"
 import { writeInApp } from "@/lib/notifications/write-in-app"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
+import { canReadContractText } from "@/lib/auth/read-projections"
 
 const USER_SELECT = {
   id: true,
@@ -25,6 +27,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -42,7 +45,14 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       orderBy: { createdAt: "asc" },
     })
 
-    return Response.json({ approvals })
+    return Response.json({ approvals: approvals.map(row => ({
+      id: row.id, contractId: row.contractId, actionId: row.actionId, actionVersion: row.actionVersion,
+      requestedById: row.requestedById, assignedToId: row.assignedToId,
+      requestedBy: row.requestedBy, assignedTo: row.assignedTo,
+      status: row.status, required: row.required, step: row.step,
+      ...(canReadContractText(ctx) ? { comment: row.comment } : {}),
+      decidedAt: row.decidedAt, createdAt: row.createdAt, updatedAt: row.updatedAt,
+    })) })
   })
 }
 
@@ -63,6 +73,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Role gate: only legal+ (legal, admin, owner) can request approvals
     if (!hasRole(ctx.role, "legal")) {
       return Response.json({ error: "Forbidden" }, { status: 403 })
@@ -116,11 +127,17 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 
     // Resolve the assignee — must be a member of the same org
     const assigneeMember = await prisma.member.findFirst({
-      where: { userId: body.assignedToId, organizationId: ctx.organizationId },
+      where: {
+        userId: body.assignedToId,
+        organizationId: ctx.organizationId,
+        accessGrants: {
+          some: { organizationId: ctx.organizationId, contractId: params.id },
+        },
+      },
       include: { user: { select: USER_SELECT } },
     })
     if (!assigneeMember) {
-      return Response.json({ error: "Assignee not found in this organization" }, { status: 400 })
+      return Response.json({ error: "Assignee does not have access to this contract" }, { status: 422 })
     }
 
     // Resolve the requester for display purposes
@@ -218,6 +235,8 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       fireAndLog(
         emailQueue.add("send", {
           kind: "approval_request",
+          contractId: params.id,
+          recipientUserId: assigneeMember.user.id,
           to: assigneeMember.user.email,
           assigneeName: assigneeMember.user.name,
           requesterName: requesterUser?.name ?? "A team member",

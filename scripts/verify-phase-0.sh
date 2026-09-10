@@ -2,8 +2,8 @@
 # Reproduce the local Phase 0 engineering verification boundary.
 #
 # This verifies code, public capability truth, and self-hosting configuration.
-# It does not create customer evidence or replace the clean Compose/MCP runtime
-# replays documented in research/gates/.
+# It does not replace deployment acceptance on a clean host or customer
+# validation, which remain separate release activities.
 
 set -euo pipefail
 
@@ -15,6 +15,7 @@ bash scripts/validate-self-hosting.sh
 
 echo "[phase-0] checking TypeScript"
 pnpm typecheck
+pnpm --filter web exec tsc --noEmit -p tsconfig.worker.json
 
 echo "[phase-0] running lint"
 pnpm --filter web lint
@@ -29,4 +30,4 @@ echo "[phase-0] building the production application"
 pnpm build
 
 echo "[phase-0] engineering verification passed"
-echo "[phase-0] customer-evidence gate remains separate; review research/gates/phase-0-customer-evidence-ledger.md"
+echo "[phase-0] deployment acceptance and customer validation remain separate; see README.md and SECURITY.md"

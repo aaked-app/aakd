@@ -3,7 +3,8 @@
  *
  * Priority:
  *   1. Per-org BYOK key stored in OrgAiConfig (encrypted at rest)
- *   2. Server-level env vars (AI_PROVIDER + ANTHROPIC_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL)
+ *   2. Server-level env vars, only when no organization configuration exists.
+ * Lookup/decryption failures never authorize sending data to another provider.
  *
  * Used by worker jobs and API routes that need to call AI providers.
  * This is the single source of truth for AI key resolution — never read
@@ -55,18 +56,21 @@ async function resolveAiConfigUncached(
     })
 
     if (orgConfig) {
+      if (!["anthropic", "openai", "ollama"].includes(orgConfig.provider)) {
+        return { provider: null, apiKey: null, model: null, source: null }
+      }
       let apiKey: string | null = null
       try {
         apiKey = decrypt(orgConfig.encryptedKey)
       } catch (err) {
         logger.error(
-          { err, organizationId },
+          { errorType: err instanceof Error ? err.name : "UnknownError", organizationId },
           "[resolveAiConfig] Failed to decrypt key for org",
         )
-        // Fall through to env vars if decryption fails
+        return { provider: null, apiKey: null, model: null, source: null }
       }
 
-      if (apiKey) {
+      if (apiKey?.trim()) {
         return {
           provider: orgConfig.provider as AiProvider,
           apiKey,
@@ -74,13 +78,14 @@ async function resolveAiConfigUncached(
           source: "org",
         }
       }
+      return { provider: null, apiKey: null, model: null, source: null }
     }
   } catch (err) {
     logger.error(
-      { err, organizationId },
+      { errorType: err instanceof Error ? err.name : "UnknownError", organizationId },
       "[resolveAiConfig] DB lookup failed for org",
     )
-    // Fall through to env vars
+    return { provider: null, apiKey: null, model: null, source: null }
   }
 
   // 2. Fall back to server env vars
@@ -114,6 +119,7 @@ async function resolveAiConfigUncached(
   }
 
   // Auto-detect when AI_PROVIDER is unset
+  if (envProvider) return { provider: null, apiKey: null, model: null, source: null }
   if (process.env.ANTHROPIC_API_KEY) {
     return {
       provider: "anthropic",

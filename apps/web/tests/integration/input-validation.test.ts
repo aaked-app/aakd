@@ -5,6 +5,7 @@ vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue({
     userId: "user-1",
     organizationId: "org-1",
+    memberId: "member-1",
     role: "admin",
     source: "session" as const,
     requestId: "test-request-id",
@@ -16,6 +17,8 @@ vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock("@/lib/alerts/generate", () => ({ generateAlertsForContract: vi.fn().mockResolvedValue(undefined) }))
+
 vi.mock("@/lib/storage", () => ({
   storage: {
     storageKey: vi.fn().mockReturnValue("org-1/contract-1/file.pdf"),
@@ -23,6 +26,11 @@ vi.mock("@/lib/storage", () => ({
     getSignedDownloadUrl: vi.fn().mockResolvedValue("https://example.com/signed"),
   },
 }))
+
+beforeEach(() => {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+  vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 describe("Input validation — contract creation", () => {
   beforeEach(() => {
@@ -236,7 +244,7 @@ describe("Input validation — file upload", () => {
 
     const { POST } = await import("@/app/api/contracts/[id]/upload/route")
     const req = makeUploadRequest(Buffer.from("Not a real PDF"), "evil.pdf")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(415)
   })
@@ -256,12 +264,14 @@ describe("Input validation — file upload", () => {
     bigBuffer[3] = 0x46
 
     const req = makeUploadRequest(bigBuffer, "huge.pdf")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(413)
   })
 
   it("accepts valid PDF file (magic bytes %PDF)", async () => {
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-1", role: "admin" } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
       id: "c1",
       organizationId: "org-1",
@@ -285,12 +295,14 @@ describe("Input validation — file upload", () => {
     const { POST } = await import("@/app/api/contracts/[id]/upload/route")
     const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
     const req = makeUploadRequest(pdfBytes, "test.pdf")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(201)
   })
 
   it("accepts valid DOCX file (magic bytes PK — ZIP/OOXML)", async () => {
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-1", role: "admin" } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
       id: "c1",
       organizationId: "org-1",
@@ -319,7 +331,7 @@ describe("Input validation — file upload", () => {
       Buffer.from("word/document.xml"),
     ])
     const req = makeUploadRequest(docxBytes, "test.docx")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(201)
   })
@@ -337,7 +349,7 @@ describe("Input validation — file upload", () => {
       Buffer.from("xl/workbook.xml"),
     ])
     const req = makeUploadRequest(zipBytes, "test.xlsx")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(415)
   })
@@ -354,7 +366,7 @@ describe("Input validation — file upload", () => {
       value: () => Promise.resolve(new FormData()),
       writable: true,
     })
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(400)
   })

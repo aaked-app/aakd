@@ -20,6 +20,7 @@ import { requestContext } from "@/lib/context"
 
 const mockCtx = {
   userId: "user-admin",
+  memberId: "member-admin",
   organizationId: "org-1",
   role: "admin",
   source: "session" as const,
@@ -69,10 +70,23 @@ const mockMember = {
   user: mockAssignee,
 }
 
+function resetNotificationMocks() {
+  vi.clearAllMocks()
+  vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never)
+  vi.mocked(prisma.contract.findFirst).mockResolvedValue({ ownerId: "user-admin" } as never)
+  vi.mocked(prisma.member.findFirst).mockResolvedValue({ role: "admin" } as never)
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-admin" } as never)
+  vi.mocked(prisma.contractAccessGrant.findMany).mockImplementation(((args: any) => Promise.resolve(
+    args.where.contractId === undefined
+      ? [{ contractId: "contract-1" }]
+      : args.where.member.userId.in.map((userId: string) => ({ member: { userId } }))
+  )) as never)
+}
+
 // ─── 1. approval.requested → assignee receives in-app notification ─────────────
 
 describe("notification: approval.requested", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(resetNotificationMocks)
 
   it("writes a Notification row for the assignee when an approval is created", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
@@ -87,7 +101,7 @@ describe("notification: approval.requested", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "user-reviewer" }),
     })
-    const res = await requestContext.run(mockCtx, () => POST(req, { params: { id: "contract-1" } }))
+    const res = await requestContext.run(mockCtx, () => POST(req, { params: Promise.resolve({ id: "contract-1" }) }))
 
     expect(res.status).toBe(201)
 
@@ -128,7 +142,7 @@ describe("notification: approval.requested", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "user-reviewer", required: true }),
     })
-    await requestContext.run(mockCtx, () => POST(req, { params: { id: "contract-1" } }))
+    await requestContext.run(mockCtx, () => POST(req, { params: Promise.resolve({ id: "contract-1" }) }))
 
     // notification.create should NOT be called for a waiting approval
     const notifCalls = vi.mocked(prisma.notification.create).mock.calls
@@ -142,7 +156,7 @@ describe("notification: approval.requested", () => {
 // ─── 2. approval.approved → requester receives in-app notification ─────────────
 
 describe("notification: approval.approved", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(resetNotificationMocks)
 
   it("writes a Notification row for the requester when approved", async () => {
     vi.mocked(prisma.contract.findUnique)
@@ -177,7 +191,7 @@ describe("notification: approval.approved", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -199,7 +213,7 @@ describe("notification: approval.approved", () => {
 // ─── 3. approval.rejected → requester receives in-app notification ─────────────
 
 describe("notification: approval.rejected", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(resetNotificationMocks)
 
   it("writes a Notification row for the requester when rejected", async () => {
     vi.mocked(prisma.contract.findUnique)
@@ -228,7 +242,7 @@ describe("notification: approval.rejected", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -250,7 +264,7 @@ describe("notification: approval.rejected", () => {
 // ─── 4. GET /api/notifications — correct rows returned ───────────────────────
 
 describe("GET /api/notifications", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(resetNotificationMocks)
 
   it("returns notifications and unread count", async () => {
     const mockNotifications = [
@@ -289,20 +303,24 @@ describe("GET /api/notifications", () => {
     await requestContext.run(mockCtx, () => GET(req))
 
     const findManyCall = vi.mocked(prisma.notification.findMany).mock.calls[0][0] as any
-    expect(findManyCall.where).toMatchObject({
-      userId: "user-admin",
-      OR: expect.arrayContaining([
+    expect(findManyCall.where.AND).toEqual(expect.arrayContaining([
+      { userId: "user-admin" },
+      { OR: expect.arrayContaining([
         { organizationId: "org-1" },
         { eventName: "org.invited" },
-      ]),
-    })
+      ]) },
+      { OR: expect.arrayContaining([
+        { contractId: null },
+        { organizationId: "org-1", contractId: { in: ["contract-1"] } },
+      ]) },
+    ]))
   })
 })
 
 // ─── 5. org.invited cross-org notification ────────────────────────────────────
 
 describe("notification: org.invited", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(resetNotificationMocks)
 
   it("writes a Notification row for the invitee when they already have an account", async () => {
     vi.mocked(prisma.invitation.findFirst).mockResolvedValueOnce(null) // no existing pending invite

@@ -1,12 +1,24 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
-import { requestContext } from "@/lib/context"
+import { agreementAccessSql, agreementAccessWhere, agreementRelationWhere, hasAgreementAccess, isAgreementAccessEmergencyDenyAll, type AgreementPrincipal } from "@/lib/auth/agreement-access"
+import { requestContext, type RequestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
-import { projectObligationAction } from "@/lib/actions/project"
 import { ACTION_LIST_SELECT, actionDetailSelect, toActionDetail, toActionListItem } from "@/lib/actions/dto"
-import { generateEmbedding } from "@/lib/embedding"
-import { QA_SYSTEM_PROMPT } from "@/lib/ai/prompts"
+import {
+  AgentProposalError,
+  previewActionApprovalRequest,
+  previewActionProposal,
+  submitActionApprovalRequest,
+  submitActionProposal,
+} from "@/lib/actions/agent-proposals"
+import {
+  ActionApprovalRequestPreviewInputSchema,
+  ActionApprovalRequestSubmitInputSchema,
+  ActionProposalPreviewInputSchema,
+  ActionProposalSubmitInputSchema,
+} from "@/lib/actions/agent-proposal-schema"
+import { enqueueInteractiveAiRequest, waitForInteractiveAiRequest } from "@/lib/jobs/interactive-ai-client"
+import { getInteractiveAiQueue } from "@/lib/jobs/queues"
 import { rateLimit } from "@/lib/rate-limit"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
@@ -23,12 +35,6 @@ interface McpRequest {
   id: string | number
   method: string
   params?: unknown
-}
-
-/** MCP mutations must enforce both the organization role and API-key scope.
- * Session authentication alone must never turn a viewer into a writer. */
-function canWriteMcp(ctx: { role: string; source: "session" | "api_key"; scopes?: string[] }) {
-  return hasRole(ctx.role, "member") && (ctx.source !== "api_key" ? true : ctx.scopes?.includes("write") === true)
 }
 
 /** Contract text is a separate capability from metadata reads. */
@@ -63,20 +69,6 @@ function toolSuccess(id: string | number, data: unknown) {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
     },
   })
-}
-
-// ---------------------------------------------------------------------------
-// Lazy Anthropic singleton — avoids re-instantiating on every ask_contract call
-// ---------------------------------------------------------------------------
-
-let _anthropic: import("@anthropic-ai/sdk").default | null = null
-function getAnthropicClient() {
-  if (!_anthropic && process.env.ANTHROPIC_API_KEY) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Anthropic = require("@anthropic-ai/sdk").default
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  }
-  return _anthropic
 }
 
 // ---------------------------------------------------------------------------
@@ -123,29 +115,6 @@ const TOOLS = [
     },
   },
   {
-    name: "create_contract",
-    description:
-      "Create a new contract record (no file upload). Returns the created contract ID.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        contractType: {
-          type: "string",
-          enum: ["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"],
-        },
-        counterpartyName: { type: "string" },
-        counterpartyContact: { type: "string", description: "Email address" },
-        value: { type: "number" },
-        currency: { type: "string" },
-        startDate: { type: "string", description: "ISO date YYYY-MM-DD" },
-        endDate: { type: "string", description: "ISO date YYYY-MM-DD" },
-        notes: { type: "string" },
-      },
-      required: ["title"],
-    },
-  },
-  {
     name: "list_contracts",
     description: "List contracts with optional filters.",
     inputSchema: {
@@ -184,6 +153,17 @@ const TOOLS = [
       required: ["contractId", "question"],
     },
   },
+  {
+    name: "get_ai_request",
+    description: "Continue a pending AI request without creating or charging for a new job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "Pending AI request ID returned by semantic_search or ask_contract" },
+      },
+      required: ["jobId"],
+    },
+  },
   // ── M7 Obligations ────────────────────────────────────────────────────────
   {
     name: "list_obligations",
@@ -199,42 +179,6 @@ const TOOLS = [
         },
       },
       required: ["contractId"],
-    },
-  },
-  {
-    name: "create_obligation",
-    description: "Create a new obligation on a contract (requires write scope).",
-    inputSchema: {
-      type: "object",
-      properties: {
-        contractId: { type: "string" },
-        title: { type: "string", description: "Obligation title, max 300 chars" },
-        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"], description: "Default MEDIUM" },
-        dueDate: { type: "string", description: "ISO datetime, e.g. 2025-12-31T00:00:00Z" },
-        description: { type: "string", description: "Optional details, max 2000 chars" },
-        clauseReference: { type: "string", description: "e.g. Section 5.2" },
-        assigneeId: { type: "string", description: "User ID to assign" },
-        reminderDays: { type: "number", description: "Days before due date to send reminder, default 7" },
-      },
-      required: ["contractId", "title", "dueDate"],
-    },
-  },
-  {
-    name: "update_obligation",
-    description: "Update an obligation's status, title, priority, or assignee (requires write scope).",
-    inputSchema: {
-      type: "object",
-      properties: {
-        contractId: { type: "string" },
-        obligationId: { type: "string" },
-        status: { type: "string", enum: ["PENDING", "IN_PROGRESS", "COMPLETED"] },
-        title: { type: "string" },
-        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
-        dueDate: { type: "string", description: "ISO datetime" },
-        assigneeId: { type: "string", nullable: true },
-        description: { type: "string", nullable: true },
-      },
-      required: ["contractId", "obligationId"],
     },
   },
   {
@@ -258,6 +202,37 @@ const TOOLS = [
       properties: { actionId: { type: "string" } },
       required: ["actionId"],
     },
+  },
+  {
+    name: "preview_action_proposal",
+    description: "Preview one source-linked action draft. Creates nothing and always requires human review.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        contractId: { type: "string" }, kind: { type: "string", enum: ["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"] },
+        title: { type: "string" }, description: { type: ["string", "null"] }, condition: { type: ["string", "null"] },
+        dueDate: { type: ["string", "null"] }, noticeDate: { type: ["string", "null"] }, evidenceRequired: { type: ["string", "null"] },
+        source: { type: "object", additionalProperties: false, properties: { fileId: { type: "string" }, fileVersion: { type: "integer", minimum: 1 }, page: { type: ["integer", "null"], minimum: 1 }, excerpt: { type: "string" }, excerptHash: { type: "string" } }, required: ["fileId", "fileVersion", "excerpt", "excerptHash"] },
+        idempotencyKey: { type: "string", format: "uuid" },
+      },
+      required: ["contractId", "kind", "title", "source", "idempotencyKey"],
+    },
+  },
+  {
+    name: "propose_action",
+    description: "Submit an unchanged preview as a pending human-review action. Does not validate, assign, approve, execute, or deliver it.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { previewId: { type: "string", format: "uuid" }, contractId: { type: "string" }, idempotencyKey: { type: "string", format: "uuid" }, sourceFileId: { type: "string" }, sourceFileVersion: { type: "integer", minimum: 1 }, sourceHash: { type: "string" } }, required: ["previewId", "contractId", "idempotencyKey", "sourceFileId", "sourceFileVersion", "sourceHash"] },
+  },
+  {
+    name: "preview_action_approval_request",
+    description: "Preview a request for one named human to decide a reviewed proposed action. Creates nothing.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { actionId: { type: "string" }, assignedToId: { type: "string" }, expectedVersion: { type: "integer", minimum: 0 }, comment: { type: ["string", "null"] }, idempotencyKey: { type: "string", format: "uuid" } }, required: ["actionId", "assignedToId", "expectedVersion", "idempotencyKey"] },
+  },
+  {
+    name: "request_action_approval",
+    description: "Create one pending, version-bound approval request for the named human. The agent cannot decide it.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { previewId: { type: "string", format: "uuid" }, actionId: { type: "string" }, expectedVersion: { type: "integer", minimum: 0 }, idempotencyKey: { type: "string", format: "uuid" } }, required: ["previewId", "actionId", "expectedVersion", "idempotencyKey"] },
   },
   // ── M8 Analytics ─────────────────────────────────────────────────────────
   {
@@ -331,20 +306,6 @@ const GetContractSchema = z.object({
   id: z.string().min(1),
 })
 
-const CreateContractSchema = z.object({
-  title: z.string().min(1).max(500),
-  contractType: z
-    .enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"])
-    .optional(),
-  counterpartyName: z.string().optional(),
-  counterpartyContact: z.string().email().optional().or(z.literal("")),
-  value: z.number().positive().optional(),
-  currency: z.string().length(3).default("USD"),
-  startDate: z.string().date().optional(),
-  endDate: z.string().date().optional(),
-  notes: z.string().max(10000).optional(),
-})
-
 const ListContractsSchema = z.object({
   status: z.string().optional(),
   contractType: z.string().optional(),
@@ -353,41 +314,21 @@ const ListContractsSchema = z.object({
 })
 
 const SemanticSearchMcpSchema = z.object({
-  query: z.string().min(1),
+  query: z.string().trim().min(1).max(2000),
   limit: z.number().int().min(1).max(50).default(10),
 })
 
 const AskContractMcpSchema = z.object({
   contractId: z.string().min(1),
-  question: z.string().min(1).max(2000),
+  question: z.string().trim().min(1).max(2000),
 })
+
+const GetAiRequestMcpSchema = z.object({ jobId: z.string().uuid() })
 
 // M7
 const ListObligationsSchema = z.object({
   contractId: z.string().min(1),
   status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "OVERDUE"]).optional(),
-})
-
-const CreateObligationMcpSchema = z.object({
-  contractId: z.string().min(1),
-  title: z.string().min(1).max(300),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
-  dueDate: z.string().min(1),
-  description: z.string().max(2000).optional(),
-  clauseReference: z.string().max(200).optional(),
-  assigneeId: z.string().optional(),
-  reminderDays: z.number().int().min(1).max(30).default(7),
-})
-
-const UpdateObligationMcpSchema = z.object({
-  contractId: z.string().min(1),
-  obligationId: z.string().min(1),
-  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED"]).optional(),
-  title: z.string().min(1).max(300).optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-  dueDate: z.string().optional(),
-  assigneeId: z.string().nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
 })
 
 const ListActionsMcpSchema = z.object({
@@ -419,7 +360,7 @@ const GetImportJobSchema = z.object({
 
 async function toolSearchContracts(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const parsed = SearchContractsSchema.safeParse(args)
@@ -428,6 +369,7 @@ async function toolSearchContracts(
   }
 
   const { query: q, status, limit } = parsed.data
+  const orgId = ctx.organizationId
   const useIlike = q.length < 3
 
   type SearchRow = {
@@ -446,11 +388,10 @@ async function toolSearchContracts(
 
   if (useIlike) {
     results = await prisma.contract.findMany({
-      where: {
-        organizationId: orgId,
+      where: agreementAccessWhere(ctx, {
         title: { contains: q, mode: "insensitive" },
         ...(status ? { status } : {}),
-      },
+      }),
       select: {
         id: true,
         title: true,
@@ -481,6 +422,7 @@ async function toolSearchContracts(
             "createdAt"
           FROM "Contract"
           WHERE "organizationId" = ${orgId}
+            AND ${agreementAccessSql("contract", ctx)}
             ${status ? Prisma.sql`AND status = ${status}` : Prisma.empty}
             AND search_tsv @@ plainto_tsquery('english', ${q})
           ORDER BY ts_rank(search_tsv, plainto_tsquery('english', ${q})) DESC
@@ -490,11 +432,10 @@ async function toolSearchContracts(
     } catch {
       // tsquery parse failure — fall back to ILIKE
       results = await prisma.contract.findMany({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           title: { contains: q, mode: "insensitive" },
           ...(status ? { status } : {}),
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -517,12 +458,15 @@ async function toolSearchContracts(
 
 async function toolGetContract(
   args: unknown,
-  orgId: string,
+  ctx: RequestContext,
   id: string | number,
 ): Promise<Response> {
   const parsed = GetContractSchema.safeParse(args)
   if (!parsed.success) {
     return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
+  }
+  if (!(await hasAgreementAccess(prisma, ctx, parsed.data.id))) {
+    return toolError(id, "Error: Contract not found")
   }
 
   const contract = await prisma.contract.findUnique({
@@ -576,12 +520,19 @@ async function toolGetContract(
     return toolError(id, "Error: Contract not found")
   }
 
-  if (contract.organizationId !== orgId) {
+  if (contract.organizationId !== ctx.organizationId) {
     return toolError(id, "Error: Contract not found")
   }
 
-  const { organizationId: _organizationId, extractedText: _extractedText, ...safeContract } =
+  const {
+    organizationId: _organizationId,
+    extractedText: _extractedText,
+    docusealSubmissionId: _docusealSubmissionId,
+    signingUrl: _signingUrl,
+    ...safeContract
+  } =
     contract as typeof contract & { extractedText?: string | null }
+  const metadataOnlyApiKey = ctx.source === "api_key" && !ctx.scopes?.includes("text_read")
   const safeExtractions = safeContract.extractions.map((extraction) =>
     Object.fromEntries(
       Object.entries(extraction).filter(
@@ -589,53 +540,16 @@ async function toolGetContract(
       ),
     ),
   )
-  return toolSuccess(id, { ...safeContract, extractions: safeExtractions })
-}
-
-async function toolCreateContract(
-  args: unknown,
-  orgId: string,
-  userId: string,
-  id: string | number,
-): Promise<Response> {
-  // Mirror the rate limit on POST /api/contracts so MCP clients can't
-  // bypass it by going through the JSON-RPC endpoint.
-  const rl = await rateLimit(`${orgId}:create-contract`, 20, 60_000)
-  if (!rl.allowed) {
-    return toolError(
-      id,
-      `Rate limit exceeded — retry after ${rl.retryAfter}s`,
-    )
-  }
-
-  const parsed = CreateContractSchema.safeParse(args)
-  if (!parsed.success) {
-    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
-  }
-
-  const { startDate, endDate, ...rest } = parsed.data
-
-  const data: Prisma.ContractUncheckedCreateInput = {
-    ...rest,
-    ownerId: userId,
-    organizationId: orgId,
-    startDate: startDate ? new Date(startDate) : undefined,
-    endDate: endDate ? new Date(endDate) : undefined,
-  }
-
-  const contract = await prisma.contract.create({
-    data,
-    select: { id: true, title: true, status: true },
+  const { notes: _notes, ...metadataOnlyContract } = safeContract
+  return toolSuccess(id, {
+    ...(metadataOnlyApiKey ? metadataOnlyContract : safeContract),
+    extractions: safeExtractions,
   })
-
-  await writeActivity(contract.id, userId, "CREATED")
-
-  return toolSuccess(id, contract)
 }
 
 async function toolListContracts(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const parsed = ListContractsSchema.safeParse(args)
@@ -645,7 +559,7 @@ async function toolListContracts(
 
   const { status, contractType, limit, page } = parsed.data
 
-  const where: Record<string, unknown> = { organizationId: orgId }
+  const where: Record<string, unknown> = {}
   if (status) {
     where.status = status
   } else {
@@ -654,9 +568,10 @@ async function toolListContracts(
   }
   if (contractType) where.contractType = contractType
 
+  const authorizedWhere = agreementAccessWhere(ctx, where as Prisma.ContractWhereInput)
   const [contracts, total] = await Promise.all([
     prisma.contract.findMany({
-      where,
+      where: authorizedWhere,
       select: {
         id: true,
         title: true,
@@ -681,7 +596,7 @@ async function toolListContracts(
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.contract.count({ where }),
+    prisma.contract.count({ where: authorizedWhere }),
   ])
 
   return toolSuccess(id, { contracts, total, page, limit })
@@ -689,7 +604,7 @@ async function toolListContracts(
 
 async function toolSemanticSearch(
   args: unknown,
-  orgId: string,
+  ctx: RequestContext,
   id: string | number,
 ): Promise<Response> {
   const parsed = SemanticSearchMcpSchema.safeParse(args)
@@ -697,62 +612,39 @@ async function toolSemanticSearch(
     return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
   }
 
-  const { query, limit } = parsed.data
-
-  let embedding: number[] | null
+  let rl: Awaited<ReturnType<typeof rateLimit>>
   try {
-    embedding = await generateEmbedding(query)
-  } catch (err) {
-    return toolError(id, `Embedding generation failed: ${String(err)}`)
+    rl = await rateLimit(`${ctx.organizationId}:semantic-search`, 30, 60_000)
+  } catch {
+    return toolError(id, "Error: Semantic search unavailable")
   }
+  if (!rl.allowed) return toolError(id, `Rate limit exceeded — retry after ${rl.retryAfter}s`)
 
-  if (!embedding) {
-    return toolError(id, "Error: Embedding provider not configured")
+  let submission
+  try {
+    submission = await enqueueInteractiveAiRequest(ctx, "semantic_search", null, {
+      operation: "semantic_search",
+      query: parsed.data.query,
+      limit: parsed.data.limit,
+      threshold: 0.3,
+    }, 35_000)
+  } catch {
+    return toolError(id, "Error: Semantic search unavailable; retry the request")
   }
-
-  type SemanticRow = {
-    id: string
-    title: string
-    contractType: string | null
-    status: string
-    counterpartyName: string | null
-    value: number | null
-    currency: string | null
-    endDate: Date | null
-    createdAt: Date
-    similarity: number
-  }
-
-  const embeddingStr = `[${embedding.join(",")}]`
-
-  const rows = await prisma.$queryRaw<SemanticRow[]>(
-    Prisma.sql`
-      SELECT
-        c.id,
-        c.title,
-        c."contractType",
-        c.status,
-        c."counterpartyName",
-        c.value,
-        c.currency,
-        c."endDate",
-        c."createdAt",
-        1 - (ce.embedding <=> ${embeddingStr}::vector) AS similarity
-      FROM "ContractEmbedding" ce
-      JOIN "Contract" c ON c.id = ce."contractId"
-      WHERE c."organizationId" = ${orgId}
-        AND 1 - (ce.embedding <=> ${embeddingStr}::vector) > 0.3
-      ORDER BY ce.embedding <=> ${embeddingStr}::vector
-      LIMIT ${limit}
-    `,
-  )
-
-  return toolSuccess(id, { results: rows, total: rows.length })
+  if (submission.state === "pending") return toolSuccess(id, {
+    status: "pending",
+    jobId: submission.jobId,
+    next: { tool: "get_ai_request", arguments: { jobId: submission.jobId } },
+  })
+  if (submission.state === "failed") return toolError(id, "Error: Semantic search failed; retry the request")
+  return submission.response.status === 200
+    ? toolSuccess(id, submission.response.body)
+    : toolError(id, `Error: ${String(submission.response.body.error ?? "Semantic search failed")}`)
 }
 
 async function toolAskContract(
   args: unknown,
-  orgId: string,
+  ctx: RequestContext,
   id: string | number,
 ): Promise<Response> {
   const parsed = AskContractMcpSchema.safeParse(args)
@@ -761,10 +653,14 @@ async function toolAskContract(
   }
 
   const { contractId, question } = parsed.data
+  const orgId = ctx.organizationId
 
   const rl = await rateLimit(`${orgId}:ask-contract`, 10, 60_000)
   if (!rl.allowed) {
     return toolError(id, `Rate limit exceeded — retry after ${rl.retryAfter}s`)
+  }
+  if (!(await hasAgreementAccess(prisma, ctx, contractId))) {
+    return toolError(id, "Error: Contract not found")
   }
 
   const contract = await prisma.contract.findUnique({
@@ -777,7 +673,7 @@ async function toolAskContract(
     },
   })
 
-  if (!contract || contract.organizationId !== orgId) {
+  if (!contract || contract.organizationId !== ctx.organizationId) {
     return toolError(id, "Error: Contract not found")
   }
 
@@ -785,64 +681,56 @@ async function toolAskContract(
     return toolError(id, "Error: No extracted text available for this contract")
   }
 
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
-    return toolError(id, "Error: No AI provider configured")
-  }
-
-  const userContent = `Contract: ${contract.title}\n\nContract text:\n${contract.extractedText.slice(0, 40000)}\n\nQuestion: ${question}`
-
-  let answer: string | null = null
-
+  let submission
   try {
-    const anthropic = getAnthropicClient()
-    if (anthropic) {
-      const msg = await anthropic.messages.create({
-        model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
-        max_tokens: 1024,
-        system: QA_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userContent }],
-      })
-      const block = msg.content.find((b) => b.type === "text")
-      answer = block?.type === "text" ? block.text.trim() : null
-    } else if (process.env.OPENAI_API_KEY) {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-          max_tokens: 1024,
-          messages: [
-            { role: "system", content: QA_SYSTEM_PROMPT },
-            { role: "user", content: userContent },
-          ],
-        }),
-      })
-      if (res.ok) {
-        const data = (await res.json()) as {
-          choices: Array<{ message: { content: string | null } }>
-        }
-        answer = data.choices[0]?.message.content?.trim() ?? null
-      }
-    }
-  } catch (err) {
-    return toolError(id, `Error: AI call failed: ${String(err)}`)
+    submission = await enqueueInteractiveAiRequest(ctx, "contract_question", contractId, {
+      operation: "contract_question",
+      question,
+    }, 35_000)
+  } catch {
+    return toolError(id, "Error: AI call failed; retry the request")
   }
+  if (submission.state === "pending") return toolSuccess(id, {
+    status: "pending",
+    jobId: submission.jobId,
+    next: { tool: "get_ai_request", arguments: { jobId: submission.jobId } },
+  })
+  if (submission.state === "failed") return toolError(id, "Error: AI call failed; retry the request")
+  return submission.response.status === 200
+    ? toolSuccess(id, submission.response.body)
+    : toolError(id, `Error: ${String(submission.response.body.error ?? "AI call failed")}`)
+}
 
-  if (!answer) {
-    return toolError(id, "Error: No AI provider configured or call returned empty")
+async function toolGetAiRequest(
+  args: unknown,
+  ctx: RequestContext,
+  id: string | number,
+): Promise<Response> {
+  const parsed = GetAiRequestMcpSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, "Error: Invalid AI request ID")
+  let submission
+  try {
+    submission = await waitForInteractiveAiRequest(ctx, parsed.data.jobId)
+  } catch {
+    return toolError(id, "Error: AI request unavailable")
   }
-
-  return toolSuccess(id, { answer, contractId: contract.id, contractTitle: contract.title })
+  if (!submission) return toolError(id, "Error: AI request not found")
+  if (submission.state === "pending") return toolSuccess(id, {
+    status: "pending",
+    jobId: submission.jobId,
+    next: { tool: "get_ai_request", arguments: { jobId: submission.jobId } },
+  })
+  if (submission.state === "failed") return toolError(id, "Error: AI request failed")
+  return submission.response.status === 200
+    ? toolSuccess(id, submission.response.body)
+    : toolError(id, `Error: ${String(submission.response.body.error ?? "AI request failed")}`)
 }
 
 // ── M7 Obligations ────────────────────────────────────────────────────────
 
 async function toolListObligations(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const parsed = ListObligationsSchema.safeParse(args)
@@ -852,17 +740,15 @@ async function toolListObligations(
 
   const { contractId, status } = parsed.data
 
-  const contract = await prisma.contract.findUnique({
-    where: { id: contractId },
-    select: { id: true, organizationId: true },
-  })
-  if (!contract || contract.organizationId !== orgId) {
+  if (!(await hasAgreementAccess(prisma, ctx, contractId))) {
     return toolError(id, "Error: Contract not found")
   }
 
   const obligations = await prisma.contractObligation.findMany({
     where: {
       contractId,
+      organizationId: ctx.organizationId,
+      contract: agreementRelationWhere(ctx),
       ...(status ? { status } : {}),
     },
     include: {
@@ -920,7 +806,7 @@ function toSafeObligation(obligation: {
 
 async function toolListActions(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const parsed = ListActionsMcpSchema.safeParse(args)
@@ -928,7 +814,8 @@ async function toolListActions(
 
   const { status, kind, limit, page } = parsed.data
   const where = {
-    organizationId: orgId,
+    organizationId: ctx.organizationId,
+    contract: agreementRelationWhere(ctx),
     ...(status ? { status } : {}),
     ...(kind ? { kind } : {}),
   }
@@ -953,220 +840,87 @@ async function toolListActions(
 
 async function toolGetAction(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   includeSourceText: boolean,
   id: string | number,
 ): Promise<Response> {
   const parsed = GetActionMcpSchema.safeParse(args)
   if (!parsed.success) return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
   const action = await prisma.contractAction.findFirst({
-    where: { id: parsed.data.actionId, organizationId: orgId },
+    where: { id: parsed.data.actionId, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
     select: actionDetailSelect(includeSourceText),
   })
   if (!action) return toolError(id, "Error: Action not found")
   return toolSuccess(id, toActionDetail(action as never, includeSourceText))
 }
 
-async function toolCreateObligation(
-  args: unknown,
-  orgId: string,
-  userId: string,
-  id: string | number,
-): Promise<Response> {
-  const rl = await rateLimit(`${orgId}:create-obligation`, 30, 60_000)
-  if (!rl.allowed) {
-    return toolError(id, `Rate limit exceeded — retry after ${rl.retryAfter}s`)
-  }
-
-  const parsed = CreateObligationMcpSchema.safeParse(args)
-  if (!parsed.success) {
-    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
-  }
-
-  const { contractId, title, priority, dueDate, description, clauseReference, assigneeId, reminderDays } = parsed.data
-
-  const contract = await prisma.contract.findUnique({
-    where: { id: contractId },
-    select: { id: true, organizationId: true, status: true },
-  })
-  if (!contract || contract.organizationId !== orgId) {
-    return toolError(id, "Error: Contract not found")
-  }
-  if (contract.status === "ARCHIVED") {
-    return toolError(id, "Error: Cannot add obligations to an archived contract")
-  }
-
-  if (assigneeId) {
-    const member = await prisma.member.findFirst({
-      where: { userId: assigneeId, organizationId: orgId },
-      select: { userId: true },
-    })
-    if (!member) {
-      return toolError(id, "Error: Assignee is not a member of this organization")
-    }
-  }
-
-  const activeCount = await prisma.contractObligation.count({
-    where: { contractId, status: { in: ["PENDING", "IN_PROGRESS"] } },
-  })
-  if (activeCount >= 100) {
-    return toolError(id, "Error: Obligation limit reached (100 active obligations per contract)")
-  }
-
-  let dueDateParsed: Date
+async function actionProposalRateLimit(ctx: RequestContext, id: string | number): Promise<Response | null> {
   try {
-    dueDateParsed = new Date(dueDate)
-    if (isNaN(dueDateParsed.getTime())) throw new Error("invalid date")
+    const limited = await rateLimit(`${ctx.organizationId}:action-propose`, 20, 60_000)
+    return limited.allowed ? null : toolError(id, `Rate limit exceeded — retry after ${limited.retryAfter}s`)
   } catch {
-    return toolError(id, "Error: Invalid dueDate format — use ISO datetime e.g. 2025-12-31T00:00:00Z")
+    return toolError(id, "Error: Action proposal service unavailable")
   }
-
-  const obligation = await prisma.$transaction(async (tx) => {
-    const created = await tx.contractObligation.create({
-      data: {
-        contractId,
-        organizationId: orgId,
-        title,
-        description,
-        clauseReference,
-        priority,
-        dueDate: dueDateParsed,
-        assigneeId,
-        reminderDays,
-        createdById: userId,
-      },
-      include: {
-        assignee: { select: { id: true, name: true, email: true } },
-        subTasks: true,
-      },
-    })
-    const action = await projectObligationAction({
-      id: created.id,
-      contractId,
-      organizationId: orgId,
-      title: created.title,
-      description: created.description,
-      clauseReference: created.clauseReference,
-      dueDate: created.dueDate,
-      assigneeId: created.assigneeId,
-      createdById: userId,
-    }, tx)
-    await tx.activity.create({
-      data: {
-        contractId,
-        contractActionId: action.id,
-        userId,
-        action: "OBLIGATION_CREATED",
-        detail: `Obligation created: ${created.title}`,
-        metadata: { obligationId: created.id },
-      },
-    })
-    return created
-  })
-
-  return toolSuccess(id, toSafeObligation(obligation))
 }
 
-async function toolUpdateObligation(
-  args: unknown,
-  orgId: string,
-  userId: string,
-  id: string | number,
-): Promise<Response> {
-  const rl = await rateLimit(`${orgId}:update-obligation`, 60, 60_000)
-  if (!rl.allowed) {
-    return toolError(id, `Rate limit exceeded — retry after ${rl.retryAfter}s`)
-  }
+function agentProposalFailure(id: string | number, error: unknown): Response {
+  return error instanceof AgentProposalError
+    ? toolError(id, `Error: ${error.code}`)
+    : toolError(id, "Error: Action proposal service unavailable")
+}
 
-  const parsed = UpdateObligationMcpSchema.safeParse(args)
-  if (!parsed.success) {
-    return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
-  }
-
-  const { contractId, obligationId, dueDate, ...rest } = parsed.data
-
-  const existing = await prisma.contractObligation.findUnique({
-    where: { id: obligationId },
-    select: { id: true, contractId: true, organizationId: true },
-  })
-  if (!existing || existing.contractId !== contractId || existing.organizationId !== orgId) {
-    return toolError(id, "Error: Obligation not found")
-  }
-  const linkedAction = await prisma.contractAction.findFirst({
-    where: { organizationId: orgId, sourceObligationId: obligationId },
-    select: { id: true, version: true },
-  })
-  if (linkedAction && parsed.data.status !== undefined) {
-    return toolError(id, `Error: Linked action ${linkedAction.id} must be changed through an attributed action command`)
-  }
-
-  let dueDateParsed: Date | undefined
-  if (dueDate !== undefined) {
-    dueDateParsed = new Date(dueDate)
-    if (isNaN(dueDateParsed.getTime())) {
-      return toolError(id, "Error: Invalid dueDate format")
-    }
-  }
-
-  let obligation
+async function toolPreviewActionProposal(args: unknown, ctx: RequestContext, id: string | number): Promise<Response> {
+  const parsed = ActionProposalPreviewInputSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, "Error: Invalid action proposal arguments")
+  const limited = await actionProposalRateLimit(ctx, id)
+  if (limited) return limited
   try {
-    obligation = await prisma.$transaction(async (tx) => {
-      const updated = await tx.contractObligation.update({
-        where: { id: obligationId },
-        data: { ...rest, ...(dueDateParsed !== undefined ? { dueDate: dueDateParsed } : {}) },
-        include: {
-          assignee: { select: { id: true, name: true, email: true } },
-          subTasks: true,
-        },
-      })
-      if (linkedAction) {
-        const synced = await tx.contractAction.updateMany({
-          where: { id: linkedAction.id, organizationId: orgId, version: linkedAction.version },
-          data: {
-            title: updated.title,
-            description: updated.description,
-            dueDate: updated.dueDate,
-            assigneeId: updated.assigneeId,
-            version: { increment: 1 },
-          },
-        })
-        if (synced.count !== 1) throw new Error("action_version_conflict")
-        await tx.activity.create({
-          data: {
-            contractId,
-            contractActionId: linkedAction.id,
-            userId,
-            action: rest.assigneeId !== undefined ? "ACTION_ASSIGNED" : "ACTION_REVIEWED",
-            detail: `Linked obligation updated through MCP: ${updated.title}`,
-            metadata: { obligationId, expectedVersion: linkedAction.version, requestSource: "mcp" },
-          },
-        })
-      }
-      await tx.activity.create({
-        data: {
-          contractId,
-          userId,
-          action: "OBLIGATION_UPDATED",
-          detail: `Obligation updated: ${updated.title}`,
-          metadata: { obligationId: updated.id, requestSource: "mcp" },
-        },
-      })
-      return updated
-    })
+    return toolSuccess(id, await previewActionProposal(ctx, parsed.data, await getInteractiveAiQueue().client))
   } catch (error) {
-    if (error instanceof Error && error.message === "action_version_conflict") {
-      return toolError(id, "Error: Action version conflict")
-    }
-    throw error
+    return agentProposalFailure(id, error)
   }
+}
 
-  return toolSuccess(id, toSafeObligation(obligation))
+async function toolSubmitActionProposal(args: unknown, ctx: RequestContext, id: string | number): Promise<Response> {
+  const parsed = ActionProposalSubmitInputSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, "Error: Invalid action proposal arguments")
+  const limited = await actionProposalRateLimit(ctx, id)
+  if (limited) return limited
+  try {
+    return toolSuccess(id, await submitActionProposal(ctx, parsed.data, await getInteractiveAiQueue().client))
+  } catch (error) {
+    return agentProposalFailure(id, error)
+  }
+}
+
+async function toolPreviewActionApprovalRequest(args: unknown, ctx: RequestContext, id: string | number): Promise<Response> {
+  const parsed = ActionApprovalRequestPreviewInputSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, "Error: Invalid approval request arguments")
+  const limited = await actionProposalRateLimit(ctx, id)
+  if (limited) return limited
+  try {
+    return toolSuccess(id, await previewActionApprovalRequest(ctx, parsed.data, await getInteractiveAiQueue().client))
+  } catch (error) {
+    return agentProposalFailure(id, error)
+  }
+}
+
+async function toolSubmitActionApprovalRequest(args: unknown, ctx: RequestContext, id: string | number): Promise<Response> {
+  const parsed = ActionApprovalRequestSubmitInputSchema.safeParse(args)
+  if (!parsed.success) return toolError(id, "Error: Invalid approval request arguments")
+  const limited = await actionProposalRateLimit(ctx, id)
+  if (limited) return limited
+  try {
+    return toolSuccess(id, await submitActionApprovalRequest(ctx, parsed.data, await getInteractiveAiQueue().client))
+  } catch (error) {
+    return agentProposalFailure(id, error)
+  }
 }
 
 // ── M8 Analytics ─────────────────────────────────────────────────────────
 
 async function toolGetAnalyticsSummary(
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const now = new Date()
@@ -1180,11 +934,11 @@ async function toolGetAnalyticsSummary(
   )
 
   const [next30, next60, next90, expiringContracts] = await Promise.all([
-    prisma.contract.count({ where: { organizationId: orgId, status: "ACTIVE", endDate: { gte: now, lte: d30 } } }),
-    prisma.contract.count({ where: { organizationId: orgId, status: "ACTIVE", endDate: { gte: now, lte: d60 } } }),
-    prisma.contract.count({ where: { organizationId: orgId, status: "ACTIVE", endDate: { gte: now, lte: d90 } } }),
+    prisma.contract.count({ where: agreementAccessWhere(ctx, { status: "ACTIVE", endDate: { gte: now, lte: d30 } }) }),
+    prisma.contract.count({ where: agreementAccessWhere(ctx, { status: "ACTIVE", endDate: { gte: now, lte: d60 } }) }),
+    prisma.contract.count({ where: agreementAccessWhere(ctx, { status: "ACTIVE", endDate: { gte: now, lte: d90 } }) }),
     prisma.contract.findMany({
-      where: { organizationId: orgId, status: "ACTIVE", endDate: { gte: now, lte: d90 } },
+      where: agreementAccessWhere(ctx, { status: "ACTIVE", endDate: { gte: now, lte: d90 } }),
       orderBy: { endDate: "asc" },
       take: 10,
       select: { id: true, title: true, endDate: true, counterpartyName: true, contractType: true },
@@ -1209,20 +963,21 @@ async function toolGetAnalyticsSummary(
 
   const grouped = await prisma.contract.groupBy({
     by: ["status"],
-    where: { organizationId: orgId },
+    where: agreementAccessWhere(ctx),
     _count: { _all: true },
   })
   const byStatus = grouped.map((g) => ({ status: g.status, count: g._count._all }))
 
-  const rows = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+  const rows = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>(Prisma.sql`
     SELECT TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS month,
            COUNT(*)::bigint AS count
     FROM "Contract"
-    WHERE "organizationId" = ${orgId}
+    WHERE "organizationId" = ${ctx.organizationId}
+      AND ${agreementAccessSql("contract", ctx)}
       AND "createdAt" >= ${twelveMonthsAgo}
     GROUP BY 1
     ORDER BY 1 ASC
-  `
+  `)
   const rowsByMonth = new Map(rows.map((r) => [r.month, Number(r.count)]))
   const monthlyVolume: Array<{ month: string; count: number }> = []
   for (let i = 0; i < 12; i++) {
@@ -1237,7 +992,7 @@ async function toolGetAnalyticsSummary(
 
   const valueGrouped = await prisma.contract.groupBy({
     by: ["contractType"],
-    where: { organizationId: orgId, value: { not: null } },
+    where: agreementAccessWhere(ctx, { value: { not: null } }),
     _sum: { value: true },
     _count: { _all: true },
   })
@@ -1249,7 +1004,7 @@ async function toolGetAnalyticsSummary(
       count: g._count._all,
     }))
 
-  const approvalScope = { contract: { organizationId: orgId } }
+  const approvalScope = { contract: agreementAccessWhere(ctx) }
   const [totalRequested, approvedCount, rejectedCount] = await Promise.all([
     prisma.approval.count({ where: approvalScope }),
     prisma.approval.count({ where: { ...approvalScope, status: "approved" } }),
@@ -1265,7 +1020,7 @@ async function toolGetAnalyticsSummary(
   let obligations: { overdue: number; dueSoon: number } | null = null
   try {
     const dueSoonCutoff = new Date(now.getTime() + 7 * DAY_MS)
-    const oblScope = { contract: { organizationId: orgId } }
+    const oblScope = { contract: agreementAccessWhere(ctx) }
     const [overdue, dueSoon] = await Promise.all([
       prisma.contractObligation.count({ where: { ...oblScope, status: "OVERDUE" } }),
       prisma.contractObligation.count({
@@ -1295,7 +1050,7 @@ async function toolGetAnalyticsSummary(
 
 async function toolListCrmLinks(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal,
   id: string | number,
 ): Promise<Response> {
   const parsed = ListCrmLinksSchema.safeParse(args)
@@ -1305,16 +1060,12 @@ async function toolListCrmLinks(
 
   const { contractId } = parsed.data
 
-  const contract = await prisma.contract.findUnique({
-    where: { id: contractId },
-    select: { id: true, organizationId: true },
-  })
-  if (!contract || contract.organizationId !== orgId) {
+  if (!(await hasAgreementAccess(prisma, ctx, contractId))) {
     return toolError(id, "Error: Contract not found")
   }
 
   const links = await prisma.crmLink.findMany({
-    where: { contractId },
+    where: { contractId, contract: agreementRelationWhere(ctx) },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -1335,7 +1086,7 @@ async function toolListCrmLinks(
 
 async function toolListImportJobs(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal & { userId: string },
   id: string | number,
 ): Promise<Response> {
   const parsed = ListImportJobsSchema.safeParse(args)
@@ -1344,27 +1095,46 @@ async function toolListImportJobs(
   }
 
   const { limit, page } = parsed.data
-  const where = { organizationId: orgId }
-  const [jobs, total] = await Promise.all([
-    prisma.importJob.findMany({
-      where,
-      select: {
-        id: true,
-        source: true,
-        status: true,
-        totalRows: true,
-        succeededRows: true,
-        failedRows: true,
-        createdAt: true,
-        completedAt: true,
-        createdBy: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.importJob.count({ where }),
-  ])
+  if (isAgreementAccessEmergencyDenyAll()) return toolSuccess(id, { jobs: [], total: 0, page, limit })
+  type ImportJobRow = {
+    id: string; source: string; status: string; totalRows: number; succeededRows: number;
+    failedRows: number; createdAt: Date; completedAt: Date | null; createdById: string;
+    createdByName: string; accessibleTotal: bigint
+  }
+  const jobs = await prisma.$queryRaw<ImportJobRow[]>(Prisma.sql`
+    SELECT job."id", job."source"::text AS "source", job."status"::text AS "status",
+           job."totalRows", job."succeededRows", job."failedRows", job."createdAt", job."completedAt",
+           creator."id" AS "createdById", creator."name" AS "createdByName",
+           COUNT(*) OVER()::bigint AS "accessibleTotal"
+    FROM "ImportJob" AS job
+    INNER JOIN "User" AS creator ON creator."id" = job."createdById"
+    WHERE job."organizationId" = ${ctx.organizationId}
+      AND NOT EXISTS (
+        SELECT 1 FROM "ImportRow" AS inaccessible_row
+        WHERE inaccessible_row."jobId" = job."id"
+          AND inaccessible_row."contractId" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "ContractAccessGrant" AS access_grant
+            WHERE access_grant."organizationId" = ${ctx.organizationId}
+              AND access_grant."memberId" = ${ctx.memberId ?? null}
+              AND access_grant."contractId" = inaccessible_row."contractId"
+          )
+      )
+      AND (
+        job."createdById" = ${ctx.userId}
+        OR (
+          EXISTS (SELECT 1 FROM "ImportRow" AS present_row WHERE present_row."jobId" = job."id")
+          AND NOT EXISTS (
+            SELECT 1 FROM "ImportRow" AS unbound_row
+            WHERE unbound_row."jobId" = job."id" AND unbound_row."contractId" IS NULL
+          )
+        )
+      )
+    ORDER BY job."createdAt" DESC
+    OFFSET ${(page - 1) * limit}
+    LIMIT ${limit}
+  `)
+  const total = jobs.length > 0 ? Number(jobs[0].accessibleTotal) : 0
 
   return toolSuccess(id, {
     jobs: jobs.map((job) => ({
@@ -1376,7 +1146,7 @@ async function toolListImportJobs(
       failedRows: job.failedRows,
       createdAt: job.createdAt,
       completedAt: job.completedAt,
-      createdBy: job.createdBy ? { id: job.createdBy.id, name: job.createdBy.name } : null,
+      createdBy: { id: job.createdById, name: job.createdByName },
     })),
     total,
     page,
@@ -1386,10 +1156,11 @@ async function toolListImportJobs(
 
 async function toolGetImportJob(
   args: unknown,
-  orgId: string,
+  ctx: AgreementPrincipal & { userId: string },
   id: string | number,
   includeSensitiveRows: boolean,
 ): Promise<Response> {
+  if (isAgreementAccessEmergencyDenyAll()) return toolError(id, "Error: Import job not found")
   const parsed = GetImportJobSchema.safeParse(args)
   if (!parsed.success) {
     return toolError(id, `Invalid arguments: ${JSON.stringify(parsed.error.flatten())}`)
@@ -1399,7 +1170,7 @@ async function toolGetImportJob(
     where: { id: parsed.data.jobId },
     include: { createdBy: { select: { id: true, name: true } } },
   })
-  if (!job || job.organizationId !== orgId) {
+  if (!job || job.organizationId !== ctx.organizationId) {
     return toolError(id, "Error: Import job not found")
   }
 
@@ -1410,6 +1181,10 @@ async function toolGetImportJob(
       ? { jobId: job.id, status: "failed" }
       : { jobId: job.id }
 
+  const accessRows = await prisma.importRow.findMany({
+    where: { jobId: job.id },
+    select: { contractId: true },
+  })
   const rows = await prisma.importRow.findMany({
     where: rowWhere,
     orderBy: { rowIndex: "asc" },
@@ -1422,6 +1197,23 @@ async function toolGetImportJob(
       contractId: true,
     },
   })
+
+  const contractIds = [...new Set(accessRows.flatMap((row) => row.contractId ? [row.contractId] : []))]
+  const grants = ctx.memberId && contractIds.length > 0
+    ? await prisma.contractAccessGrant.findMany({
+      where: { organizationId: ctx.organizationId, memberId: ctx.memberId, contractId: { in: contractIds } },
+      select: { contractId: true },
+    })
+    : []
+  const grantedContractIds = new Set(grants.map((grant) => grant.contractId))
+  const hasUnboundRows = accessRows.some((row) => row.contractId === null)
+  if (
+    contractIds.some((contractId) => !grantedContractIds.has(contractId))
+    || (hasUnboundRows && job.createdById !== ctx.userId)
+    || (accessRows.length === 0 && job.createdById !== ctx.userId)
+  ) {
+    return toolError(id, "Error: Import job not found")
+  }
 
   return toolSuccess(id, {
     job: {
@@ -1544,57 +1336,54 @@ export async function POST(req: Request) {
 
       switch (toolName) {
         case "search_contracts":
-          return toolSearchContracts(toolArgs, ctx.organizationId, id)
+          return toolSearchContracts(toolArgs, ctx, id)
         case "get_contract":
-          return toolGetContract(toolArgs, ctx.organizationId, id)
-        case "create_contract":
-          if (!canWriteMcp(ctx)) {
-            return toolError(id, "Error: MCP write access requires a member role and write scope")
-          }
-          return toolCreateContract(toolArgs, ctx.organizationId, ctx.userId, id)
+          return toolGetContract(toolArgs, ctx, id)
         case "list_contracts":
-          return toolListContracts(toolArgs, ctx.organizationId, id)
+          return toolListContracts(toolArgs, ctx, id)
         case "semantic_search":
-          return toolSemanticSearch(toolArgs, ctx.organizationId, id)
+          return toolSemanticSearch(toolArgs, ctx, id)
         case "ask_contract":
           if (!canReadContractText(ctx)) {
             return toolError(id, "Error: Contract text access requires a member role and the text_read scope")
           }
-          return toolAskContract(toolArgs, ctx.organizationId, id)
+          return toolAskContract(toolArgs, ctx, id)
+        case "get_ai_request":
+          return toolGetAiRequest(toolArgs, ctx, id)
         // M7 Obligations
         case "list_obligations":
-          return toolListObligations(toolArgs, ctx.organizationId, id)
-        case "create_obligation":
-          if (!canWriteMcp(ctx)) {
-            return toolError(id, "Error: MCP write access requires a member role and write scope")
-          }
-          return toolCreateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
-        case "update_obligation":
-          if (!canWriteMcp(ctx)) {
-            return toolError(id, "Error: MCP write access requires a member role and write scope")
-          }
-          return toolUpdateObligation(toolArgs, ctx.organizationId, ctx.userId, id)
+          return toolListObligations(toolArgs, ctx, id)
         case "list_actions":
-          return toolListActions(toolArgs, ctx.organizationId, id)
+          return toolListActions(toolArgs, ctx, id)
         case "get_action":
-          return toolGetAction(toolArgs, ctx.organizationId, canReadContractText(ctx), id)
+          return toolGetAction(toolArgs, ctx, canReadContractText(ctx), id)
+        case "preview_action_proposal":
+          return toolPreviewActionProposal(toolArgs, ctx, id)
+        case "propose_action":
+          return toolSubmitActionProposal(toolArgs, ctx, id)
+        case "preview_action_approval_request":
+          return toolPreviewActionApprovalRequest(toolArgs, ctx, id)
+        case "request_action_approval":
+          return toolSubmitActionApprovalRequest(toolArgs, ctx, id)
         // M8 Analytics
         case "get_analytics_summary":
-          return toolGetAnalyticsSummary(ctx.organizationId, id)
+          return toolGetAnalyticsSummary(ctx, id)
         // M9 CRM
         case "list_crm_links":
-          return toolListCrmLinks(toolArgs, ctx.organizationId, id)
+          return toolListCrmLinks(toolArgs, ctx, id)
         // M10 Import
         case "list_import_jobs":
           if (!hasRole(ctx.role, "member")) {
             return toolError(id, "Error: Import access requires a member role")
           }
-          return toolListImportJobs(toolArgs, ctx.organizationId, id)
+          if (!ctx.memberId) return toolError(id, "Error: Current membership required")
+          return toolListImportJobs(toolArgs, ctx, id)
         case "get_import_job":
           if (!hasRole(ctx.role, "member")) {
             return toolError(id, "Error: Import access requires a member role")
           }
-          return toolGetImportJob(toolArgs, ctx.organizationId, id, canReadContractText(ctx))
+          if (!ctx.memberId) return toolError(id, "Error: Current membership required")
+          return toolGetImportJob(toolArgs, ctx, id, canReadContractText(ctx))
         default:
           return toolError(id, `Error: Unknown tool "${toolName}"`)
       }

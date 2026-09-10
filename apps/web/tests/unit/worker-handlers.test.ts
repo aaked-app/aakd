@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 vi.mock("@/lib/db/client", () => {
   const prisma: any = {
+    contractAccessGrant: { findMany: vi.fn().mockResolvedValue([]) },
     notification: {
       create: vi.fn().mockResolvedValue({ id: "notif-1" }),
       findMany: vi.fn().mockResolvedValue([]),
@@ -79,6 +80,7 @@ vi.mock("@/lib/storage", () => ({
 
 vi.mock("@/lib/docuseal", () => ({
   getSubmission: vi.fn(),
+  fetchDocuSealDocument: vi.fn().mockResolvedValue(new Response("%PDF-1.7\nsynthetic")),
   isAllowedDocuSealUrl: vi.fn().mockReturnValue(true),
 }))
 
@@ -107,7 +109,6 @@ vi.mock("@/lib/logger", () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from "@/lib/db/client"
-import { enqueueNotification } from "@/lib/notifications/fanout"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Notification crypto (lib/notifications/crypto.ts)
@@ -252,6 +253,7 @@ describe("lib/notifications/write-in-app — writeInApp", () => {
   beforeEach(() => vi.clearAllMocks())
 
   it("calls prisma.notification.create with the correct data", async () => {
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([{ member: { userId: "user-1" } }] as any)
     vi.mocked(prisma.notification.create).mockResolvedValueOnce({ id: "notif-1" } as any)
     const { writeInApp } = await import("@/lib/notifications/write-in-app")
     await writeInApp(
@@ -274,6 +276,21 @@ describe("lib/notifications/write-in-app — writeInApp", () => {
     })
   })
 
+  it("does not notify a single recipient whose agreement grant was revoked", async () => {
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([])
+    const { writeInApp } = await import("@/lib/notifications/write-in-app")
+    await writeInApp("user-1", "org-1", "contract-1", "contract.signed", "Title", "Private body")
+    expect(prisma.notification.create).not.toHaveBeenCalled()
+    expect(prisma.contractAccessGrant.findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "org-1",
+        contractId: "contract-1",
+        member: { userId: { in: ["user-1"] } },
+      },
+      select: { member: { select: { userId: true } } },
+    })
+  })
+
   it("does NOT throw when prisma.notification.create fails (error absorbed)", async () => {
     vi.mocked(prisma.notification.create).mockRejectedValueOnce(new Error("DB down"))
     const { writeInApp } = await import("@/lib/notifications/write-in-app")
@@ -293,7 +310,20 @@ describe("lib/notifications/write-in-app — writeInApp", () => {
 })
 
 describe("lib/notifications/write-in-app — writeInAppToOrgMembers", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([
+      { member: { userId: "user-admin" } }, { member: { userId: "user-legal" } },
+    ] as any)
+  })
+
+  it("does not notify elevated members whose agreement grants were revoked", async () => {
+    vi.mocked(prisma.member.findMany).mockResolvedValueOnce([{ userId: "user-admin" }] as any)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([])
+    const { writeInAppToOrgMembers } = await import("@/lib/notifications/write-in-app")
+    await writeInAppToOrgMembers("org-1", "contract-1", "contract.signed", "Signed", "Private body")
+    expect(prisma.notification.create).not.toHaveBeenCalled()
+  })
 
   it("writes one notification per admin/legal/owner member", async () => {
     vi.mocked(prisma.member.findMany).mockResolvedValueOnce([

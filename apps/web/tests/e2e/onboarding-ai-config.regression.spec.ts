@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { submitSignup } from "./signup-budget"
 
 test("custom cloud model can be tested blank and keeps the created workspace", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -24,7 +25,7 @@ test("custom cloud model can be tested blank and keeps the created workspace", a
   await page.getByLabel("Name").fill("E2E AI Onboarding Owner")
   await page.getByLabel("Email").fill(`onboarding-ai-${suffix}@example.com`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
-  await page.getByRole("button", { name: "Create account" }).click()
+  await submitSignup(page)
   await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
 
   await page.getByLabel("Organization name").fill(`E2E AI Onboarding ${suffix}`)

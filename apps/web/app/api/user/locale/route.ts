@@ -30,6 +30,7 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
     let body: unknown

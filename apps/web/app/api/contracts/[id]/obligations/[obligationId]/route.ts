@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { captureServerEvent } from "@/lib/posthog-server"
@@ -42,6 +43,7 @@ export async function GET(
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const obligation = await prisma.contractObligation.findUnique({
       where: { id: params.obligationId },
       include: {
@@ -76,6 +78,7 @@ export async function PATCH(
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const existing = await prisma.contractObligation.findUnique({
       where: { id: params.obligationId },
       select: {
@@ -110,7 +113,13 @@ export async function PATCH(
 
     if (data.assigneeId) {
       const assigneeMember = await prisma.member.findFirst({
-        where: { userId: data.assigneeId, organizationId: ctx.organizationId },
+        where: {
+          userId: data.assigneeId,
+          organizationId: ctx.organizationId,
+          accessGrants: {
+            some: { organizationId: ctx.organizationId, contractId: params.id },
+          },
+        },
         select: { userId: true },
       })
       if (!assigneeMember) {
@@ -219,6 +228,7 @@ export async function DELETE(
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const existing = await prisma.contractObligation.findUnique({
       where: { id: params.obligationId },
       select: {

@@ -198,7 +198,7 @@ describe("DashboardPage responsive workspace summary", () => {
     const main = await screen.findByRole("main")
     expect(main).toHaveAttribute("dir", "rtl")
     expect(screen.getByRole("link", { name: message("dashboard", "settings") })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: message("dashboard", "tableCounterparty") })).toHaveClass("text-start")
+    expect(await screen.findByRole("columnheader", { name: message("dashboard", "tableCounterparty") })).toHaveClass("text-start")
     expect(screen.queryByText("Notification settings")).not.toBeInTheDocument()
   })
 

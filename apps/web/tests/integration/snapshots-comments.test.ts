@@ -29,6 +29,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 const adminCtx = {
   userId: "user-admin",
   organizationId: "org-1",
+  memberId: "member-admin",
   role: "admin",
   source: "session" as const,
   requestId: "req-test",
@@ -40,6 +41,7 @@ const otherOrgCtx = { ...adminCtx, organizationId: "org-other" }
 
 function resetMocks() {
   vi.clearAllMocks()
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
   vi.mocked(requireWriteScope).mockReturnValue(null)
 }
 
@@ -83,7 +85,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -92,7 +94,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -101,7 +103,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -111,7 +113,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     vi.mocked(prisma.documentSnapshot.findMany).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.snapshots).toEqual([])
@@ -126,7 +128,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     ] as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.snapshots).toHaveLength(2)
@@ -139,7 +141,7 @@ describe("GET /api/contracts/[id]/snapshots", () => {
     vi.mocked(prisma.documentSnapshot.findMany).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
   })
 })
@@ -162,7 +164,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -175,7 +177,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -188,7 +190,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -201,7 +203,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -214,7 +216,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify({ label: "" }),  // label too short
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(400)
   })
 
@@ -232,7 +234,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.snapshot.id).toBe("snap-new")
@@ -253,7 +255,7 @@ describe("POST /api/contracts/[id]/snapshots", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(201)
   })
 })
@@ -267,7 +269,7 @@ describe("GET /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1")
-    const res = await GET(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -276,7 +278,7 @@ describe("GET /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1")
-    const res = await GET(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -285,7 +287,7 @@ describe("GET /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(mockSnapshot as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1")
-    const res = await GET(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -297,7 +299,7 @@ describe("GET /api/contracts/[id]/snapshots/[snapshotId]", () => {
     } as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1")
-    const res = await GET(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -306,7 +308,7 @@ describe("GET /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(mockSnapshot as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1")
-    const res = await GET(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.snapshot.id).toBe("snap-1")
@@ -330,7 +332,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -339,7 +341,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -348,7 +350,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(snapshotForDelete as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -357,7 +359,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(snapshotForDelete as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -367,7 +369,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.delete).mockResolvedValueOnce(snapshotForDelete as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(204)
   })
 
@@ -377,7 +379,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.delete).mockResolvedValueOnce(snapshotForDelete as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(204)
   })
 
@@ -386,7 +388,7 @@ describe("DELETE /api/contracts/[id]/snapshots/[snapshotId]", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(snapshotForDelete as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/snapshots/[snapshotId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/snap-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", snapshotId: "snap-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", snapshotId: "snap-1" }) })
     expect(res.status).toBe(404)
   })
 })
@@ -417,7 +419,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -426,7 +428,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -435,7 +437,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/required/i)
@@ -447,7 +449,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     vi.mocked(prisma.documentSnapshot.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-missing")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -460,7 +462,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
       .mockResolvedValueOnce(snapB as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a&b=snap-b")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveProperty("a")
@@ -481,7 +483,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     } as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a&b=live")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.b.id).toBe("live")
@@ -495,7 +497,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
     vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a&b=live")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -507,7 +509,7 @@ describe("GET /api/contracts/[id]/snapshots/compare", () => {
       .mockResolvedValueOnce({ ...snapB, organizationId: "org-other" } as any)
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/compare/route")
     const req = new Request("http://localhost/api/contracts/contract-1/snapshots/compare?a=snap-a&b=snap-b")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 })
@@ -521,7 +523,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -530,7 +532,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -539,7 +541,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -549,7 +551,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(prisma.contractComment.findMany).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.comments).toEqual([])
@@ -561,7 +563,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(prisma.contractComment.findMany).mockResolvedValueOnce([mockComment] as any)
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.comments).toHaveLength(1)
@@ -574,7 +576,7 @@ describe("GET /api/contracts/[id]/comments", () => {
     vi.mocked(prisma.contractComment.findMany).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(200)
   })
 })
@@ -594,7 +596,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -607,7 +609,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -620,7 +622,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify({ body: "" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(400)
   })
 
@@ -637,7 +639,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(201)
     const resBody = await res.json()
     expect(resBody.comment.id).toBe("comment-1")
@@ -657,7 +659,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify({ body: "Inline comment", markId: "mark-abc" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(201)
     const resBody = await res.json()
     expect(resBody.comment.markId).toBe("mark-abc")
@@ -673,7 +675,7 @@ describe("POST /api/contracts/[id]/comments", () => {
       body: JSON.stringify(validBody),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
     expect(res.status).toBe(201)
   })
 })
@@ -698,7 +700,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ resolved: true }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -711,7 +713,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ resolved: true }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -725,7 +727,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ resolved: true }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -739,7 +741,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({}),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(400)
   })
 
@@ -753,7 +755,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ resolved: true }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -767,7 +769,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ body: "I edited someone else's comment" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -786,7 +788,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ resolved: true }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.comment.resolved).toBe(true)
@@ -806,7 +808,7 @@ describe("PATCH /api/contracts/[id]/comments/[commentId]", () => {
       body: JSON.stringify({ body: "Updated body text" }),
       headers: { "Content-Type": "application/json" },
     })
-    const res = await PATCH(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.comment.body).toBe("Updated body text")
@@ -828,7 +830,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -837,7 +839,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -847,7 +849,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contractComment.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(404)
   })
 
@@ -857,7 +859,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contractComment.findUnique).mockResolvedValueOnce(commentRecord as any) // authorId is "user-admin"
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(403)
   })
 
@@ -868,7 +870,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contractComment.delete).mockResolvedValueOnce(commentRecord as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
@@ -881,7 +883,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contractComment.delete).mockResolvedValueOnce(commentRecord as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(200)
   })
 
@@ -892,7 +894,7 @@ describe("DELETE /api/contracts/[id]/comments/[commentId]", () => {
     vi.mocked(prisma.contractComment.delete).mockResolvedValueOnce(commentRecord as any)
     const { DELETE } = await import("@/app/api/contracts/[id]/comments/[commentId]/route")
     const req = new Request("http://localhost/api/contracts/contract-1/comments/comment-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "contract-1", commentId: "comment-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "contract-1", commentId: "comment-1" }) })
     expect(res.status).toBe(200)
   })
 })

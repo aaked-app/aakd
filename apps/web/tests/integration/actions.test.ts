@@ -20,6 +20,7 @@ import { captureServerEvent } from "@/lib/posthog-server"
 
 const sessionCtx = {
   userId: "user-1",
+  memberId: "member-1",
   organizationId: "org-1",
   role: "member",
   source: "session" as const,
@@ -35,6 +36,11 @@ const apiKeyCtx = {
 const viewerCtx = {
   ...sessionCtx,
   role: "viewer",
+}
+
+const reviewerCtx = {
+  ...sessionCtx,
+  role: "legal",
 }
 
 const baseAction = {
@@ -89,6 +95,11 @@ function resetActionMocks() {
   vi.resetAllMocks()
   vi.mocked(resolveAuth).mockResolvedValue(sessionCtx)
   vi.mocked(requireWriteScope).mockReturnValue(null)
+  vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never)
+  vi.mocked(prisma.contract.findFirst).mockResolvedValue({ ownerId: "user-1" } as never)
+  vi.mocked(prisma.member.findFirst).mockResolvedValue({ role: "member" } as never)
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as never)
+  vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([{ member: { userId: "user-1" } }] as never)
   vi.mocked(prisma.$transaction).mockImplementation(async (arg: unknown) => {
     if (typeof arg === "function") return (arg as (tx: typeof prisma) => Promise<unknown>)(prisma)
     if (Array.isArray(arg)) return Promise.all(arg)
@@ -191,7 +202,7 @@ describe("GET /api/actions/[id]", () => {
   it("returns a safe detail DTO without evidence storage keys", async () => {
     vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(baseAction as never)
     const { GET } = await import("@/app/api/actions/[id]/route")
-    const response = await GET(new Request("http://localhost/api/actions/action-1"), { params: { id: "action-1" } })
+    const response = await GET(new Request("http://localhost/api/actions/action-1"), { params: Promise.resolve({ id: "action-1" }) })
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -206,7 +217,7 @@ describe("GET /api/actions/[id]", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(apiKeyCtx)
     vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(baseAction as never)
     const { GET } = await import("@/app/api/actions/[id]/route")
-    const response = await GET(new Request("http://localhost/api/actions/action-1"), { params: { id: "action-1" } })
+    const response = await GET(new Request("http://localhost/api/actions/action-1"), { params: Promise.resolve({ id: "action-1" }) })
     const body = await response.json()
 
     expect(body).not.toHaveProperty("sourceText")
@@ -216,11 +227,15 @@ describe("GET /api/actions/[id]", () => {
   it("returns 404 when the org-scoped action lookup cannot find the resource", async () => {
     vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/actions/[id]/route")
-    const response = await GET(new Request("http://localhost/api/actions/other-org-action"), { params: { id: "other-org-action" } })
+    const response = await GET(new Request("http://localhost/api/actions/other-org-action"), { params: Promise.resolve({ id: "other-org-action" }) })
 
     expect(response.status).toBe(404)
     expect(prisma.contractAction.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "other-org-action", organizationId: "org-1" },
+      where: {
+        id: "other-org-action",
+        organizationId: "org-1",
+        contract: { accessGrants: { some: { organizationId: "org-1", memberId: "member-1" } } },
+      },
     }))
   })
 })
@@ -235,7 +250,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "validate", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(403)
     expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
@@ -248,7 +263,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "validate", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(403)
     expect(prisma.contractAction.findFirst).not.toHaveBeenCalled()
@@ -262,7 +277,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "validate", expectedVersion: 0 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(409)
     expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
@@ -281,11 +296,16 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "validate", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(200)
     expect(prisma.contractAction.updateMany).toHaveBeenCalledWith({
-      where: { id: "action-1", organizationId: "org-1", version: 1 },
+      where: {
+        id: "action-1",
+        organizationId: "org-1",
+        version: 1,
+        contract: { accessGrants: { some: { organizationId: "org-1", memberId: "member-1" } } },
+      },
       data: expect.objectContaining({ status: "PROPOSED", reviewStatus: "reviewed", version: { increment: 1 } }),
     })
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
@@ -293,6 +313,50 @@ describe("PATCH /api/actions/[id] commands", () => {
       userId: "user-1",
       action: "ACTION_REVIEWED",
     }) })
+  })
+
+  it("requires coherent notice semantics and persists the human-corrected action kind", async () => {
+    const renewal = {
+      ...baseAction,
+      kind: "RENEWAL_NOTICE",
+      dueDate: new Date("2026-10-01T00:00:00.000Z"),
+      noticeDate: new Date("2026-09-01T00:00:00.000Z"),
+    }
+    vi.mocked(prisma.contractAction.findFirst)
+      .mockResolvedValueOnce(renewal as never)
+      .mockResolvedValueOnce({ ...renewal, kind: "OBLIGATION", noticeDate: null, status: "PROPOSED", reviewStatus: "reviewed", version: 2 } as never)
+    vi.mocked(prisma.contractAction.updateMany).mockResolvedValueOnce({ count: 1 })
+    vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-kind-review" } as never)
+
+    const { PATCH } = await import("@/app/api/actions/[id]/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/action-1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "validate", expectedVersion: 1, kind: "OBLIGATION", noticeDate: null }),
+    }), { params: Promise.resolve({ id: "action-1" }) })
+
+    expect(response.status).toBe(200)
+    expect(prisma.contractAction.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ kind: "OBLIGATION", noticeDate: null }),
+    }))
+
+    vi.clearAllMocks()
+    vi.mocked(resolveAuth).mockResolvedValue(sessionCtx)
+    vi.mocked(requireWriteScope).mockReturnValue(null)
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(renewal as never)
+    const contradictory = await PATCH(new Request("http://localhost/api/actions/action-1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        command: "validate",
+        expectedVersion: 1,
+        kind: "RENEWAL_NOTICE",
+        dueDate: "2026-10-01T00:00:00.000Z",
+        noticeDate: "2026-11-01T00:00:00.000Z",
+      }),
+    }), { params: Promise.resolve({ id: "action-1" }) })
+    expect(contradictory.status).toBe(422)
+    expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
   })
 
   it("records privacy-minimal activation timing after the first review without changing the transition", async () => {
@@ -311,7 +375,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "validate", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(200)
     expect(captureServerEvent).toHaveBeenCalledWith("user-1", "activation_action_reviewed", {
@@ -334,7 +398,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "complete", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(422)
     expect(await response.json()).toEqual({ error: "completion_verified_evidence_required", requiredKind: "completion_note" })
@@ -354,7 +418,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "complete", expectedVersion: 4 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: "action_approval_pending" })
@@ -378,7 +442,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "start", expectedVersion: 4 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(200)
     expect(prisma.approval.updateMany).toHaveBeenCalledWith({
@@ -398,10 +462,37 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "assign", assigneeId: "user-2", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(200)
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-2",
+        organizationId: "org-1",
+        accessGrants: { some: { organizationId: "org-1", contractId: "contract-1" } },
+      },
+      select: { userId: true },
+    })
     expect(prisma.approval.updateMany).not.toHaveBeenCalled()
+  })
+
+  it("rejects assigning an action to a member without agreement access", async () => {
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce({
+      ...baseAction,
+      status: "ACKNOWLEDGED",
+      reviewStatus: "reviewed",
+    } as never)
+    vi.mocked(prisma.member.findFirst).mockResolvedValueOnce(null)
+    const { PATCH } = await import("@/app/api/actions/[id]/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/action-1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "assign", assigneeId: "user-2", expectedVersion: 1 }),
+    }), { params: Promise.resolve({ id: "action-1" }) })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: "action_recipient_access_required" })
+    expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
   })
 
   it("rejects illegal state jumps", async () => {
@@ -411,7 +502,7 @@ describe("PATCH /api/actions/[id] commands", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "complete", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual(expect.objectContaining({ error: "invalid_action_transition" }))
@@ -427,7 +518,7 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision: "REJECTED" }),
-    }), { params: { id: "evidence-1" } })
+    }), { params: Promise.resolve({ id: "evidence-1" }) })
 
     expect(response.status).toBe(422)
     expect(await response.json()).toEqual({ error: "review_comment_required" })
@@ -435,6 +526,7 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
   })
 
   it("appends a human verification decision and audits it within the organization", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(reviewerCtx)
     vi.mocked(prisma.contractActionEvidence.findFirst).mockResolvedValueOnce({
       id: "evidence-1",
       actionId: "action-1",
@@ -450,15 +542,34 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision: "VERIFIED" }),
-    }), { params: { id: "evidence-1" } })
+    }), { params: Promise.resolve({ id: "evidence-1" }) })
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ id: "evidence-1", reviewStatus: "VERIFIED" })
     expect(prisma.contractActionEvidence.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "evidence-1", action: { organizationId: "org-1" } },
+      where: {
+        id: "evidence-1",
+        action: {
+          organizationId: "org-1",
+          contract: { accessGrants: { some: { organizationId: "org-1", memberId: "member-1" } } },
+        },
+      },
     }))
     expect(prisma.contractActionEvidenceReview.create).toHaveBeenCalledWith({ data: expect.objectContaining({ evidenceId: "evidence-1", status: "VERIFIED", reviewedById: "user-1" }) })
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "ACTION_EVIDENCE_VERIFIED", contractActionId: "action-1" }) })
+  })
+
+  it("does not treat an agreement grant alone as reviewer authority", async () => {
+    const { PATCH } = await import("@/app/api/actions/[id]/evidence/route")
+    const response = await PATCH(new Request("http://localhost/api/actions/evidence-1/evidence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "VERIFIED" }),
+    }), { params: Promise.resolve({ id: "evidence-1" }) })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: "reviewer_role_required" })
+    expect(prisma.contractActionEvidence.findFirst).not.toHaveBeenCalled()
   })
 
   it("only lets the assigned member self-attest submitted evidence", async () => {
@@ -477,7 +588,7 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision: "SELF_ATTESTED" }),
-    }), { params: { id: "evidence-1" } })
+    }), { params: Promise.resolve({ id: "evidence-1" }) })
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ id: "evidence-1", reviewStatus: "SELF_ATTESTED" })
@@ -497,7 +608,7 @@ describe("PATCH /api/actions/[id]/evidence review", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision: "SELF_ATTESTED" }),
-    }), { params: { id: "evidence-1" } })
+    }), { params: Promise.resolve({ id: "evidence-1" }) })
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: "self_attestation_only_for_submitted_evidence" })
@@ -529,7 +640,7 @@ describe("POST /api/actions/[id]/deliver", () => {
     vi.mocked(prisma.activity.create).mockResolvedValueOnce({ id: "activity-1" } as never)
 
     const { POST } = await import("@/app/api/actions/[id]/deliver/route")
-    const response = await POST(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), { params: { id: "action-1" } })
+    const response = await POST(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(202)
     expect(emailQueue.add).toHaveBeenCalledWith("send", expect.objectContaining({
@@ -551,7 +662,7 @@ describe("POST /api/actions/[id]/approval", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "reviewer-1", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(403)
     expect(prisma.approval.create).not.toHaveBeenCalled()
@@ -574,11 +685,25 @@ describe("POST /api/actions/[id]/approval", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "reviewer-1", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(201)
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "reviewer-1",
+        organizationId: "org-1",
+        accessGrants: { some: { organizationId: "org-1", contractId: "contract-1" } },
+      },
+      select: { userId: true },
+    })
     expect(prisma.contractAction.updateMany).toHaveBeenCalledWith({
-      where: { id: "action-1", organizationId: "org-1", status: "PROPOSED", version: 1 },
+      where: {
+        id: "action-1",
+        organizationId: "org-1",
+        status: "PROPOSED",
+        version: 1,
+        contract: { accessGrants: { some: { organizationId: "org-1", memberId: "member-1" } } },
+      },
       data: { version: { increment: 1 } },
     })
     expect(prisma.approval.create).toHaveBeenCalledWith({ data: expect.objectContaining({
@@ -640,7 +765,7 @@ describe("action approval freshness composed journey", () => {
     const requested = await requestApproval(new Request("http://localhost/api/actions/action-1/approval", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "user-1", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
     expect(requested.status).toBe(201)
     expect(action.version).toBe(2)
     expect(approval).toEqual(expect.objectContaining({ status: "pending", actionVersion: 2 }))
@@ -648,7 +773,7 @@ describe("action approval freshness composed journey", () => {
     const { PATCH: decideApproval } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
     const decided = await decideApproval(new Request("http://localhost/api/contracts/contract-1/approvals/approval-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "approved" }),
-    }), { params: { id: "contract-1", approvalId: "approval-1" } })
+    }), { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) })
     expect(decided.status).toBe(200)
     expect(action).toEqual(expect.objectContaining({ status: "ACKNOWLEDGED", version: 3 }))
     expect(approval).toEqual(expect.objectContaining({ status: "approved", actionVersion: 3 }))
@@ -656,16 +781,16 @@ describe("action approval freshness composed journey", () => {
     const { PATCH: commandAction } = await import("@/app/api/actions/[id]/route")
     const started = await commandAction(new Request("http://localhost/api/actions/action-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: "start", expectedVersion: 3 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
     expect(started.status).toBe(200)
     expect(approval).toEqual(expect.objectContaining({ actionVersion: 4 }))
 
     const { POST: deliver } = await import("@/app/api/actions/[id]/deliver/route")
-    expect((await deliver(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), { params: { id: "action-1" } })).status).toBe(202)
+    expect((await deliver(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), { params: Promise.resolve({ id: "action-1" }) })).status).toBe(202)
 
     const completed = await commandAction(new Request("http://localhost/api/actions/action-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: "complete", expectedVersion: 4 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
     expect(completed.status).toBe(200)
     expect(action).toEqual(expect.objectContaining({ status: "COMPLETED", version: 5 }))
   })

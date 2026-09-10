@@ -37,6 +37,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 
 function resetMocks() {
   vi.resetAllMocks()
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
   vi.mocked(requireWriteScope).mockReturnValue(null)
   vi.mocked(prisma.$transaction).mockImplementation(async (arg: unknown) => {
     if (typeof arg === "function") {
@@ -52,6 +53,7 @@ function resetMocks() {
 const adminCtx = {
   userId: "user-admin",
   organizationId: "org-1",
+  memberId: "member-admin",
   role: "admin",
   source: "session" as const,
   requestId: "req-test",
@@ -116,7 +118,7 @@ describe("GET /api/contracts/[id]/obligations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -127,7 +129,7 @@ describe("GET /api/contracts/[id]/obligations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -141,7 +143,7 @@ describe("GET /api/contracts/[id]/obligations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -153,7 +155,7 @@ describe("GET /api/contracts/[id]/obligations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -168,7 +170,7 @@ describe("GET /api/contracts/[id]/obligations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -192,7 +194,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -206,7 +208,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -221,7 +223,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -239,7 +241,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -257,7 +259,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -279,7 +281,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "   \t" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
 
     expect(res.status).toBe(422)
@@ -300,7 +302,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: pastDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -316,7 +318,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -335,11 +337,19 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Test", dueDate: futureDate, assigneeId: "user-unknown" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("invalid_assignee")
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-unknown",
+        organizationId: "org-1",
+        accessGrants: { some: { organizationId: "org-1", contractId: "contract-1" } },
+      },
+      select: { userId: true },
+    })
   })
 
   it("returns 201 on happy path and writes activity", async () => {
@@ -356,7 +366,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Pay invoice", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -386,7 +396,7 @@ describe("POST /api/contracts/[id]/obligations", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Pay invoice", dueDate: futureDate }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(201)
   })
@@ -404,7 +414,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1"),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -416,7 +426,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1"),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
     expect(writeActivity).not.toHaveBeenCalled()
@@ -432,7 +442,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1"),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -446,7 +456,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1"),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -457,7 +467,7 @@ describe("GET /api/contracts/[id]/obligations/[obligationId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1"),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -483,7 +493,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Updated" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -497,7 +507,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Updated" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -512,7 +522,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Updated" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -531,15 +541,22 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assigneeId: "user-unknown" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("invalid_assignee")
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-unknown",
+        organizationId: "org-1",
+        accessGrants: { some: { organizationId: "org-1", contractId: "contract-1" } },
+      },
+      select: { userId: true },
+    })
   })
 
   it("returns 200 and writes OBLIGATION_COMPLETED activity when status → COMPLETED", async () => {
-    const { writeActivity } = await import("@/lib/db/activity")
     const existingObligation = {
       ...mockObligation,
       status: "PENDING",
@@ -561,7 +578,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "COMPLETED" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
@@ -587,7 +604,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Updated title" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
@@ -611,7 +628,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -623,7 +640,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -635,7 +652,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -648,7 +665,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -664,7 +681,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -681,7 +698,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/obl-1", {
         method: "DELETE",
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(204)
     expect(prisma.activity.create).toHaveBeenCalledWith({ data: expect.objectContaining({
@@ -709,7 +726,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -725,7 +742,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -742,7 +759,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -762,7 +779,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -783,7 +800,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -805,7 +822,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "One too many" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -820,7 +837,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
     const { POST } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/route")
     const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{",
-    }), { params: { id: "contract-1", obligationId: "obl-1" } })
+    }), { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) })
     expect(res.status).toBe(400)
     expect(writeActivity).not.toHaveBeenCalled()
   })
@@ -843,7 +860,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send payment proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -905,7 +922,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send payment proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )).rejects.toThrow("audit unavailable")
 
     expect(persisted).toEqual([])
@@ -968,7 +985,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )
 
     const responses = await Promise.all([create("First"), create("Second")])
@@ -996,7 +1013,7 @@ describe("POST /api/contracts/[id]/obligations/[obligationId]/subtasks", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Send payment proof" }),
       }),
-      { params: { id: "contract-1", obligationId: "obl-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1" }) },
     )).rejects.toThrow("db unavailable")
     expect(writeActivity).not.toHaveBeenCalled()
   })
@@ -1036,7 +1053,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: true }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1055,7 +1072,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: true }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -1076,7 +1093,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: true }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(404)
     expect(writeActivity).not.toHaveBeenCalled()
@@ -1104,7 +1121,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: true }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1146,7 +1163,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: false }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -1167,7 +1184,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ title: "x".repeat(201) }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(422)
     expect(writeActivity).not.toHaveBeenCalled()
@@ -1194,7 +1211,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify(payload),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
 
     expect(res.status).toBe(422)
@@ -1242,7 +1259,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
           body: JSON.stringify({ isCompleted: true }),
         },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )).rejects.toThrow("audit unavailable")
 
     expect(persisted.isCompleted).toBe(false)
@@ -1256,7 +1273,7 @@ describe("PATCH /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtask
     const { PATCH } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route")
     await expect(PATCH(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isCompleted: true }),
-    }), { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } })).rejects.toThrow("db unavailable")
+    }), { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) })).rejects.toThrow("db unavailable")
     expect(writeActivity).not.toHaveBeenCalled()
   })
 })
@@ -1290,7 +1307,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1305,7 +1322,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -1322,7 +1339,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(404)
     expect(writeActivity).not.toHaveBeenCalled()
@@ -1341,7 +1358,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(204)
     expect(writeActivity).toHaveBeenCalledWith(
@@ -1369,7 +1386,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )
     expect(res.status).toBe(403)
     expect(writeActivity).not.toHaveBeenCalled()
@@ -1413,7 +1430,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
         "http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1",
         { method: "DELETE" },
       ),
-      { params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" } },
+      { params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }) },
     )).rejects.toThrow("audit unavailable")
 
     expect(persisted).toEqual(mockSubTask)
@@ -1426,7 +1443,7 @@ describe("DELETE /api/contracts/[id]/obligations/[obligationId]/subtasks/[subtas
     vi.mocked(prisma.obligationSubTask.delete).mockRejectedValueOnce(new Error("db unavailable"))
     const { DELETE } = await import("@/app/api/contracts/[id]/obligations/[obligationId]/subtasks/[subtaskId]/route")
     await expect(DELETE(new Request("http://localhost/api/contracts/contract-1/obligations/obl-1/subtasks/sub-1", { method: "DELETE" }), {
-      params: { id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" },
+      params: Promise.resolve({ id: "contract-1", obligationId: "obl-1", subtaskId: "sub-1" }),
     })).rejects.toThrow("db unavailable")
     expect(writeActivity).not.toHaveBeenCalled()
   })
@@ -1446,7 +1463,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1458,7 +1475,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -1471,7 +1488,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1487,7 +1504,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -1501,12 +1518,13 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       extractedText: null,
       files: [{ id: "file-1", storageKey: "org-1/contract-1/agreement.pdf" }],
     } as any)
-    const { contractExtractQueue } = await import("@/lib/jobs/queues")
+    const { getContractExtractQueue } = await import("@/lib/jobs/queues")
+    const contractExtractQueue = getContractExtractQueue()
     const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
 
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
 
     expect(res.status).toBe(202)
@@ -1516,6 +1534,41 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       expect.objectContaining({ contractId: "contract-1", fileId: "file-1" }),
       { jobId: "contract-text-file-1" },
     )
+  })
+
+  it.each(["failed", "completed", "unknown"])("replaces a retained %s text-preparation job before retrying", async (state) => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract, extractedText: null,
+      files: [{ id: "file-1", storageKey: "org-1/contract-1/agreement.pdf" }],
+    } as any)
+    const { getContractExtractQueue } = await import("@/lib/jobs/queues")
+    const contractExtractQueue = getContractExtractQueue()
+    const remove = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(contractExtractQueue.getJob).mockResolvedValueOnce({ getState: vi.fn().mockResolvedValue(state), remove } as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(202)
+    expect(contractExtractQueue.getJob).toHaveBeenCalledWith("contract-text-file-1")
+    expect(remove).toHaveBeenCalledOnce()
+    expect(remove.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(contractExtractQueue.add).mock.invocationCallOrder[0])
+  })
+
+  it.each(["active", "waiting", "delayed", "waiting-children", "prioritized"])("preserves an in-flight %s text-preparation job", async (state) => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      ...mockContract, extractedText: null,
+      files: [{ id: "file-1", storageKey: "org-1/contract-1/agreement.pdf" }],
+    } as any)
+    const { getContractExtractQueue } = await import("@/lib/jobs/queues")
+    const contractExtractQueue = getContractExtractQueue()
+    const remove = vi.fn()
+    vi.mocked(contractExtractQueue.getJob).mockResolvedValueOnce({ getState: vi.fn().mockResolvedValue(state), remove } as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(202)
+    expect(remove).not.toHaveBeenCalled()
+    expect(contractExtractQueue.add).not.toHaveBeenCalled()
   })
 
   it("queues deterministic extraction when no AI provider is configured", async () => {
@@ -1536,7 +1589,7 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     // restore env
     if (originalProvider !== undefined) process.env.AI_PROVIDER = originalProvider
@@ -1565,23 +1618,38 @@ describe("POST /api/contracts/[id]/obligations/extract", () => {
       new Request("http://localhost/api/contracts/contract-1/obligations/extract", {
         method: "POST",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.jobId).toBe("job-abc")
   })
 
-  it("removes a completed job before intentionally retrying the same document", async () => {
+  it.each(["active", "waiting", "delayed", "waiting-children", "prioritized"])("preserves an in-flight %s obligation extraction", async (state) => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    const priorJob = { id: "old-job", getState: vi.fn().mockResolvedValue("completed"), remove: vi.fn().mockResolvedValue(undefined) }
+    const priorJob = { id: "old-job", getState: vi.fn().mockResolvedValue(state), remove: vi.fn() }
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    const queue = { getJob: vi.fn().mockResolvedValue(priorJob), add: vi.fn() }
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce(queue as any)
+    const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ jobId: "old-job" })
+    expect(priorJob.remove).not.toHaveBeenCalled()
+    expect(queue.add).not.toHaveBeenCalled()
+  })
+
+  it.each(["completed", "failed", "unknown"])("removes a %s job before intentionally retrying the same document", async (state) => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const priorJob = { id: "old-job", getState: vi.fn().mockResolvedValue(state), remove: vi.fn().mockResolvedValue(undefined) }
     const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
     const queue = { getJob: vi.fn().mockResolvedValue(priorJob), add: vi.fn().mockResolvedValue({ id: "new-job" }) }
     vi.mocked(getObligationExtractQueue).mockReturnValueOnce(queue as any)
     const { POST } = await import("@/app/api/contracts/[id]/obligations/extract/route")
 
-    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: { id: "contract-1" } })
+    const res = await POST(new Request("http://localhost/api/contracts/contract-1/obligations/extract", { method: "POST" }), { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(res.status).toBe(200)
     expect(priorJob.remove).toHaveBeenCalledOnce()
@@ -1601,7 +1669,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1612,7 +1680,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1623,7 +1691,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -1636,7 +1704,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=missing"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1657,7 +1725,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ state: "not_found" })
@@ -1677,7 +1745,7 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ state: "not_found" })
@@ -1698,9 +1766,26 @@ describe("GET /api/contracts/[id]/obligations/extract", () => {
     } as any)
     const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
 
-    const res = await GET(new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"), { params: { id: "contract-1" } })
+    const res = await GET(new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"), { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(await res.json()).toEqual({ state: "completed", suggestions: [{ id: "current", title: "Current pending" }] })
+  })
+
+  it("does not expose obligation worker failure details", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
+    const sourceHash = (await import("node:crypto")).createHash("sha256").update(mockContract.extractedText).digest("hex")
+    const { getObligationExtractQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getObligationExtractQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({
+        data: { contractId: "contract-1", organizationId: "org-1", sourceHash },
+        getState: vi.fn().mockResolvedValue("failed"),
+        failedReason: "provider response contained a private key",
+      }),
+    } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/obligations/extract/route")
+    const res = await GET(new Request("http://localhost/api/contracts/contract-1/obligations/extract?jobId=job-1"), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(await res.json()).toEqual({ state: "failed", reason: "obligation_extraction_failed" })
   })
 })
 
@@ -1784,7 +1869,7 @@ describe("GET /api/obligations", () => {
     await GET(new Request("http://localhost/api/obligations"))
     const findManyCall = vi.mocked(prisma.contractObligation.findMany).mock.calls[0][0] as any
     expect(findManyCall.where.contract).toMatchObject({
-      organizationId: "org-1",
+      accessGrants: { some: { organizationId: "org-1", memberId: "member-admin" } },
       status: { not: "ARCHIVED" },
     })
   })

@@ -14,7 +14,8 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
 fi
 
 TEMP_ENV="$(mktemp)"
-trap 'rm -f "$TEMP_ENV"' EXIT
+TEMP_ENV_NO_SIGNING="$(mktemp)"
+trap 'rm -f "$TEMP_ENV" "$TEMP_ENV_NO_SIGNING"' EXIT
 
 cat > "$TEMP_ENV" <<'EOF'
 POSTGRES_PASSWORD=phase0-test-postgres
@@ -42,6 +43,24 @@ docker run --rm --network none \
 
 docker compose --env-file "$TEMP_ENV" -f docker-compose.yml config --quiet
 docker compose --env-file "$TEMP_ENV" -f docker-compose.prod.yml config --quiet
+
+grep -Ev '^DOCUSEAL_(SECRET_KEY_BASE|IMAGE)=' "$TEMP_ENV" > "$TEMP_ENV_NO_SIGNING"
+env -u DOCUSEAL_IMAGE -u DOCUSEAL_SECRET_KEY_BASE docker compose --env-file "$TEMP_ENV_NO_SIGNING" -f docker-compose.yml config --quiet
+env -u DOCUSEAL_IMAGE -u DOCUSEAL_SECRET_KEY_BASE docker compose --env-file "$TEMP_ENV_NO_SIGNING" -f docker-compose.prod.yml config --quiet
+
+invalid_hex="$(printf '%0128d' 0 | tr '0' 'z')"
+for compose_file in docker-compose.yml docker-compose.prod.yml; do
+  for invalid_secret in '' ' ' 'too-short' 'not-hexadecimal' "$invalid_hex"; do
+    if docker compose --project-name aakd-signing-config-check --env-file "$TEMP_ENV_NO_SIGNING" -f "$compose_file" --profile signing \
+      run --rm --no-deps -e "DOCUSEAL_SECRET_KEY_BASE=$invalid_secret" docuseal-secret-check >/dev/null 2>&1; then
+      echo "Expected $compose_file signing prerequisite to reject invalid secret format." >&2
+      exit 1
+    fi
+  done
+  synthetic_secret="$(openssl rand -hex 64)"
+  docker compose --project-name aakd-signing-config-check --env-file "$TEMP_ENV_NO_SIGNING" -f "$compose_file" --profile signing \
+    run --rm --no-deps -e "DOCUSEAL_SECRET_KEY_BASE=$synthetic_secret" docuseal-secret-check >/dev/null
+done
 
 mutable_images="$(docker compose --env-file "$TEMP_ENV" -f docker-compose.prod.yml config | awk '/^[[:space:]]+image: / { print $2 }' | grep -v '@sha256:' || true)"
 if [ -n "$mutable_images" ]; then

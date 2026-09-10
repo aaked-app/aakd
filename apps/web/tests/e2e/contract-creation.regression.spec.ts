@@ -1,26 +1,6 @@
 import { expect, test } from "@playwright/test"
-import React from "react"
-import { Document, Page, Text, renderToBuffer } from "@react-pdf/renderer"
-
-async function createContractPdf() {
-  return Buffer.from(
-    await renderToBuffer(
-      React.createElement(
-        Document,
-        null,
-        React.createElement(
-          Page,
-          null,
-          React.createElement(
-            Text,
-            null,
-            "MASTER SERVICES AGREEMENT\nEffective Date: January 15, 2025\nThis agreement automatically renews unless either party gives 30 days prior written notice.\nGoverning Law: State of Delaware.",
-          ),
-        ),
-      ),
-    ),
-  )
-}
+import { createTextPdf } from "./pdf-fixture"
+import { submitSignup } from "./signup-budget"
 
 test("new users can create and open a contract", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -29,7 +9,7 @@ test("new users can create and open a contract", async ({ page }) => {
   await page.getByLabel("Name").fill("E2E Contract Owner")
   await page.getByLabel("Email").fill(`contract-owner-${suffix}@example.com`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
-  await page.getByRole("button", { name: "Create account" }).click()
+  await submitSignup(page)
   await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
 
   await page.getByLabel("Organization name").fill(`E2E Contracts ${suffix}`)
@@ -51,16 +31,23 @@ test("new users can create and open a contract", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles({
     name: "e2e-service-agreement.pdf",
     mimeType: "application/pdf",
-    buffer: await createContractPdf(),
+    buffer: createTextPdf([
+      "MASTER SERVICES AGREEMENT",
+      "Effective Date: January 15, 2025",
+      "This agreement automatically renews unless either party gives 30 days prior written notice.",
+      "Governing Law: State of Delaware.",
+    ]),
   })
   await page.getByRole("button", { name: /continue to review/i }).click()
   await page.getByLabel(/contract title/i).waitFor()
   await page.getByLabel(/contract title/i).fill("E2E Service Agreement")
+  const intakeResponse = page.waitForResponse(response => response.url().endsWith("/api/contracts/intake") && response.request().method() === "POST")
   await page.getByRole("button", { name: /create contract/i }).click()
-
-  await expect(page).toHaveURL((url) =>
-    /^\/contracts\/[a-z0-9]+$/.test(url.pathname) && url.pathname !== "/contracts/new",
-  { timeout: 30_000 })
+  const created = await intakeResponse
+  expect(created.status()).toBe(201)
+  // Intake uses UUIDs; legacy contract creation used alphanumeric CUIDs.
+  // Do not read a discarded response body after full-page navigation.
+  await expect(page).toHaveURL(url => /^\/contracts\/[a-z0-9-]+$/.test(url.pathname) && url.pathname !== "/contracts/new", { timeout: 30_000 })
 
   await page.getByRole("tab", { name: /^Review\b/ }).click()
   await expect(page.getByText("MASTER SERVICES AGREEMENT", { exact: true })).toBeVisible({ timeout: 45_000 })

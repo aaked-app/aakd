@@ -10,6 +10,7 @@ import { useActiveOrganization, useSession, organization } from "@/lib/auth/clie
 import { useLocale, useTranslations } from "next-intl"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { resolveInteractiveResponse } from "@/lib/ai/resolve-interactive-response"
 
 type AIStatus = {
   provider: string | null
@@ -536,11 +537,11 @@ export default function OrgSettingsPage() {
                   setAiConfigStatus("testing")
                   setAiConfigError("")
                   try {
-                    const res = await fetch("/api/org/ai-config/test", {
+                    const res = await resolveInteractiveResponse(await fetch("/api/org/ai-config/test", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey.trim(), model: aiModel.trim() }),
-                    })
+                    }))
                     const data = (await res.json()) as { valid: boolean; error?: string }
                     setAiConfigStatus(data.valid ? "tested-ok" : "tested-fail")
                     if (!data.valid) setAiConfigError(data.error === "Invalid API key" ? t("invalidApiKey") : (data.error ?? t("validationFailed")))

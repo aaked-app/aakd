@@ -1,8 +1,9 @@
 import crypto from "node:crypto"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { contractExtractQueue, getObligationExtractQueue } from "@/lib/jobs/queues"
+import { getContractExtractQueue, getObligationExtractQueue } from "@/lib/jobs/queues"
 
 const ROLES_CAN_WRITE = new Set(["owner", "admin", "legal", "member"])
 
@@ -19,6 +20,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: {
@@ -44,10 +46,19 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
         return Response.json({ error: "no_extracted_text" }, { status: 422 })
       }
 
-      // A user can reach this action while the upload worker is still
-      // extracting text. Re-queue the same file with a deterministic job ID so
-      // BullMQ deduplicates the recovery request instead of making the user
-      // wait for a stale UI flag or enqueueing duplicate work.
+      // Keep in-flight work, but replace retained terminal jobs: adding their
+      // same ID alone would never execute preparation again.
+      const jobId = `contract-text-${latestFile.id}`
+      const contractExtractQueue = getContractExtractQueue()
+      const priorJob = await contractExtractQueue.getJob(jobId)
+      if (priorJob) {
+        const state = await priorJob.getState()
+        if (state === "failed" || state === "completed" || state === "unknown") {
+          await priorJob.remove()
+        } else {
+          return Response.json({ error: "text_processing", queued: true }, { status: 202 })
+        }
+      }
       await contractExtractQueue.add(
         "extract",
         {
@@ -57,7 +68,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
           storageKey: latestFile.storageKey,
           preserveUserFields: true,
         },
-        { jobId: `contract-text-${latestFile.id}` },
+        { jobId },
       )
       return Response.json({ error: "text_processing", queued: true }, { status: 202 })
     }
@@ -70,7 +81,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     const priorJob = await queue.getJob(jobId)
     if (priorJob) {
       const state = await priorJob.getState()
-      if (state === "waiting" || state === "active" || state === "delayed") {
+      if (state !== "failed" && state !== "completed" && state !== "unknown") {
         return Response.json({ jobId: priorJob.id })
       }
       // Terminal jobs retain a stale return value. Removing them allows a
@@ -93,8 +104,10 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Verify org membership — don't leak job results across orgs
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
@@ -156,7 +169,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       return Response.json({ state: "completed", suggestions })
     }
     if (state === "failed") {
-      return Response.json({ state: "failed", reason: job.failedReason })
+      return Response.json({ state: "failed", reason: "obligation_extraction_failed" })
     }
     // waiting, active, delayed → still running
     return Response.json({ state: "active" })

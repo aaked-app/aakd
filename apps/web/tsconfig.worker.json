@@ -7,8 +7,11 @@
     "noEmit": false,
     "outDir": ".worker-dist",
     "paths": {
+      "bullmq": ["./node_modules/bullmq"],
+      "@prisma/client": ["./node_modules/@prisma/client"],
       "@/*": ["./*"]
     }
   },
-  "include": ["worker.ts", "lib/**/*.ts", "prisma/**/*.ts", "types/**/*.ts"]
+  "include": ["worker.ts", "lib/**/*.ts", "prisma/**/*.ts", "types/**/*.ts"],
+  "exclude": ["node_modules", "tmp", ".next", ".next-*", "tests"]
 }

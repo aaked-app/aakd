@@ -72,16 +72,37 @@ services:
     restart: "no"
 
   # ── DocuSeal (self-hosted e-signatures) ──────────────────────────────────
+  docuseal-secret-check:
+    profiles: ["signing"]
+    network_mode: "none"
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    environment:
+      DOCUSEAL_SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:-}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        case "$$DOCUSEAL_SECRET_KEY_BASE" in
+          *[!0-9a-fA-F]*|"") echo "DOCUSEAL_SECRET_KEY_BASE must be 128 hexadecimal characters generated with openssl rand -hex 64." >&2; exit 1 ;;
+        esac
+        if [ "$${#DOCUSEAL_SECRET_KEY_BASE}" -ne 128 ]; then
+          echo "DOCUSEAL_SECRET_KEY_BASE must be 128 hexadecimal characters generated with openssl rand -hex 64." >&2
+          exit 1
+        fi
+    restart: "no"
+
   docuseal:
     profiles: ["signing"]
-    # The deployer must choose a reviewed immutable digest.
-    image: ${DOCUSEAL_IMAGE:?DOCUSEAL_IMAGE must be set to a reviewed DocuSeal digest}
+    # Keep default stack interpolation independent of optional signing setup.
+    image: ${DOCUSEAL_IMAGE:-docuseal/docuseal@sha256:063f9b89fa99816d0c2f90c33e4e176ecbbdf8cddd4958e40562643d0431dfbc}
     volumes:
       - docusealdata:/data
     environment:
-      SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:?DOCUSEAL_SECRET_KEY_BASE must be set}
+      SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:-}
       HOST: sign.${DOMAIN:?DOMAIN must be set}
       FORCE_SSL: "false"  # Caddy handles SSL
+    depends_on:
+      docuseal-secret-check:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # ── ClauseFlow web app (Next.js) ─────────────────────────────────────────
@@ -89,6 +110,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED: ${NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED:-false}
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/clauseflow
@@ -97,6 +120,8 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
       BETTER_AUTH_URL: https://${DOMAIN}
       NEXT_PUBLIC_APP_URL: https://${DOMAIN}
+      AGREEMENT_ACCESS_EMERGENCY_DENY_ALL: ${AGREEMENT_ACCESS_EMERGENCY_DENY_ALL:-false}
+      DOCUMENT_EXPORT_RETENTION_SECONDS: ${DOCUMENT_EXPORT_RETENTION_SECONDS:-86400}
       INTERNAL_APP_URL: http://app:3000
       # Storage
       STORAGE_ENDPOINT: http://minio:9000
@@ -113,6 +138,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_PRIVATE_ORIGINS: ${OLLAMA_PRIVATE_ORIGINS:-}
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-clauseflow-app}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -123,10 +149,10 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@${DOMAIN}}
-      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # DocuSeal
       DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_PRIVATE_ORIGINS: ${DOCUSEAL_PRIVATE_ORIGINS:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:
@@ -144,6 +170,8 @@ services:
       dockerfile: apps/web/Dockerfile.worker
     environment:
       NODE_ENV: production
+      AGREEMENT_ACCESS_EMERGENCY_DENY_ALL: ${AGREEMENT_ACCESS_EMERGENCY_DENY_ALL:-false}
+      DOCUMENT_EXPORT_RETENTION_SECONDS: ${DOCUMENT_EXPORT_RETENTION_SECONDS:-86400}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/clauseflow
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-20}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -159,6 +187,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_PRIVATE_ORIGINS: ${OLLAMA_PRIVATE_ORIGINS:-}
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-clauseflow-worker}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -171,6 +200,7 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_PRIVATE_ORIGINS: ${DOCUSEAL_PRIVATE_ORIGINS:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:

@@ -1,11 +1,10 @@
 /**
  * Org-scope isolation integration tests.
  *
- * Spec from CLAUDE.md:
- *   "The isolation test must pass before every M0 merge:
- *    - Create contract in org A
- *    - Attempt to read it as org B user via API
- *    - Must return 404 (not 403 — don't leak resource existence)"
+ * Tenant-isolation contract:
+ *   - Create a contract in organization A.
+ *   - Attempt to read it as a user in organization B.
+ *   - Return 404 rather than reveal resource existence with a 403 response.
  *
  * These tests use mocked Prisma and resolveAuth — no live DB required.
  */
@@ -42,6 +41,7 @@ vi.mock("@/lib/notifications/fanout", () => ({
 const orgACtx = {
   userId: "user-a",
   organizationId: "org-a",
+  memberId: "member-a",
   role: "admin" as const,
   source: "session" as const,
   requestId: "test-request-id",
@@ -50,6 +50,7 @@ const orgACtx = {
 const orgBCtx = {
   userId: "user-b",
   organizationId: "org-b",
+  memberId: "member-b",
   role: "admin" as const,
   source: "session" as const,
   requestId: "test-request-id",
@@ -97,6 +98,9 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+    // Deliberately pass the grant gate so these tests continue exercising the
+    // downstream tenant-scoped lookup instead of short-circuiting early.
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "synthetic-grant" } as never)
   })
 
   it("org-B user cannot GET a contract created in org-A — must return 404", async () => {
@@ -107,12 +111,13 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/c-org-a")
-    const res = await GET(req, { params: { id: "c-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(404)
     // Must be 404, never 403 — don't leak resource existence
     expect(res.status).not.toBe(403)
     expect(res.status).not.toBe(200)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 
   it("org-B user cannot PATCH a contract created in org-A — must return 404", async () => {
@@ -126,11 +131,12 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Hijacked Title" }),
     })
-    const res = await PATCH(req, { params: { id: "c-org-a" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(404)
     expect(res.status).not.toBe(403)
     expect(res.status).not.toBe(200)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 
   it("org-B user cannot archive (DELETE) a contract created in org-A — must return 404", async () => {
@@ -142,10 +148,11 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
     const req = new Request("http://localhost/api/contracts/c-org-a", {
       method: "DELETE",
     })
-    const res = await DELETE(req, { params: { id: "c-org-a" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(404)
     expect(res.status).not.toBe(403)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 
   it("org-B user cannot view activity log for an org-A contract — must return 404", async () => {
@@ -155,10 +162,11 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
 
     const { GET } = await import("@/app/api/contracts/[id]/activity/route")
     const req = new Request("http://localhost/api/contracts/c-org-a/activity")
-    const res = await GET(req, { params: { id: "c-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(404)
     expect(res.status).not.toBe(403)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 
   it("org-B user cannot upload a file to an org-A contract — must return 404", async () => {
@@ -177,10 +185,11 @@ describe("Org-scope isolation — cross-org reads must return 404, not 403", () 
       method: "POST",
       body: formData,
     })
-    const res = await POST(req, { params: { id: "c-org-a" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(404)
     expect(res.status).not.toBe(403)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 })
 
@@ -190,6 +199,7 @@ describe("Org-scope isolation — own-org reads succeed", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-a" } as never)
   })
 
   it("org-A user can GET their own contract — returns 200 with org-a scoped data", async () => {
@@ -201,12 +211,27 @@ describe("Org-scope isolation — own-org reads succeed", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/c-org-a")
-    const res = await GET(req, { params: { id: "c-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.organizationId).toBe("org-a")
     expect(body.id).toBe("c-org-a")
+  })
+
+  it("same-organization admin cannot read an existing contract without an explicit grant", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue(orgACtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue(orgAContract as any)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue(null)
+    const { GET } = await import("@/app/api/contracts/[id]/route")
+    const response = await GET(new Request("http://localhost/api/contracts/c-org-a"), { params: Promise.resolve({ id: "c-org-a" }) })
+    expect(response.status).toBe(404)
+    expect(prisma.contractAccessGrant.findFirst).toHaveBeenCalledWith({
+      where: { organizationId: "org-a", memberId: "member-a", contractId: "c-org-a" },
+      select: { id: true },
+    })
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
   })
 
   it("org-A user listing contracts gets their own contracts — not an error", async () => {
@@ -260,7 +285,7 @@ describe("Org-scope isolation — unauthenticated requests return 401", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/c-org-a")
-    const res = await GET(req, { params: { id: "c-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(401)
     // Must not reveal whether the resource exists
@@ -278,7 +303,7 @@ describe("Org-scope isolation — unauthenticated requests return 401", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Attack" }),
     })
-    const res = await PATCH(req, { params: { id: "c-org-a" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c-org-a" }) })
 
     expect(res.status).toBe(401)
   })

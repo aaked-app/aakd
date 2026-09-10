@@ -25,7 +25,6 @@ import {
   UserCheck,
   Send,
   ExternalLink,
-  Trash2,
   RefreshCw,
   ArrowUpRight,
   Pen,
@@ -80,6 +79,7 @@ import { ObligationList } from "@/components/obligations/obligation-list"
 import type { Obligation } from "@/components/obligations/types"
 import { Contract, ContractFile, Activity, ContractStatus, ContractAlert, Tag, Approval, OrgMember, SigningStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { ContractAccessPanel } from "@/components/contract-access-panel"
 
 interface AIExtraction {
   id: string
@@ -313,6 +313,7 @@ function ReviewerPicker({
 export default function ContractDetailPage() {
   const tStatuses = useTranslations("contract.statuses")
   const tWorkspace = useTranslations("contract.workspace")
+  const tIntake = useTranslations("contracts.create")
   const tActions = useTranslations("actionQueue")
   const locale = useLocale()
   const { id } = useParams<{ id: string }>()
@@ -358,6 +359,7 @@ export default function ContractDetailPage() {
   const isMountedRef = useRef(false)
   const [editOpen, setEditOpen] = useState(searchParams.get("edit") === "true")
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Contract>>({})
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -594,20 +596,33 @@ export default function ContractDetailPage() {
     }
   }
 
+  function changeUploadDialog(open: boolean) {
+    setUploadOpen(open)
+    if (!open) {
+      setUploadFile(null)
+      setUploadError(null)
+    }
+  }
+
   async function handleUpload() {
-    if (!uploadFile) return
+    if (!uploadFile || !canUploadSource) return
+    setUploadError(null)
     setUploading(true)
     try {
       const fd = new FormData()
       fd.append("file", uploadFile)
       const res = await fetch(`/api/contracts/${id}/upload`, { method: "POST", body: fd, credentials: "include" })
-      if (!res.ok) throw new Error("Upload failed")
+      if (!res.ok) {
+        const failure = await res.json().catch(() => ({}))
+        setUploadError(tWorkspace(failure.error === "read_only_status" ? "sourceUploadUnavailable" : "uploadNotConfirmed"))
+        return
+      }
       toast.success("File uploaded")
       setUploadOpen(false)
       setUploadFile(null)
       fetchContract()
     } catch {
-      toast.error("Upload failed")
+      setUploadError(tWorkspace("uploadNotConfirmed"))
     } finally {
       setUploading(false)
     }
@@ -624,18 +639,6 @@ export default function ContractDetailPage() {
       a.click()
     } catch {
       toast.error("Download failed")
-    }
-  }
-
-  async function deleteFile(fileId: string) {
-    if (!confirm("Delete this file? This cannot be undone.")) return
-    try {
-      const res = await fetch(`/api/contracts/${id}/upload?fileId=${fileId}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Delete failed")
-      toast.success("File deleted")
-      fetchContract()
-    } catch {
-      toast.error("Failed to delete file")
     }
   }
 
@@ -937,6 +940,9 @@ export default function ContractDetailPage() {
     APPROVAL_REQUESTABLE_STATUSES.includes(contract.status)
   const isAdminOrOwner = currentMember?.role === "admin" || currentMember?.role === "owner"
   const canManage = currentMember?.role === "admin" || currentMember?.role === "legal" || currentMember?.role === "owner"
+  const canUploadSource = ["owner", "admin", "legal", "member"].includes(currentMember?.role ?? "")
+    && contract.status !== "ARCHIVED"
+    && (files.length === 0 || !["AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED"].includes(contract.status))
   const canAnalyzeRisk = canManage
   const requestedTab = searchParams.get("tab")
   const initialTab =
@@ -986,6 +992,11 @@ export default function ContractDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/[0.18]">
+      {searchParams.get("processing") === "delayed" && (
+        <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:px-6">
+          {tIntake("processingDelayed")}
+        </p>
+      )}
       {optionalLoadError && (
         <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:px-6 xl:px-8">
           <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3">
@@ -1438,8 +1449,17 @@ export default function ContractDetailPage() {
 
             </div>
 
-            {/* RIGHT column — Activity panel */}
-            <section aria-labelledby="contract-activity-heading" className="self-start rounded-xl border border-border bg-card p-4 sm:p-5">
+            {/* RIGHT column — Access and activity */}
+            <div className="flex flex-col gap-4 self-start">
+            <ContractAccessPanel
+              contractId={contract.id}
+              ownerId={contract.ownerId}
+              members={members}
+              currentUserId={session?.user?.id}
+              currentRole={currentMember?.role}
+              onOwnerChanged={() => void fetchContract()}
+            />
+            <section aria-labelledby="contract-activity-heading" className="rounded-xl border border-border bg-card p-4 sm:p-5">
               <h2 id="contract-activity-heading" className="mb-3.5 text-sm font-semibold">{tWorkspace("activity")}</h2>
               {activities.length === 0 ? (
                 <p className="text-[12px] text-muted-foreground">{tWorkspace("noActivity")}</p>
@@ -1475,6 +1495,7 @@ export default function ContractDetailPage() {
               )}
             </section>
             </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -1486,12 +1507,13 @@ export default function ContractDetailPage() {
               title={tWorkspace("filesTitle")}
               description={tWorkspace("filesDescription")}
               action={
-                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setUploadOpen(true)}>
+                <Button size="sm" variant="outline" className="min-h-11" disabled={!canUploadSource} onClick={() => { setUploadError(null); setUploadOpen(true) }}>
                   <Upload className="size-4" />
                   {tWorkspace("uploadFile")}
                 </Button>
               }
             />
+            {!canUploadSource && <p className="text-sm text-muted-foreground">{tWorkspace("sourceUploadUnavailable")}</p>}
             <div className="rounded-[var(--radius)] border border-border bg-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-foreground">{tWorkspace("fileVersions")}</h3>
@@ -1567,16 +1589,6 @@ export default function ContractDetailPage() {
                             aria-label={tWorkspace("downloadFile")}
                           >
                             <Download className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="min-h-11 min-w-11 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => deleteFile(f.id)}
-                            title={tWorkspace("deleteFile")}
-                            aria-label={tWorkspace("deleteFile")}
-                          >
-                            <Trash2 className="size-4" />
                           </Button>
                         </div>
                       </div>
@@ -2583,18 +2595,19 @@ export default function ContractDetailPage() {
       </Dialog>
 
       {/* Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+      <Dialog open={uploadOpen} onOpenChange={changeUploadDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{tWorkspace("uploadFile")}</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4">
             <FileUploadZone onFileSelect={setUploadFile} />
+            {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
             <div className="flex gap-3">
               <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
                 {uploading ? tWorkspace("uploading") : tWorkspace("upload")}
               </Button>
-              <Button variant="outline" onClick={() => setUploadOpen(false)}>
+              <Button variant="outline" onClick={() => changeUploadDialog(false)}>
                 {tWorkspace("cancel")}
               </Button>
             </div>

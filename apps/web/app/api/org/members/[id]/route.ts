@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { requireRole } from "@/lib/auth/roles"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
 
 const UpdateMemberSchema = z.object({
   role: z.enum(["admin", "legal", "member", "viewer"]),
@@ -145,7 +146,37 @@ export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ i
       }
     }
 
-    await prisma.member.delete({ where: { id: params.id } })
+    const removal = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Member" WHERE "id" = ${member.id} AND "organizationId" = ${ctx.organizationId} FOR UPDATE`)
+      const ownedContracts = await tx.contract.count({
+        where: { organizationId: ctx.organizationId, ownerId: member.userId },
+      })
+      if (ownedContracts > 0) return "owns_contracts" as const
+      const grants = await tx.contractAccessGrant.findMany({
+        where: { organizationId: ctx.organizationId, memberId: member.id },
+        select: { id: true, contractId: true },
+        orderBy: { contractId: "asc" },
+      })
+      for (const grant of grants) {
+        await tx.activity.create({
+          data: {
+            contractId: grant.contractId,
+            userId: ctx.userId,
+            action: "ACCESS_REVOKED",
+            metadata: { requestId: ctx.requestId, grantId: grant.id, targetMemberId: member.id },
+          },
+        })
+      }
+      await tx.contractAccessGrant.deleteMany({
+        where: { organizationId: ctx.organizationId, memberId: member.id },
+      })
+      await tx.member.delete({ where: { id: member.id } })
+      return "deleted" as const
+    }, { isolationLevel: "Serializable" })
+
+    if (removal === "owns_contracts") {
+      return Response.json({ error: "member_owns_contracts" }, { status: 409 })
+    }
 
     return new Response(null, { status: 204 })
   })

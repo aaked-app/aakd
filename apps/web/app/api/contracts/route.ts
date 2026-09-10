@@ -1,8 +1,8 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requireRole } from "@/lib/auth/roles"
+import { agreementAccessWhere } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
 import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { SECURE_HEADERS } from "@/lib/api-headers"
@@ -11,26 +11,7 @@ import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { requestLogger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { Prisma } from "@prisma/client"
-import { z } from "zod"
-
-const CreateContractSchema = z.object({
-  title: z.string().trim().min(1).max(500),
-  contractType: z.enum(["NDA", "MSA", "SOW", "EMPLOYMENT", "VENDOR", "CUSTOMER", "OTHER"]).optional(),
-  counterpartyName: z.string().optional(),
-  counterpartyContact: z.string().email().optional().or(z.literal("")),
-  value: z.number().positive().optional(),
-  currency: z.string().min(1).max(10).default("USD"),
-  governingLaw: z.string().optional(),
-  startDate: z.string().date().optional(),
-  endDate: z.string().date().optional(),
-  renewalDate: z.string().date().optional(),
-  noticePeriodDays: z.number().int().min(0).optional(),
-  autoRenewal: z.boolean().default(false),
-  renewalReminderEnabled: z.boolean().default(true),
-  notes: z.string().max(10000).optional(),
-  folderId: z.string().optional(),
-  tagIds: z.array(z.string()).default([]),
-})
+import { CreateContractSchema, normalizeCreateContractInput, withoutContractIntakeIdentity } from "@/lib/contracts/create-schema"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -69,9 +50,10 @@ export async function GET(req: Request) {
     if (tagId) where.tags = { some: { id: tagId } }
     if (search) where.title = { contains: search, mode: "insensitive" }
 
+    const authorizedWhere = agreementAccessWhere(ctx, where as Prisma.ContractWhereInput)
     const [contracts, total] = await Promise.all([
       prisma.contract.findMany({
-        where,
+        where: authorizedWhere,
         select: {
           id: true,
           title: true,
@@ -89,7 +71,7 @@ export async function GET(req: Request) {
           noticePeriodDays: true,
           autoRenewal: true,
           renewalReminderEnabled: true,
-          notes: true,
+          notes: ctx.source === "session" || Boolean(ctx.scopes?.includes("text_read")),
           organizationId: true,
           folderId: true,
           riskScore: true,
@@ -106,7 +88,7 @@ export async function GET(req: Request) {
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.contract.count({ where }),
+      prisma.contract.count({ where: authorizedWhere }),
     ])
 
     log.info({ total, page, limit }, "[GET /contracts] listed")
@@ -116,7 +98,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
-  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (!ctx?.memberId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const log = requestLogger(ctx.requestId)
 
@@ -142,16 +124,13 @@ export async function POST(req: Request) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const { tagIds, folderId, startDate, endDate, renewalDate, ...rest } = parsed.data
-
-    // Strip any HTML tags from free-text fields to prevent XSS persistence
-    const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "")
-    if (rest.title) rest.title = stripHtml(rest.title)
-    if (!rest.title.trim()) {
+    let normalized
+    try {
+      normalized = normalizeCreateContractInput(parsed.data)
+    } catch {
       return Response.json({ error: "Contract title is required" }, { status: 422 })
     }
-    if (rest.counterpartyName) rest.counterpartyName = stripHtml(rest.counterpartyName)
-    if (rest.notes) rest.notes = stripHtml(rest.notes)
+    const { tagIds, folderId, startDate, endDate, renewalDate, ...rest } = normalized
 
     // Verify folder + tags belong to the caller's org before connecting them.
     // Prisma's `connect` does not re-check ownership, so without this an
@@ -189,17 +168,27 @@ export async function POST(req: Request) {
       tags: tagIds.length > 0 ? { connect: tagIds.map((id) => ({ id })) } : undefined,
     }
 
-    const contract = await prisma.contract.create({
-      // organizationId is injected by the Prisma middleware from AsyncLocalStorage.
-      data,
-      include: {
-        owner: { select: { id: true, name: true, email: true, image: true } },
-        tags: true,
-        folder: true,
-      },
-    })
-
-    await writeActivity(contract.id, ctx.userId, "CREATED")
+    const contract = await prisma.$transaction(async (tx) => {
+      const created = await tx.contract.create({
+        data,
+        include: {
+          owner: { select: { id: true, name: true, email: true, image: true } },
+          tags: true,
+          folder: true,
+        },
+      })
+      const grant = await tx.contractAccessGrant.create({
+        data: {
+          organizationId: ctx.organizationId,
+          contractId: created.id,
+          memberId: ctx.memberId!,
+          grantedById: ctx.userId,
+        },
+      })
+      await tx.activity.create({ data: { contractId: created.id, userId: ctx.userId, action: "CREATED", metadata: { requestId: ctx.requestId } } })
+      await tx.activity.create({ data: { contractId: created.id, userId: ctx.userId, action: "ACCESS_GRANTED", metadata: { requestId: ctx.requestId, grantId: grant.id, targetMemberId: ctx.memberId } } })
+      return created
+    }, { isolationLevel: "Serializable" })
     log.info({ contractId: contract.id }, "[POST /contracts] created")
 
     captureServerEvent(ctx.userId, "contract_created", {
@@ -220,6 +209,6 @@ export async function POST(req: Request) {
       )
     }
 
-    return Response.json(contract, { status: 201 })
+    return Response.json(withoutContractIntakeIdentity(contract), { status: 201 })
   })
 }

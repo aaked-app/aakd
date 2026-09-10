@@ -4,7 +4,7 @@
  * Covers: GET/POST/DELETE, role enforcement, org isolation.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@/lib/db/client"
 
 // ── Base ctx for an admin in org-1 ─────────────────────────────────────────
@@ -25,10 +25,39 @@ const viewerCtx = {
   requestId: "test-request-id",
 }
 
-let mockCtx: typeof adminCtx | null = adminCtx
+type MockContext = typeof adminCtx | typeof viewerCtx | {
+  userId: string
+  organizationId: string
+  role: string
+  source: "api_key"
+  requestId: string
+  scopes: string[]
+}
+
+const readOnlyApiKeyCtx: MockContext = {
+  userId: "legal-key-owner",
+  organizationId: "org-1",
+  role: "legal",
+  source: "api_key",
+  requestId: "read-key-request",
+  scopes: ["read"],
+}
+
+const writeApiKeyCtx: MockContext = {
+  ...readOnlyApiKeyCtx,
+  requestId: "write-key-request",
+  scopes: ["read", "write"],
+}
+
+let mockCtx: MockContext | null = adminCtx
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn(() => Promise.resolve(mockCtx)),
+  requireWriteScope: vi.fn((ctx: MockContext) => (
+    ctx.source === "api_key" && !ctx.scopes.includes("write")
+      ? Response.json({ error: "API key is read-only — write scope required" }, { status: 403 })
+      : null
+  )),
 }))
 
 vi.mock("@/lib/notifications/crypto", () => ({
@@ -63,7 +92,7 @@ describe("GET /api/org/ai-config", () => {
     vi.mocked(prisma.orgAiConfig.findUnique).mockResolvedValue({
       provider: "anthropic",
       model: "claude-3-5-sonnet-latest",
-    } as any)
+    } as never)
 
     const { GET } = await import("@/app/api/org/ai-config/route")
     const res = await GET(new Request("http://localhost/api/org/ai-config"))
@@ -86,12 +115,15 @@ describe("GET /api/org/ai-config", () => {
 describe("POST /api/org/ai-config", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv("OLLAMA_PRIVATE_ORIGINS", "")
     mockCtx = adminCtx
   })
 
+  afterEach(() => vi.unstubAllEnvs())
+
   it("upserts config and never stores raw key", async () => {
     const saved = { provider: "anthropic", model: "claude-haiku-4-5" }
-    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue(saved as any)
+    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue(saved as never)
 
     const { POST } = await import("@/app/api/org/ai-config/route")
     const res = await POST(
@@ -137,8 +169,37 @@ describe("POST /api/org/ai-config", () => {
     expect(res.status).toBe(400)
   })
 
+  it("does not persist an unapproved private Ollama URL", async () => {
+    const { POST } = await import("@/app/api/org/ai-config/route")
+    const res = await POST(new Request("http://localhost/api/org/ai-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "ollama", baseUrl: "http://10.20.30.40:11434", model: "local-model" }),
+    }))
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: "This Ollama URL is not allowed" })
+    expect(encrypt).not.toHaveBeenCalled()
+    expect(prisma.orgAiConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  it("persists an exact operator-approved private Ollama origin", async () => {
+    vi.stubEnv("OLLAMA_PRIVATE_ORIGINS", "http://10.20.30.40:11434")
+    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue({ provider: "ollama", model: "local-model" } as never)
+    const { POST } = await import("@/app/api/org/ai-config/route")
+    const res = await POST(new Request("http://localhost/api/org/ai-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "ollama", baseUrl: "http://10.20.30.40:11434", model: "local-model" }),
+    }))
+
+    expect(res.status).toBe(200)
+    expect(encrypt).toHaveBeenCalledWith("http://10.20.30.40:11434")
+    expect(prisma.orgAiConfig.upsert).toHaveBeenCalledOnce()
+  })
+
   it("scopes upsert to ctx.organizationId only", async () => {
-    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue({ provider: "openai", model: null } as any)
+    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue({ provider: "openai", model: null } as never)
     const { POST } = await import("@/app/api/org/ai-config/route")
 
     await POST(
@@ -152,6 +213,34 @@ describe("POST /api/org/ai-config", () => {
     const upsertCall = vi.mocked(prisma.orgAiConfig.upsert).mock.calls[0][0]
     expect(upsertCall.where.organizationId).toBe("org-1")
     expect(upsertCall.create.organizationId).toBe("org-1")
+  })
+
+  it("rejects a read-only API key before encrypting or changing provider credentials", async () => {
+    mockCtx = readOnlyApiKeyCtx
+    const { POST } = await import("@/app/api/org/ai-config/route")
+    const res = await POST(new Request("http://localhost/api/org/ai-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "openai", apiKey: "sk-key" }),
+    }))
+
+    expect(res.status).toBe(403)
+    expect(encrypt).not.toHaveBeenCalled()
+    expect(prisma.orgAiConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  it("preserves credential updates for a legal-role API key with write scope", async () => {
+    mockCtx = writeApiKeyCtx
+    vi.mocked(prisma.orgAiConfig.upsert).mockResolvedValue({ provider: "openai", model: "gpt-4o-mini" } as never)
+    const { POST } = await import("@/app/api/org/ai-config/route")
+    const res = await POST(new Request("http://localhost/api/org/ai-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "openai", apiKey: "sk-key" }),
+    }))
+
+    expect(res.status).toBe(200)
+    expect(prisma.orgAiConfig.upsert).toHaveBeenCalledOnce()
   })
 })
 
@@ -177,5 +266,14 @@ describe("DELETE /api/org/ai-config", () => {
     const { DELETE } = await import("@/app/api/org/ai-config/route")
     const res = await DELETE(new Request("http://localhost/api/org/ai-config", { method: "DELETE" }))
     expect(res.status).toBe(403)
+  })
+
+  it("rejects a read-only API key before deleting provider credentials", async () => {
+    mockCtx = readOnlyApiKeyCtx
+    const { DELETE } = await import("@/app/api/org/ai-config/route")
+    const res = await DELETE(new Request("http://localhost/api/org/ai-config", { method: "DELETE" }))
+
+    expect(res.status).toBe(403)
+    expect(prisma.orgAiConfig.deleteMany).not.toHaveBeenCalled()
   })
 })

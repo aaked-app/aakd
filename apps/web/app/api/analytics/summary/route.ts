@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { SECURE_HEADERS } from "@/lib/api-headers"
+import { agreementAccessSql, agreementAccessWhere } from "@/lib/auth/agreement-access"
 
 export type AnalyticsSummary = {
   expiringSoon: {
@@ -71,12 +72,13 @@ export async function GET(req: Request) {
           COUNT(*) FILTER (WHERE "endDate" <= ${d90})::bigint AS next90
         FROM "Contract"
         WHERE "organizationId" = ${ctx.organizationId}
+          AND ${agreementAccessSql("contract", ctx)}
           AND status = 'ACTIVE'
           AND "endDate" >= ${now}
           AND "endDate" <= ${d90}
       `,
       prisma.contract.findMany({
-        where: { organizationId: ctx.organizationId, status: "ACTIVE", endDate: { gte: now, lte: d90 } },
+        where: agreementAccessWhere(ctx, { status: "ACTIVE", endDate: { gte: now, lte: d90 } }),
         orderBy: { endDate: "asc" },
         take: 10,
         select: {
@@ -111,7 +113,7 @@ export async function GET(req: Request) {
     // organizationId predicate manually.
     const grouped = await prisma.contract.groupBy({
       by: ["status"],
-      where: { organizationId: ctx.organizationId },
+      where: agreementAccessWhere(ctx),
       _count: { _all: true },
     })
     const byStatus = grouped.map((g) => ({
@@ -126,6 +128,7 @@ export async function GET(req: Request) {
              COUNT(*)::bigint AS count
       FROM "Contract"
       WHERE "organizationId" = ${ctx.organizationId}
+        AND ${agreementAccessSql("contract", ctx)}
         AND "createdAt" >= ${twelveMonthsAgo}
       GROUP BY 1
       ORDER BY 1 ASC
@@ -143,7 +146,7 @@ export async function GET(req: Request) {
     // ── 4. Value by Type ──────────────────────────────────────────────────
     const valueGrouped = await prisma.contract.groupBy({
       by: ["contractType"],
-      where: { organizationId: ctx.organizationId, value: { not: null } },
+      where: agreementAccessWhere(ctx, { value: { not: null } }),
       _sum: { value: true },
       _count: { _all: true },
     })
@@ -163,6 +166,7 @@ export async function GET(req: Request) {
       FROM "Approval" a
       JOIN "Contract" c ON c.id = a."contractId"
       WHERE c."organizationId" = ${ctx.organizationId}
+        AND ${agreementAccessSql("c", ctx)}
     `
     const totalRequested = Number(approvalRows[0]?.total ?? 0)
     const approved = Number(approvalRows[0]?.approved ?? 0)
@@ -185,6 +189,7 @@ export async function GET(req: Request) {
         FROM "ContractObligation" o
         JOIN "Contract" c ON c.id = o."contractId"
         WHERE c."organizationId" = ${ctx.organizationId}
+          AND ${agreementAccessSql("c", ctx)}
       `
       obligations = {
         overdue: Number(oblRows[0]?.overdue ?? 0),

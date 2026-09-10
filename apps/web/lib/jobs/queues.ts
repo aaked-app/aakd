@@ -1,4 +1,5 @@
 import { Queue } from "bullmq"
+import type { InteractiveAiJobData } from "@/lib/jobs/interactive-ai"
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379"
 const connection = {
@@ -52,14 +53,27 @@ export interface ContractEmbedJobData {
   contractId: string
   organizationId?: string
   extractedText: string
+  /** Immutable source identity for normal extraction jobs. Operator reindex jobs revalidate their actor separately. */
+  sourceFileId?: string
+  sourceFileVersion?: number
+  sourceHash?: string
   preserveUserFields?: boolean
   skipAiExtraction?: boolean
+  /** Operator recovery only: rebuild vectors without regenerating reviewed facts. */
+  indexOnly?: boolean
+  /** Exact current principal required for every provider call in an index-only job. */
+  requestedByUserId?: string
+  requestedByMemberId?: string
 }
 
 export interface SigningSyncJobData {
   triggeredAt: string
   contractId?: string
   submissionId?: string
+  /** Exact DocuSeal instance that owns submissionId. Required for webhook jobs. */
+  providerId?: string
+  /** Exact organization authenticated by an organization integration webhook. */
+  organizationId?: string
 }
 
 // Email send queue — covers any transactional email triggered from a route
@@ -69,6 +83,8 @@ export type EmailJobData =
   | { kind: "alert"; alertId: string }
   | {
       kind: "approval_request"
+      contractId: string
+      recipientUserId: string
       to: string
       assigneeName: string
       requesterName: string
@@ -77,6 +93,8 @@ export type EmailJobData =
     }
   | {
       kind: "approval_rejected"
+      contractId: string
+      recipientUserId: string
       to: string
       requesterName: string
       reviewerName: string
@@ -85,6 +103,7 @@ export type EmailJobData =
     }
   | {
       kind: "event_notification"
+      recipientUserId: string
       eventName: string
       to: string
       contractId: string
@@ -95,6 +114,8 @@ export type EmailJobData =
     }
   | {
       kind: "action_delivery"
+      contractId: string
+      recipientUserId: string
       deliveryId: string
       to: string
       recipientName: string
@@ -125,10 +146,34 @@ export interface ContractRiskScoreJobData {
   sourceHash: string
 }
 
+export interface ExtractionPreviewJobData {
+  jobId: string
+  organizationId: string
+  requestedByUserId: string
+  requestedByMemberId: string
+  storageKey: string
+  fileType: "pdf" | "docx"
+  createdAt: number
+  expiresAt: number
+}
+
+export function extractionPreviewStorageKey(
+  organizationId: string,
+  memberId: string,
+  jobId: string,
+): string {
+  return `previews/${encodeURIComponent(organizationId)}/${encodeURIComponent(memberId)}/${jobId}/source`
+}
+
 // ─── M6: Authoring (Word import / DOCX+PDF export) ───────────────────────────
 
 export interface DocumentConvertJobData {
   contractId: string
+  organizationId?: string
+  requestedByMemberId?: string
+  apiKeyId?: string
+  sourceFileId?: string
+  expectedDocumentVersion?: number | null
   storageKey: string
   requestedById: string
   jobId: string
@@ -138,10 +183,11 @@ export interface DocumentConvertJobData {
 }
 
 export interface DocumentExportJobData {
-  contractId: string
-  format: "docx" | "pdf"
-  requestedById: string
   jobId: string
+}
+
+export interface DocumentExportCleanupJobData {
+  triggeredAt: string
 }
 
 // ─── M5: Notification fan-out + delivery ──────────────────────────────────────
@@ -189,30 +235,48 @@ let _notificationFanoutQueue: Queue<NotificationFanoutJobData> | null = null
 let _notificationDeliverQueue: Queue<NotificationDeliverJobData> | null = null
 let _documentConvertQueue: Queue<DocumentConvertJobData> | null = null
 let _documentExportQueue: Queue<DocumentExportJobData> | null = null
+let _documentExportCleanupQueue: Queue<DocumentExportCleanupJobData> | null = null
 let _obligationsCheckQueue: Queue<ObligationsCheckJobData> | null = null
 let _salesforcePollQueue: Queue<SalesforcePollJobData> | null = null
 let _importProcessQueue: Queue<ImportProcessJobData> | null = null
 let _obligationExtractQueue: Queue<ObligationExtractJobData> | null = null
 let _contractRiskScoreQueue: Queue<ContractRiskScoreJobData> | null = null
+let _extractionPreviewQueue: Queue<ExtractionPreviewJobData> | null = null
+let _interactiveAiQueue: Queue<InteractiveAiJobData> | null = null
 
 export function getContractExtractQueue(): Queue<ContractExtractJobData> {
-  return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", { connection }))
+  return (_contractExtractQueue ??= new Queue<ContractExtractJobData>("contract.extract", {
+    connection,
+    defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  }))
 }
 
 export function getContractAiExtractQueue(): Queue<ContractAiExtractJobData> {
-  return (_contractAiExtractQueue ??= new Queue<ContractAiExtractJobData>("contract.ai_extract", { connection }))
+  return (_contractAiExtractQueue ??= new Queue<ContractAiExtractJobData>("contract.ai_extract", {
+    connection,
+    defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  }))
 }
 
 export function getContractEmbedQueue(): Queue<ContractEmbedJobData> {
-  return (_contractEmbedQueue ??= new Queue<ContractEmbedJobData>("contract.embed", { connection }))
+  return (_contractEmbedQueue ??= new Queue<ContractEmbedJobData>("contract.embed", {
+    connection,
+    defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  }))
 }
 
 export function getAlertsCheckQueue(): Queue<AlertsCheckJobData> {
-  return (_alertsCheckQueue ??= new Queue<AlertsCheckJobData>("alerts.check", { connection }))
+  return (_alertsCheckQueue ??= new Queue<AlertsCheckJobData>("alerts.check", {
+    connection,
+    defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  }))
 }
 
 export function getSigningSyncQueue(): Queue<SigningSyncJobData> {
-  return (_signingSyncQueue ??= new Queue<SigningSyncJobData>("signing.sync", { connection }))
+  return (_signingSyncQueue ??= new Queue<SigningSyncJobData>("signing.sync", {
+    connection,
+    defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  }))
 }
 
 export function getEmailQueue(): Queue<EmailJobData> {
@@ -230,7 +294,7 @@ export function getNotificationFanoutQueue(): Queue<NotificationFanoutJobData> {
     "notification.fanout",
     {
       connection,
-      defaultJobOptions: { removeOnComplete: 200, removeOnFail: 500 },
+      defaultJobOptions: { attempts: 1, removeOnComplete: 200, removeOnFail: 500 },
     }
   ))
 }
@@ -240,7 +304,7 @@ export function getNotificationDeliverQueue(): Queue<NotificationDeliverJobData>
     "notification.deliver",
     {
       connection,
-      defaultJobOptions: { removeOnComplete: 500, removeOnFail: 500 },
+      defaultJobOptions: { attempts: 1, removeOnComplete: 500, removeOnFail: 500 },
     }
   ))
 }
@@ -265,17 +329,30 @@ export function getDocumentExportQueue(): Queue<DocumentExportJobData> {
   ))
 }
 
+export function getDocumentExportCleanupQueue(): Queue<DocumentExportCleanupJobData> {
+  return (_documentExportCleanupQueue ??= new Queue<DocumentExportCleanupJobData>(
+    "document.export.cleanup",
+    { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 } },
+  ))
+}
+
 export function getObligationsCheckQueue(): Queue<ObligationsCheckJobData> {
   return (_obligationsCheckQueue ??= new Queue<ObligationsCheckJobData>(
     "obligations.check",
-    { connection },
+    {
+      connection,
+      defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+    },
   ))
 }
 
 export function getSalesforcePollQueue(): Queue<SalesforcePollJobData> {
   return (_salesforcePollQueue ??= new Queue<SalesforcePollJobData>(
     "salesforce.poll",
-    { connection },
+    {
+      connection,
+      defaultJobOptions: { attempts: 1, removeOnComplete: 50, removeOnFail: 100 },
+    },
   ))
 }
 
@@ -284,7 +361,12 @@ export function getObligationExtractQueue(): Queue<ObligationExtractJobData> {
     "obligations.ai_extract",
     {
       connection,
-      defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 },
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 5000 },
+        removeOnComplete: 100,
+        removeOnFail: 200,
+      },
     }
   ))
 }
@@ -293,6 +375,34 @@ export function getContractRiskScoreQueue(): Queue<ContractRiskScoreJobData> {
   return (_contractRiskScoreQueue ??= new Queue<ContractRiskScoreJobData>(
     "contract.risk_score",
     { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 2, backoff: { type: "exponential", delay: 5000 } } },
+  ))
+}
+
+export function getExtractionPreviewQueue(): Queue<ExtractionPreviewJobData> {
+  return (_extractionPreviewQueue ??= new Queue<ExtractionPreviewJobData>(
+    "contract.extraction_preview",
+    {
+      connection,
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: { age: 300, count: 200 },
+        removeOnFail: { age: 300, count: 500 },
+      },
+    },
+  ))
+}
+
+export function getInteractiveAiQueue(): Queue<InteractiveAiJobData> {
+  return (_interactiveAiQueue ??= new Queue<InteractiveAiJobData>(
+    "ai.request",
+    {
+      connection,
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: { age: 300, count: 500 },
+        removeOnFail: { age: 300, count: 500 },
+      },
+    },
   ))
 }
 
@@ -354,6 +464,11 @@ export const documentExportQueue = {
     getDocumentExportQueue().add(...a),
   close: () => _documentExportQueue?.close() ?? Promise.resolve(),
 }
+export const documentExportCleanupQueue = {
+  add: (...a: Parameters<Queue<DocumentExportCleanupJobData>["add"]>) =>
+    getDocumentExportCleanupQueue().add(...a),
+  close: () => _documentExportCleanupQueue?.close() ?? Promise.resolve(),
+}
 export const obligationsCheckQueue = {
   add: (...a: Parameters<Queue<ObligationsCheckJobData>["add"]>) =>
     getObligationsCheckQueue().add(...a),
@@ -377,4 +492,12 @@ export const obligationExtractQueue = {
 export const contractRiskScoreQueue = {
   add: (...a: Parameters<Queue<ContractRiskScoreJobData>["add"]>) => getContractRiskScoreQueue().add(...a),
   close: () => _contractRiskScoreQueue?.close() ?? Promise.resolve(),
+}
+export const extractionPreviewQueue = {
+  add: (...a: Parameters<Queue<ExtractionPreviewJobData>["add"]>) => getExtractionPreviewQueue().add(...a),
+  close: () => _extractionPreviewQueue?.close() ?? Promise.resolve(),
+}
+export const interactiveAiQueue = {
+  add: (...a: Parameters<Queue<InteractiveAiJobData>["add"]>) => getInteractiveAiQueue().add(...a),
+  close: () => _interactiveAiQueue?.close() ?? Promise.resolve(),
 }

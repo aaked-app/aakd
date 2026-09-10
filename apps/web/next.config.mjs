@@ -1,9 +1,18 @@
 import path from "path"
+import { createRequire } from "node:module"
 import { fileURLToPath } from "url"
 import createNextIntlPlugin from "next-intl/plugin"
 import { withSentryConfig } from "@sentry/nextjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
+const nextPackageDirectory = path.dirname(require.resolve("next/package.json"))
+const swcHelpersDirectory = path.dirname(
+  require.resolve("@swc/helpers/package.json", {
+    paths: [nextPackageDirectory],
+  }),
+)
+const swcHelpersTraceGlob = `${path.relative(__dirname, swcHelpersDirectory).replaceAll(path.sep, "/")}/**/*`
 
 const withNextIntl = createNextIntlPlugin("./i18n.ts")
 
@@ -24,7 +33,18 @@ const nextConfig = {
   // Keep the runtime helper package in every server trace without pinning a
   // pnpm-store version in Dockerfile code.
   outputFileTracingIncludes: {
-    "/*": ["../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*"],
+    "/*": [
+      swcHelpersTraceGlob,
+      "./lib/pdf-parser-child.cjs",
+      "./node_modules/node-ensure/**/*",
+      "./node_modules/pdf-parse/**/*",
+    ],
+  },
+  // Webpack's post-include trace filtering can exclude old workspace builds.
+  // Turbopack 16.3.1 does not apply this exclusion to custom includes; the
+  // production build script therefore uses Webpack until that behavior is fixed.
+  outputFileTracingExcludes: {
+    "/*": ["../../node_modules/.pnpm/node_modules/web/.next*/**/*"],
   },
   serverExternalPackages: ["pdf-parse"],
   // In a pnpm monorepo the root node_modules lives two levels up.

@@ -1,8 +1,8 @@
 /**
- * Org-scope isolation tests — required to pass before every merge.
+ * Organization-scope isolation tests required before every merge.
  *
- * These mirror the `pnpm test:isolation` requirement from CLAUDE.md.
- * Rule: cross-org access must return 404, not 403.
+ * Cross-organization access must return 404 rather than reveal resource
+ * existence with a 403 response.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@/lib/db/client"
@@ -33,6 +33,7 @@ vi.mock("@/lib/alerts/generate", () => ({
 const orgACtx = {
   userId: "user-a",
   organizationId: "org-a",
+  memberId: "member-a",
   role: "admin" as const,
   source: "session" as const,
   requestId: "test-request-id",
@@ -41,6 +42,7 @@ const orgACtx = {
 const orgBCtx = {
   userId: "user-b",
   organizationId: "org-b",
+  memberId: "member-b",
   role: "admin" as const,
   source: "session" as const,
   requestId: "test-request-id",
@@ -85,6 +87,9 @@ describe("Org-scope isolation — cross-org reads must return 404", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+    // Deliberately pass the grant gate so these tests continue exercising the
+    // downstream tenant-scoped lookup instead of short-circuiting early.
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "synthetic-grant" } as never)
   })
 
   it("org-B user cannot read a contract created in org-A — must return 404", async () => {
@@ -95,11 +100,12 @@ describe("Org-scope isolation — cross-org reads must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/contract-org-a")
-    const res = await GET(req, { params: { id: "contract-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-org-a" }) })
 
     expect(res.status).toBe(404)
     // Must not be 403 — don't leak resource existence
     expect(res.status).not.toBe(403)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
   })
 
   it("org-B user cannot PATCH a contract created in org-A — must return 404", async () => {
@@ -113,10 +119,29 @@ describe("Org-scope isolation — cross-org reads must return 404", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Hijacked" }),
     })
-    const res = await PATCH(req, { params: { id: "contract-org-a" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-org-a" }) })
 
     expect(res.status).toBe(404)
     expect(res.status).not.toBe(403)
+    expect(prisma.contract.findUnique).toHaveBeenCalled()
+  })
+
+  it("same-organization access without an explicit grant returns 404 before contract lookup", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue(orgACtx)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+
+    const { GET } = await import("@/app/api/contracts/[id]/route")
+    const res = await GET(new Request("http://localhost/api/contracts/contract-org-a"), {
+      params: Promise.resolve({ id: "contract-org-a" }),
+    })
+
+    expect(res.status).toBe(404)
+    expect(prisma.contractAccessGrant.findFirst).toHaveBeenCalledWith({
+      where: { organizationId: "org-a", memberId: "member-a", contractId: "contract-org-a" },
+      select: { id: true },
+    })
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
   })
 
   it("listing contracts as org-B does not include org-A contracts", async () => {
@@ -137,13 +162,14 @@ describe("Org-scope isolation — cross-org reads must return 404", () => {
   })
 
   it("org-A user can read their own contract — returns 200", async () => {
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-a" } as any)
     const { resolveAuth } = await import("@/lib/auth/middleware")
     vi.mocked(resolveAuth).mockResolvedValue(orgACtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue(orgAContract as any)
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/contract-org-a")
-    const res = await GET(req, { params: { id: "contract-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-org-a" }) })
 
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -156,7 +182,7 @@ describe("Org-scope isolation — cross-org reads must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/contract-org-a")
-    const res = await GET(req, { params: { id: "contract-org-a" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-org-a" }) })
 
     expect(res.status).toBe(401)
   })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, DragEvent, ChangeEvent } from "react"
+import { useState, useRef, useCallback, useEffect, DragEvent, ChangeEvent } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { ArrowLeft, Upload, FileText, Loader2, ShieldCheck, ScanText, Check, PenLine } from "lucide-react"
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { buildExtractionSeedPayload } from "@/lib/ai/extraction-seed"
+import { useSession, useActiveOrganization } from "@/lib/auth/client"
 
 // ---- Constants ----
 
@@ -35,7 +36,6 @@ interface FormData {
   endDate: string
   value: string
   currency: string
-  paymentTerms: string
   autoRenewal: boolean
   renewalReminderEnabled: boolean
   renewalDate: string
@@ -52,7 +52,6 @@ const defaultFormData: FormData = {
   endDate: "",
   value: "",
   currency: "USD",
-  paymentTerms: "",
   autoRenewal: false,
   renewalReminderEnabled: true,
   renewalDate: "",
@@ -69,7 +68,6 @@ interface ExtractionResult {
   endDate?: string | null
   value?: number | null
   currency?: string | null
-  paymentTerms?: string | null
   governingLaw?: string | null
   autoRenewal?: boolean
   renewalDate?: string | null
@@ -78,6 +76,11 @@ interface ExtractionResult {
   confidence?: Record<string, number>
   error?: string
   partial?: boolean
+}
+
+interface ExtractionPreviewPoll {
+  status: "pending" | "completed" | "failed" | "expired"
+  result?: ExtractionResult
 }
 
 // ---- Utility ----
@@ -93,6 +96,24 @@ function titleCaseFromFilename(filename: string): string {
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function waitForPreviewPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"))
+      return
+    }
+    const onAbort = () => {
+      clearTimeout(timeout)
+      reject(new DOMException("Aborted", "AbortError"))
+    }
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort)
+      resolve()
+    }, 1000)
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
 }
 
 // ---- Confidence bar ----
@@ -264,6 +285,7 @@ function ReviewScreen({
   aiExtracting,
   manualReview,
   submitting,
+  locked,
   onFormChange,
   onToggleRenewal,
   onToggleRenewalReminder,
@@ -278,6 +300,7 @@ function ReviewScreen({
   aiExtracting: boolean
   manualReview: boolean
   submitting: boolean
+  locked: boolean
   onFormChange: (key: keyof FormData, value: string) => void
   onToggleRenewal: () => void
   onToggleRenewalReminder: () => void
@@ -304,7 +327,7 @@ function ReviewScreen({
       {/* Two-column layout */}
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* ---- Left column: editable form ---- */}
-        <div className="space-y-6">
+        <fieldset disabled={locked} className="min-w-0 space-y-6">
           {/* Basic Information */}
           <section className="space-y-4 border border-zinc-200 bg-white p-5 sm:p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -327,6 +350,7 @@ function ReviewScreen({
             <div className="space-y-1.5">
               <Label htmlFor="contractType">{t("contractType")}</Label>
               <Select
+                disabled={locked}
                 value={formData.contractType}
                 onValueChange={(v) => onFormChange("contractType", v ?? "")}
               >
@@ -426,6 +450,7 @@ function ReviewScreen({
               <div className="space-y-1.5">
                 <Label htmlFor="currency">{t("currency")}</Label>
                 <Select
+                  disabled={locked}
                   value={formData.currency}
                   onValueChange={(v) => onFormChange("currency", v ?? "USD")}
                 >
@@ -441,17 +466,6 @@ function ReviewScreen({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="paymentTerms">{t("paymentTerms")}</Label>
-              <Input
-                id="paymentTerms"
-                className="min-h-11"
-                value={formData.paymentTerms}
-                onChange={(e) => onFormChange("paymentTerms", e.target.value)}
-                placeholder={t("paymentTermsPlaceholder")}
-              />
             </div>
 
             {/* Auto-Renewal toggle */}
@@ -512,7 +526,7 @@ function ReviewScreen({
               />
             </div>
           </section>
-        </div>
+        </fieldset>
 
         {/* ---- Right column: AI confidence sidebar ---- */}
         <div className="space-y-4">
@@ -565,6 +579,7 @@ function ReviewScreen({
             <button
               type="button"
               onClick={onChangeFile}
+              disabled={locked}
               className="inline-flex min-h-11 items-center text-xs text-primary underline hover:no-underline"
             >
               {t("changeFile")}
@@ -576,7 +591,7 @@ function ReviewScreen({
       {/* ---- Bottom action bar ---- */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-white">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Button type="button" variant="outline" className="min-h-11" onClick={onBack}>
+          <Button type="button" variant="outline" className="min-h-11" onClick={onBack} disabled={locked}>
             {t("back")}
           </Button>
           <Button
@@ -591,7 +606,7 @@ function ReviewScreen({
                 {t("creating")}
               </>
             ) : (
-              t("createContract")
+              t(locked ? "retrySave" : "createContract")
             )}
           </Button>
         </div>
@@ -604,29 +619,88 @@ function ReviewScreen({
 
 export default function NewContractPage() {
   const t = useTranslations("contracts")
+  const { data: session } = useSession()
+  const { data: activeOrganization } = useActiveOrganization()
   const [pageState, setPageState] = useState<PageState>("upload")
   const [file, setFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<FormData>(defaultFormData)
   const [confidence, setConfidence] = useState<Record<string, number>>({})
   const [aiExtracting, setAiExtracting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [previewCompleted, setPreviewCompleted] = useState(false)
+  const [extractionWarning, setExtractionWarning] = useState<string | null>(null)
+  const [saveWarning, setSaveWarning] = useState<string | null>(null)
+  const [saveLocked, setSaveLocked] = useState(false)
+  const [recovering, setRecovering] = useState(false)
   const [manualReview, setManualReview] = useState(false)
   const touchedFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const aiFieldsRef = useRef<Set<keyof FormData>>(new Set())
   const extractionAbortRef = useRef<AbortController | null>(null)
+  const pendingRequestId = useRef<string | null>(null)
+  const pendingSave = useRef<globalThis.FormData | null>(null)
+  const saving = useRef(false)
+  const saveWarningRef = useRef<HTMLDivElement | null>(null)
+  const storageKey = session?.user.id && activeOrganization?.id
+    ? `aakd:intake:${session.user.id}:${activeOrganization.id}` : null
+
+  function forgetSavedRequest() {
+    pendingRequestId.current = null
+    pendingSave.current = null
+    if (storageKey) {
+      try { sessionStorage.removeItem(storageKey) } catch { /* Browser storage is optional. */ }
+    }
+  }
+
+  async function recoverSavedRequest(requestId = pendingRequestId.current) {
+    if (!requestId) return false
+    setRecovering(true)
+    try {
+      const res = await fetch(`/api/contracts/intake?requestId=${encodeURIComponent(requestId)}`, {
+        credentials: "include", cache: "no-store",
+      })
+      if (!res.ok) return false
+      const saved = await res.json() as { id?: string }
+      if (!saved.id) return false
+      forgetSavedRequest()
+      window.location.assign(`/contracts/${encodeURIComponent(saved.id)}`)
+      return true
+    } catch {
+      return false
+    } finally {
+      setRecovering(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!storageKey) return
+    let stored: string | null = null
+    try { stored = sessionStorage.getItem(storageKey) } catch { /* Use in-memory retry when storage is disabled. */ }
+    if (!stored || !/^[0-9a-f-]{36}$/i.test(stored)) return
+    pendingRequestId.current = stored
+    setSaveWarning(t("create.recoveryPending"))
+    void recoverSavedRequest(stored)
+    // Retry state belongs to this exact signed-in account and organization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey])
+
+  useEffect(() => () => extractionAbortRef.current?.abort(), [])
+  useEffect(() => {
+    if (saveWarning) saveWarningRef.current?.focus()
+  }, [saveWarning])
 
   function updateField(key: keyof FormData, value: string) {
+    if (pendingSave.current) return
     touchedFieldsRef.current.add(key)
     setFormData((prev) => ({ ...prev, [key]: value }))
   }
 
   function toggleRenewal() {
+    if (pendingSave.current) return
     touchedFieldsRef.current.add("autoRenewal")
     setFormData((prev) => ({ ...prev, autoRenewal: !prev.autoRenewal }))
   }
 
   function toggleRenewalReminder() {
+    if (pendingSave.current) return
     touchedFieldsRef.current.add("renewalReminderEnabled")
     setFormData((prev) => ({ ...prev, renewalReminderEnabled: !prev.renewalReminderEnabled }))
   }
@@ -636,6 +710,7 @@ export default function NewContractPage() {
     extractionAbortRef.current?.abort()
     extractionAbortRef.current = controller
     setAiExtracting(true)
+    setExtractionWarning(null)
 
     try {
       const fd = new globalThis.FormData()
@@ -648,7 +723,29 @@ export default function NewContractPage() {
         signal: controller.signal,
       })
 
-      const extracted: ExtractionResult = await res.json()
+      const accepted = await res.json() as { jobId?: string }
+      if (!res.ok || !accepted.jobId) throw new Error("Preview could not be queued")
+
+      let extracted: ExtractionResult | null = null
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        const poll = await fetch(
+          `/api/contracts/extract-preview?jobId=${encodeURIComponent(accepted.jobId)}`,
+          { credentials: "include", signal: controller.signal },
+        )
+        if (!poll.ok) throw new Error("Preview polling failed")
+        const status = await poll.json() as ExtractionPreviewPoll
+        if (status.status === "completed" && status.result) {
+          extracted = status.result
+          break
+        }
+        if (status.status === "failed" || status.status === "expired") {
+          throw new Error("Preview processing failed")
+        }
+        await waitForPreviewPoll(controller.signal)
+      }
+      if (!extracted) throw new Error("Preview processing timed out")
+      controller.signal.throwIfAborted()
+
       const extractedValues: Partial<FormData> = {
         title: extracted.title ?? undefined,
         contractType: extracted.contractType ?? undefined,
@@ -657,7 +754,6 @@ export default function NewContractPage() {
         endDate: extracted.endDate?.slice(0, 10) ?? undefined,
         value: extracted.value != null ? String(extracted.value) : undefined,
         currency: extracted.currency ?? undefined,
-        paymentTerms: extracted.paymentTerms ?? undefined,
         autoRenewal: extracted.autoRenewal,
         renewalDate: extracted.renewalDate?.slice(0, 10) ?? undefined,
         noticePeriodDays: extracted.noticePeriodDays != null ? String(extracted.noticePeriodDays) : undefined,
@@ -680,11 +776,10 @@ export default function NewContractPage() {
         }
         return next
       })
-      setConfidence(extracted.confidence ?? {})
+      setConfidence(Object.fromEntries(Object.entries(extracted.confidence ?? {}).filter(([key]) => key in defaultFormData)))
 
       if (extracted.error) {
-        setPreviewCompleted(false)
-        toast.warning(
+        setExtractionWarning(
           extracted.partial
             ? t("create.partialExtractionWarning")
             : t("create.extractionUnavailable"),
@@ -693,13 +788,11 @@ export default function NewContractPage() {
         // Preview values are provisional UI assistance. The worker always
         // re-extracts the uploaded source so pending review rows gain exact
         // source text and page evidence before they can be trusted.
-        setPreviewCompleted(false)
         setManualReview(false)
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setPreviewCompleted(false)
-        toast.error(t("create.continueManually"))
+        setExtractionWarning(t("create.continueManually"))
         setFormData((prev) =>
           prev.title ? prev : { ...prev, title: fallbackTitle },
         )
@@ -713,11 +806,11 @@ export default function NewContractPage() {
   }
 
   function handleFileSelected(selectedFile: File) {
+    if (pendingSave.current) return
     setFile(selectedFile)
     const fileNameWithoutExt = selectedFile.name.replace(/\.[^.]+$/, "")
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
-    setPreviewCompleted(false)
     setManualReview(false)
     setFormData({ ...defaultFormData, title: titleCaseFromFilename(fileNameWithoutExt) })
     setConfidence({})
@@ -726,11 +819,11 @@ export default function NewContractPage() {
   }
 
   function handleChangeFile() {
+    if (pendingSave.current) return
     extractionAbortRef.current?.abort()
     extractionAbortRef.current = null
     touchedFieldsRef.current.clear()
     aiFieldsRef.current.clear()
-    setPreviewCompleted(false)
     setManualReview(false)
     setFile(null)
     setFormData(defaultFormData)
@@ -743,18 +836,27 @@ export default function NewContractPage() {
     extractionAbortRef.current?.abort()
     extractionAbortRef.current = null
     setAiExtracting(false)
-    setPreviewCompleted(false)
     setManualReview(true)
   }
 
   async function handleSubmit() {
+    if (saving.current || recovering) return
+    if (!file || !storageKey) {
+      setSaveWarning(t("create.sessionNotReady"))
+      return
+    }
     if (!formData.title.trim()) {
-      toast.error(t("create.titleRequired"))
+      setSaveWarning(t("create.titleRequired"))
       return
     }
 
+    saving.current = true
     setSubmitting(true)
+    extractionAbortRef.current?.abort()
+    extractionAbortRef.current = null
+    setAiExtracting(false)
     try {
+      if (!pendingSave.current) {
       // Helper: only send a date if it's already in YYYY-MM-DD format (what the
       // API expects). AI-extracted dates may arrive in other formats — skip those
       // rather than causing a 422 validation failure.
@@ -777,24 +879,8 @@ export default function NewContractPage() {
         notes: formData.description || undefined,
       }
 
-      const res = await fetch("/api/contracts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        credentials: "include",
-      })
-
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(err.error ?? t("create.createFailed"))
-      }
-
-      const contract = (await res.json()) as { id: string }
-
-      if (file) {
-        // Persist Pass-1 provenance before uploading the file. The upload
-        // enqueues the worker, so doing this first prevents a fast worker from
-        // creating an AI row before a user-edited value is recorded as manual.
+        // Freeze the file, canonical values and provenance together. Retrying
+        // an uncertain response must resend exactly the same intent.
         const seedFields: Array<{ field: keyof FormData; rawValue: string }> = [
           { field: "contractType",     rawValue: formData.contractType },
           { field: "counterpartyName", rawValue: formData.counterpartyName },
@@ -804,7 +890,6 @@ export default function NewContractPage() {
           { field: "currency",         rawValue: formData.currency === "OTHER" ? "USD" : formData.currency },
           { field: "governingLaw",     rawValue: formData.governingLaw },
           { field: "autoRenewal",      rawValue: String(formData.autoRenewal) },
-          { field: "renewalReminderEnabled", rawValue: String(formData.renewalReminderEnabled) },
           { field: "renewalDate",      rawValue: formData.renewalDate },
           { field: "noticePeriodDays", rawValue: formData.noticePeriodDays },
         ]
@@ -815,38 +900,41 @@ export default function NewContractPage() {
           confidence,
         )
 
-        if (seedPayload.length > 0) {
-          const seedRes = await fetch(`/api/contracts/${contract.id}/extractions`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ extractions: seedPayload }),
-            credentials: "include",
-          })
-          if (!seedRes.ok) throw new Error(t("create.reviewStateSaveFailed"))
-        }
-
         const fd = new globalThis.FormData()
         fd.append("file", file)
-        if (previewCompleted) {
-          fd.append("previewCompleted", "true")
-        }
-        const uploadRes = await fetch(`/api/contracts/${contract.id}/upload`, {
-          method: "POST",
-          body: fd,
-          credentials: "include",
-        })
-        if (!uploadRes.ok) {
-          throw new Error(t("create.fileUploadFailed"))
-        }
+        fd.append("metadata", JSON.stringify(body))
+        fd.append("extractions", JSON.stringify(seedPayload))
+        pendingRequestId.current ??= crypto.randomUUID()
+        fd.append("requestId", pendingRequestId.current)
+        pendingSave.current = fd
+        try { sessionStorage.setItem(storageKey, pendingRequestId.current) } catch { /* Keep in-memory retry. */ }
       }
-
+      setSaveLocked(true)
+      const res = await fetch("/api/contracts/intake", {
+        method: "POST", body: pendingSave.current, credentials: "include",
+      })
+      if (!res.ok) {
+        if ([400, 413, 415, 422].includes(res.status)) {
+          // These responses reject input before persistence. Keep the request
+          // identity, but allow correcting the invalid input.
+          pendingSave.current = null
+          setSaveLocked(false)
+          throw new Error(t("create.invalidIntake"))
+        }
+        throw new Error(t(res.status === 409 ? "create.intakeConflict" : "create.saveUncertain"))
+      }
+      const contract = await res.json() as { id?: string; extractionQueued?: boolean; conversionQueued?: boolean }
+      if (!contract.id) throw new Error(t("create.saveUncertain"))
+      forgetSavedRequest()
       toast.success(t("create.created"))
-      window.location.assign(`/contracts/${contract.id}`)
+      if (!contract.extractionQueued || !contract.conversionQueued) toast.warning(t("create.processingDelayed"))
+      window.location.assign(`/contracts/${encodeURIComponent(contract.id)}${!contract.extractionQueued || !contract.conversionQueued ? "?processing=delayed" : ""}`)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : t("create.createFailed"),
-      )
+      const message = err instanceof Error && [t("create.invalidIntake"), t("create.intakeConflict"), t("create.saveUncertain")].includes(err.message)
+        ? err.message : t("create.saveUncertain")
+      setSaveWarning(message)
     } finally {
+      saving.current = false
       setSubmitting(false)
     }
   }
@@ -881,8 +969,21 @@ export default function NewContractPage() {
       </header>
 
       {/* Page content */}
+      {saveWarning && (
+        <div ref={saveWarningRef} tabIndex={-1} className="mx-auto my-4 max-w-6xl space-y-2 px-4 sm:px-6" role="status">
+          <p className="text-sm text-amber-900">{saveWarning}</p>
+          <Button type="button" variant="outline" className="min-h-11" disabled={submitting || recovering} onClick={() => void recoverSavedRequest()}>
+            {t(recovering ? "create.checkingSaved" : "create.checkSaved")}
+          </Button>
+        </div>
+      )}
       {pageState === "upload" && (
         <UploadScreen onFileSelected={handleFileSelected} />
+      )}
+      {pageState === "review" && extractionWarning && (
+        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+          {extractionWarning}
+        </p>
       )}
       {pageState === "review" && file && (
         <ReviewScreen
@@ -892,6 +993,7 @@ export default function NewContractPage() {
           aiExtracting={aiExtracting}
           manualReview={manualReview}
           submitting={submitting}
+          locked={saveLocked}
           onFormChange={updateField}
           onToggleRenewal={toggleRenewal}
           onToggleRenewalReminder={toggleRenewalReminder}

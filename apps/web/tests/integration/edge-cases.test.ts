@@ -5,6 +5,7 @@ vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue({
     userId: "user-1",
     organizationId: "org-1",
+    memberId: "member-1",
     role: "admin",
     source: "session" as const,
     requestId: "test-request-id",
@@ -15,6 +16,11 @@ vi.mock("@/lib/auth/middleware", () => ({
 vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
+
+beforeEach(() => {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+  vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 vi.mock("@/lib/storage", () => ({
   storage: {
@@ -38,7 +44,7 @@ describe("Contract lifecycle edge cases", () => {
 
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/c1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "c1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -58,7 +64,7 @@ describe("Contract lifecycle edge cases", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "DRAFT" }),
     })
-    const res = await PATCH(req, { params: { id: "c1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -86,12 +92,14 @@ describe("Contract lifecycle edge cases", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ARCHIVED" }),
     })
-    const res = await PATCH(req, { params: { id: "c1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(200)
   })
 
   it("duplicate filename upload — second upload creates version 2 with new version number", async () => {
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-1", role: "admin" } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
       id: "c1",
       organizationId: "org-1",
@@ -126,7 +134,7 @@ describe("Contract lifecycle edge cases", () => {
       writable: true,
     })
 
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -140,7 +148,7 @@ describe("Contract lifecycle edge cases", () => {
 
     const { DELETE } = await import("@/app/api/tags/[id]/route")
     const req = new Request("http://localhost/api/tags/tag-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "tag-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "tag-1" }) })
 
     expect(res.status).toBe(204)
     expect(prisma.tag.update).toHaveBeenCalledWith(
@@ -158,7 +166,7 @@ describe("Contract lifecycle edge cases", () => {
 
     const { DELETE } = await import("@/app/api/tags/[id]/route")
     const req = new Request("http://localhost/api/tags/ghost-tag", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "ghost-tag" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "ghost-tag" }) })
 
     expect(res.status).toBe(404)
     expect(prisma.tag.delete).not.toHaveBeenCalled()
@@ -193,7 +201,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
-    const res = await GET(new Request("http://localhost/api/contracts/c1"), { params: { id: "c1" } })
+    const res = await GET(new Request("http://localhost/api/contracts/c1"), { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -202,7 +210,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(new Request("http://localhost/api/contracts/c1", { method: "PATCH" }), { params: { id: "c1" } })
+    const res = await PATCH(new Request("http://localhost/api/contracts/c1", { method: "PATCH" }), { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -211,7 +219,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
-    const res = await DELETE(new Request("http://localhost/api/contracts/c1", { method: "DELETE" }), { params: { id: "c1" } })
+    const res = await DELETE(new Request("http://localhost/api/contracts/c1", { method: "DELETE" }), { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -220,7 +228,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { POST } = await import("@/app/api/contracts/[id]/upload/route")
-    const res = await POST(new Request("http://localhost/api/contracts/c1/upload", { method: "POST" }), { params: { id: "c1" } })
+    const res = await POST(new Request("http://localhost/api/contracts/c1/upload", { method: "POST" }), { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -229,7 +237,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { GET } = await import("@/app/api/contracts/[id]/activity/route")
-    const res = await GET(new Request("http://localhost/api/contracts/c1/activity"), { params: { id: "c1" } })
+    const res = await GET(new Request("http://localhost/api/contracts/c1/activity"), { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -256,7 +264,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { DELETE } = await import("@/app/api/tags/[id]/route")
-    const res = await DELETE(new Request("http://localhost/api/tags/tag-1", { method: "DELETE" }), { params: { id: "tag-1" } })
+    const res = await DELETE(new Request("http://localhost/api/tags/tag-1", { method: "DELETE" }), { params: Promise.resolve({ id: "tag-1" }) })
     expect(res.status).toBe(401)
   })
 
@@ -328,7 +336,7 @@ describe("Auth enforcement — all routes require resolveAuth", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { DELETE } = await import("@/app/api/org/api-keys/[id]/route")
-    const res = await DELETE(new Request("http://localhost/api/org/api-keys/key-1", { method: "DELETE" }), { params: { id: "key-1" } })
+    const res = await DELETE(new Request("http://localhost/api/org/api-keys/key-1", { method: "DELETE" }), { params: Promise.resolve({ id: "key-1" }) })
     expect(res.status).toBe(401)
   })
 })
@@ -408,6 +416,7 @@ describe("Activity log completeness", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-1",
       organizationId: "org-1",
+      memberId: "member-1",
       role: "admin",
       source: "session" as const,
       requestId: "test-request-id",
@@ -426,7 +435,6 @@ describe("Activity log completeness", () => {
       folder: null,
     } as any)
 
-    const { writeActivity } = await import("@/lib/db/activity")
     const { POST } = await import("@/app/api/contracts/route")
 
     const req = new Request("http://localhost/api/contracts", {
@@ -436,7 +444,10 @@ describe("Activity log completeness", () => {
     })
     await POST(req)
 
-    expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "CREATED")
+    expect(prisma.activity.create).toHaveBeenCalledWith({ data: {
+      contractId: "c1", userId: "user-1", action: "CREATED", metadata: { requestId: "test-request-id" },
+    } })
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" })
   })
 
   it("PATCH /api/contracts/[id] logs UPDATED activity", async () => {
@@ -458,7 +469,7 @@ describe("Activity log completeness", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Updated" }),
     })
-    await PATCH(req, { params: { id: "c1" } })
+    await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "UPDATED", expect.any(String))
   })
@@ -471,12 +482,14 @@ describe("Activity log completeness", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
 
     const req = new Request("http://localhost/api/contracts/c1", { method: "DELETE" })
-    await DELETE(req, { params: { id: "c1" } })
+    await DELETE(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "ARCHIVED")
   })
 
   it("POST /api/contracts/[id]/upload logs UPLOADED activity", async () => {
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-1", role: "admin" } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({ id: "c1", organizationId: "org-1" } as any)
     vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.contractFile.updateMany).mockResolvedValue({ count: 0 } as any)
@@ -494,7 +507,6 @@ describe("Activity log completeness", () => {
     } as any)
     vi.mocked(prisma.contractVersion.create).mockResolvedValue({} as any)
 
-    const { writeActivity } = await import("@/lib/db/activity")
     const { POST } = await import("@/app/api/contracts/[id]/upload/route")
 
     const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
@@ -508,12 +520,20 @@ describe("Activity log completeness", () => {
       writable: true,
     })
 
-    await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
-    expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "UPLOADED", expect.any(String))
+    expect(res.status).toBe(201)
+    expect(prisma.activity.create).toHaveBeenCalledWith({
+      data: {
+        contractId: "c1", userId: "user-1", action: "UPLOADED",
+        detail: "test.pdf", metadata: { fileId: "file-1" },
+      },
+    })
   })
 
   it("always queues cited extraction even when a client claims its preview completed", async () => {
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-1", role: "admin" } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", status: "DRAFT" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({ id: "c1", organizationId: "org-1" } as any)
     vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.contractFile.updateMany).mockResolvedValue({ count: 0 } as any)
@@ -527,7 +547,7 @@ describe("Activity log completeness", () => {
     const req = new Request("http://localhost/api/contracts/c1/upload", { method: "POST" })
     Object.defineProperty(req, "formData", { value: () => Promise.resolve(fd), writable: true })
 
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(201)
     expect(contractExtractQueue.add).toHaveBeenCalledWith(
@@ -556,7 +576,7 @@ describe("Activity log completeness", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "INTERNAL_REVIEW" }),
     })
-    await PATCH(req, { params: { id: "c1" } })
+    await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "STATUS_CHANGED", "DRAFT → INTERNAL_REVIEW")
   })
@@ -585,7 +605,7 @@ describe("Org-level isolation for member/API key operations", () => {
 
     const { DELETE } = await import("@/app/api/org/api-keys/[id]/route")
     const req = new Request("http://localhost/api/org/api-keys/key-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "key-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "key-1" }) })
 
     expect(res.status).toBe(404)
     expect(prisma.apiKey.update).not.toHaveBeenCalled()
@@ -612,7 +632,7 @@ describe("Org-level isolation for member/API key operations", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: "admin" }),
     })
-    const res = await PATCH(req, { params: { id: "member-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "member-1" }) })
 
     expect(res.status).toBe(404)
     expect(prisma.member.update).not.toHaveBeenCalled()
@@ -641,7 +661,7 @@ describe("Org-level isolation for member/API key operations", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: "viewer" }),
     })
-    const res = await PATCH(req, { params: { id: "member-owner" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "member-owner" }) })
 
     expect(res.status).toBe(403)
     expect(prisma.member.update).not.toHaveBeenCalled()
@@ -671,7 +691,7 @@ describe("Org-level isolation for member/API key operations", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: "admin" }),
     })
-    const res = await PATCH(req, { params: { id: "member-owner" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "member-owner" }) })
 
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -704,7 +724,7 @@ describe("Org-level isolation for member/API key operations", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: "admin" }),
     })
-    const res = await PATCH(req, { params: { id: "member-co-owner" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "member-co-owner" }) })
 
     expect(res.status).toBe(200)
     expect(prisma.member.update).toHaveBeenCalled()
@@ -729,7 +749,7 @@ describe("Org-level isolation for member/API key operations", () => {
 
     const { DELETE } = await import("@/app/api/org/members/[id]/route")
     const req = new Request("http://localhost/api/org/members/member-owner", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "member-owner" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "member-owner" }) })
 
     expect(res.status).toBe(403)
     expect(prisma.member.delete).not.toHaveBeenCalled()
@@ -755,7 +775,7 @@ describe("Org-level isolation for member/API key operations", () => {
 
     const { DELETE } = await import("@/app/api/org/members/[id]/route")
     const req = new Request("http://localhost/api/org/members/member-owner", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "member-owner" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "member-owner" }) })
 
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -784,7 +804,7 @@ describe("Org-level isolation for member/API key operations", () => {
 
     const { DELETE } = await import("@/app/api/org/members/[id]/route")
     const req = new Request("http://localhost/api/org/members/member-co-owner", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "member-co-owner" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "member-co-owner" }) })
 
     expect(res.status).toBe(204)
     expect(prisma.member.delete).toHaveBeenCalled()
@@ -814,7 +834,7 @@ describe("Org-level isolation for member/API key operations", () => {
     const { writeActivity } = await import("@/lib/db/activity")
     const { DELETE } = await import("@/app/api/folders/[id]/route")
     const req = new Request("http://localhost/api/folders/folder-1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "folder-1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "folder-1" }) })
 
     expect(res.status).toBe(204)
     expect(writeActivity).toHaveBeenCalledTimes(2)
@@ -837,6 +857,7 @@ describe("Org-level isolation for member/API key operations", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-1",
       organizationId: "org-1",
+      memberId: "member-1",
       role: "admin",
       source: "session",
       requestId: "test-request-id",
@@ -851,7 +872,7 @@ describe("Org-level isolation for member/API key operations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/comments/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/c1/comments?limit=500"),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
     const findManyCall = vi.mocked(prisma.contractComment.findMany).mock.calls[0][0] as any
     expect(findManyCall.skip).toBe(0)
@@ -865,6 +886,7 @@ describe("Org-level isolation for member/API key operations", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-1",
       organizationId: "org-1",
+      memberId: "member-1",
       role: "admin",
       source: "session",
       requestId: "test-request-id",
@@ -879,7 +901,7 @@ describe("Org-level isolation for member/API key operations", () => {
     const { GET } = await import("@/app/api/contracts/[id]/snapshots/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/c1/snapshots?page=2&limit=20"),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
     const findManyCall = vi.mocked(prisma.documentSnapshot.findMany).mock.calls[0][0] as any
     expect(findManyCall.skip).toBe(20)

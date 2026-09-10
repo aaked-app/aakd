@@ -13,11 +13,13 @@
  * validateWebhookUrl and validateOllamaTestUrl — none of them is an
  * RFC-1918 LAN address, so neither validator's self-host allowance applies.
  */
-import { describe, it, expect } from "vitest"
+import { afterEach, describe, it, expect, vi } from "vitest"
 import { validateWebhookUrl, validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
 
 const BYPASS_URLS = [
   "http://[::1]:6379/",
+  "http://[::]:6379/",
+  "http://[0:0:0:0:0:0:0:0]:6379/",
   "http://[fe80::1]/",
   "http://[fc00::1]/",
   "http://[::ffff:169.254.169.254]/latest/meta-data/",
@@ -32,9 +34,22 @@ describe.each([
   })
 })
 
-describe("validateOllamaTestUrl — self-host RFC-1918 still allowed through IPv4-mapped IPv6 form", () => {
-  it("allows an IPv4-mapped RFC-1918 address (::ffff:192.168.1.10)", async () => {
+describe("validateOllamaTestUrl — private origins require exact operator approval", () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it("denies an IPv4-mapped RFC-1918 address by default", async () => {
+    vi.stubEnv("OLLAMA_PRIVATE_ORIGINS", "")
+    await expect(validateOllamaTestUrl("http://[::ffff:192.168.1.10]:11434/")).rejects.toThrow()
+  })
+
+  it("allows the exact approved IPv4-mapped RFC-1918 origin", async () => {
+    vi.stubEnv("OLLAMA_PRIVATE_ORIGINS", "http://[::ffff:c0a8:10a]:11434")
     await expect(validateOllamaTestUrl("http://[::ffff:192.168.1.10]:11434/")).resolves.toBeUndefined()
+  })
+
+  it("allows an exact approved IPv6 unique-local origin", async () => {
+    vi.stubEnv("OLLAMA_PRIVATE_ORIGINS", "http://[fd12:3456::10]:11434")
+    await expect(validateOllamaTestUrl("http://[fd12:3456::10]:11434/")).resolves.toBeUndefined()
   })
 })
 

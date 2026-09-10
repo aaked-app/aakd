@@ -12,6 +12,7 @@ function sanitizeFilename(name: string): string {
 export async function POST(req: Request): Promise<Response> {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   let formData: FormData
   try {

@@ -66,7 +66,7 @@ export function middleware(req: NextRequest) {
   // with a valid cf_live_ token but no session cookie are redirected to
   // /login before the route handler ever runs, making API key auth dead.
   const authHeader = req.headers.get("Authorization")
-  if (pathname.startsWith("/api/") && authHeader?.startsWith("Bearer ")) {
+  if (pathname.startsWith("/api/") && /^Bearer\s+cf_live_\S+$/i.test(authHeader?.trim() ?? "")) {
     return finalize(req, ensureLocaleCookie(req, NextResponse.next()), requestId)
   }
 

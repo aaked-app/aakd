@@ -71,6 +71,8 @@ import { ensureFreshToken } from "@/lib/crm/route-helpers"
  * producing cascading false failures.
  */
 function resetMockQueues() {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+  vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-admin" } as any)
   vi.mocked(resolveAuth).mockReset()
   vi.mocked(getCrmProvider).mockReset()
   vi.mocked(ensureFreshToken).mockReset()
@@ -80,6 +82,7 @@ function resetMockQueues() {
 const adminCtx = {
   userId: "user-admin",
   organizationId: "org-1",
+  memberId: "member-admin",
   role: "admin",
   source: "session" as const,
   requestId: "req-test",
@@ -87,7 +90,6 @@ const adminCtx = {
 
 const viewerCtx = { ...adminCtx, role: "viewer" }
 const memberCtx = { ...adminCtx, role: "member" }
-const legalCtx = { ...adminCtx, role: "legal" }
 
 /** A minimal mock CRM provider that can be configured per-test. */
 function makeMockProvider(overrides: Record<string, unknown> = {}) {
@@ -151,7 +153,7 @@ describe("GET /api/crm/[provider]/connect", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/connect"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(401)
   })
@@ -160,7 +162,7 @@ describe("GET /api/crm/[provider]/connect", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { GET } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/connect"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(403)
   })
@@ -169,7 +171,7 @@ describe("GET /api/crm/[provider]/connect", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { GET } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await GET(new Request("http://localhost/api/crm/bogus/connect"), {
-      params: { provider: "bogus" },
+      params: Promise.resolve({ provider: "bogus" }),
     })
     expect(res.status).toBe(400)
   })
@@ -185,7 +187,7 @@ describe("GET /api/crm/[provider]/connect", () => {
     )
     const { GET } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/connect"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(503)
   })
@@ -195,7 +197,7 @@ describe("GET /api/crm/[provider]/connect", () => {
     vi.mocked(getCrmProvider).mockReturnValueOnce(makeMockProvider() as any)
     const { GET } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/connect"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(302)
     expect(res.headers.get("Location")).toContain("crm.example.com/oauth")
@@ -215,7 +217,7 @@ describe("DELETE /api/crm/[provider]/connect", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await DELETE(new Request("http://localhost/api/crm/hubspot/connect", { method: "DELETE" }), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(401)
   })
@@ -224,7 +226,7 @@ describe("DELETE /api/crm/[provider]/connect", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
     const { DELETE } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await DELETE(new Request("http://localhost/api/crm/hubspot/connect", { method: "DELETE" }), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(403)
   })
@@ -234,7 +236,7 @@ describe("DELETE /api/crm/[provider]/connect", () => {
     vi.mocked(prisma.crmIntegration.findUnique).mockResolvedValueOnce(null)
     const { DELETE } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await DELETE(new Request("http://localhost/api/crm/hubspot/connect", { method: "DELETE" }), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(404)
   })
@@ -248,7 +250,7 @@ describe("DELETE /api/crm/[provider]/connect", () => {
     vi.mocked(prisma.crmIntegration.delete).mockResolvedValueOnce(mockIntegration as any)
     const { DELETE } = await import("@/app/api/crm/[provider]/connect/route")
     const res = await DELETE(new Request("http://localhost/api/crm/hubspot/connect", { method: "DELETE" }), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(204)
     expect(prisma.crmLink.deleteMany).toHaveBeenCalledWith({
@@ -269,7 +271,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals?q=test"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(401)
   })
@@ -278,7 +280,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -289,7 +291,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/badprovider/deals?q=test"), {
-      params: { provider: "badprovider" },
+      params: Promise.resolve({ provider: "badprovider" }),
     })
     expect(res.status).toBe(400)
   })
@@ -299,7 +301,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     vi.mocked(prisma.crmIntegration.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals?q=Acme"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(404)
   })
@@ -310,7 +312,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     vi.mocked(ensureFreshToken).mockRejectedValueOnce(new Error("refresh_failed"))
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals?q=Acme"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(502)
     const body = await res.json()
@@ -328,7 +330,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     )
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals?q=Acme"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(502)
     const body = await res.json()
@@ -349,7 +351,7 @@ describe("GET /api/crm/[provider]/deals", () => {
     )
     const { GET } = await import("@/app/api/crm/[provider]/deals/route")
     const res = await GET(new Request("http://localhost/api/crm/hubspot/deals?q=Acme"), {
-      params: { provider: "hubspot" },
+      params: Promise.resolve({ provider: "hubspot" }),
     })
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -422,7 +424,7 @@ describe("POST /api/crm/[provider]/webhook", () => {
     const { POST } = await import("@/app/api/crm/[provider]/webhook/route")
     const res = await POST(
       new Request("http://localhost/api/crm/salesforce/webhook", { method: "POST", body: "{}" }),
-      { params: { provider: "salesforce" } },
+      { params: Promise.resolve({ provider: "salesforce" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -432,7 +434,7 @@ describe("POST /api/crm/[provider]/webhook", () => {
     const { POST } = await import("@/app/api/crm/[provider]/webhook/route")
     const res = await POST(
       new Request("http://localhost/api/crm/hubspot/webhook", { method: "POST", body: "{}" }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -451,7 +453,7 @@ describe("POST /api/crm/[provider]/webhook", () => {
         method: "POST",
         body: JSON.stringify([{ subscriptionType: "deal.propertyChange", propertyName: "dealstage" }]),
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -483,7 +485,7 @@ describe("POST /api/crm/[provider]/webhook", () => {
         headers: { "x-hubspot-portal-id": "portal-123" },
         body: "{}",
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.crmLink.update).toHaveBeenCalledWith(
@@ -493,6 +495,31 @@ describe("POST /api/crm/[provider]/webhook", () => {
       }),
     )
     // Contract must NOT have been transitioned (stage mismatch)
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: { organizationId: "org-1", userId: "user-admin" },
+      select: { id: true },
+    })
+  })
+
+  it("does not process a valid event after the integration owner loses membership", async () => {
+    vi.mocked(prisma.crmIntegration.findMany).mockResolvedValueOnce([mockIntegration as any])
+    vi.mocked(getCrmProvider).mockReturnValueOnce(makeMockProvider({
+      parseWebhookEvent: vi.fn().mockResolvedValueOnce({
+        dealId: "deal-42", dealName: "Big Deal", stage: "Won", value: 5000, currency: "USD",
+      }),
+    }) as any)
+    vi.mocked(prisma.member.findFirst).mockResolvedValueOnce(null)
+
+    const { POST } = await import("@/app/api/crm/[provider]/webhook/route")
+    const res = await POST(new Request("http://localhost/api/crm/hubspot/webhook", {
+      method: "POST",
+      headers: { "x-hubspot-portal-id": "portal-123" },
+      body: "{}",
+    }), { params: Promise.resolve({ provider: "hubspot" }) })
+
+    expect(res.status).toBe(200)
+    expect(prisma.crmLink.findMany).not.toHaveBeenCalled()
     expect(prisma.contract.update).not.toHaveBeenCalled()
   })
 
@@ -524,12 +551,12 @@ describe("POST /api/crm/[provider]/webhook", () => {
         headers: { "x-hubspot-portal-id": "portal-123" },
         body: "{}",
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.contract.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "contract-1", status: "AWAITING_SIGNATURE" },
+        where: { id: "contract-1", organizationId: "org-1", status: "AWAITING_SIGNATURE" },
         data: { status: "ACTIVE" },
       }),
     )
@@ -559,7 +586,7 @@ describe("POST /api/crm/[provider]/webhook", () => {
         headers: { "x-pipedrive-signature": "fake-sig" },
         body: JSON.stringify({ current: { id: 99, stage_id: 5 }, previous: { id: 99, stage_id: 4 } }),
       }),
-      { params: { provider: "pipedrive" } },
+      { params: Promise.resolve({ provider: "pipedrive" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -574,7 +601,7 @@ describe("GET /api/contracts/[id]/crm-link", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/crm-link/route")
     const res = await GET(new Request("http://localhost/api/contracts/contract-1/crm-link"), {
-      params: { id: "contract-1" },
+      params: Promise.resolve({ id: "contract-1" }),
     })
     expect(res.status).toBe(401)
   })
@@ -587,7 +614,7 @@ describe("GET /api/contracts/[id]/crm-link", () => {
     } as any)
     const { GET } = await import("@/app/api/contracts/[id]/crm-link/route")
     const res = await GET(new Request("http://localhost/api/contracts/contract-1/crm-link"), {
-      params: { id: "contract-1" },
+      params: Promise.resolve({ id: "contract-1" }),
     })
     expect(res.status).toBe(404)
   })
@@ -597,7 +624,7 @@ describe("GET /api/contracts/[id]/crm-link", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/crm-link/route")
     const res = await GET(new Request("http://localhost/api/contracts/contract-1/crm-link"), {
-      params: { id: "contract-1" },
+      params: Promise.resolve({ id: "contract-1" }),
     })
     expect(res.status).toBe(404)
   })
@@ -611,7 +638,7 @@ describe("GET /api/contracts/[id]/crm-link", () => {
     vi.mocked(prisma.crmLink.findMany).mockResolvedValueOnce([mockLink as any])
     const { GET } = await import("@/app/api/contracts/[id]/crm-link/route")
     const res = await GET(new Request("http://localhost/api/contracts/contract-1/crm-link"), {
-      params: { id: "contract-1" },
+      params: Promise.resolve({ id: "contract-1" }),
     })
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -638,7 +665,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-1" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -652,7 +679,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-1" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -666,7 +693,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -681,7 +708,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-1" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -700,7 +727,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-1" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -727,7 +754,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-1" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(502)
     const body = await res.json()
@@ -765,7 +792,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-42" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -807,7 +834,7 @@ describe("POST /api/contracts/[id]/crm-link", () => {
         body: JSON.stringify({ provider: "HUBSPOT", externalDealId: "deal-42" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -829,7 +856,7 @@ describe("DELETE /api/contracts/[id]/crm-link/[linkId]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/crm-link/[linkId]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/contract-1/crm-link/link-1", { method: "DELETE" }),
-      { params: { id: "contract-1", linkId: "link-1" } },
+      { params: Promise.resolve({ id: "contract-1", linkId: "link-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -839,7 +866,7 @@ describe("DELETE /api/contracts/[id]/crm-link/[linkId]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/crm-link/[linkId]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/contract-1/crm-link/link-1", { method: "DELETE" }),
-      { params: { id: "contract-1", linkId: "link-1" } },
+      { params: Promise.resolve({ id: "contract-1", linkId: "link-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -856,7 +883,7 @@ describe("DELETE /api/contracts/[id]/crm-link/[linkId]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/crm-link/[linkId]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/contract-1/crm-link/link-1", { method: "DELETE" }),
-      { params: { id: "contract-1", linkId: "link-1" } },
+      { params: Promise.resolve({ id: "contract-1", linkId: "link-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -875,7 +902,7 @@ describe("DELETE /api/contracts/[id]/crm-link/[linkId]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/crm-link/[linkId]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/contract-1/crm-link/link-1", { method: "DELETE" }),
-      { params: { id: "contract-1", linkId: "link-1" } },
+      { params: Promise.resolve({ id: "contract-1", linkId: "link-1" }) },
     )
     expect(res.status).toBe(204)
     expect(prisma.crmLink.delete).toHaveBeenCalledWith({ where: { id: "link-1" } })

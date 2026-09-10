@@ -118,21 +118,30 @@ describe("API key GET response — no raw material leaked", () => {
     expect(captureServerEvent).not.toHaveBeenCalled()
   })
 
-  it("allows API-key subset/equal delegation and leaves session creation unchanged", async () => {
+  it("rejects API-key delegation while leaving session creation unchanged", async () => {
     vi.mocked(prisma.apiKey.count).mockResolvedValue(0)
     vi.mocked(prisma.apiKey.create).mockResolvedValue({ id: "key-2", name: "Delegated", prefix: "cf_live_delegate", scopes: ["read", "text_read"], expiresAt: null, createdAt: new Date() } as any)
     const { POST } = await import("@/app/api/org/api-keys/route")
-    for (const context of [
-      { source: "api_key" as const, scopes: ["read", "text_read", "write"] },
-      { source: "session" as const },
-    ]) {
-      vi.mocked(resolveAuth).mockResolvedValueOnce({ userId: "user-1", organizationId: "org-1", role: "admin", requestId: "request-3", ...context })
-      const res = await POST(new Request("http://localhost/api/org/api-keys", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Delegated", scopes: ["read", "text_read"] }),
-      }))
-      expect(res.status).toBe(201)
-    }
+    vi.mocked(resolveAuth).mockResolvedValueOnce({
+      userId: "user-1", organizationId: "org-1", role: "admin", requestId: "request-3",
+      source: "api_key", scopes: ["read", "text_read", "write"],
+    })
+    const delegated = await POST(new Request("http://localhost/api/org/api-keys", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Delegated", scopes: ["read", "text_read"] }),
+    }))
+    expect(delegated.status).toBe(403)
+    expect(prisma.apiKey.create).not.toHaveBeenCalled()
+
+    vi.mocked(resolveAuth).mockResolvedValueOnce({
+      userId: "user-1", organizationId: "org-1", role: "admin", requestId: "request-4",
+      source: "session",
+    })
+    const sessionCreated = await POST(new Request("http://localhost/api/org/api-keys", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Delegated", scopes: ["read", "text_read"] }),
+    }))
+    expect(sessionCreated.status).toBe(201)
   })
 })
 

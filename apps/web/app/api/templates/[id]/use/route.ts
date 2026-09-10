@@ -1,7 +1,6 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
 import { substituteVariables, type TemplateVariable } from "@/lib/editor/template"
 import { countWords, plateToPlaintext } from "@/lib/editor/plate-to-plaintext"
 import { captureServerEvent } from "@/lib/posthog-server"
@@ -18,7 +17,7 @@ const UseTemplateSchema = z.object({
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
   const ctx = await resolveAuth(req)
-  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (!ctx?.memberId) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
   if (ctx.role === "viewer") {
@@ -102,24 +101,26 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
           ? { connect: parsed.data.tagIds.map((id) => ({ id })) }
           : undefined,
     }
-    const contract = await prisma.contract.create({
-      data: contractData,
-      select: { id: true },
-    })
-
-    await prisma.contractDocument.create({
-      data: {
-        contractId: contract.id,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        content: substituted as any,
-        wordCount,
-        version: 1,
-        savedById: ctx.userId,
-      },
-    })
-
-    await writeActivity(contract.id, ctx.userId, "CREATED", `Created from template`)
-    await writeActivity(contract.id, ctx.userId, "DOCUMENT_SAVED")
+    const contract = await prisma.$transaction(async (tx) => {
+      const created = await tx.contract.create({ data: contractData, select: { id: true } })
+      const grant = await tx.contractAccessGrant.create({
+        data: { organizationId: ctx.organizationId, contractId: created.id, memberId: ctx.memberId!, grantedById: ctx.userId },
+      })
+      await tx.contractDocument.create({
+        data: {
+          contractId: created.id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          content: substituted as any,
+          wordCount,
+          version: 1,
+          savedById: ctx.userId,
+        },
+      })
+      await tx.activity.create({ data: { contractId: created.id, userId: ctx.userId, action: "CREATED", detail: "Created from template", metadata: { requestId: ctx.requestId } } })
+      await tx.activity.create({ data: { contractId: created.id, userId: ctx.userId, action: "ACCESS_GRANTED", metadata: { requestId: ctx.requestId, grantId: grant.id, targetMemberId: ctx.memberId } } })
+      await tx.activity.create({ data: { contractId: created.id, userId: ctx.userId, action: "DOCUMENT_SAVED", metadata: { requestId: ctx.requestId } } })
+      return created
+    }, { isolationLevel: "Serializable" })
 
     captureServerEvent(ctx.userId, "template_used", {
       templateId: params.id,

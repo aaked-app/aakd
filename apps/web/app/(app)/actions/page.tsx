@@ -24,6 +24,8 @@ type Action = {
   status: ActionStatus
   version: number
   hasCitation: boolean
+  proposalOrigin: "api_key" | "workspace_member" | null
+  proposalSourceVersion: number | null
   evidenceCount: number
   contract: { id: string; title: string; counterpartyName: string | null }
   assignee: { id: string; name: string } | null
@@ -145,6 +147,7 @@ export default function ActionsPage() {
                 {action.description && <p className="text-sm text-muted-foreground">{action.description}</p>}
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   {action.hasCitation && <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1"><ShieldCheck className="size-3.5" />{t("sourceCited")}</span>}
+                  {action.proposalOrigin && <span className="rounded-full border px-2 py-1">{t(action.proposalOrigin === "api_key" ? "agentProposal" : "workspaceProposal")}</span>}
                   {action.reviewStatus === "reviewed" && <span className="rounded-full border px-2 py-1">{t("humanReviewed")}</span>}
                   {action.evidenceCount > 0 && <span className="rounded-full border px-2 py-1">{t("evidenceRecorded")}</span>}
                 </div>

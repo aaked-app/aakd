@@ -16,6 +16,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@/lib/db/client"
 import { _clearStore } from "@/lib/rate-limit"
+import { lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
+
+vi.mock("@/lib/auth/agreement-access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/auth/agreement-access")>(),
+  lockCurrentAgreementPermission: vi.fn(),
+}))
 
 // ─── Top-level mocks ──────────────────────────────────────────────────────────
 
@@ -23,6 +29,7 @@ vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue({
     userId: "user-1",
     organizationId: "org-1",
+    memberId: "member-1",
     role: "admin",
     source: "session" as const,
     requestId: "test-request-id",
@@ -36,8 +43,9 @@ vi.mock("@/lib/db/activity", () => ({
 
 vi.mock("@/lib/storage", () => ({
   storage: {
-    storageKey: vi.fn().mockReturnValue("org-1/c1/file.pdf"),
+    storageKey: vi.fn((_organizationId: string, _contractId: string, filename: string) => `org-1/c1/${filename}`),
     upload: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
     getSignedDownloadUrl: vi.fn().mockResolvedValue("https://example.com/signed"),
   },
 }))
@@ -49,6 +57,12 @@ vi.mock("@/lib/alerts/generate", () => ({
 vi.mock("@/lib/notifications/fanout", () => ({
   enqueueNotification: vi.fn().mockResolvedValue(undefined),
 }))
+
+beforeEach(() => {
+  vi.mocked(lockCurrentAgreementPermission).mockResolvedValue({ contractOwnerId: "user-1", role: "admin" })
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+  vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 // ─── Helper: build an upload request with mocked formData ─────────────────────
 
@@ -111,7 +125,7 @@ describe("Malformed request bodies", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "NOT_A_REAL_STATUS" }),
     })
-    const res = await PATCH(req, { params: { id: "c1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(422)
     // DB should never be touched for a schema violation
     expect(prisma.contract.findUnique).not.toHaveBeenCalled()
@@ -124,7 +138,7 @@ describe("Malformed request bodies", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: -100 }),
     })
-    const res = await PATCH(req, { params: { id: "c1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(422)
     expect(prisma.contract.findUnique).not.toHaveBeenCalled()
   })
@@ -154,7 +168,58 @@ describe("File upload validation", () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
       id: "c1",
       organizationId: "org-1",
+      status: "DRAFT",
     } as any)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", organizationId: "org-1", status: "DRAFT" } as never)
+  })
+
+  it.each(["AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "ARCHIVED"])("denies source replacement after a transition to %s under the contract lock", async status => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", organizationId: "org-1", status } as never)
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue({ version: 1 } as never)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({ id: "unexpected-new-file", version: 2 } as never)
+    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([]).mockResolvedValueOnce([{ referenced: false }])
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const response = await POST(makeUploadRequest(Buffer.from("%PDF-1.4"), "replacement.pdf"), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: "read_only_status" })
+    expect(prisma.contractFile.updateMany).not.toHaveBeenCalled()
+    expect(prisma.contractFile.create).not.toHaveBeenCalled()
+    expect(prisma.contract.update).not.toHaveBeenCalled()
+    expect(prisma.activity.create).not.toHaveBeenCalled()
+    expect(storage.delete).toHaveBeenCalledOnce()
+  })
+
+  it("does not attach a first source to an archived record", async () => {
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", organizationId: "org-1", status: "ARCHIVED" } as never)
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({ id: "unexpected-new-file", version: 1 } as never)
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const response = await POST(makeUploadRequest(Buffer.from("%PDF-1.4"), "first.pdf"), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(422)
+    expect(prisma.contractFile.create).not.toHaveBeenCalled()
+  })
+
+  it("does not replace an approved editor document with an initial file upload", async () => {
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", organizationId: "org-1", status: "AWAITING_SIGNATURE" } as never)
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValue({ id: "approved-document", version: 4 } as never)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({ id: "unexpected-new-file", version: 1 } as never)
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const response = await POST(makeUploadRequest(Buffer.from("%PDF-1.4"), "first.pdf"), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(422)
+    expect(prisma.contractFile.create).not.toHaveBeenCalled()
+  })
+
+  it.each(["AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED"])("preserves first-use ingestion of a %s record with no canonical source", async status => {
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ id: "c1", organizationId: "org-1", status } as never)
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({ id: "first-file", version: 1 } as never)
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const response = await POST(makeUploadRequest(Buffer.from("%PDF-1.4"), "first.pdf"), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(201)
+    expect(prisma.contractFile.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ version: 1, isLatest: true }) }))
   })
 
   it("upload with wrong magic bytes (all-zero buffer) returns 415 Unsupported Media Type", async () => {
@@ -162,7 +227,7 @@ describe("File upload validation", () => {
     // All-zero bytes are not a recognisable file format
     const badBytes = Buffer.alloc(16, 0x00)
     const req = makeUploadRequest(badBytes, "not-a-real-file.pdf")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(415)
   })
 
@@ -187,8 +252,127 @@ describe("File upload validation", () => {
     // Magic bytes: 0x25 0x50 0x44 0x46 = "%PDF"
     const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
     const req = makeUploadRequest(pdfBytes, "valid.pdf")
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body).toMatchObject({ extractionQueued: true, conversionQueued: true })
+    const { storage } = await import("@/lib/storage")
+    expect(storage.storageKey).toHaveBeenCalledWith(
+      "org-1",
+      "c1",
+      expect.stringMatching(/^[0-9a-f-]+_valid\.pdf$/),
+    )
+    expect(prisma.activity.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ contractId: "c1", action: "UPLOADED", detail: "valid.pdf" }),
+    }))
+  })
+
+  it("attempts document conversion when extraction enqueue fails", async () => {
+    const { contractExtractQueue, documentConvertQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(prisma.contractFile.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contractFile.create).mockResolvedValue({
+      id: "file-independent-queues", contractId: "c1", filename: "valid.pdf",
+      storageKey: "stored", mimeType: "application/pdf", sizeBytes: 8,
+      isLatest: true, version: 1, uploadedById: "user-1", createdAt: new Date(),
+    } as never)
+    vi.mocked(contractExtractQueue.add).mockRejectedValueOnce(new Error("extract queue unavailable"))
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ extractionQueued: false, conversionQueued: true })
+    expect(documentConvertQueue.add).toHaveBeenCalledOnce()
+  })
+
+  it("rechecks the current agreement permission under the upload transaction lock", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(lockCurrentAgreementPermission).mockResolvedValueOnce(null)
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ referenced: false }])
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(404)
+    expect(prisma.contractFile.create).not.toHaveBeenCalled()
+    expect(storage.delete).toHaveBeenCalledOnce()
+  })
+
+  it("cleans an unreferenced staged object after durable commit failure", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error("database unavailable"))
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ referenced: false }])
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: "upload_persistence_failed" })
+    expect(storage.delete).toHaveBeenCalledOnce()
+  })
+
+  it("cleans an unreferenced object when the storage upload acknowledgement is lost", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(storage.upload).mockRejectedValueOnce(new Error("upload acknowledgement lost"))
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ referenced: false }])
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(502)
+    expect(storage.delete).toHaveBeenCalledOnce()
+    expect(prisma.contractFile.create).not.toHaveBeenCalled()
+  })
+
+  it("retains the staged object when durable reference status is unknown", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(prisma.$transaction)
+      .mockRejectedValueOnce(new Error("commit acknowledgement lost"))
+      .mockRejectedValueOnce(new Error("reference lookup unavailable"))
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(500)
+    expect(storage.delete).not.toHaveBeenCalled()
+  })
+
+  it("retains the staged object when the exact durable reference committed", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error("commit acknowledgement lost"))
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ referenced: true }])
+
+    const { POST } = await import("@/app/api/contracts/[id]/upload/route")
+    const res = await POST(
+      makeUploadRequest(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), "valid.pdf"),
+      { params: Promise.resolve({ id: "c1" }) },
+    )
+
+    expect(res.status).toBe(500)
+    expect(storage.delete).not.toHaveBeenCalled()
   })
 
   it("upload with no file field in FormData returns 400", async () => {
@@ -198,7 +382,7 @@ describe("File upload validation", () => {
       value: () => Promise.resolve(new FormData()),
       writable: true,
     })
-    const res = await POST(req, { params: { id: "c1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(400)
   })
 })
@@ -294,7 +478,7 @@ describe("Resource not found", () => {
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/nonexistent-id"),
-      { params: { id: "nonexistent-id" } },
+      { params: Promise.resolve({ id: "nonexistent-id" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -307,7 +491,7 @@ describe("Resource not found", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Updated" }),
       }),
-      { params: { id: "nonexistent-id" } },
+      { params: Promise.resolve({ id: "nonexistent-id" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -316,7 +500,7 @@ describe("Resource not found", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/nonexistent-id", { method: "DELETE" }),
-      { params: { id: "nonexistent-id" } },
+      { params: Promise.resolve({ id: "nonexistent-id" }) },
     )
     expect(res.status).toBe(404)
   })

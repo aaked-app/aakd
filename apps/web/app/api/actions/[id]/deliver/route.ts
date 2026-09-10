@@ -6,6 +6,7 @@ import { emailQueue } from "@/lib/jobs/queues"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { actionApprovalState } from "@/lib/actions/approval-gate"
 import { Prisma } from "@prisma/client"
+import { agreementRelationWhere, authorizedAgreementRecipientIds } from "@/lib/auth/agreement-access"
 
 const WRITERS = new Set(["owner", "admin", "legal", "member"])
 
@@ -24,7 +25,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 
   return requestContext.run(ctx, async () => {
     const action = await prisma.contractAction.findFirst({
-      where: { id: params.id, organizationId: ctx.organizationId },
+      where: { id: params.id, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
       select: {
         id: true,
         contractId: true,
@@ -65,6 +66,15 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     if (!member?.user.email) {
       return Response.json({ error: "action_assignee_email_required" }, { status: 422, headers: SECURE_HEADERS })
     }
+    const authorizedRecipients = await authorizedAgreementRecipientIds(
+      prisma,
+      ctx.organizationId,
+      action.contractId,
+      [member.user.id],
+    )
+    if (authorizedRecipients.length === 0) {
+      return Response.json({ error: "action_recipient_access_required" }, { status: 422, headers: SECURE_HEADERS })
+    }
 
     const idempotencyKey = createHash("sha256")
       .update(`${action.id}:email:${action.version}`)
@@ -90,6 +100,8 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     try {
       await emailQueue.add("send", {
         kind: "action_delivery",
+        contractId: action.contractId,
+        recipientUserId: member.user.id,
         deliveryId: delivery.id,
         to: member.user.email,
         recipientName: member.user.name,

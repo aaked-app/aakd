@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { toast } from "sonner"
 
 import NewContractPage from "@/app/(app)/contracts/new/page"
 
@@ -64,11 +65,42 @@ vi.mock("next-intl", () => ({
 }))
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() } }))
+vi.mock("@/lib/auth/client", () => ({
+  useSession: () => ({ data: { user: { id: "intake-test-user" } } }),
+  useActiveOrganization: () => ({ data: { id: "intake-test-org" } }),
+}))
 
 describe("new contract first-use presentation", () => {
   afterEach(() => {
+    sessionStorage.clear()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
+  })
+
+  it("retries an uncertain save with the same file, identity and reviewed values", async () => {
+    const requests: globalThis.FormData[] = []
+    vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+      if (url === "/api/contracts/intake") {
+        requests.push(options!.body as globalThis.FormData)
+        throw new TypeError("Network disconnected after commit")
+      }
+      return Response.json({ error: "Preview unavailable" }, { status: 503 })
+    }))
+    render(<NewContractPage />)
+    fireEvent.change(screen.getByLabelText("Browse files"), { target: { files: [new File(["%PDF-1.7"], "source.pdf", { type: "application/pdf" })] } })
+    fireEvent.click(screen.getByRole("button", { name: "Continue to review" }))
+    fireEvent.change(screen.getByLabelText(/Contract title/), { target: { value: "Reviewed title" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create contract" }))
+    await waitFor(() => expect(requests).toHaveLength(1))
+    await waitFor(() => expect(screen.getByRole("button", { name: "retrySave" })).toBeEnabled())
+    expect(screen.getByLabelText(/Contract title/)).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "retrySave" }))
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[0]).toBe(requests[1])
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(JSON.parse(String(requests[1].get("metadata"))).title).toBe("Reviewed title")
+    expect(sessionStorage.getItem("aakd:intake:intake-test-user:intake-test-org")).toBe(requests[0].get("requestId"))
+    expect([...requests[0].keys()].sort()).toEqual(["extractions", "file", "metadata", "requestId"])
   })
 
   it("shows a restrained three-step intake before asking for a file", () => {
@@ -97,5 +129,39 @@ describe("new contract first-use presentation", () => {
 
     await waitFor(() => expect(screen.getByText("Manual review")).toBeInTheDocument())
     expect(screen.getByLabelText(/Contract title/)).toHaveValue("Northwind")
+  })
+
+  it("polls a queued preview and never overwrites fields edited while it runs", async () => {
+    let finishPoll: ((response: Response) => void) | undefined
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        jobId: "00000000-0000-4000-8000-000000000001",
+        status: "pending",
+      }, { status: 202 }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { finishPoll = resolve }))
+    vi.stubGlobal("fetch", fetchMock)
+    render(<NewContractPage />)
+
+    const file = new File(["%PDF-1.7"], "northwind.pdf", { type: "application/pdf" })
+    fireEvent.change(screen.getByLabelText("Browse files"), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole("button", { name: "Continue to review" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    fireEvent.change(screen.getByLabelText(/Contract title/), { target: { value: "Human title" } })
+    await act(async () => {
+      finishPoll?.(Response.json({
+        status: "completed",
+        result: {
+          title: "AI title",
+          counterpartyName: "Synthetic Orchard Labs",
+          confidence: { title: 0.9, counterpartyName: 0.8 },
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Contract title/)).toHaveValue("Human title")
+      expect(screen.getByLabelText(/Counterparty name/)).toHaveValue("Synthetic Orchard Labs")
+    })
   })
 })

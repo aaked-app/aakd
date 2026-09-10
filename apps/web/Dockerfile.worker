@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS deps
+FROM node@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS deps
 RUN --mount=type=cache,id=aakd-npm,target=/root/.npm npm install -g pnpm@10.33.3
 WORKDIR /app
 # Copy manifests first — cached until a manifest changes
@@ -10,14 +10,15 @@ RUN --mount=type=cache,id=aakd-pnpm-store,target=/root/.local/share/pnpm/store \
   pnpm install --frozen-lockfile \
   && pnpm --filter web deploy --prod --legacy /prod
 
-FROM node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
+FROM node@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 workerjs && adduser --system --uid 1001 --ingroup workerjs workerjs
 # LibreOffice is used by the document.convert worker to convert PDF→DOCX before
-# parsing with mammoth, which preserves tables, headings, and structure.
+# parsing with mammoth. DejaVu provides deterministic French and Arabic glyph
+# fallback when source documents request fonts such as Arial.
 RUN for attempt in 1 2 3 4 5; do \
-    apk add --no-cache libreoffice poppler-utils && exit 0; \
+    apk add --no-cache libreoffice poppler-utils font-dejavu && exit 0; \
     echo "apk dependency install failed (attempt ${attempt}/5), retrying"; \
     sleep $((attempt * 5)); \
   done; \
@@ -43,6 +44,11 @@ RUN ln -s /app/apps/web/node_modules /app/node_modules
 COPY --chown=workerjs:workerjs apps/web/prisma ./apps/web/prisma
 COPY --chown=workerjs:workerjs apps/web/worker.ts ./apps/web/
 COPY --chown=workerjs:workerjs apps/web/lib ./apps/web/lib
+COPY --chown=workerjs:workerjs apps/web/eng.traineddata ./apps/web/eng.traineddata
+RUN echo "5dc5d8d640a212c9d6184921ba103b186f50e0fed9ee716c53e6b312b400d747  ./apps/web/eng.traineddata" | sha256sum -c -
+COPY THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
+COPY third-party-licenses ./third-party-licenses
+COPY --chown=workerjs:workerjs apps/web/scripts/reindex-contract.ts ./apps/web/scripts/reindex-contract.ts
 COPY --chown=workerjs:workerjs apps/web/tsconfig.json ./apps/web/
 COPY --chown=workerjs:workerjs apps/web/tsconfig.worker.json ./apps/web/
 COPY --chown=workerjs:workerjs apps/web/.npmrc ./apps/web/

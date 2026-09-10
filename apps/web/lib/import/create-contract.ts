@@ -135,20 +135,23 @@ export async function createImportedContract(
 ): Promise<string> {
   const db = getWorkerPrisma()
   const normalized = normalizeInput(data)
-  const contract = await db.contract.create({
-    data: { organizationId: context.organizationId, ...normalized, ownerId: context.ownerId },
-    select: { id: true },
-  })
-
-  await db.activity.create({
-    data: {
-      contractId: contract.id,
-      userId: null,
-      actorLabel: "Import",
-      action: "CREATED",
-      detail: "Created via import",
-    },
-  })
+  const contract = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const owner = await tx.member.findUnique({
+      where: { userId_organizationId: { userId: context.ownerId, organizationId: context.organizationId } },
+      select: { id: true },
+    })
+    if (!owner) throw new Error("import_owner_membership_required")
+    const created = await tx.contract.create({
+      data: { organizationId: context.organizationId, ...normalized, ownerId: context.ownerId },
+      select: { id: true },
+    })
+    const grant = await tx.contractAccessGrant.create({
+      data: { organizationId: context.organizationId, contractId: created.id, memberId: owner.id, grantedById: context.ownerId },
+    })
+    await tx.activity.create({ data: { contractId: created.id, userId: null, actorLabel: "Import", action: "CREATED", detail: "Created via import" } })
+    await tx.activity.create({ data: { contractId: created.id, userId: null, actorLabel: "Import", action: "ACCESS_GRANTED", metadata: { grantId: grant.id, targetMemberId: owner.id } } })
+    return created
+  }, { isolationLevel: "Serializable" })
 
   if (data.file) {
     const safe = sanitizeFilename(data.file.filename)
@@ -224,9 +227,18 @@ export async function createImportedContractForRow(
         data: { organizationId: context.organizationId, ...normalized, ownerId: context.ownerId },
         select: { id: true },
       })
+      const owner = await tx.member.findUnique({
+        where: { userId_organizationId: { userId: context.ownerId, organizationId: context.organizationId } },
+        select: { id: true },
+      })
+      if (!owner) throw new Error("import_owner_membership_required")
+      const grant = await tx.contractAccessGrant.create({
+        data: { organizationId: context.organizationId, contractId: contract.id, memberId: owner.id, grantedById: context.ownerId },
+      })
       await tx.activity.create({
         data: { contractId: contract.id, userId: null, actorLabel: "Import", action: "CREATED", detail: "Created via import" },
       })
+      await tx.activity.create({ data: { contractId: contract.id, userId: null, actorLabel: "Import", action: "ACCESS_GRANTED", metadata: { grantId: grant.id, targetMemberId: owner.id } } })
 
       let extraction: { fileId: string; storageKey: string } | null = null
       if (stagedFile) {

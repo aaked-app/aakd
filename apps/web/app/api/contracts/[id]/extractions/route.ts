@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { captureServerEvent } from "@/lib/posthog-server"
@@ -7,6 +8,7 @@ import { generateAlertsForContract } from "@/lib/alerts/generate"
 import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { z } from "zod"
+import { canReadContractText } from "@/lib/auth/read-projections"
 import { Prisma, type ContractType } from "@prisma/client"
 
 // Fields whose acceptance must trigger renewal-alert regeneration
@@ -35,6 +37,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -48,7 +51,11 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       orderBy: { createdAt: "asc" },
     })
 
-    return Response.json({ extractions })
+    return Response.json({ extractions: canReadContractText(ctx) ? extractions : extractions.map(row => ({
+      id: row.id, contractId: row.contractId, field: row.field,
+      confidence: row.confidence, status: row.status, sourcePage: row.sourcePage,
+      createdAt: row.createdAt,
+    })) })
   })
 }
 
@@ -88,6 +95,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -180,6 +188,7 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Org-scope check
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },

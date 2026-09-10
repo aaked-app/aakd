@@ -37,8 +37,33 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/org-a-contract-id")
-    const res = await GET(req, { params: { id: "org-a-contract-id" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
+    expect(res.status).toBe(404)
+  })
+
+  it("same-organization admin without an explicit grant cannot read a known contract", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValue({
+      userId: "admin-a",
+      organizationId: "org-a",
+      memberId: "member-admin-a",
+      role: "admin",
+      source: "session",
+      requestId: "test-request-id",
+    })
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "contract-a",
+      organizationId: "org-a",
+      title: "Hidden contract",
+      owner: { id: "owner-a", name: "Owner", email: "owner@example.com" },
+      tags: [], folder: null, files: [], versions: [], activities: [],
+      _count: { files: 0, versions: 0, activities: 0 },
+    } as any)
+
+    const { GET } = await import("@/app/api/contracts/[id]/route")
+    const res = await GET(new Request("http://localhost/api/contracts/contract-a"), { params: Promise.resolve({ id: "contract-a" }) })
     expect(res.status).toBe(404)
   })
 
@@ -59,7 +84,7 @@ describe("Org isolation — cross-org access must return 404", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Hijacked" }),
     })
-    const res = await PATCH(req, { params: { id: "org-a-contract-id" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -77,7 +102,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/org-a-contract-id", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "org-a-contract-id" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -103,7 +128,7 @@ describe("Org isolation — cross-org access must return 404", () => {
       method: "POST",
       body: formData,
     })
-    const res = await POST(req, { params: { id: "org-a-contract-id" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -162,7 +187,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/activity/route")
     const req = new Request("http://localhost/api/contracts/org-a-contract-id/activity")
-    const res = await GET(req, { params: { id: "org-a-contract-id" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -181,7 +206,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { DELETE } = await import("@/app/api/tags/[id]/route")
     const req = new Request("http://localhost/api/tags/org-a-tag-id", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "org-a-tag-id" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "org-a-tag-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -200,7 +225,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { DELETE } = await import("@/app/api/folders/[id]/route")
     const req = new Request("http://localhost/api/folders/org-a-folder-id", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "org-a-folder-id" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "org-a-folder-id" }) })
 
     expect(res.status).toBe(404)
   })
@@ -211,7 +236,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/any-contract-id")
-    const res = await GET(req, { params: { id: "any-contract-id" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "any-contract-id" }) })
 
     expect(res.status).toBe(401)
   })
@@ -221,10 +246,12 @@ describe("Org isolation — cross-org access must return 404", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-a",
       organizationId: "org-a",
+      memberId: "member-a",
       role: "admin",
       source: "session",
       requestId: "test-request-id",
     })
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-a" } as any)
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
       id: "org-a-contract-id",
       organizationId: "org-a",
@@ -240,7 +267,7 @@ describe("Org isolation — cross-org access must return 404", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const req = new Request("http://localhost/api/contracts/org-a-contract-id")
-    const res = await GET(req, { params: { id: "org-a-contract-id" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "org-a-contract-id" }) })
 
     expect(res.status).toBe(200)
     const body = await res.json()

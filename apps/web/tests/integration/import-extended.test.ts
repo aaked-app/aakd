@@ -9,7 +9,7 @@
  *  - GET   /api/import/gdrive/callback    — OAuth callback (stores integration)
  *  - GET   /api/import/[jobId]            — Job status + rows
  *  - POST  /api/import/[jobId]/retry      — Retry failed rows
- *  - GET   /api/import/[jobId]/error-report — Redirect to signed error CSV
+ *  - GET   /api/import/[jobId]/error-report — Access-checked error CSV download
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { prisma } from "@/lib/db/client"
@@ -33,6 +33,7 @@ vi.mock("@/lib/storage", () => ({
   storage: {
     upload: vi.fn().mockResolvedValue("imports/org-1/preview-id/source.csv"),
     getSignedDownloadUrl: vi.fn().mockResolvedValue("https://s3.example.com/errors.csv"),
+    getObject: vi.fn().mockResolvedValue({ body: new TextEncoder().encode("row,error\n1,Invalid title\n") }),
     storageKey: vi.fn((_org: string, _id: string, filename: string) => filename),
     delete: vi.fn().mockResolvedValue(undefined),
   },
@@ -74,12 +75,15 @@ function resetMockQueues() {
   vi.mocked(enqueueImportProcess).mockResolvedValue(undefined)
   vi.mocked(storage.upload).mockResolvedValue("imports/org-1/job/source.zip")
   vi.mocked(storage.getSignedDownloadUrl).mockResolvedValue("https://s3.example.com/errors.csv")
+  vi.mocked(storage.getObject).mockReset().mockResolvedValue({ body: new TextEncoder().encode("row,error\n1,Invalid title\n") })
+  vi.mocked(prisma.importRow.findMany).mockReset().mockResolvedValue([])
   vi.mocked(listDriveFiles).mockReset()
   vi.mocked(prisma.importJob.updateMany).mockResolvedValue({ count: 1 } as any)
 }
 
 const adminCtx = {
   userId: "user-admin",
+  memberId: "member-admin",
   organizationId: "org-1",
   role: "admin",
   source: "session" as const,
@@ -645,7 +649,7 @@ describe("GET /api/import/[jobId]", () => {
     const { GET } = await import("@/app/api/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -653,7 +657,7 @@ describe("GET /api/import/[jobId]", () => {
   it("requires text_read for API-key access before reading the job", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
     const { GET } = await import("@/app/api/import/[jobId]/route")
-    const res = await GET(new Request("http://localhost/api/import/job-abc"), { params: { jobId: "job-abc" } })
+    const res = await GET(new Request("http://localhost/api/import/job-abc"), { params: Promise.resolve({ jobId: "job-abc" }) })
     expect(res.status).toBe(403)
     expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
     expect(prisma.importRow.findMany).not.toHaveBeenCalled()
@@ -665,7 +669,7 @@ describe("GET /api/import/[jobId]", () => {
     const { GET } = await import("@/app/api/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-missing"),
-      { params: { jobId: "job-missing" } },
+      { params: Promise.resolve({ jobId: "job-missing" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -680,7 +684,7 @@ describe("GET /api/import/[jobId]", () => {
     const { GET } = await import("@/app/api/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-other"),
-      { params: { jobId: "job-other" } },
+      { params: Promise.resolve({ jobId: "job-other" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -690,18 +694,20 @@ describe("GET /api/import/[jobId]", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-abc",
       organizationId: "org-1",
+      createdById: "user-admin",
       totalRows: 5,
       status: "COMPLETED",
       createdBy: { id: "user-admin", name: "Admin" },
     } as any)
-    vi.mocked(prisma.importRow.findMany).mockResolvedValueOnce([
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([{ contractId: "contract-1" }] as any)
+    vi.mocked(prisma.importRow.findMany).mockResolvedValue([
       { id: "row-1", rowIndex: 0, sourceRef: "Acme NDA", status: "success", errorMessage: null, contractId: "contract-1" },
       { id: "row-2", rowIndex: 1, sourceRef: "Beta MSA", status: "failed", errorMessage: "Parse error", contractId: null },
     ] as any)
     const { GET } = await import("@/app/api/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -718,6 +724,7 @@ describe("GET /api/import/[jobId]", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-large",
       organizationId: "org-1",
+      createdById: "user-admin",
       totalRows: 500,
       status: "COMPLETED",
       createdBy: { id: "user-admin", name: "Admin" },
@@ -728,7 +735,7 @@ describe("GET /api/import/[jobId]", () => {
     const { GET } = await import("@/app/api/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-large"),
-      { params: { jobId: "job-large" } },
+      { params: Promise.resolve({ jobId: "job-large" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.importRow.findMany).toHaveBeenCalledWith(
@@ -747,7 +754,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -755,7 +762,7 @@ describe("POST /api/import/[jobId]/retry", () => {
   it("denies viewers before reading the job or enqueuing", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
-    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: { jobId: "job-abc" } })
+    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: Promise.resolve({ jobId: "job-abc" }) })
     expect(res.status).toBe(403)
     expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
     expect(enqueueImportProcess).not.toHaveBeenCalled()
@@ -765,7 +772,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
     vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write_required" }, { status: 403 }))
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
-    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: { jobId: "job-abc" } })
+    const res = await POST(new Request("http://localhost/api/import/job-abc/retry", { method: "POST" }), { params: Promise.resolve({ jobId: "job-abc" }) })
     expect(res.status).toBe(403)
     expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
     expect(prisma.importJob.updateMany).not.toHaveBeenCalled()
@@ -774,19 +781,19 @@ describe("POST /api/import/[jobId]/retry", () => {
 
   it("rejects a terminal job with no failed rows", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
-    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-ok", organizationId: "org-1", status: "COMPLETED", failedRows: 0 } as any)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-ok", organizationId: "org-1", createdById: "user-admin", status: "COMPLETED", failedRows: 0 } as any)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
-    const res = await POST(new Request("http://localhost/api/import/job-ok/retry", { method: "POST" }), { params: { jobId: "job-ok" } })
+    const res = await POST(new Request("http://localhost/api/import/job-ok/retry", { method: "POST" }), { params: Promise.resolve({ jobId: "job-ok" }) })
     expect(res.status).toBe(422)
     expect(enqueueImportProcess).not.toHaveBeenCalled()
   })
 
   it("claims a terminal failed job atomically so concurrent retries cannot enqueue twice", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
-    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-failed", organizationId: "org-1", status: "FAILED", failedRows: 2 } as any)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-failed", organizationId: "org-1", createdById: "user-admin", status: "FAILED", failedRows: 2 } as any)
     vi.mocked(prisma.importJob.updateMany).mockResolvedValueOnce({ count: 0 } as any)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
-    const res = await POST(new Request("http://localhost/api/import/job-failed/retry", { method: "POST" }), { params: { jobId: "job-failed" } })
+    const res = await POST(new Request("http://localhost/api/import/job-failed/retry", { method: "POST" }), { params: Promise.resolve({ jobId: "job-failed" }) })
     expect(res.status).toBe(409)
     expect(enqueueImportProcess).not.toHaveBeenCalled()
   })
@@ -797,7 +804,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-missing/retry", { method: "POST" }),
-      { params: { jobId: "job-missing" } },
+      { params: Promise.resolve({ jobId: "job-missing" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -812,7 +819,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-other/retry", { method: "POST" }),
-      { params: { jobId: "job-other" } },
+      { params: Promise.resolve({ jobId: "job-other" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -822,12 +829,13 @@ describe("POST /api/import/[jobId]/retry", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-pending",
       organizationId: "org-1",
+      createdById: "user-admin",
       status: "PENDING",
     } as any)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-pending/retry", { method: "POST" }),
-      { params: { jobId: "job-pending" } },
+      { params: Promise.resolve({ jobId: "job-pending" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -839,12 +847,13 @@ describe("POST /api/import/[jobId]/retry", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-running",
       organizationId: "org-1",
+      createdById: "user-admin",
       status: "RUNNING",
     } as any)
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-running/retry", { method: "POST" }),
-      { params: { jobId: "job-running" } },
+      { params: Promise.resolve({ jobId: "job-running" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -854,6 +863,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-failed",
       organizationId: "org-1",
+      createdById: "user-admin",
       status: "FAILED",
       failedRows: 3,
       completedAt: new Date("2026-01-01T00:00:00Z"),
@@ -862,7 +872,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-failed/retry", { method: "POST" }),
-      { params: { jobId: "job-failed" } },
+      { params: Promise.resolve({ jobId: "job-failed" }) },
     )
     expect(res.status).toBe(202)
     expect(prisma.$transaction).toHaveBeenCalledOnce()
@@ -886,6 +896,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-completed",
       organizationId: "org-1",
+      createdById: "user-admin",
       status: "COMPLETED",
       failedRows: 1,
       completedAt,
@@ -897,7 +908,7 @@ describe("POST /api/import/[jobId]/retry", () => {
     const { POST } = await import("@/app/api/import/[jobId]/retry/route")
     const res = await POST(
       new Request("http://localhost/api/import/job-completed/retry", { method: "POST" }),
-      { params: { jobId: "job-completed" } },
+      { params: Promise.resolve({ jobId: "job-completed" }) },
     )
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ error: "queue_unavailable" })
@@ -919,7 +930,7 @@ describe("GET /api/import/[jobId]/error-report", () => {
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc/error-report"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -927,7 +938,7 @@ describe("GET /api/import/[jobId]/error-report", () => {
   it("requires text_read for API-key access before reading or signing the report", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(readKeyCtx)
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
-    const res = await GET(new Request("http://localhost/api/import/job-abc/error-report"), { params: { jobId: "job-abc" } })
+    const res = await GET(new Request("http://localhost/api/import/job-abc/error-report"), { params: Promise.resolve({ jobId: "job-abc" }) })
     expect(res.status).toBe(403)
     expect(prisma.importJob.findUnique).not.toHaveBeenCalled()
     expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
@@ -939,7 +950,7 @@ describe("GET /api/import/[jobId]/error-report", () => {
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-missing/error-report"),
-      { params: { jobId: "job-missing" } },
+      { params: Promise.resolve({ jobId: "job-missing" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -954,7 +965,7 @@ describe("GET /api/import/[jobId]/error-report", () => {
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-other/error-report"),
-      { params: { jobId: "job-other" } },
+      { params: Promise.resolve({ jobId: "job-other" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -964,48 +975,82 @@ describe("GET /api/import/[jobId]/error-report", () => {
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-abc",
       organizationId: "org-1",
+      createdById: "user-admin",
       errorReportKey: null, // no error report
     } as any)
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc/error-report"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(404)
   })
 
-  it("returns 502 when signed URL generation fails", async () => {
+  it("returns a generic 502 when storage fails", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-abc",
       organizationId: "org-1",
+      createdById: "user-admin",
       errorReportKey: "imports/org-1/job-abc/errors.csv",
     } as any)
-    vi.mocked(storage.getSignedDownloadUrl).mockRejectedValueOnce(new Error("signing failed"))
+    vi.mocked(storage.getObject).mockRejectedValueOnce(new Error("storage-secret-marker"))
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc/error-report"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
     expect(res.status).toBe(502)
     const body = await res.json()
-    expect(body.error).toBe("signing_failed")
+    expect(body.error).toBe("download_failed")
   })
 
-  it("returns 302 redirect to the signed download URL on success", async () => {
+  it("returns a private attachment without issuing a bearer storage URL", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({
       id: "job-abc",
       organizationId: "org-1",
+      createdById: "user-admin",
       errorReportKey: "imports/org-1/job-abc/errors.csv",
     } as any)
     vi.mocked(storage.getSignedDownloadUrl).mockResolvedValueOnce("https://s3.example.com/signed-errors.csv")
     const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
     const res = await GET(
       new Request("http://localhost/api/import/job-abc/error-report"),
-      { params: { jobId: "job-abc" } },
+      { params: Promise.resolve({ jobId: "job-abc" }) },
     )
-    expect(res.status).toBe(302)
-    expect(res.headers.get("Location")).toBe("https://s3.example.com/signed-errors.csv")
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe("row,error\n1,Invalid title\n")
+    expect(res.headers.get("Location")).toBeNull()
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store")
+    expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="import-errors.csv"')
+    expect(storage.getObject).toHaveBeenCalledWith("imports/org-1/job-abc/errors.csv", 50 * 1024 * 1024)
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it("denies the creator's previously authorized download after a represented agreement grant is revoked", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValue({ id: "job-abc", organizationId: "org-1", createdById: "user-admin", errorReportKey: "private-report" } as any)
+    vi.mocked(prisma.importRow.findMany).mockResolvedValue([{ contractId: "contract-1" }] as any)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([{ contractId: "contract-1" }] as any)
+    const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
+    const request = () => GET(new Request("http://localhost/api/import/job-abc/error-report"), { params: Promise.resolve({ jobId: "job-abc" }) })
+    expect((await request()).status).toBe(200)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([])
+    expect((await request()).status).toBe(404)
+    expect(storage.getObject).toHaveBeenCalledTimes(1)
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it("withholds bytes if a grant is revoked during the storage request", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.importJob.findUnique).mockResolvedValueOnce({ id: "job-abc", organizationId: "org-1", createdById: "user-admin", errorReportKey: "private-report" } as any)
+    vi.mocked(prisma.importRow.findMany).mockResolvedValue([{ contractId: "contract-1" }] as any)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([{ contractId: "contract-1" }] as any).mockResolvedValueOnce([])
+    const { GET } = await import("@/app/api/import/[jobId]/error-report/route")
+    const response = await GET(new Request("http://localhost/api/import/job-abc/error-report"), { params: Promise.resolve({ jobId: "job-abc" }) })
+    expect(response.status).toBe(404)
+    expect(await response.text()).not.toContain("Invalid title")
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
   })
 })

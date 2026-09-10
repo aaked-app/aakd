@@ -58,6 +58,7 @@ describe("DocuSeal webhook HMAC verification", () => {
 
   afterEach(() => {
     delete process.env.DOCUSEAL_WEBHOOK_SECRET
+    delete process.env.AGREEMENT_ACCESS_EMERGENCY_DENY_ALL
   })
 
   it("returns 403 when no secret is configured (fail-secure — reject forged events)", async () => {
@@ -80,6 +81,18 @@ describe("DocuSeal webhook HMAC verification", () => {
     const res = await POST(req)
 
     expect(res.status).toBe(200)
+  })
+
+  it("authenticates but refuses processing while agreement emergency deny-all is active", async () => {
+    process.env.DOCUSEAL_WEBHOOK_SECRET = SECRET
+    process.env.AGREEMENT_ACCESS_EMERGENCY_DENY_ALL = "true"
+
+    const { POST } = await import("@/app/api/webhooks/docuseal/route")
+    const res = await POST(makeWebhookRequest(ignoredPayload, sign(SECRET, ignoredPayload)))
+
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "service_unavailable" })
+    expect(prisma.contract.findFirst).not.toHaveBeenCalled()
   })
 
   it("returns 200 for a valid signature in sha256=<hex> format", async () => {
@@ -179,6 +192,7 @@ describe("DocuSeal webhook processing (valid requests)", () => {
 
   afterEach(() => {
     delete process.env.DOCUSEAL_WEBHOOK_SECRET
+    delete process.env.AGREEMENT_ACCESS_EMERGENCY_DENY_ALL
   })
 
   it("returns 400 for invalid JSON body", async () => {

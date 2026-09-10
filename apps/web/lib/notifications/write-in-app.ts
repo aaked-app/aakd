@@ -15,8 +15,9 @@
  */
 import type { PrismaClient } from "@prisma/client"
 import { logger } from "@/lib/logger"
+import { authorizedAgreementRecipientIds } from "@/lib/auth/agreement-access"
 
-type NotificationClient = Pick<PrismaClient, "member" | "notification">
+type NotificationClient = Pick<PrismaClient, "member" | "notification" | "contractAccessGrant">
 
 async function getDefaultNotificationClient(): Promise<NotificationClient> {
   const { prisma } = await import("@/lib/db/client")
@@ -38,6 +39,10 @@ export async function writeInApp(
 ): Promise<void> {
   try {
     const prisma = db ?? await getDefaultNotificationClient()
+    if (contractId) {
+      const authorized = await authorizedAgreementRecipientIds(prisma, organizationId, contractId, [userId])
+      if (authorized.length === 0) return
+    }
     await prisma.notification.create({
       data: { userId, organizationId, contractId, eventName, title, body },
     })
@@ -65,10 +70,12 @@ export async function writeInAppToOrgMembers(
       where: { organizationId, role: { in: ["legal", "admin", "owner"] } },
       select: { userId: true },
     })
+    const candidates = members.map((member) => member.userId).filter((userId) => userId !== excludeUserId)
+    const recipients = contractId
+      ? await authorizedAgreementRecipientIds(prisma, organizationId, contractId, candidates)
+      : candidates
     await Promise.all(
-      members
-        .filter((m) => m.userId !== excludeUserId)
-        .map((m) => writeInApp(m.userId, organizationId, contractId, eventName, title, body, prisma)),
+      recipients.map((userId) => writeInApp(userId, organizationId, contractId, eventName, title, body, prisma)),
     )
   } catch (err) {
     logger.error({ err, eventName, organizationId }, "[in-app] org-wide notification write failed")

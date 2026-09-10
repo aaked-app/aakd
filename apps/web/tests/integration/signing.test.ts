@@ -1,407 +1,128 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createHmac } from "crypto"
 import { prisma } from "@/lib/db/client"
-import { requestContext } from "@/lib/context"
+import { signingSyncQueue } from "@/lib/jobs/queues"
 
-// ─── Webhook test helpers ──────────────────────────────────────────────────────
-
-const TEST_WEBHOOK_SECRET = "test-signing-webhook-secret-123"
-
-function makeSignedWebhookRequest(body: object): Request {
-  const rawBody = JSON.stringify(body)
-  const sig = createHmac("sha256", TEST_WEBHOOK_SECRET).update(rawBody).digest("hex")
-  return new Request("http://localhost/api/webhooks/docuseal", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-docuseal-signature": sig,
-    },
-    body: rawBody,
-  })
-}
-
-// ─── Mock auth ────────────────────────────────────────────────────────────────
-
-const mockCtx = {
-  userId: "user-1",
-  organizationId: "org-1",
-  role: "admin",
-  source: "session" as const,
-  requestId: "test-request-id",
+const sessionCtx = {
+  userId: "user-1", organizationId: "org-1", memberId: "member-1",
+  role: "admin", source: "session" as const, requestId: "request-1",
 }
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn(),
   requireWriteScope: vi.fn(() => null),
 }))
-
-vi.mock("@/lib/db/activity", () => ({
-  writeActivity: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/lib/signature/config", () => ({
+  getDocuSealWebhookIntegration: vi.fn(async (id: string) => id === "integration-a"
+    ? { organizationId: "org-a", providerId: "integration:integration-a", secret: "secret-a" }
+    : id === "integration-b"
+      ? { organizationId: "org-b", providerId: "integration:integration-b", secret: "secret-b" }
+      : null),
 }))
-
-vi.mock("@/lib/storage", () => ({
-  storage: {
-    getSignedDownloadUrl: vi.fn().mockResolvedValue("https://s3.example.com/file.pdf"),
-    upload: vi.fn().mockResolvedValue("orgs/org-1/contracts/contract-1/123_signed.pdf"),
-    storageKey: vi.fn(
-      (orgId: string, contractId: string, filename: string) =>
-        `orgs/${orgId}/contracts/${contractId}/${Date.now()}_${filename}`,
-    ),
-  },
-}))
-
 vi.mock("@/lib/docuseal", () => ({
-  createTemplate: vi.fn().mockResolvedValue({ id: 42, attachmentUuid: null }),
-  createSubmission: vi.fn().mockResolvedValue({
-    id: 99,
-    submitters: [{ slug: "abc123", embed_src: "https://docuseal.com/s/abc123" }],
-  }),
-  // Stubbed to allow webhook-supplied URLs through; real impl checks the host
-  // against DOCUSEAL_API_URL (covered separately by lib/docuseal tests).
-  isAllowedDocuSealUrl: vi.fn().mockReturnValue(true),
+  DOCUSEAL_JSON_BODY_LIMIT: 1024 * 1024,
+  createTemplate: vi.fn(),
+  createSubmission: vi.fn(),
 }))
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
-
-const mockContract = {
-  id: "contract-1",
-  organizationId: "org-1",
-  title: "Test NDA",
-  status: "AWAITING_SIGNATURE",
-  counterpartyName: "Acme Corp",
-  counterpartyContact: "acme@example.com",
-  ownerId: "user-1",
+function webhookRequest(payload: unknown, secret: string, query = ""): Request {
+  const body = JSON.stringify(payload)
+  return new Request(`http://localhost/api/webhooks/docuseal${query}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-docuseal-signature": createHmac("sha256", secret).update(body).digest("hex"),
+    },
+    body,
+  })
 }
 
-const mockFile = {
-  id: "file-1",
-  contractId: "contract-1",
-  filename: "test.pdf",
-  storageKey: "orgs/org-1/contracts/contract-1/test.pdf",
-  mimeType: "application/pdf",
-  sizeBytes: 1024,
-  isSigned: false,
-  isLatest: true,
-  version: 1,
-  uploadedById: "user-1",
-  createdAt: new Date(),
-}
-
-// ─── POST /api/contracts/[id]/sign ────────────────────────────────────────────
-
-describe("POST /api/contracts/[id]/sign", () => {
+describe("fail-closed signature initiation", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    // Restore default resolveAuth mock after clearAllMocks resets it
     const { resolveAuth } = await import("@/lib/auth/middleware")
-    vi.mocked(resolveAuth).mockResolvedValue(mockCtx)
+    vi.mocked(resolveAuth).mockResolvedValue(sessionCtx)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as never)
   })
 
-  it("returns 401 when unauthenticated", async () => {
+  it("requires authentication", async () => {
     const { resolveAuth } = await import("@/lib/auth/middleware")
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await POST(req, { params: { id: "contract-1" } })
-
-    expect(res.status).toBe(401)
+    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
+    expect((await POST(new Request("http://localhost/api/contracts/c1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "c1" }) })).status).toBe(401)
   })
 
-  it("returns 404 when contract belongs to another org", async () => {
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...mockContract,
-      organizationId: "org-attacker",
-    } as any)
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(404)
+  it("rejects generic write API keys before any provider or database mutation", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...sessionCtx, source: "api_key", apiKeyId: "key-1", scopes: ["write"] })
+    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
+    const response = await POST(new Request("http://localhost/api/contracts/c1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: "human_session_required" })
+    expect(prisma.contract.update).not.toHaveBeenCalled()
   })
 
-  it("returns 400 when status is not AWAITING_SIGNATURE", async () => {
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
-      ...mockContract,
-      status: "DRAFT",
-    } as any)
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe("Contract must be in AWAITING_SIGNATURE status")
+  it("does not disclose an inaccessible agreement", async () => {
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+    const { POST } = await import("@/app/api/contracts/[id]/signing/send/route")
+    expect((await POST(new Request("http://localhost/api/contracts/c1/signing/send", { method: "POST" }), { params: Promise.resolve({ id: "c1" }) })).status).toBe(404)
   })
 
-  it("returns 503 when DOCUSEAL_API_KEY is not set", async () => {
-    const originalKey = process.env.DOCUSEAL_API_KEY
-    delete process.env.DOCUSEAL_API_KEY
-
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.error).toBe("E-signature not configured")
-
-    // Restore
-    if (originalKey !== undefined) process.env.DOCUSEAL_API_KEY = originalKey
-  })
-
-  it("returns 400 when contract has no files", async () => {
-    process.env.DOCUSEAL_API_KEY = "test-key"
-
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(null)
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe("No file attached to this contract")
-  })
-
-  it("triggers signing and returns submissionId + signingUrl on success", async () => {
-    process.env.DOCUSEAL_API_KEY = "test-key"
-
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(mockContract as any)
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(mockFile as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce({
-      ...mockContract,
-      docusealSubmissionId: "99",
-      signingUrl: "https://docuseal.com/s/abc123",
-      signingStatus: "sent",
-    } as any)
-
-    // Mock the fetch for file download
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
-    } as any)
-
+  it.each([
+    { path: "sign", load: () => import("@/app/api/contracts/[id]/sign/route") },
+    { path: "signing/send", load: () => import("@/app/api/contracts/[id]/signing/send/route") },
+  ])("pauses $path without calling DocuSeal", async ({ path, load }) => {
     const { createTemplate, createSubmission } = await import("@/lib/docuseal")
-    vi.mocked(createTemplate).mockResolvedValueOnce({ id: 42, attachmentUuid: null })
-    vi.mocked(createSubmission).mockResolvedValueOnce({
-      id: 99,
-      submitters: [{ slug: "abc123", embed_src: "https://docuseal.com/s/abc123" }],
-    })
-
-    const { POST } = await import("@/app/api/contracts/[id]/sign/route")
-    const { writeActivity } = await import("@/lib/db/activity")
-
-    const req = new Request("http://localhost/api/contracts/contract-1/sign", {
-      method: "POST",
-    })
-    const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
-    )
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.submissionId).toBe(99)
-    expect(body.signingUrl).toBe("https://docuseal.com/s/abc123")
-    expect(body.signingStatus).toBe("sent")
-
-    expect(prisma.contract.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "contract-1" },
-        data: expect.objectContaining({
-          docusealSubmissionId: "99",
-          signingUrl: "https://docuseal.com/s/abc123",
-          signingStatus: "sent",
-        }),
-      }),
-    )
-
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      "user-1",
-      "SENT_FOR_SIGNATURE",
-      expect.stringContaining("acme@example.com"),
-    )
+    const { POST } = await load()
+    const response = await POST(new Request(`http://localhost/api/contracts/c1/${path}`, { method: "POST" }), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual(expect.objectContaining({ error: "signing_send_temporarily_unavailable" }))
+    expect(createTemplate).not.toHaveBeenCalled()
+    expect(createSubmission).not.toHaveBeenCalled()
   })
 })
 
-// ─── POST /api/webhooks/docuseal ──────────────────────────────────────────────
-
-describe("POST /api/webhooks/docuseal", () => {
-  beforeEach(async () => {
+describe("DocuSeal webhook authentication and queue boundary", () => {
+  beforeEach(() => {
     vi.clearAllMocks()
-    // Set the webhook secret so verifySignature() doesn't reject all calls.
-    // Do NOT call vi.resetModules() here — it breaks the prisma mock setup
-    // that all tests in this suite share.
-    process.env.DOCUSEAL_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET
-    const { resolveAuth } = await import("@/lib/auth/middleware")
-    vi.mocked(resolveAuth).mockResolvedValue(mockCtx)
+    process.env.DOCUSEAL_WEBHOOK_SECRET = "global-secret"
+    process.env.DOCUSEAL_API_URL = "https://api.docuseal.example"
   })
 
-  afterEach(() => {
-    delete process.env.DOCUSEAL_WEBHOOK_SECRET
-  })
-
-  it("ignores non-form.completed events and returns 200", async () => {
+  it("rejects declared and streamed oversized bodies", async () => {
     const { POST } = await import("@/app/api/webhooks/docuseal/route")
-
-    const req = makeSignedWebhookRequest({
-      event_type: "form.viewed",
-      data: { id: 99, status: "in_progress", documents: [] },
+    const declared = new Request("http://localhost/api/webhooks/docuseal", {
+      method: "POST", headers: { "content-length": String(1024 * 1024 + 1) }, body: "{}",
     })
-    const res = await POST(req)
-
-    expect(res.status).toBe(200)
-    // Should NOT have queried the database at all
-    expect(prisma.contract.findFirst).not.toHaveBeenCalled()
+    expect((await POST(declared)).status).toBe(413)
+    const streamed = new Request("http://localhost/api/webhooks/docuseal", {
+      method: "POST", body: "x".repeat(1024 * 1024 + 1), duplex: "half",
+    } as RequestInit & { duplex: "half" })
+    expect((await POST(streamed)).status).toBe(413)
   })
 
-  it("returns 200 when submission contract is not found (prevent DocuSeal retries)", async () => {
-    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce(null)
-
+  it("rejects malformed payloads and invalid signatures without queueing", async () => {
     const { POST } = await import("@/app/api/webhooks/docuseal/route")
-
-    const req = makeSignedWebhookRequest({
-      event_type: "form.completed",
-      data: { id: 999, status: "completed", documents: [{ url: "https://docs.example.com/signed.pdf" }] },
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ok).toBe(true)
+    expect((await POST(webhookRequest({ event_type: "submission.completed", data: {} }, "global-secret"))).status).toBe(422)
+    expect((await POST(webhookRequest({ event_type: "submission.completed", data: { id: 9 } }, "wrong"))).status).toBe(403)
+    expect(signingSyncQueue.add).not.toHaveBeenCalled()
   })
 
-  it("processes form.completed: downloads, re-uploads, marks ACTIVE, writes activity", async () => {
-    const mockFoundContract = {
-      id: "contract-1",
-      organizationId: "org-1",
-      ownerId: "user-1",
-    }
-
-    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce(mockFoundContract as any)
-
-    const existingLatestFile = { id: "file-1", version: 2 }
-    vi.mocked(prisma.contractFile.findFirst).mockResolvedValueOnce(existingLatestFile as any)
-
-    vi.mocked(prisma.$transaction).mockResolvedValueOnce([undefined, undefined, undefined] as any)
-
-    const { storage } = await import("@/lib/storage")
-
-    // Mock fetch for downloading signed PDF
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(512),
-    } as any)
-
+  it("binds colliding provider-local submission IDs to distinct authenticated integrations", async () => {
     const { POST } = await import("@/app/api/webhooks/docuseal/route")
-    const { writeActivity } = await import("@/lib/db/activity")
-
-    const req = makeSignedWebhookRequest({
-      event_type: "form.completed",
-      data: {
-        id: 99,
-        status: "completed",
-        documents: [{ url: "https://docuseal.com/signed.pdf" }],
-      },
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ok).toBe(true)
-
-    // Should have uploaded the signed PDF to S3 under the org-scoped key
-    expect(storage.upload).toHaveBeenCalledWith(
-      expect.stringMatching(/orgs\/org-1\/contracts\/contract-1\/.*signed_.*\.pdf/),
-      expect.any(Buffer),
-      "application/pdf",
-    )
-
-    // Should have run a transaction
-    expect(prisma.$transaction).toHaveBeenCalled()
-    expect(prisma.contract.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "contract-1", organizationId: "org-1", status: "AWAITING_SIGNATURE" },
-        data: expect.objectContaining({
-          status: "ACTIVE",
-          signingStatus: "completed",
-          signingUrl: null,
-        }),
-      }),
-    )
-
-    // Should have written SIGNED activity
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      null,
-      "SIGNED",
-      expect.stringContaining("99"),
-    )
+    const payload = { event_type: "submission.completed", timestamp: "2026-09-09T20:00:00Z", data: { id: 77, status: "completed" } }
+    expect((await POST(webhookRequest(payload, "secret-a", "?integrationId=integration-a"))).status).toBe(200)
+    expect((await POST(webhookRequest(payload, "secret-b", "?integrationId=integration-b"))).status).toBe(200)
+    expect(signingSyncQueue.add).toHaveBeenNthCalledWith(1, "sync", expect.objectContaining({ submissionId: "77", providerId: "integration:integration-a", organizationId: "org-a" }), expect.anything())
+    expect(signingSyncQueue.add).toHaveBeenNthCalledWith(2, "sync", expect.objectContaining({ submissionId: "77", providerId: "integration:integration-b", organizationId: "org-b" }), expect.anything())
   })
 
-  it("records terminal non-completed signing states without downloading a PDF", async () => {
-    const mockFoundContract = {
-      id: "contract-1",
-      organizationId: "org-1",
-      ownerId: "user-1",
-    }
-
-    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce(mockFoundContract as any)
-    vi.mocked(prisma.contract.update).mockResolvedValueOnce({
-      ...mockFoundContract,
-      signingStatus: "declined",
-    } as any)
-    global.fetch = vi.fn()
-
+  it("uses a stable job id for an exact webhook replay", async () => {
     const { POST } = await import("@/app/api/webhooks/docuseal/route")
-    const { writeActivity } = await import("@/lib/db/activity")
-
-    const req = makeSignedWebhookRequest({
-      event_type: "form.declined",
-      data: { id: 99, status: "declined", documents: [] },
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(200)
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(prisma.contract.update).toHaveBeenCalledWith({
-      where: { id: "contract-1", organizationId: "org-1", status: "AWAITING_SIGNATURE" },
-      data: { signingStatus: "declined" },
-    })
-    expect(writeActivity).toHaveBeenCalledWith(
-      "contract-1",
-      null,
-      "UPDATED",
-      expect.stringContaining("declined"),
-    )
+    const req = () => webhookRequest({ event_type: "submission.completed", timestamp: "2026-09-09T20:00:00Z", data: { id: 88 } }, "secret-a", "?integrationId=integration-a")
+    await POST(req()); await POST(req())
+    const first = vi.mocked(signingSyncQueue.add).mock.calls[0][2]
+    const second = vi.mocked(signingSyncQueue.add).mock.calls[1][2]
+    expect(first?.jobId).toBe(second?.jobId)
   })
 })

@@ -13,6 +13,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@/lib/db/client"
+import { writeActivity } from "@/lib/db/activity"
+import { lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
+import { documentContentHash } from "@/lib/jobs/document-export-access"
+import { MAX_CONTRACT_FILE_BYTES } from "@/lib/contracts/file-validation"
+
+vi.mock("@/lib/auth/agreement-access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/auth/agreement-access")>(),
+  lockCurrentAgreementPermission: vi.fn(),
+}))
 
 // ─── Global mocks (must precede dynamic imports) ───────────────────────────────
 
@@ -33,15 +42,28 @@ vi.mock("@/lib/storage", () => ({
   storage: {
     upload: vi.fn().mockResolvedValue("contracts/contract-1/images/abc.png"),
     getSignedDownloadUrl: vi.fn().mockResolvedValue("https://storage.example.com/signed/img.png"),
+    getObject: vi.fn().mockResolvedValue({ body: Buffer.from("export") }),
     delete: vi.fn().mockResolvedValue(undefined),
     storageKey: vi.fn().mockReturnValue("orgs/org-1/contracts/contract-1/file.pdf"),
   },
 }))
 
 // Queue job mock objects returned by .add() and .getJob()
+const exportContent = { type: "doc", content: [] }
+const exportContentHash = documentContentHash(exportContent)
 const mockExportJob = {
   id: "export-job-1",
-  data: { contractId: "contract-1", requestedById: "user-admin", format: "docx", jobId: "export-job-1" },
+  data: {
+    contractId: "contract-1",
+    organizationId: "org-1",
+    requestedByMemberId: "member-admin",
+    requestedById: "user-admin",
+    documentId: "doc-1",
+    documentVersion: 1,
+    documentContentHash: exportContentHash,
+    format: "docx",
+    jobId: "export-job-1",
+  },
   updateData: vi.fn().mockResolvedValue(undefined),
   getState: vi.fn().mockResolvedValue("pending"),
   returnvalue: null,
@@ -57,6 +79,20 @@ const mockConvertJob = {
   failedReason: null,
 }
 
+const mockDocumentConvertQueue = {
+  add: vi.fn().mockResolvedValue(mockConvertJob),
+  close: vi.fn(),
+  getJob: vi.fn().mockResolvedValue(mockConvertJob),
+}
+const mockDocumentExportQueue = {
+  add: vi.fn().mockImplementation(async (_name: string, data: typeof mockExportJob.data) => ({
+    ...mockExportJob,
+    id: data.jobId,
+    data,
+  })),
+  close: vi.fn(),
+}
+
 // The export/import poll routes use getDocumentExportQueue() / getDocumentConvertQueue()
 // getters. We expose them alongside the named exports already mocked in setup.ts.
 vi.mock("@/lib/jobs/queues", () => ({
@@ -68,14 +104,8 @@ vi.mock("@/lib/jobs/queues", () => ({
   emailQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   notificationFanoutQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   notificationDeliverQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
-  documentConvertQueue: {
-    add: vi.fn().mockResolvedValue(mockConvertJob),
-    close: vi.fn(),
-  },
-  documentExportQueue: {
-    add: vi.fn().mockResolvedValue(mockExportJob),
-    close: vi.fn(),
-  },
+  documentConvertQueue: mockDocumentConvertQueue,
+  documentExportQueue: mockDocumentExportQueue,
   obligationsCheckQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   salesforcePollQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   importProcessQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
@@ -84,9 +114,7 @@ vi.mock("@/lib/jobs/queues", () => ({
   getDocumentExportQueue: vi.fn().mockReturnValue({
     getJob: vi.fn().mockResolvedValue(mockExportJob),
   }),
-  getDocumentConvertQueue: vi.fn().mockReturnValue({
-    getJob: vi.fn().mockResolvedValue(mockConvertJob),
-  }),
+  getDocumentConvertQueue: vi.fn().mockReturnValue(mockDocumentConvertQueue),
 }))
 
 vi.mock("@/lib/editor/plate-to-plaintext", () => ({
@@ -101,6 +129,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 
 const adminCtx = {
   userId: "user-admin",
+  memberId: "member-admin",
   organizationId: "org-1",
   role: "admin",
   source: "session" as const,
@@ -132,13 +161,52 @@ const mockDocument = {
   updatedAt: new Date(),
 }
 
+const mockExportArtifact = {
+  jobId: "export-job-1",
+  organizationId: "org-1",
+  contractId: "contract-1",
+  requestedByMemberId: "member-admin",
+  requestedById: "user-admin",
+  documentId: "doc-1",
+  documentVersion: 1,
+  documentContentHash: exportContentHash,
+  format: "docx",
+  state: "QUEUED",
+  storageKey: null,
+  publishedAt: null,
+  expiresAt: new Date(Date.now() + 86_400_000),
+  cleanedAt: null,
+  cleanupError: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+
 const validContent = { type: "doc", content: [] }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function resetMocks() {
+  const artifact = (prisma as any).documentExportArtifact ??= {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+  }
+  artifact.findFirst.mockResolvedValue(mockExportArtifact)
+  artifact.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ jobId: data.jobId, state: "QUEUED" }))
+  mockDocumentConvertQueue.add.mockResolvedValue(mockConvertJob)
+  mockDocumentConvertQueue.getJob.mockResolvedValue(mockConvertJob)
+  vi.mocked(lockCurrentAgreementPermission).mockResolvedValue({ contractOwnerId: "user-admin", role: "admin" })
+  vi.mocked(prisma.contract.findUnique).mockResolvedValue(draftContract as never)
+  vi.mocked(prisma.contract.findFirst).mockResolvedValue(draftContract as never)
   vi.mocked(resolveAuth).mockReset()
   vi.mocked(requireWriteScope).mockReturnValue(null)
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-contract-1" } as never)
+  vi.mocked(prisma.member.findFirst).mockResolvedValue({ id: "member-admin" } as never)
+  vi.mocked(prisma.contractDocument.findUnique).mockResolvedValue(mockDocument as never)
+  mockDocumentExportQueue.add.mockImplementation(async (_name: string, data: typeof mockExportJob.data) => ({
+    ...mockExportJob,
+    id: data.jobId,
+    data,
+  }))
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -153,7 +221,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -164,7 +232,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -175,7 +243,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -187,7 +255,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -201,7 +269,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -215,7 +283,7 @@ describe("GET /api/contracts/[id]/document", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -237,7 +305,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -251,7 +319,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -266,7 +334,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -280,7 +348,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -294,7 +362,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: -1, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -308,7 +376,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: "not-json",
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -326,7 +394,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -346,7 +414,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -364,7 +432,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 5, clientVersion: 3 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -389,7 +457,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 10, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -411,7 +479,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 5, clientVersion: 3 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(409)
     const body = await res.json()
@@ -439,12 +507,49 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 20, clientVersion: 2 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.document.version).toBe(3)
     expect(prisma.contractDocument.update).toHaveBeenCalledOnce()
+    expect(prisma.contractDocument.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { contractId: "contract-1", version: 2 },
+    }))
+  })
+
+  it.each([
+    [null, 404],
+    [{ contractOwnerId: "user-admin", role: "viewer" }, 403],
+  ] as const)("rechecks current permission inside the save transaction (%s)", async (permission, status) => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(lockCurrentAgreementPermission).mockResolvedValueOnce(permission)
+    const { PUT } = await import("@/app/api/contracts/[id]/document/route")
+    const res = await PUT(new Request("http://localhost/api/contracts/contract-1/document", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
+    }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(status)
+    expect(prisma.contractDocument.create).not.toHaveBeenCalled()
+    expect(prisma.contractDocument.update).not.toHaveBeenCalled()
+    expect(writeActivity).not.toHaveBeenCalled()
+  })
+
+  it("rejects a contract that became read-only while the save was waiting", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce({ ...draftContract, status: "ACTIVE" } as never)
+    const { PUT } = await import("@/app/api/contracts/[id]/document/route")
+    const res = await PUT(new Request("http://localhost/api/contracts/contract-1/document", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: validContent, wordCount: 0, clientVersion: 0 }),
+    }), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(res.status).toBe(422)
+    expect(prisma.contractDocument.create).not.toHaveBeenCalled()
+    expect(writeActivity).not.toHaveBeenCalled()
   })
 
   it("sanitizes XSS payloads in text nodes before persisting", async () => {
@@ -473,7 +578,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: xssContent, wordCount: 5, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     const createCall = vi.mocked(prisma.contractDocument.create).mock.calls[0][0] as any
     const paragraph = createCall.data.content.content[0]
@@ -501,7 +606,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: slateContent, wordCount: 3, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -524,9 +629,9 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: validContent, wordCount: 5, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
-    expect(writeActivity).toHaveBeenCalledWith("contract-1", "user-admin", "DOCUMENT_SAVED")
+    expect(writeActivity).toHaveBeenCalledWith("contract-1", "user-admin", "DOCUMENT_SAVED", undefined, undefined, prisma)
   })
 
   it("returns 413 when content payload exceeds 5 MB", async () => {
@@ -543,7 +648,7 @@ describe("PUT /api/contracts/[id]/document", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: bigContent, wordCount: 1, clientVersion: 0 }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(413)
   })
@@ -565,14 +670,14 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "docx" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
 
-  it("returns 404 when contract not in org", async () => {
-    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(otherOrgContract as any)
+  it("does not allow a generic API key to create an export job", async () => {
+    const { documentExportQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(resolveAuth).mockResolvedValue({ ...adminCtx, source: "api_key", scopes: ["read", "write"] } as never)
     const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/export", {
@@ -580,14 +685,29 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "docx" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
+    )
+    expect(res.status).toBe(403)
+    expect(documentExportQueue.add).not.toHaveBeenCalled()
+  })
+
+  it("returns 404 when contract not in org", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+    const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/document/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "docx" }),
+      }),
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
 
   it("returns 422 when contract has no document", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
     vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
     const res = await POST(
@@ -596,11 +716,28 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "docx" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
     expect(body.error).toBe("no_document")
+  })
+
+  it("returns 404 when access is revoked while the export binding transaction waits", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(lockCurrentAgreementPermission).mockResolvedValueOnce(null)
+    const { documentExportQueue } = await import("@/lib/jobs/queues")
+    const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/document/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "docx" }),
+      }),
+      { params: Promise.resolve({ id: "contract-1" }) },
+    )
+    expect(res.status).toBe(404)
+    expect(documentExportQueue.add).not.toHaveBeenCalled()
   })
 
   it("returns 422 for invalid format", async () => {
@@ -612,7 +749,7 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "txt" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -620,8 +757,7 @@ describe("POST /api/contracts/[id]/document/export", () => {
   it("enqueues export job and returns 202 with jobId for docx format", async () => {
     const { documentExportQueue } = await import("@/lib/jobs/queues")
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce({ id: "doc-1" } as any)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(mockDocument as any)
     const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/export", {
@@ -629,21 +765,19 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "docx" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
     const body = await res.json()
-    expect(body.jobId).toBe("export-job-1")
-    expect(documentExportQueue.add).toHaveBeenCalledWith("export", expect.objectContaining({
-      contractId: "contract-1",
-      format: "docx",
-    }))
+    expect(body.jobId).toEqual(expect.any(String))
+    expect(documentExportQueue.add).toHaveBeenCalledWith("export", {
+      jobId: expect.any(String),
+    }, expect.objectContaining({ jobId: expect.any(String) }))
   })
 
   it("enqueues export job for pdf format", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce({ id: "doc-1" } as any)
+    vi.mocked(prisma.contractDocument.findUnique).mockResolvedValueOnce(mockDocument as any)
     const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/export", {
@@ -651,9 +785,52 @@ describe("POST /api/contracts/[id]/document/export", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "pdf" }),
       }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
+  })
+
+  it("reuses the exact unexpired ready artifact without another conversion", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({
+      jobId: "existing-export-job",
+      state: "READY",
+    })
+    const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/document/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "docx" }),
+      }),
+      { params: Promise.resolve({ id: "contract-1" }) },
+    )
+    expect(res.status).toBe(202)
+    expect(await res.json()).toEqual({ jobId: "existing-export-job" })
+    expect(mockDocumentExportQueue.add).not.toHaveBeenCalled()
+  })
+
+  it("creates a fresh artifact and Bull job after a prior durable export failed", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce(null)
+    const createdIds: string[] = []
+    ;(prisma as any).documentExportArtifact.create.mockImplementationOnce(async ({ data }: { data: { jobId: string } }) => {
+      createdIds.push(data.jobId)
+      return { jobId: data.jobId, state: "QUEUED" }
+    })
+    const { POST } = await import("@/app/api/contracts/[id]/document/export/route")
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/document/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "docx" }),
+      }),
+      { params: Promise.resolve({ id: "contract-1" }) },
+    )
+    expect(res.status).toBe(202)
+    expect(createdIds).toHaveLength(1)
+    expect(createdIds[0]).not.toBe("failed-export-job")
+    expect(mockDocumentExportQueue.add).toHaveBeenCalledWith("export", { jobId: createdIds[0] }, { jobId: createdIds[0] })
   })
 })
 
@@ -662,16 +839,51 @@ describe("POST /api/contracts/[id]/document/export", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/contracts/[id]/document/export/[jobId]", () => {
-  beforeEach(() => { vi.clearAllMocks(); resetMocks() })
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    resetMocks()
+    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(getDocumentExportQueue).mockReset()
+    vi.mocked(getDocumentExportQueue).mockReturnValue({
+      getJob: vi.fn().mockResolvedValue(mockExportJob),
+    } as never)
+  })
 
   it("returns 401 when unauthenticated", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(401)
+  })
+
+  it("does not expose export job state or bytes to a generic API key", async () => {
+    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
+    vi.mocked(resolveAuth).mockResolvedValue({ ...adminCtx, source: "api_key", scopes: ["read"] } as never)
+    const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1?download=1"),
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
+    )
+    expect(res.status).toBe(403)
+    expect(getDocumentExportQueue).not.toHaveBeenCalled()
+    const { storage } = await import("@/lib/storage")
+    expect(storage.getObject).not.toHaveBeenCalled()
+  })
+
+  it("does not expose job state or sign an export after the requester's grant is revoked", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+    const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
+    )
+    expect(res.status).toBe(404)
+    const { storage } = await import("@/lib/storage")
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
   })
 
   it("returns 404 when contract not in org", async () => {
@@ -680,110 +892,138 @@ describe("GET /api/contracts/[id]/document/export/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(404)
   })
 
-  it("returns failed status when job not found in queue", async () => {
-    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
+  it("returns 404 when the durable artifact does not exist", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    vi.mocked(getDocumentExportQueue).mockReturnValueOnce({
-      getJob: vi.fn().mockResolvedValue(null),
-    } as any)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/no-such-job"),
-      { params: { id: "contract-1", jobId: "no-such-job" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "no-such-job" }) },
     )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.status).toBe("failed")
-    expect(body.error).toBe("job_not_found")
+    expect(res.status).toBe(404)
   })
 
   it("returns 404 when job belongs to a different user", async () => {
-    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    const foreignJob = {
-      ...mockExportJob,
-      data: { ...mockExportJob.data, requestedById: "user-other" },
-    }
-    vi.mocked(getDocumentExportQueue).mockReturnValueOnce({
-      getJob: vi.fn().mockResolvedValue(foreignJob),
-    } as any)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(404)
   })
 
   it("returns pending status when job is still processing", async () => {
-    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    const pendingJob = { ...mockExportJob, getState: vi.fn().mockResolvedValue("active") }
-    vi.mocked(getDocumentExportQueue).mockReturnValueOnce({
-      getJob: vi.fn().mockResolvedValue(pendingJob),
-    } as any)
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe("pending")
   })
 
-  it("returns complete status with downloadUrl when job succeeded", async () => {
-    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
+  it("returns an authenticated same-origin download path after the authorized requester polls", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    const completedJob = {
-      ...mockExportJob,
-      getState: vi.fn().mockResolvedValue("completed"),
-      returnvalue: { downloadUrl: "https://storage.example.com/exports/contract-1.docx" },
-    }
-    vi.mocked(getDocumentExportQueue).mockReturnValueOnce({
-      getJob: vi.fn().mockResolvedValue(completedJob),
-    } as any)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({
+      ...mockExportArtifact,
+      state: "READY",
+      storageKey: "exports/org-1/contract-1/export-job-1/attempt-1.docx",
+      publishedAt: new Date(),
+    })
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe("complete")
-    expect(body.downloadUrl).toBe("https://storage.example.com/exports/contract-1.docx")
+    expect(body.downloadUrl).toBe("/api/contracts/contract-1/document/export/export-job-1?download=1")
+    const { storage } = await import("@/lib/storage")
+    expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled()
   })
 
-  it("returns failed status when job failed", async () => {
-    const { getDocumentExportQueue } = await import("@/lib/jobs/queues")
+  it("streams the completed export only through the reauthorized route", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({
+      ...mockExportArtifact,
+      state: "READY",
+      storageKey: "exports/org-1/contract-1/export-job-1/attempt-1.docx",
+      publishedAt: new Date(),
+    })
+    const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1?download=1"),
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get("cache-control")).toBe("private, no-store")
+    expect(res.headers.get("content-disposition")).toContain("contract-export.docx")
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("export")
+    const { storage } = await import("@/lib/storage")
+    expect(storage.getObject).toHaveBeenCalledWith(
+      "exports/org-1/contract-1/export-job-1/attempt-1.docx",
+      MAX_CONTRACT_FILE_BYTES,
+    )
+  })
+
+  it("returns only a generic failure when the protected object cannot be read", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(storage.getObject).mockRejectedValueOnce(new Error("private storage endpoint and key"))
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({
+      ...mockExportArtifact,
+      state: "READY",
+      storageKey: "exports/org-1/contract-1/export-job-1/attempt-1.docx",
+      publishedAt: new Date(),
+    })
+    const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1?download=1"),
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
+    )
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: "export_failed" })
+  })
+
+  it("does not sign a completed job that has no storage key", async () => {
     vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
-    const failedJob = {
-      ...mockExportJob,
-      getState: vi.fn().mockResolvedValue("failed"),
-      failedReason: "docx_generation_error",
-    }
-    vi.mocked(getDocumentExportQueue).mockReturnValueOnce({
-      getJob: vi.fn().mockResolvedValue(failedJob),
-    } as any)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({ ...mockExportArtifact, state: "READY", storageKey: null, publishedAt: new Date() })
     const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
-      { params: { id: "contract-1", jobId: "export-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
+    )
+    expect(await res.json()).toEqual({ status: "failed", error: "export_failed" })
+  })
+
+  it("returns failed status when job failed", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as any)
+    ;(prisma as any).documentExportArtifact.findFirst.mockResolvedValueOnce({ ...mockExportArtifact, state: "FAILED" })
+    const { GET } = await import("@/app/api/contracts/[id]/document/export/[jobId]/route")
+    const res = await GET(
+      new Request("http://localhost/api/contracts/contract-1/document/export/export-job-1"),
+      { params: Promise.resolve({ id: "contract-1", jobId: "export-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe("failed")
-    expect(body.error).toBe("docx_generation_error")
+    expect(body.error).toBe("export_failed")
   })
 })
 
@@ -799,7 +1039,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -809,7 +1049,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -819,7 +1059,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -830,7 +1070,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -842,7 +1082,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -860,7 +1100,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -878,7 +1118,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -898,7 +1138,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
   })
@@ -914,7 +1154,7 @@ describe("POST /api/contracts/[id]/document/extract", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/extract/route")
     await POST(
       new Request("http://localhost/api/contracts/contract-1/document/extract", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(writeActivity).toHaveBeenCalledWith(
       "contract-1",
@@ -953,7 +1193,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/image/route")
     const res = await POST(
       makeImageRequest(new File(["data"], "img.png", { type: "image/png" })),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -964,7 +1204,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/image/route")
     const res = await POST(
       makeImageRequest(new File(["data"], "img.png", { type: "image/png" })),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -976,7 +1216,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     // Pass null to makeImageRequest so the FormData has no "file" field
     const res = await POST(
       makeImageRequest(null),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -989,7 +1229,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/image/route")
     const res = await POST(
       makeImageRequest(new File(["data"], "doc.pdf", { type: "application/pdf" })),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -1003,7 +1243,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     const bigFile = new File([new Uint8Array(6 * 1024 * 1024)], "big.png", { type: "image/png" })
     const res = await POST(
       makeImageRequest(bigFile),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -1017,7 +1257,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/image/route")
     const res = await POST(
       makeImageRequest(new File(["img data"], "photo.png", { type: "image/png" })),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1035,7 +1275,7 @@ describe("POST /api/contracts/[id]/document/image", () => {
       const ext = mimeType.split("/")[1].replace("+xml", ".svg").split("+")[0]
       const res = await POST(
         makeImageRequest(new File(["data"], `img.${ext}`, { type: mimeType })),
-        { params: { id: "contract-1" } },
+        { params: Promise.resolve({ id: "contract-1" }) },
       )
       expect(res.status).toBe(200)
     }
@@ -1085,7 +1325,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1095,7 +1335,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -1106,7 +1346,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1120,7 +1360,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -1134,7 +1374,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     // null → FormData has no "file" field
     const res = await POST(
       makeImportRequest(null),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -1150,7 +1390,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     })
     const res = await POST(
       makeImportRequest(invalidFile),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -1165,17 +1405,19 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
     const body = await res.json()
-    expect(body.jobId).toBe("convert-job-1")
+    expect(body.jobId).toEqual(expect.any(String))
     expect(storage.upload).toHaveBeenCalledOnce()
     expect(documentConvertQueue.add).toHaveBeenCalledWith("convert", expect.objectContaining({
       contractId: "contract-1",
       fileType: "docx",
+      jobId: body.jobId,
       deleteSource: true,
-    }))
+    }), { jobId: body.jobId })
+    expect(mockConvertJob.updateData).not.toHaveBeenCalled()
   })
 
   it("accepts PDF file (magic bytes validated), enqueues convert job with fileType pdf", async () => {
@@ -1185,13 +1427,13 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makePdfFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
     expect(documentConvertQueue.add).toHaveBeenCalledWith("convert", expect.objectContaining({
       fileType: "pdf",
       deleteSource: true,
-    }))
+    }), { jobId: expect.any(String) })
   })
 
   it("returns 413 when file exceeds 25 MB", async () => {
@@ -1206,7 +1448,7 @@ describe("POST /api/contracts/[id]/document/import", () => {
     })
     const res = await POST(
       makeImportRequest(bigFile),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(413)
   })
@@ -1217,9 +1459,71 @@ describe("POST /api/contracts/[id]/document/import", () => {
     const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
     const res = await POST(
       makeImportRequest(makeDocxFile()),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
+  })
+
+  it("deletes only its temporary source when enqueue failure is confirmed", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    mockDocumentConvertQueue.add.mockRejectedValueOnce(new Error("redis unavailable"))
+    mockDocumentConvertQueue.getJob.mockResolvedValueOnce(undefined)
+
+    const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
+    const res = await POST(makeImportRequest(makeDocxFile()), { params: Promise.resolve({ id: "contract-1" }) })
+
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ error: "import_enqueue_failed" })
+    expect(storage.delete).toHaveBeenCalledWith(expect.stringMatching(
+      /^tmp\/docx-imports\/contract-1\/[0-9a-f-]+\.docx$/,
+    ))
+  })
+
+  it("cleans its UUID-scoped source when upload acknowledgement is lost", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    vi.mocked(storage.upload).mockRejectedValueOnce(new Error("upload acknowledgement lost"))
+
+    const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
+    const res = await POST(makeImportRequest(makeDocxFile()), { params: Promise.resolve({ id: "contract-1" }) })
+
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ error: "import_upload_failed" })
+    expect(storage.delete).toHaveBeenCalledWith(expect.stringMatching(
+      /^tmp\/docx-imports\/contract-1\/[0-9a-f-]+\.docx$/,
+    ))
+    expect(mockDocumentConvertQueue.add).not.toHaveBeenCalled()
+  })
+
+  it("treats a committed job as success when add acknowledgement is lost", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    mockDocumentConvertQueue.add.mockRejectedValueOnce(new Error("ack lost"))
+    mockDocumentConvertQueue.getJob.mockResolvedValueOnce(mockConvertJob)
+
+    const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
+    const res = await POST(makeImportRequest(makePdfFile()), { params: Promise.resolve({ id: "contract-1" }) })
+
+    expect(res.status).toBe(202)
+    expect(storage.delete).not.toHaveBeenCalled()
+  })
+
+  it("retains the source when queue state cannot be established", async () => {
+    const { storage } = await import("@/lib/storage")
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(draftContract as never)
+    mockDocumentConvertQueue.add.mockRejectedValueOnce(new Error("ack lost"))
+    mockDocumentConvertQueue.getJob.mockRejectedValueOnce(new Error("redis unavailable"))
+
+    const { POST } = await import("@/app/api/contracts/[id]/document/import/route")
+    const res = await POST(makeImportRequest(makePdfFile()), { params: Promise.resolve({ id: "contract-1" }) })
+
+    expect(res.status).toBe(502)
+    expect(storage.delete).not.toHaveBeenCalled()
   })
 })
 
@@ -1235,7 +1539,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1246,7 +1550,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1261,7 +1565,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/no-such-job"),
-      { params: { id: "contract-1", jobId: "no-such-job" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "no-such-job" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1283,7 +1587,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1299,7 +1603,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1317,7 +1621,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1339,12 +1643,12 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe("failed")
-    expect(body.error).toBe("docx_parse_error")
+    expect(body.error).toBe("conversion_failed")
   })
 
   it("job for different contract id returns 404 (cross-contract access prevention)", async () => {
@@ -1361,7 +1665,7 @@ describe("GET /api/contracts/[id]/document/import/[jobId]", () => {
     const { GET } = await import("@/app/api/contracts/[id]/document/import/[jobId]/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/document/import/convert-job-1"),
-      { params: { id: "contract-1", jobId: "convert-job-1" } },
+      { params: Promise.resolve({ id: "contract-1", jobId: "convert-job-1" }) },
     )
     expect(res.status).toBe(404)
   })

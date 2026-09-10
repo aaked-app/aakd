@@ -2,6 +2,7 @@ import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { z } from "zod"
+import { agreementRelationWhere } from "@/lib/auth/agreement-access"
 
 const WRITERS = new Set(["owner", "admin", "legal", "member"])
 const Schema = z.object({
@@ -21,7 +22,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
 
   return requestContext.run(ctx, async () => {
     const action = await prisma.contractAction.findFirst({
-      where: { id: params.id, organizationId: ctx.organizationId },
+      where: { id: params.id, organizationId: ctx.organizationId, contract: agreementRelationWhere(ctx) },
       select: { id: true, contractId: true, title: true, status: true, reviewStatus: true, version: true },
     })
     if (!action) return Response.json({ error: "Not Found" }, { status: 404 })
@@ -39,10 +40,16 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     }
 
     const member = await prisma.member.findFirst({
-      where: { userId: parsed.data.assignedToId, organizationId: ctx.organizationId },
+      where: {
+        userId: parsed.data.assignedToId,
+        organizationId: ctx.organizationId,
+        accessGrants: {
+          some: { organizationId: ctx.organizationId, contractId: action.contractId },
+        },
+      },
       select: { userId: true },
     })
-    if (!member) return Response.json({ error: "invalid_assignee" }, { status: 422 })
+    if (!member) return Response.json({ error: "action_recipient_access_required" }, { status: 422 })
 
     const existing = await prisma.approval.findFirst({
       where: { actionId: action.id, requestedById: ctx.userId, assignedToId: parsed.data.assignedToId, status: "pending" },
@@ -57,6 +64,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
           organizationId: ctx.organizationId,
           status: "PROPOSED",
           version: parsed.data.expectedVersion,
+          contract: agreementRelationWhere(ctx),
         },
         data: { version: { increment: 1 } },
       })

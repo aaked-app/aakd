@@ -1,131 +1,59 @@
-import { resolveAuth } from "@/lib/auth/middleware"
-import { resolveAiConfig } from "@/lib/ai/resolve"
-import { extractDeterministicRenewalTerms } from "@/lib/ai/local-extract"
+import { randomUUID } from "node:crypto"
+import { z } from "zod"
+import { requireWriteScope, resolveAuth } from "@/lib/auth/middleware"
+import { requireRole } from "@/lib/auth/roles"
+import {
+  extractionPreviewStorageKey,
+  getExtractionPreviewQueue,
+  type ExtractionPreviewJobData,
+} from "@/lib/jobs/queues"
+import { extractionPreviewResultKey, readExtractionPreviewResult } from "@/lib/jobs/extraction-preview-result"
+import { storage } from "@/lib/storage"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { logger } from "@/lib/logger"
-import { captureServerEvent } from "@/lib/posthog-server"
-import OpenAI from "openai"
-import Anthropic from "@anthropic-ai/sdk"
-import pdfParse from "pdf-parse"
-import mammoth from "mammoth"
-import { sanitizeZipBuffer } from "@/lib/import/zip-safety"
+import { requestContext } from "@/lib/context"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 
-// Vercel: synchronous LLM extraction can take 30-90s on large PDFs.
-// Override default to ensure we run on Fluid Compute's 300s ceiling, not legacy 10/60s.
-export const maxDuration = 300
-
-const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
-const MAX_TEXT_CHARS = 8000
+const MAX_SIZE = 50 * 1024 * 1024
+const PREVIEW_TTL_MS = 5 * 60_000
+const JobIdSchema = z.string().uuid()
 
 function detectFileType(buffer: Buffer): "pdf" | "docx" | null {
-  // PDF: %PDF magic bytes
-  if (
-    buffer[0] === 0x25 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x44 &&
-    buffer[3] === 0x46
-  ) {
+  if (buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from("%PDF"))) {
     return "pdf"
   }
-  // PK ZIP header — check for DOCX "word/" entry
-  if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
-    if (buffer.includes(Buffer.from("word/"))) {
-      return "docx"
-    }
+  if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b
+    && buffer.includes(Buffer.from("word/"))) {
+    return "docx"
   }
   return null
 }
 
-async function extractText(buffer: Buffer, fileType: "pdf" | "docx"): Promise<string> {
-  if (fileType === "pdf") {
-    const result = await pdfParse(buffer)
-    return result.text
-  }
-  // DOCX is a ZIP container, and mammoth's internal unzip (jszip/pako) does
-  // not protect against a forged declared size — it inflates toward the
-  // archive's real size before its own mismatch check fires. Re-serialize
-  // through our own capped, verified-safe unzip/rezip round-trip first, so
-  // mammoth only ever sees data already bounded by our decompressed-size
-  // ceiling.
-  const sanitized = Buffer.from(sanitizeZipBuffer(buffer))
-  const result = await mammoth.extractRawText({ buffer: sanitized })
-  return result.value
-}
-
-interface ExtractionResult {
-  title?: string | null
-  contractType?: string | null
-  counterpartyName?: string | null
-  startDate?: string | null
-  endDate?: string | null
-  value?: number | null
-  currency?: string | null
-  paymentTerms?: string | null
-  governingLaw?: string | null
-  autoRenewal?: boolean
-  renewalDate?: string | null
-  noticePeriodDays?: number | null
-  description?: string | null
-  confidence?: Record<string, number>
-  error?: string
-  partial?: boolean
-}
-
-const SYSTEM_PROMPT =
-  "Extract key contract metadata from the following contract text. Return a JSON object with these exact keys: title (string), contractType (one of: NDA, MSA, SOW, EMPLOYMENT, VENDOR, CUSTOMER, OTHER), counterpartyName (string), startDate (ISO date string or null), endDate (ISO date string or null), renewalDate (ISO date string or null), noticePeriodDays (integer or null), value (number or null), currency (one of: USD, EUR, GBP, JPY, OTHER), paymentTerms (string or null), governingLaw (string or null), autoRenewal (boolean), description (1-2 sentence summary). Also include a confidence object with keys matching the above fields and values 0-1. Return only valid JSON, no markdown."
-
-async function runAiExtraction(
-  contractText: string,
+async function deleteOwnedPreviewSource(
   organizationId: string,
-): Promise<ExtractionResult> {
-  const aiConfig = await resolveAiConfig(organizationId)
-
-  if (!aiConfig.provider || !aiConfig.apiKey) {
-    return { error: "ai_unavailable", partial: true, confidence: {} }
-  }
-
-  if (aiConfig.provider === "anthropic") {
-    const anthropic = new Anthropic({ apiKey: aiConfig.apiKey })
-    const msg = await anthropic.messages.create({
-      model: aiConfig.model ?? "claude-haiku-4-5",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `${SYSTEM_PROMPT}\n\n${contractText}`,
-        },
-      ],
-    })
-    const raw = msg.content[0]?.type === "text" ? msg.content[0].text : "{}"
-    // Strip markdown fences if model returned them despite instructions
-    const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim()
-    return JSON.parse(clean) as ExtractionResult
-  }
-
-  if (aiConfig.provider === "openai") {
-    const openai = new OpenAI({ apiKey: aiConfig.apiKey })
-    const response = await openai.chat.completions.create({
-      model: aiConfig.model ?? "gpt-4o-mini",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: contractText },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0,
-    })
-    const raw = response.choices[0]?.message?.content ?? "{}"
-    return JSON.parse(raw) as ExtractionResult
-  }
-
-  // Ollama: not supported for structured extraction preview
-  return { error: "ai_unavailable", partial: true, confidence: {} }
+  memberId: string,
+  jobId: string,
+): Promise<void> {
+  const key = extractionPreviewStorageKey(organizationId, memberId, jobId)
+  await storage.delete(key).catch(() => {})
 }
 
 // POST /api/contracts/extract-preview
-// Body: multipart FormData with field "file"
+// Body: multipart FormData with field "file". Parsing and AI run only in the worker.
 export async function POST(req: Request): Promise<Response> {
   const ctx = await resolveAuth(req)
-  if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (!ctx?.memberId) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const memberId = ctx.memberId
+  const roleError = requireRole(ctx.role, "member")
+  if (roleError) return roleError
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
+  if (isAgreementAccessEmergencyDenyAll()) return Response.json({ error: "Not Found" }, { status: 404 })
 
+  const rl = await rateLimit(`${ctx.organizationId}:extract-preview`, 5, 60_000)
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter)
+
+  return requestContext.run(ctx, async () => {
   let formData: globalThis.FormData
   try {
     formData = await req.formData()
@@ -137,53 +65,101 @@ export async function POST(req: Request): Promise<Response> {
   if (!fileField || !(fileField instanceof File)) {
     return Response.json({ error: "Missing file field" }, { status: 400 })
   }
-
   if (fileField.size > MAX_SIZE) {
     return Response.json({ error: "File exceeds 50 MB limit" }, { status: 413 })
   }
 
   const buffer = Buffer.from(await fileField.arrayBuffer())
   const fileType = detectFileType(buffer)
-
   if (!fileType) {
     return Response.json({ error: "unsupported_file_type" }, { status: 400 })
   }
 
-  const fileNameWithoutExt = fileField.name.replace(/\.[^.]+$/, "")
-
-  let contractText = ""
-  try {
-    const raw = await extractText(buffer, fileType)
-    contractText = raw.slice(0, MAX_TEXT_CHARS)
-  } catch (err) {
-    logger.error({ err }, "[extract-preview] text extraction failed")
-    return Response.json({
-      title: fileNameWithoutExt,
-      error: "text_extraction_failed",
-      partial: true,
-      confidence: {},
-    })
+  const jobId = randomUUID()
+  const storageKey = extractionPreviewStorageKey(ctx.organizationId, memberId, jobId)
+  const createdAt = Date.now()
+  const data: ExtractionPreviewJobData = {
+    jobId,
+    organizationId: ctx.organizationId,
+    requestedByUserId: ctx.userId,
+    requestedByMemberId: memberId,
+    storageKey,
+    fileType,
+    createdAt,
+    expiresAt: createdAt + PREVIEW_TTL_MS,
   }
 
   try {
-    const extracted = await runAiExtraction(contractText, ctx.organizationId)
-    const renewalTerms = extractDeterministicRenewalTerms(contractText)
-    if (renewalTerms.autoRenewal) extracted.autoRenewal = renewalTerms.autoRenewal.value as boolean
-    else if (renewalTerms.autoRenewalAmbiguous) delete extracted.autoRenewal
-    if (renewalTerms.noticePeriodDays) extracted.noticePeriodDays = renewalTerms.noticePeriodDays.value as number
-    if (!extracted.error) {
-      captureServerEvent(ctx.userId, "ai_extraction_run", {
-        organizationId: ctx.organizationId,
-      })
-    }
-    return Response.json(extracted)
-  } catch (err) {
-    logger.error({ err }, "[extract-preview] AI extraction failed")
-    return Response.json({
-      title: fileNameWithoutExt,
-      error: "ai_unavailable",
-      partial: true,
-      confidence: {},
-    })
+    await storage.upload(
+      storageKey,
+      buffer,
+      fileType === "pdf"
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    const job = await getExtractionPreviewQueue().add("extract", data, { jobId })
+    return Response.json({ jobId: job.id, status: "pending" }, { status: 202 })
+  } catch (error) {
+    await storage.delete(storageKey).catch(() => {})
+    logger.error(
+      { organizationId: ctx.organizationId, errorType: error instanceof Error ? error.name : "unknown" },
+      "[extract-preview] Failed to enqueue preview",
+    )
+    return Response.json({ error: "preview_unavailable" }, { status: 503 })
   }
+  })
+}
+
+// GET /api/contracts/extract-preview?jobId=<uuid>
+export async function GET(req: Request): Promise<Response> {
+  const ctx = await resolveAuth(req)
+  if (!ctx?.memberId) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) {
+    return Response.json({ error: "text_read scope required" }, { status: 403 })
+  }
+  const memberId = ctx.memberId
+  if (isAgreementAccessEmergencyDenyAll()) return Response.json({ error: "Not Found" }, { status: 404 })
+
+  return requestContext.run(ctx, async () => {
+  const parsedJobId = JobIdSchema.safeParse(new URL(req.url).searchParams.get("jobId"))
+  if (!parsedJobId.success) {
+    return Response.json({ error: "Invalid job ID" }, { status: 400 })
+  }
+  const jobId = parsedJobId.data
+  const queue = getExtractionPreviewQueue()
+  const job = await queue.getJob(jobId)
+  if (!job) {
+    await deleteOwnedPreviewSource(ctx.organizationId, memberId, jobId)
+    return Response.json({ error: "Preview not found" }, { status: 404 })
+  }
+
+  const data = job.data
+  if (
+    data.jobId !== jobId
+    || data.organizationId !== ctx.organizationId
+    || data.requestedByUserId !== ctx.userId
+    || data.requestedByMemberId !== memberId
+    || data.storageKey !== extractionPreviewStorageKey(ctx.organizationId, memberId, jobId)
+  ) {
+    return Response.json({ error: "Preview not found" }, { status: 404 })
+  }
+
+  if (Date.now() >= data.expiresAt) {
+    await deleteOwnedPreviewSource(ctx.organizationId, memberId, jobId)
+    await (await queue.client).del(extractionPreviewResultKey(data))
+    await job.remove().catch(() => {})
+    return Response.json({ status: "expired" })
+  }
+
+  const state = await job.getState()
+  if (state === "completed") {
+    const result = await readExtractionPreviewResult(await queue.client, data)
+    if (!result) return Response.json({ status: "expired" })
+    return Response.json({ status: "completed", result }, { headers: { "Cache-Control": "private, no-store" } })
+  }
+  if (state === "failed") {
+    return Response.json({ status: "failed", error: "preview_failed" })
+  }
+  return Response.json({ status: "pending" })
+  })
 }

@@ -10,6 +10,10 @@ import { fireAndLog } from "@/lib/utils/fire-and-log"
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
   const ctx = await resolveAuth(req)
+  // Never bootstrap through a browser cookie after explicit bearer failure.
+  if (ctx?.source === "api_key" || req.headers.has("authorization")) {
+    return Response.json({ error: "human_session_required" }, { status: 403 })
+  }
   // An invited user is not a member of this organization yet, so resolveAuth()
   // intentionally returns null for their otherwise-valid session. Fall back to
   // Better Auth's session lookup only for this bootstrap transition.

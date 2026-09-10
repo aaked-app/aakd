@@ -106,7 +106,7 @@ describe("GET /api/crm/[provider]/callback", () => {
     const { GET } = await import("@/app/api/crm/[provider]/callback/route")
     const res = await GET(
       new Request("http://localhost/api/crm/hubspot/callback?code=abc&state=xyz"),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -116,7 +116,7 @@ describe("GET /api/crm/[provider]/callback", () => {
     const { GET } = await import("@/app/api/crm/[provider]/callback/route")
     const res = await GET(
       new Request("http://localhost/api/crm/bogus/callback?code=abc&state=xyz"),
-      { params: { provider: "bogus" } },
+      { params: Promise.resolve({ provider: "bogus" }) },
     )
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -128,7 +128,7 @@ describe("GET /api/crm/[provider]/callback", () => {
     const { GET } = await import("@/app/api/crm/[provider]/callback/route")
     const res = await GET(
       new Request("http://localhost/api/crm/hubspot/callback?code=abc&state=xyz"),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -138,7 +138,7 @@ describe("GET /api/crm/[provider]/callback", () => {
     const { GET } = await import("@/app/api/crm/[provider]/callback/route")
     const res = await GET(
       new Request("http://localhost/api/crm/hubspot/callback"),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
@@ -152,7 +152,7 @@ describe("GET /api/crm/[provider]/callback", () => {
       new Request("http://localhost/api/crm/hubspot/callback?code=abc&state=state-123", {
         headers: { cookie: "crm_oauth_state=state-WRONG" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
@@ -171,7 +171,7 @@ describe("GET /api/crm/[provider]/callback", () => {
       new Request("http://localhost/api/crm/hubspot/callback?code=bad-code&state=state-abc", {
         headers: { cookie: "crm_oauth_state=state-abc" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
@@ -204,7 +204,7 @@ describe("GET /api/crm/[provider]/callback", () => {
       new Request("http://localhost/api/crm/hubspot/callback?code=valid-code&state=state-abc", {
         headers: { cookie: "crm_oauth_state=state-abc" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
@@ -242,7 +242,7 @@ describe("GET /api/crm/[provider]/callback", () => {
       new Request("http://localhost/api/crm/salesforce/callback?code=sf-code&state=state-sf", {
         headers: { cookie: "crm_oauth_state=state-sf" },
       }),
-      { params: { provider: "salesforce" } },
+      { params: Promise.resolve({ provider: "salesforce" }) },
     )
     expect(res.status).toBe(302)
     const location = res.headers.get("Location") ?? ""
@@ -270,7 +270,7 @@ describe("GET /api/crm/[provider]/callback", () => {
       new Request("http://localhost/api/crm/hubspot/callback?code=code&state=state-x", {
         headers: { cookie: "crm_oauth_state=state-x" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(302)
     expect(prisma.crmIntegration.upsert).toHaveBeenCalledWith(
@@ -295,7 +295,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -309,7 +309,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "invalid" } },
+      { params: Promise.resolve({ provider: "invalid" }) },
     )
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -325,7 +325,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -339,7 +339,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -353,7 +353,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: "not-json",
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -367,7 +367,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "x".repeat(201) }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -382,7 +382,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -408,7 +408,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ autoCreateStage: "contract_sent", syncOnActiveStage: "Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -448,7 +448,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: null }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "hubspot" } },
+      { params: Promise.resolve({ provider: "hubspot" }) },
     )
     expect(res.status).toBe(200)
     expect(prisma.crmIntegration.update).toHaveBeenCalledWith(
@@ -477,7 +477,7 @@ describe("PATCH /api/crm/[provider]/integration", () => {
         body: JSON.stringify({ syncOnActiveStage: "Closed Won" }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { provider: "salesforce" } },
+      { params: Promise.resolve({ provider: "salesforce" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
