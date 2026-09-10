@@ -1,9 +1,11 @@
 import crypto from "node:crypto"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { storage } from "@/lib/storage"
-import { documentConvertQueue } from "@/lib/jobs/queues"
+import { getDocumentConvertQueue } from "@/lib/jobs/queues"
+import { logger } from "@/lib/logger"
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25 MB (PDFs can be larger than DOCX)
 const DOCX_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]) // PK zip header
@@ -28,9 +30,10 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
-      select: { id: true, organizationId: true, status: true },
+      select: { id: true, organizationId: true, status: true, document: { select: { version: true } } },
     })
     if (!contract || contract.organizationId !== ctx.organizationId) {
       return new Response("Not Found", { status: 404 })
@@ -78,30 +81,59 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       return Response.json({ error: "invalid_file_type" }, { status: 422 })
     }
 
-    const tmpKey = `tmp/docx-imports/${params.id}/${crypto.randomUUID()}.${ext}`
-    await storage.upload(tmpKey, buffer, mimeType)
+    const jobId = crypto.randomUUID()
+    const tmpKey = `tmp/docx-imports/${params.id}/${jobId}.${ext}`
+    try {
+      await storage.upload(tmpKey, buffer, mimeType)
+    } catch (err) {
+      // The UUID-scoped source is not referenced by a job yet, so it is safe
+      // to remove even if the failed upload was an acknowledgement loss.
+      try {
+        await storage.delete(tmpKey)
+      } catch {
+        logger.error({ contractId: params.id }, "[document.import] failed upload cleanup failed")
+      }
+      logger.error({ err, contractId: params.id }, "[document.import] temporary source upload failed")
+      return Response.json({ error: "import_upload_failed" }, { status: 502 })
+    }
 
-    const job = await documentConvertQueue.add("convert", {
+    const queue = getDocumentConvertQueue()
+    const jobData = {
       contractId: params.id,
+      organizationId: ctx.organizationId,
+      requestedByMemberId: ctx.memberId,
+      apiKeyId: ctx.apiKeyId,
+      expectedDocumentVersion: contract.document?.version ?? null,
       storageKey: tmpKey,
       requestedById: ctx.userId,
       fileType,
-      jobId: "", // overwritten below using the actual BullMQ job id
+      jobId,
       deleteSource: true,
-    })
-    // BullMQ assigns the id; pass it back so the GET route can verify ownership
-    // by reading job.data.requestedById, and so the client can poll.
-    if (job.id) {
-      await job.updateData({
-        contractId: params.id,
-        storageKey: tmpKey,
-        requestedById: ctx.userId,
-        fileType,
-        jobId: job.id,
-        deleteSource: true,
-      })
+    }
+    try {
+      await queue.add("convert", jobData, { jobId })
+    } catch (err) {
+      // add() may have committed in Redis before the acknowledgement was lost.
+      // Confirm absence before deleting the source owned by this UUID attempt.
+      let confirmedAbsent = false
+      try {
+        const committedJob = await queue.getJob(jobId)
+        if (committedJob) return Response.json({ jobId }, { status: 202 })
+        confirmedAbsent = true
+      } catch {
+        logger.error({ contractId: params.id }, "[document.import] queue state unknown; temporary source retained")
+      }
+      if (confirmedAbsent) {
+        try {
+          await storage.delete(tmpKey)
+        } catch {
+          logger.error({ contractId: params.id }, "[document.import] unused temporary source cleanup failed")
+        }
+      }
+      logger.error({ err, contractId: params.id }, "[document.import] conversion enqueue failed")
+      return Response.json({ error: "import_enqueue_failed" }, { status: 502 })
     }
 
-    return Response.json({ jobId: job.id }, { status: 202 })
+    return Response.json({ jobId }, { status: 202 })
   })
 }

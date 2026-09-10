@@ -69,10 +69,12 @@ function resetMockQueues() {
   vi.mocked(requireWriteScope).mockReturnValue(null)
   vi.mocked(validateWebhookUrl).mockResolvedValue(undefined)
   vi.mocked(verifyUnsubscribeToken).mockReset()
+  vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([])
 }
 
 const adminCtx = {
   userId: "user-admin",
+  memberId: "member-admin",
   organizationId: "org-1",
   role: "admin",
   source: "session" as const,
@@ -274,7 +276,7 @@ describe("PATCH /api/org/notification-channels/[id]", () => {
         body: JSON.stringify({ enabled: false }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -288,7 +290,7 @@ describe("PATCH /api/org/notification-channels/[id]", () => {
         body: JSON.stringify({ enabled: false }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -306,7 +308,7 @@ describe("PATCH /api/org/notification-channels/[id]", () => {
         body: JSON.stringify({ enabled: false }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -324,7 +326,7 @@ describe("PATCH /api/org/notification-channels/[id]", () => {
         body: JSON.stringify({}),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(422)
   })
@@ -346,7 +348,7 @@ describe("PATCH /api/org/notification-channels/[id]", () => {
         body: JSON.stringify({ enabled: false }),
         headers: { "Content-Type": "application/json" },
       }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -364,7 +366,7 @@ describe("DELETE /api/org/notification-channels/[id]", () => {
     const { DELETE } = await import("@/app/api/org/notification-channels/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/notification-channels/channel-1", { method: "DELETE" }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -374,7 +376,7 @@ describe("DELETE /api/org/notification-channels/[id]", () => {
     const { DELETE } = await import("@/app/api/org/notification-channels/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/notification-channels/channel-1", { method: "DELETE" }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -388,7 +390,7 @@ describe("DELETE /api/org/notification-channels/[id]", () => {
     const { DELETE } = await import("@/app/api/org/notification-channels/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/notification-channels/channel-1", { method: "DELETE" }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -403,7 +405,7 @@ describe("DELETE /api/org/notification-channels/[id]", () => {
     const { DELETE } = await import("@/app/api/org/notification-channels/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/notification-channels/channel-1", { method: "DELETE" }),
-      { params: { id: "channel-1" } },
+      { params: Promise.resolve({ id: "channel-1" }) },
     )
     expect(res.status).toBe(204)
     expect(prisma.orgNotificationChannel.delete).toHaveBeenCalledWith({
@@ -605,7 +607,7 @@ describe("DELETE /api/org/webhooks/[id]", () => {
     const { DELETE } = await import("@/app/api/org/webhooks/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/webhooks/webhook-1", { method: "DELETE" }),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -615,7 +617,7 @@ describe("DELETE /api/org/webhooks/[id]", () => {
     const { DELETE } = await import("@/app/api/org/webhooks/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/webhooks/webhook-1", { method: "DELETE" }),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -629,7 +631,7 @@ describe("DELETE /api/org/webhooks/[id]", () => {
     const { DELETE } = await import("@/app/api/org/webhooks/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/webhooks/webhook-1", { method: "DELETE" }),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -644,7 +646,7 @@ describe("DELETE /api/org/webhooks/[id]", () => {
     const { DELETE } = await import("@/app/api/org/webhooks/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/webhooks/webhook-1", { method: "DELETE" }),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(204)
     expect(prisma.outboundWebhook.delete).toHaveBeenCalledWith({ where: { id: "webhook-1" } })
@@ -661,7 +663,7 @@ describe("GET /api/org/webhooks/[id]/deliveries", () => {
     const { GET } = await import("@/app/api/org/webhooks/[id]/deliveries/route")
     const res = await GET(
       new Request("http://localhost/api/org/webhooks/webhook-1/deliveries"),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -671,7 +673,7 @@ describe("GET /api/org/webhooks/[id]/deliveries", () => {
     const { GET } = await import("@/app/api/org/webhooks/[id]/deliveries/route")
     const res = await GET(
       new Request("http://localhost/api/org/webhooks/webhook-1/deliveries"),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -685,7 +687,7 @@ describe("GET /api/org/webhooks/[id]/deliveries", () => {
     const { GET } = await import("@/app/api/org/webhooks/[id]/deliveries/route")
     const res = await GET(
       new Request("http://localhost/api/org/webhooks/webhook-1/deliveries"),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -711,7 +713,7 @@ describe("GET /api/org/webhooks/[id]/deliveries", () => {
     const { GET } = await import("@/app/api/org/webhooks/[id]/deliveries/route")
     const res = await GET(
       new Request("http://localhost/api/org/webhooks/webhook-1/deliveries?page=1&limit=10"),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -735,7 +737,7 @@ describe("GET /api/org/webhooks/[id]/deliveries", () => {
     const { GET } = await import("@/app/api/org/webhooks/[id]/deliveries/route")
     const res = await GET(
       new Request("http://localhost/api/org/webhooks/webhook-1/deliveries"),
-      { params: { id: "webhook-1" } },
+      { params: Promise.resolve({ id: "webhook-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -990,6 +992,7 @@ describe("GET /api/notifications", () => {
 
   it("includes org.invited notifications regardless of current org", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx) // organizationId = org-1
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([{ contractId: "contract-1" }] as never)
     vi.mocked(prisma.notification.findMany).mockResolvedValueOnce([
       {
         id: "notif-invite",
@@ -1010,13 +1013,13 @@ describe("GET /api/notifications", () => {
     // The OR pattern must query both org-scoped and org.invited events
     expect(prisma.notification.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          userId: "user-admin",
-          OR: expect.arrayContaining([
+        where: { AND: expect.arrayContaining([
+          { userId: "user-admin" },
+          { OR: expect.arrayContaining([
             { organizationId: "org-1" },
             { eventName: "org.invited" },
-          ]),
-        }),
+          ]) },
+        ]) },
       }),
     )
   })
@@ -1050,6 +1053,7 @@ describe("POST /api/notifications/read-all", () => {
 
   it("returns 200 and marks all unread notifications as read", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValueOnce([{ contractId: "contract-a" }] as any)
     vi.mocked(prisma.notification.updateMany).mockResolvedValueOnce({ count: 3 } as any)
     const { POST } = await import("@/app/api/notifications/read-all/route")
     const res = await POST(
@@ -1060,14 +1064,19 @@ describe("POST /api/notifications/read-all", () => {
     expect(body.ok).toBe(true)
     expect(prisma.notification.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          userId: "user-admin",
-          read: false,
-          OR: expect.arrayContaining([
-            { organizationId: "org-1" },
-            { eventName: "org.invited" },
-          ]),
-        }),
+        where: {
+          AND: [
+            { userId: "user-admin", read: false },
+            { OR: [
+              { organizationId: "org-1" },
+              { eventName: "org.invited" },
+            ] },
+            { OR: [
+              { contractId: null },
+              { organizationId: "org-1", contractId: { in: ["contract-a"] } },
+            ] },
+          ],
+        },
         data: expect.objectContaining({ read: true }),
       }),
     )

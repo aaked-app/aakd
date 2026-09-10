@@ -23,14 +23,14 @@
       }
     ],
     "paths": {
+      "@prisma/client": [
+        "./node_modules/@prisma/client"
+      ],
+      "bullmq": [
+        "./node_modules/bullmq"
+      ],
       "@/*": [
         "./*"
-      ],
-      ".prisma/client": [
-        "../../node_modules/.pnpm/@prisma+client@7.9.1_prisma@7.9.1_@types+react-dom@19.2.4_@types+react@19.2.18__@types+_7b98b6f88391e1939201dcf2048e6b10/node_modules/.prisma/client/index.d.ts"
-      ],
-      ".prisma/client/*": [
-        "../../node_modules/.pnpm/@prisma+client@7.9.1_prisma@7.9.1_@types+react-dom@19.2.4_@types+react@19.2.18__@types+_7b98b6f88391e1939201dcf2048e6b10/node_modules/.prisma/client/*"
       ]
     },
     "target": "ES2017"
@@ -40,17 +40,13 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next-shell-verify/types/**/*.ts",
-    ".next-final-redesign-verify/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "/private/tmp/aakd-micro-ux-next/types/**/*.ts",
-    "/private/tmp/aakd-micro-ux-next/dev/types/**/*.ts",
-    ".next-seo-verify/types/**/*.ts",
-    ".next-seo-verify/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "tmp",
+    ".next-*",
+    "private/tmp",
     "worker.ts"
   ]
 }

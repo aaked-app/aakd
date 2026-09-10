@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest"
+import { buildContractAlertPlan } from "@/lib/alerts/generate"
 
 /**
- * Pure helper that mirrors the alert-generation logic in lib/alerts/generate.ts
- * without touching Prisma. Tests cover the date-math and filtering rules.
+ * Small adapter around the production pure alert plan. Tests cover the
+ * date-math and filtering rules without touching Prisma.
  */
 function computeAlerts(
   endDate: Date | null,
@@ -11,31 +12,14 @@ function computeAlerts(
   renewalReminderEnabled = true,
   now = new Date()
 ): { alertType: string; triggerDate: Date }[] {
-  const alerts: { alertType: string; triggerDate: Date }[] = []
-
-  if (endDate && endDate > now) {
-    const offsets = [
-      { type: "EXPIRY_90", days: 90 },
-      { type: "EXPIRY_30", days: 30 },
-      { type: "EXPIRY_7",  days: 7 },
-    ]
-    for (const { type, days } of offsets) {
-      const triggerDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000)
-      if (triggerDate > now) alerts.push({ alertType: type, triggerDate })
-    }
-  }
-
-  if (renewalReminderEnabled && renewalDate && renewalDate > now) {
-    const triggerDate = new Date(renewalDate.getTime() - 14 * 24 * 60 * 60 * 1000)
-    alerts.push({ alertType: "RENEWAL_DUE", triggerDate: triggerDate > now ? triggerDate : now })
-  }
-
-  if (noticePeriodDays != null && endDate && endDate > now) {
-    const triggerDate = new Date(endDate.getTime() - noticePeriodDays * 24 * 60 * 60 * 1000)
-    if (triggerDate > now) alerts.push({ alertType: "NOTICE_PERIOD", triggerDate })
-  }
-
-  return alerts
+  return buildContractAlertPlan(
+    "contract-test",
+    endDate,
+    renewalDate,
+    noticePeriodDays,
+    renewalReminderEnabled,
+    now,
+  ).alerts.map(({ alertType, triggerDate }) => ({ alertType, triggerDate }))
 }
 
 /** Returns a Date that is `days` days from now */
@@ -62,10 +46,10 @@ describe("computeAlerts — expiry alerts from endDate", () => {
     expect(types).toContain("EXPIRY_7")
   })
 
-  it("produces no alerts when endDate is in the past", () => {
+  it("produces an immediate past-expiry alert when endDate is in the past", () => {
     const endDate = new Date(Date.now() - 1000)
     const alerts = computeAlerts(endDate, null, null)
-    expect(alerts).toHaveLength(0)
+    expect(alerts).toEqual([{ alertType: "EXPIRY_PAST", triggerDate: endDate }])
   })
 
   it("produces no alerts when endDate is null", () => {

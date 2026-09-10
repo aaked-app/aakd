@@ -1,4 +1,5 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { getDocumentConvertQueue } from "@/lib/jobs/queues"
@@ -9,6 +10,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Verify the contract exists in the caller's org.
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
@@ -36,7 +38,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
     if (state === "failed") {
       return Response.json({
         status: "failed",
-        error: job.failedReason ?? "conversion_failed",
+        error: "conversion_failed",
       })
     }
     return Response.json({ status: "pending" })

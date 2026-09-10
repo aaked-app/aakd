@@ -1,10 +1,12 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
 import { contractAiExtractQueue } from "@/lib/jobs/queues"
 import { plateToPlaintext } from "@/lib/editor/plate-to-plaintext"
+import { clearExtractedSourceBinding, invalidateAgentActionsForSourceChange } from "@/lib/contracts/source-binding"
 
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
@@ -18,6 +20,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -40,9 +43,12 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       return Response.json({ error: "empty_document" }, { status: 422 })
     }
 
-    await prisma.contract.update({
-      where: { id: params.id },
-      data: { extractedText: plaintext },
+    await prisma.$transaction(async tx => {
+      await tx.contract.update({
+        where: { id: params.id },
+        data: { extractedText: plaintext, ...clearExtractedSourceBinding() },
+      })
+      await invalidateAgentActionsForSourceChange(tx, ctx.organizationId, params.id)
     })
 
     await contractAiExtractQueue.add("ai_extract", {

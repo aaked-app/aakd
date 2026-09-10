@@ -1,4 +1,5 @@
 import crypto from "node:crypto"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
@@ -19,12 +20,13 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter)
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findFirst({
       where: { id: params.id, organizationId: ctx.organizationId },
       select: { id: true, extractedText: true, organizationId: true },
     })
     if (!contract) return Response.json({ error: "Not found" }, { status: 404 })
-    if (!contract.extractedText) {
+    if (!contract.extractedText?.trim()) {
       return Response.json({ error: "No extracted text — upload and process a document first" }, { status: 400 })
     }
 
@@ -52,8 +54,10 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) return Response.json({ error: "text_read scope required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findFirst({
       where: { id: params.id, organizationId: ctx.organizationId },
       select: { riskScore: true, riskScoredAt: true, riskDetails: true },
@@ -82,7 +86,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       }
       const state = await job.getState()
       if (state === "completed") return Response.json({ state: "completed", ...job.returnvalue })
-      if (state === "failed") return Response.json({ state: "failed", reason: job.failedReason })
+      if (state === "failed") return Response.json({ state: "failed", reason: "AI risk analysis failed" })
       return Response.json({ state: "active" })
     }
 

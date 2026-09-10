@@ -1,12 +1,13 @@
 import { resolveAuth } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
-import { validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
+import { OllamaEndpointError, validatedOllamaFetch } from "@/lib/ai/ollama-fetch"
+import { boundedAiFetch } from "@/lib/ai/provider-fetch"
 import { z } from "zod"
 
 const Schema = z.discriminatedUnion("provider", [
-  z.object({ provider: z.literal("anthropic"), apiKey: z.string().min(1) }),
-  z.object({ provider: z.literal("openai"), apiKey: z.string().min(1) }),
+  z.object({ provider: z.literal("anthropic"), apiKey: z.string().trim().min(1) }),
+  z.object({ provider: z.literal("openai"), apiKey: z.string().trim().min(1) }),
   z.object({ provider: z.literal("ollama"), baseUrl: z.string().url() }),
 ])
 
@@ -14,6 +15,9 @@ const Schema = z.discriminatedUnion("provider", [
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
+  if (ctx.source !== "session") {
+    return Response.json({ error: "human_session_required" }, { status: 403 })
+  }
   if (!hasRole(ctx.role, "admin")) return new Response("Forbidden", { status: 403 })
 
   const rl = await rateLimit(`${ctx.organizationId}:ai-models`, 10, 60_000)
@@ -30,7 +34,7 @@ export async function POST(req: Request) {
 
   try {
     if (parsed.data.provider === "openai") {
-      const response = await fetch("https://api.openai.com/v1/models", {
+      const response = await boundedAiFetch("https://api.openai.com/v1/models", {
         headers: { Authorization: `Bearer ${parsed.data.apiKey}` },
         signal: AbortSignal.timeout(8_000),
       })
@@ -41,15 +45,14 @@ export async function POST(req: Request) {
 
     if (parsed.data.provider === "ollama") {
       const tagsUrl = new URL("/api/tags", parsed.data.baseUrl).toString()
-      await validateOllamaTestUrl(tagsUrl)
-      const response = await fetch(tagsUrl, { signal: AbortSignal.timeout(8_000) })
+      const response = await validatedOllamaFetch(tagsUrl, { signal: AbortSignal.timeout(8_000) })
       if (!response.ok) return Response.json({ models: [], error: "Unable to list Ollama models" }, { status: response.status })
       const data = (await response.json()) as { models?: Array<{ name?: string; model?: string }> }
       const models = new Set((data.models ?? []).flatMap((item) => [item.name, item.model].filter((value): value is string => Boolean(value))))
       return Response.json({ models: [...models].sort() })
     }
 
-    const response = await fetch("https://api.anthropic.com/v1/models", {
+    const response = await boundedAiFetch("https://api.anthropic.com/v1/models", {
       headers: {
         "x-api-key": parsed.data.apiKey,
         "anthropic-version": "2023-06-01",
@@ -59,7 +62,10 @@ export async function POST(req: Request) {
     if (!response.ok) return Response.json({ models: [], error: "Unable to list Anthropic models" }, { status: response.status })
     const data = (await response.json()) as { data?: Array<{ id?: string }> }
     return Response.json({ models: (data.data ?? []).map((item) => item.id).filter((id): id is string => Boolean(id)).sort() })
-  } catch {
+  } catch (error) {
+    if (error instanceof OllamaEndpointError) {
+      return Response.json({ models: [], error: "This Ollama URL is not allowed" }, { status: 400 })
+    }
     return Response.json({ models: [], error: "Unable to reach the AI provider" }, { status: 502 })
   }
 }

@@ -7,7 +7,7 @@ Total time: approximately 30 minutes. Oracle Cloud pricing, availability, and fr
 ## What you'll get
 
 - Aakd at `https://app.yourdomain.com`
-- DocuSeal (e-signatures) at `https://sign.app.yourdomain.com`
+- Optional connection to a separately hosted DocuSeal service (not bundled)
 - Auto-SSL via Let's Encrypt (Caddy)
 - Daily PostgreSQL backups retained locally for seven days
 - Up to 2 ARM OCPUs + 12 GB RAM on the current Always Free allocation
@@ -54,7 +54,6 @@ Add these DNS records:
 | Type | Name | Value | Proxy |
 |---|---|---|---|
 | A | `app` | `YOUR_VM_IP` | DNS only (gray cloud) |
-| A | `sign.app` | `YOUR_VM_IP` | DNS only (gray cloud) |
 
 > ⚠️ Use "DNS only" (not proxied) for the first setup so Caddy can get SSL certificates directly.
 
@@ -123,17 +122,17 @@ The script will:
 
 ---
 
-## Step 8 — Set up DocuSeal for e-signatures (3 min)
+## Step 8 — Optional signing integration
 
-1. Open `https://sign.app.yourdomain.com`
-2. Create an admin account
-3. Go to **Settings → API** → copy the API key
-4. Back on your VM, run:
-   ```bash
-     bash ~/aakd/scripts/set-docuseal-key.sh YOUR_DOCUSEAL_API_KEY
-   ```
+DocuSeal is not deployed by the default production stack. If needed, connect
+your existing DocuSeal Cloud account or separately hosted instance through
+Settings → Integrations → E-signature. Follow the [current signing setup and
+safety limits](self-hosting.md#e-signature-docuseal).
 
-E-signatures now work.
+New signature sends, reminders, and resets are temporarily paused. Existing
+stored records remain readable; automatic updates require explicitly verified
+provider bindings. Do not create a signing subdomain or expose another service
+merely to complete Aakd's installation.
 
 ---
 

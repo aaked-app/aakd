@@ -24,9 +24,8 @@ import { exec } from "node:child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
 import { Worker, Job } from "bullmq"
-import pdfParse from "pdf-parse"
+import { parsePdf as pdfParse } from "./lib/pdf"
 import mammoth from "mammoth"
-import libre from "libreoffice-convert"
 import Anthropic from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { Prisma } from "@prisma/client"
@@ -34,8 +33,20 @@ import { Prisma } from "@prisma/client"
 import { logger } from "@/lib/logger"
 import { getWorkerPrisma } from "@/lib/db/worker-client"
 import { storage } from "@/lib/storage"
+import { documentConversionReady } from "@/lib/jobs/document-convert-access"
+import { withTransactionRetry } from "@/lib/db/transaction-retry"
 import { checkAndFireAlerts } from "@/lib/alerts/check"
-import { generateEmbedding, currentEmbeddingModel } from "@/lib/embedding"
+import { generateEmbedding, type GeneratedEmbedding } from "@/lib/embedding"
+import {
+  assertOperatorReindexJobAuthorized,
+  generateEmbeddingForJob,
+  MAX_EMBEDDING_CHARS,
+  OperatorReindexAuthorizationError,
+  shouldChainAiExtraction,
+  type OperatorReindexDb,
+} from "@/lib/jobs/operator-reindex"
+import { boundedAiFetch } from "@/lib/ai/provider-fetch"
+import { validatedOllamaFetch } from "@/lib/ai/ollama-fetch"
 // getSubmission and isAllowedDocuSealUrl moved to worker/jobs/signing-sync.ts
 import { chunkText } from "@/lib/ai/chunking"
 import { extractDeterministicRenewalTerms, extractLocalFields, extractLocalObligationSuggestions } from "@/lib/ai/local-extract"
@@ -43,11 +54,17 @@ import { verifyCitation } from "@/lib/ai/verified-citation"
 import { analyzeContractRisk } from "@/lib/ai/risk"
 import { resolveAiConfig } from "@/lib/ai/resolve"
 import { sanitizeZipBuffer, ZipBombError } from "@/lib/import/zip-safety"
+import { pdfToDocxBuffer } from "@/lib/import/pdf-to-docx"
+import { extractPdfWithOcr, OcrPdfError } from "@/lib/import/ocr-pdf"
+import { MAX_CONTRACT_FILE_BYTES } from "@/lib/contracts/file-validation"
+import { didBoundExtractedSourceChange, extractedSourceBinding, extractedTextHash, hasExactExtractedSourceBinding, invalidateAgentActionsForSourceChange } from "@/lib/contracts/source-binding"
+import { ensureContractEmbedQueued } from "@/lib/jobs/contract-extract-recovery"
 import { sendAlertEmailById } from "@/lib/email"
 import { sendApprovalRequestEmail, sendApprovalRejectionEmail } from "@/lib/email/approval"
 import { sendEventNotificationEmail } from "@/lib/email/event-notification"
 import { sendActionDeliveryEmail } from "@/lib/email/action-delivery"
 import { processActionDelivery } from "@/lib/actions/delivery-worker"
+import { authorizedAgreementRecipientIds, isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 import { sendSlackEvent, sendTeamsEvent } from "@/lib/notifications/webhooks"
 import { decrypt } from "@/lib/notifications/crypto"
 import { validateWebhookUrl } from "@/lib/notifications/validate-webhook-url"
@@ -57,6 +74,7 @@ import {
   WEBHOOK_API_VERSION,
   type NotificationEventName,
 } from "@/lib/notifications/fanout"
+import { isNotificationEventName } from "@/lib/notifications/events"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import type {
   ContractExtractJobData,
@@ -68,6 +86,7 @@ import type {
   NotificationDeliverJobData,
   DocumentConvertJobData,
   DocumentExportJobData,
+  DocumentExportCleanupJobData,
   ObligationsCheckJobData,
   ImportProcessJobData,
   ObligationExtractJobData,
@@ -84,11 +103,14 @@ import {
   notificationDeliverQueue,
   documentConvertQueue,
   documentExportQueue,
+  documentExportCleanupQueue,
   obligationsCheckQueue,
   salesforcePollQueue,
   importProcessQueue,
   obligationExtractQueue,
   contractRiskScoreQueue,
+  extractionPreviewQueue,
+  interactiveAiQueue,
 } from "@/lib/jobs/queues"
 import type { SalesforcePollJobData } from "@/lib/jobs/queues"
 import { processImportJob } from "@/lib/import/processor"
@@ -98,7 +120,11 @@ import { htmlToPlateNodes } from "@/lib/editor/html-to-plate"
 import { plateToPlaintext, countWords, plaintextToPlateNodes } from "@/lib/editor/plate-to-plaintext"
 import { plateToDocxBuffer } from "@/lib/editor/plate-to-docx"
 import { plateToPdfBuffer } from "@/lib/editor/plate-to-pdf"
+import { processDocumentExportCleanup, processDocumentExportJob } from "../../worker/jobs/document-export"
+import { registerRequiredDocumentExportCleanup } from "@/lib/jobs/document-export-lifecycle"
 import { createSigningSyncWorker } from "../../worker/jobs/signing-sync"
+import { createExtractionPreviewWorker } from "../../worker/jobs/extraction-preview"
+import { createInteractiveAiWorker } from "../../worker/jobs/interactive-ai"
 
 // ─── Boot check: notification encryption key ─────────────────────────────────
 // Refuse to start if the key is missing — silently storing plaintext URLs and
@@ -144,16 +170,14 @@ const connection = {
   ...(REDIS_URL.startsWith("rediss://") ? { tls: {} } : {}),
 }
 
+const interactiveAiWorker = createInteractiveAiWorker(connection)
+
 function maskRedisUrl(url: string): string {
   return url.replace(/\/\/:([^@]+)@/, "//:***@")
 }
 
-// ─── LibreOffice PDF→DOCX conversion helper ───────────────────────────────────
-// Converts a PDF buffer to DOCX using the local LibreOffice install.
-// Returns null if LibreOffice is unavailable or the conversion fails, so callers
-// can fall back to plain-text extraction without aborting the job.
+// ─── Native PDF text helpers ─────────────────────────────────────────────────
 
-const libreConvert = promisify(libre.convert)
 const execAsync = promisify(exec)
 
 async function extractPdfTextWithPoppler(buffer: Buffer): Promise<string | null> {
@@ -177,71 +201,7 @@ async function extractPdfTextWithPoppler(buffer: Buffer): Promise<string | null>
 }
 
 // ─── OCR helper ───────────────────────────────────────────────────────────────
-// Attempts OCR on a PDF buffer.
-// Strategy: pdftoppm CLI (in the Docker image) → per-page PNGs → tesseract.js.
-// Tesseract cannot safely decode PDF buffers directly: malformed PDFs can make
-// its worker thread terminate the whole Node process outside this function's
-// try/catch boundary.
-// Returns OCR text prefixed with "[OCR] ", or null if all methods fail.
-
-async function attemptOcr(buffer: Buffer): Promise<string | null> {
-  // Check if pdftoppm is available
-  let pdftoppmAvailable = false
-  try {
-    await execAsync("which pdftoppm")
-    pdftoppmAvailable = true
-  } catch {
-    pdftoppmAvailable = false
-  }
-
-  if (!pdftoppmAvailable) {
-    logger.warn("[ocr] pdftoppm is unavailable; skipping OCR safely")
-    return null
-  }
-
-  let ocrText = ""
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clauseflow-ocr-"))
-  const pdfPath = path.join(tmpDir, "input.pdf")
-  try {
-    await fs.writeFile(pdfPath, buffer)
-    // Render each page to PNG at 150 DPI
-    await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tmpDir, "page")}"`)
-    const files = (await fs.readdir(tmpDir))
-      .filter((f) => f.endsWith(".png"))
-      .sort()
-
-    if (files.length === 0) {
-      logger.warn("[ocr] pdftoppm produced no page images")
-    } else {
-      const { createWorker } = await import("tesseract.js")
-      const tWorker = await createWorker("eng")
-      for (const fname of files) {
-        const imgBuffer = await fs.readFile(path.join(tmpDir, fname))
-        const { data } = await tWorker.recognize(imgBuffer)
-        if (data.text) ocrText += data.text + "\n"
-      }
-      await tWorker.terminate()
-    }
-  } catch (err) {
-    logger.warn({ err }, "[ocr] pdftoppm+tesseract strategy failed")
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-  }
-
-  const cleaned = ocrText.trim()
-  if (!cleaned || cleaned.length < 50) return null
-  return `[OCR] ${cleaned}`
-}
-
-async function pdfToDocxBuffer(pdfBuffer: Buffer): Promise<Buffer | null> {
-  try {
-    const result = await libreConvert(pdfBuffer, ".docx", undefined)
-    return result as Buffer
-  } catch (err) {
-    logger.warn({ err }, "[import] LibreOffice PDF→DOCX failed, falling back to text")
-    return null
-  }
-}
+// The bounded OCR implementation lives in lib/import/ocr-pdf.
 
 // ─── Extraction prompt ────────────────────────────────────────────────────────
 
@@ -303,40 +263,53 @@ const extractWorker = new Worker<ContractExtractJobData>(
       select: {
         organizationId: true,
         extractedText: true,
-        files: {
-          where: { isLatest: true },
-          select: { id: true },
-          take: 1,
-        },
+        extractedSourceFileId: true,
+        extractedSourceFileVersion: true,
+        extractedSourceHash: true,
       },
     })
-    // Text belongs to a specific uploaded file. Do not let an older
-    // extraction suppress processing of a newly uploaded version.
-    const latestFileId = existingContract?.files[0]?.id
-    if (existingContract?.extractedText && latestFileId === fileId) {
-      logger.info({ contractId }, "[extract] contract already has extracted text — skipping")
+    if (!existingContract) {
+      logger.warn({ fileId, contractId }, "[extract] Contract not found — skipping")
       return
     }
+    if (organizationId && organizationId !== existingContract.organizationId) {
+      throw new Error("Extraction job organization does not match its contract")
+    }
 
-    // 1. Look up the ContractFile to get the mimeType and filename
-    const contractFile = await getWorkerPrisma().contractFile.findUnique({
-      where: { id: fileId },
-      select: { mimeType: true, filename: true },
+    // The queue payload is a replay hint, never authority for private storage.
+    // Resolve the exact current file from the database before reading any bytes.
+    const contractFile = await getWorkerPrisma().contractFile.findFirst({
+      where: { id: fileId, contractId, isLatest: true },
+      select: { id: true, mimeType: true, filename: true, version: true, storageKey: true },
     })
 
     if (!contractFile) {
-      logger.warn({ fileId, contractId }, "[extract] ContractFile not found — skipping")
+      logger.warn({ fileId, contractId }, "[extract] Current ContractFile not found — skipping")
+      return
+    }
+    if (storageKey !== contractFile.storageKey) {
+      throw new Error("Extraction job source does not match its contract file")
+    }
+    // Text belongs to a specific uploaded file. Do not let a retry duplicate
+    // durable extraction or downstream jobs for the same source version.
+    if (hasExactExtractedSourceBinding(existingContract, contractFile)) {
+      await ensureContractEmbedQueued(contractEmbedQueue, {
+        contractId,
+        organizationId: existingContract.organizationId,
+        extractedText: existingContract.extractedText!,
+        sourceFileId: contractFile.id,
+        sourceFileVersion: contractFile.version,
+        sourceHash: existingContract.extractedSourceHash!,
+        preserveUserFields,
+        ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
+      })
+      logger.info({ contractId }, "[extract] contract already has exact extracted text — downstream job reconciled")
       return
     }
 
-    // 2. Download file bytes via signed URL
-    const signedUrl = await storage.getSignedDownloadUrl(storageKey)
-    const response = await fetch(signedUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to download file from storage: ${response.status} ${response.statusText}`)
-    }
-    const arrayBuffer = await response.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    // 2. Read the authoritative object through the bounded storage abstraction.
+    const object = await storage.getObject(contractFile.storageKey, MAX_CONTRACT_FILE_BYTES)
+    const buffer = Buffer.from(object.body)
 
     // 3. Extract text based on mime type
     let extractedText: string | null = null
@@ -349,20 +322,7 @@ const extractWorker = new Worker<ContractExtractJobData>(
           // Preserve a real page boundary in the durable extracted text. The
           // local fallback derives citations from these delimiters, while
           // DOCX/plain text correctly remains uncited by page.
-          pagerender: async (pageData) => {
-            const textContent = await pageData.getTextContent({
-              normalizeWhitespace: false,
-              disableCombineTextItems: false,
-            })
-            let lastY: number | undefined
-            let pageText = ""
-            for (const item of textContent.items as Array<{ str: string; transform: number[] }>) {
-              if (lastY !== undefined && lastY !== item.transform[5]) pageText += "\n"
-              pageText += item.str
-              lastY = item.transform[5]
-            }
-            return `${pageText}\f`
-          },
+          pageBreaks: true,
         })
         // Do not use String.trim(): it removes the trailing form-feed that
         // pagerender adds for the final PDF page and makes page-1 citations
@@ -380,13 +340,23 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // If text is absent or suspiciously short (scanned/image PDF), attempt OCR
       if (!extractedText || extractedText.length < 100) {
         logger.info({ fileId, chars: extractedText?.length ?? 0 }, "[extract] PDF text thin — attempting OCR")
-        const ocrResult = await attemptOcr(buffer)
-        if (ocrResult) {
-          extractedText = ocrResult
-          isOcrExtracted = true
-          logger.info({ fileId, chars: ocrResult.length }, "[extract] OCR succeeded")
-        } else {
-          logger.warn({ fileId, contractId }, "[extract] OCR also failed")
+        try {
+          const ocrResult = await extractPdfWithOcr(buffer)
+          if (ocrResult) {
+            extractedText = ocrResult
+            isOcrExtracted = true
+            logger.info({ fileId, chars: ocrResult.length }, "[extract] OCR succeeded")
+          } else {
+            extractedText = null
+            logger.warn({ fileId, contractId }, "[extract] OCR also failed")
+          }
+        } catch (error) {
+          extractedText = null
+          logger.warn({
+            fileId,
+            contractId,
+            reason: error instanceof OcrPdfError ? error.code : "processing_failed",
+          }, "[extract] OCR also failed")
         }
       }
     } else if (
@@ -433,14 +403,31 @@ const extractWorker = new Worker<ContractExtractJobData>(
         // snapshot of ContractFile while the Contract row refreshes.
         const latestFile = await tx.contractFile.findFirst({
           where: { id: fileId, contractId, isLatest: true },
-          select: { id: true },
+          select: { id: true, version: true, storageKey: true },
         })
-        if (!latestFile) return false
+        if (!latestFile
+          || latestFile.storageKey !== contractFile.storageKey
+          || latestFile.version !== contractFile.version) return false
+
+        const previousBinding = await tx.contract.findUnique({
+          where: { id: contractId },
+          select: { organizationId: true, extractedSourceFileId: true, extractedSourceFileVersion: true, extractedSourceHash: true },
+        })
+        if (!previousBinding || previousBinding.organizationId !== existingContract.organizationId) return false
+        const nextBinding = extractedSourceBinding(latestFile, extractedText)
+        const boundSourceChanged = didBoundExtractedSourceChange(previousBinding, nextBinding)
 
         await tx.contract.update({
           where: { id: contractId },
-          data: { extractedText, isOcrExtracted },
+          data: {
+            extractedText,
+            isOcrExtracted,
+            ...nextBinding,
+          },
         })
+        if (boundSourceChanged) {
+          await invalidateAgentActionsForSourceChange(tx, previousBinding.organizationId, contractId)
+        }
         await tx.activity.create({
           data: {
             contractId,
@@ -460,10 +447,13 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // 5. Enqueue embedding job. Spec: extract → embed → ai_extract. The
       // embed worker chains ai_extract once embeddings land so semantic search
       // is always populated even when the LLM extractor fails or is missing.
-      await contractEmbedQueue.add("embed", {
+      await ensureContractEmbedQueued(contractEmbedQueue, {
         contractId,
-        organizationId: organizationId ?? existingContract?.organizationId,
+        organizationId: existingContract.organizationId,
         extractedText,
+        sourceFileId: contractFile.id,
+        sourceFileVersion: contractFile.version,
+        sourceHash: extractedTextHash(extractedText),
         preserveUserFields,
         ...(skipAiExtraction ? { skipAiExtraction: true } : {}),
       })
@@ -473,19 +463,36 @@ const extractWorker = new Worker<ContractExtractJobData>(
       // the void — log + write an Activity row so users see why downstream
       // AI features are missing.
       logger.warn({ fileId, contractId }, "[extract] no text extracted — likely a scanned image")
-      await getWorkerPrisma().activity.create({
-        data: {
-          contractId,
-          userId: null,
-          actorLabel: "System",
-          action: "METADATA_EXTRACTED",
-          detail: "Text extraction failed — document may be a scanned image",
-          metadata: { skipped: true, reason: "empty_text" },
-        },
+      const failureRecorded = await getWorkerPrisma().$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<Array<{ organizationId: string }>>(Prisma.sql`
+          SELECT "organizationId" FROM "Contract"
+          WHERE "id" = ${contractId}
+          FOR UPDATE
+        `)
+        if (locked[0]?.organizationId !== existingContract.organizationId) return false
+        const latestFile = await tx.contractFile.findFirst({
+          where: { id: fileId, contractId, isLatest: true },
+          select: { storageKey: true, version: true },
+        })
+        if (!latestFile
+          || latestFile.storageKey !== contractFile.storageKey
+          || latestFile.version !== contractFile.version) return false
+        await tx.activity.create({
+          data: {
+            contractId,
+            userId: null,
+            actorLabel: "System",
+            action: "METADATA_EXTRACTED",
+            detail: "Text extraction failed — document may be a scanned image",
+            metadata: { skipped: true, reason: "empty_text" },
+          },
+        })
+        return true
       })
+      if (!failureRecorded) logger.info({ contractId, fileId }, "[extract] stale file superseded before failure audit — skipping")
     }
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection },
 )
 
 extractWorker.on("completed", (job) =>
@@ -510,7 +517,7 @@ async function callExtractionLLM(text: string, organizationId: string): Promise<
 
   if (provider === "anthropic") {
     if (!aiConfig.apiKey) { logger.warn("[ai_extract] Anthropic key is not configured"); return null }
-    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey, logLevel: "off", fetch: boundedAiFetch }).messages.create({
       model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
@@ -523,7 +530,7 @@ async function callExtractionLLM(text: string, organizationId: string): Promise<
 
   if (provider === "openai") {
     if (!aiConfig.apiKey) { logger.warn("[ai_extract] OpenAI key is not configured"); return null }
-    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey, logLevel: "off", fetch: boundedAiFetch }).chat.completions.create({
       model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // structured extraction — deterministic output
@@ -538,7 +545,7 @@ async function callExtractionLLM(text: string, organizationId: string): Promise<
   if (provider === "ollama") {
     const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
     const model = aiConfig.model ?? "llama3"
-    const res = await fetch(`${base}/api/chat`, {
+    const res = await (aiConfig.source === "org" ? validatedOllamaFetch : boundedAiFetch)(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -575,6 +582,7 @@ function localExtractionJson(text: string): string {
 const aiExtractWorker = new Worker<ContractAiExtractJobData>(
   "contract.ai_extract",
   async (job: Job<ContractAiExtractJobData>) => {
+    if (isAgreementAccessEmergencyDenyAll()) throw new Error("Agreement processing disabled by emergency policy")
     const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields } = job.data
 
     const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
@@ -606,7 +614,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
         rawJson = result
       }
     } catch (err) {
-      logger.error({ err, contractId }, "[ai_extract] LLM call failed")
+      logger.error({ errorType: err instanceof Error ? err.name : "UnknownError", contractId }, "[ai_extract] LLM call failed")
       rawJson = localExtractionJson(textToAnalyze)
       extractionMethod = "local"
       logger.info({ contractId }, "[ai_extract] using deterministic local extraction fallback after provider failure")
@@ -826,7 +834,7 @@ const aiExtractWorker = new Worker<ContractAiExtractJobData>(
     // Fan out the contract.extracted event — system-actor (no user)
     await enqueueNotification("contract.extracted", contractId, null, {})
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection },
 )
 
 aiExtractWorker.on("completed", (job) =>
@@ -841,6 +849,7 @@ aiExtractWorker.on("failed", (job, err) =>
 const riskScoreWorker = new Worker<ContractRiskScoreJobData>(
   "contract.risk_score",
   async (job: Job<ContractRiskScoreJobData>) => {
+    if (isAgreementAccessEmergencyDenyAll()) throw new Error("Agreement processing disabled by emergency policy")
     const { contractId, organizationId, requestedById, extractedText, sourceHash } = job.data
     logger.info({ jobId: job.id, contractId }, "[risk-score] processing job")
 
@@ -872,7 +881,7 @@ const riskScoreWorker = new Worker<ContractRiskScoreJobData>(
 
     return { riskScore: details.overall, riskScoredAt, riskDetails: { ...details, sourceHash } }
   },
-  { connection, defaultJobOptions: { attempts: 2, backoff: { type: "exponential", delay: 5000 }, removeOnComplete: 100, removeOnFail: 200 } },
+  { connection, removeOnComplete: { count: 100 }, removeOnFail: { count: 200 } },
 )
 
 riskScoreWorker.on("completed", (job) => logger.info({ jobId: job.id }, "[risk-score] job completed"))
@@ -883,7 +892,8 @@ riskScoreWorker.on("failed", (job, err) => logger.error({ err, jobId: job?.id },
 const embedWorker = new Worker<ContractEmbedJobData>(
   "contract.embed",
   async (job: Job<ContractEmbedJobData>) => {
-    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields, skipAiExtraction } = job.data
+    if (isAgreementAccessEmergencyDenyAll()) throw new Error("Agreement processing disabled by emergency policy")
+    const { contractId, organizationId: jobOrganizationId, extractedText, preserveUserFields } = job.data
 
     const organizationId = jobOrganizationId ?? (await getWorkerPrisma().contract.findUnique({
       where: { id: contractId },
@@ -904,8 +914,8 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     // and the chunk-embedding swap only replaces rows inside a transaction —
     // re-running this handler from the top is idempotent.
     const chainAiExtract = async () => {
-      if (skipAiExtraction) {
-        logger.info({ contractId }, "[embed] skipping duplicate AI extraction; preview result is authoritative")
+      if (!shouldChainAiExtraction(job.data)) {
+        logger.info({ contractId }, "[embed] skipping AI extraction for an index-only or previously reviewed job")
         return
       }
       try {
@@ -919,12 +929,54 @@ const embedWorker = new Worker<ContractEmbedJobData>(
       }
     }
     const db = getWorkerPrisma()
+    const operatorDb = db as unknown as OperatorReindexDb
+
+    if (!job.data.indexOnly) {
+      const { sourceFileId, sourceFileVersion, sourceHash } = job.data
+      const source = await db.contract.findUnique({
+        where: { id: contractId },
+        select: {
+          organizationId: true,
+          extractedText: true,
+          extractedSourceFileId: true,
+          extractedSourceFileVersion: true,
+          extractedSourceHash: true,
+          files: { where: { isLatest: true }, select: { id: true, version: true }, take: 1 },
+        },
+      })
+      const latestFile = source?.files[0]
+      const completeJobBinding = sourceFileId !== undefined || sourceFileVersion !== undefined || sourceHash !== undefined
+      const jobBindingMatches = completeJobBinding
+        ? Boolean(sourceFileId && sourceFileVersion && sourceHash
+          && sourceHash === extractedTextHash(extractedText)
+          && latestFile?.id === sourceFileId
+          && latestFile.version === sourceFileVersion)
+        : Boolean(latestFile
+          && source?.extractedSourceFileId === latestFile.id
+          && source.extractedSourceFileVersion === latestFile.version
+          && source.extractedSourceHash === extractedTextHash(extractedText))
+      if (!source
+        || source.organizationId !== organizationId
+        || source.extractedText !== extractedText
+        || !jobBindingMatches
+        || (completeJobBinding && (
+          source.extractedSourceFileId !== sourceFileId
+          || source.extractedSourceFileVersion !== sourceFileVersion
+          || source.extractedSourceHash !== sourceHash
+        ))) {
+        throw new Error("Embedding job source is no longer authoritative")
+      }
+    }
+
+    // Recovery jobs come from an operator script rather than a user request.
+    // Recheck the exact live principal, grant, organization, and source before
+    // any database mutation and again before every external provider call.
+    await assertOperatorReindexJobAuthorized(operatorDb, job.data)
 
     // A valid upload may contain 50 MB of text. Do not publish a silently
     // partial semantic index: it would make Q&A ignore later clauses. Leave
     // oversized documents on the complete-text fallback instead, with an
     // auditable explanation, rather than create unbounded provider work.
-    const MAX_EMBEDDING_CHARS = 500_000
     if (extractedText.length > MAX_EMBEDDING_CHARS) {
       await db.activity.create({
         data: {
@@ -939,14 +991,28 @@ const embedWorker = new Worker<ContractEmbedJobData>(
       await chainAiExtract()
       return
     }
-    const embedding = await generateEmbedding(extractedText)
+    let embedding: GeneratedEmbedding | null
+    try {
+      embedding = await generateEmbeddingForJob(
+        operatorDb,
+        job.data,
+        organizationId,
+        extractedText,
+        generateEmbedding,
+      )
+    } catch (error) {
+      if (error instanceof OperatorReindexAuthorizationError) throw error
+      logger.warn({ contractId }, "[embed] embedding unavailable; continuing extraction with lexical retrieval")
+      await chainAiExtract()
+      return
+    }
     if (!embedding) {
       logger.warn({ contractId }, "[embed] no embedding provider configured — skipping")
       await chainAiExtract()
       return
     }
 
-    const model = currentEmbeddingModel() ?? "unknown"
+    const model = embedding.model
     const id = crypto.randomUUID()
 
     const chunks = chunkText(extractedText)
@@ -958,22 +1024,29 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     let failures = 0
     for (const chunk of chunks) {
       try {
-        const chunkEmbedding = await generateEmbedding(chunk.text)
-        if (!chunkEmbedding) {
+        const chunkEmbedding = await generateEmbeddingForJob(
+          operatorDb,
+          job.data,
+          organizationId,
+          chunk.text,
+          generateEmbedding,
+        )
+        if (!chunkEmbedding || chunkEmbedding.model !== model) {
           failures += 1
           continue
         }
-        collected.push({ index: chunk.index, text: chunk.text, embedding: chunkEmbedding })
-      } catch (err) {
-        logger.error({ err, contractId, chunkIndex: chunk.index }, "[embed] chunk embedding failed")
+        collected.push({ index: chunk.index, text: chunk.text, embedding: chunkEmbedding.vector })
+      } catch (error) {
+        if (error instanceof OperatorReindexAuthorizationError) throw error
+        logger.error({ contractId, chunkIndex: chunk.index }, "[embed] chunk embedding failed")
         failures += 1
       }
     }
 
-    if (collected.length === 0) {
+    if (collected.length !== chunks.length || collected.length === 0) {
       logger.warn(
         { contractId, totalChunks: chunks.length },
-        "[embed] all chunk embeddings failed — leaving existing rows intact",
+        "[embed] incomplete chunk embeddings; leaving existing rows intact",
       )
       await db.activity.create({
         data: {
@@ -985,12 +1058,12 @@ const embedWorker = new Worker<ContractEmbedJobData>(
           metadata: { skipped: true, reason: "embedding_failed", chunks: chunks.length },
         },
       })
-      logger.info({ contractId, dims: embedding.length, newChunks: 0 }, "[embed] embedded contract")
+      logger.info({ contractId, dims: embedding.vector.length, newChunks: 0 }, "[embed] index replacement skipped")
       await chainAiExtract()
       return
     }
 
-    // Only swap rows once we know at least one chunk succeeded. The upload
+    // Only swap rows when every chunk has the same provider/model identity. The upload
     // path takes this same parent lock before replacing a file and removes the
     // old index, so the exact source check and both embedding writes must be
     // one transaction.
@@ -1004,7 +1077,7 @@ const embedWorker = new Worker<ContractEmbedJobData>(
 
       await tx.$executeRaw`
         INSERT INTO "ContractEmbedding" ("id", "contractId", "embedding", "model", "createdAt", "updatedAt")
-        VALUES (${id}, ${contractId}, ${JSON.stringify(embedding)}::vector, ${model}, NOW(), NOW())
+        VALUES (${id}, ${contractId}, ${JSON.stringify(embedding.vector)}::vector, ${model}, NOW(), NOW())
         ON CONFLICT ("contractId") DO UPDATE
           SET "embedding" = EXCLUDED."embedding",
               "model" = EXCLUDED."model",
@@ -1036,13 +1109,13 @@ const embedWorker = new Worker<ContractEmbedJobData>(
     }
 
     logger.info(
-      { contractId, dims: embedding.length, succeededChunks: collected.length, totalChunks: chunks.length },
+      { contractId, dims: embedding.vector.length, succeededChunks: collected.length, totalChunks: chunks.length },
       "[embed] embedded contract",
     )
 
     await chainAiExtract()
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection },
 )
 
 embedWorker.on("completed", (job) =>
@@ -1061,7 +1134,7 @@ const alertsWorker = new Worker<AlertsCheckJobData>(
     const { fired, errors } = await checkAndFireAlerts(getWorkerPrisma())
     logger.info({ fired, errors }, "[alerts] check job complete")
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection },
 )
 
 alertsWorker.on("completed", (job) =>
@@ -1207,7 +1280,7 @@ const obligationsWorker = new Worker<ObligationsCheckJobData>(
       "[obligations] check job complete",
     )
   },
-  { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5000 } } },
+  { connection },
 )
 
 obligationsWorker.on("completed", (job) =>
@@ -1243,7 +1316,7 @@ async function callObligationLLM(text: string, organizationId: string): Promise<
 
   if (provider === "anthropic") {
     if (!aiConfig.apiKey) return null
-    const msg = await new Anthropic({ apiKey: aiConfig.apiKey }).messages.create({
+    const msg = await new Anthropic({ apiKey: aiConfig.apiKey, logLevel: "off", fetch: boundedAiFetch }).messages.create({
       model: aiConfig.model ?? "claude-haiku-4-5",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
@@ -1256,7 +1329,7 @@ async function callObligationLLM(text: string, organizationId: string): Promise<
 
   if (provider === "openai") {
     if (!aiConfig.apiKey) return null
-    const res = await new OpenAI({ apiKey: aiConfig.apiKey }).chat.completions.create({
+    const res = await new OpenAI({ apiKey: aiConfig.apiKey, logLevel: "off", fetch: boundedAiFetch }).chat.completions.create({
       model: aiConfig.model ?? "gpt-4o-mini",
       max_tokens: 2048,
       temperature: 0, // obligation extraction — deterministic, factual output
@@ -1271,7 +1344,7 @@ async function callObligationLLM(text: string, organizationId: string): Promise<
   if (provider === "ollama") {
     const base = (aiConfig.source === "org" ? aiConfig.apiKey : process.env.OLLAMA_BASE_URL ?? "http://localhost:11434")!.replace(/\/$/, "")
     const model = aiConfig.model ?? "llama3"
-    const res = await fetch(`${base}/api/chat`, {
+    const res = await (aiConfig.source === "org" ? validatedOllamaFetch : boundedAiFetch)(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1294,6 +1367,7 @@ async function callObligationLLM(text: string, organizationId: string): Promise<
 const obligationExtractWorker = new Worker<ObligationExtractJobData>(
   "obligations.ai_extract",
   async (job: Job<ObligationExtractJobData>) => {
+    if (isAgreementAccessEmergencyDenyAll()) throw new Error("Agreement processing disabled by emergency policy")
     const { contractId, organizationId, extractedText, sourceHash, requestedById } = job.data
     logger.info({ jobId: job.id, contractId }, "[obligations.extract] processing job")
 
@@ -1313,7 +1387,7 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
     try {
       raw = await callObligationLLM(extractedText, organizationId)
     } catch (err) {
-      logger.error({ err, contractId }, "[obligations.extract] provider call failed")
+      logger.error({ errorType: err instanceof Error ? err.name : "UnknownError", contractId }, "[obligations.extract] provider call failed")
       raw = null
     }
     let suggestions: unknown
@@ -1343,7 +1417,8 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
       const title = typeof value.title === "string" ? value.title.trim().slice(0, 100) : ""
       const description = typeof value.description === "string" ? value.description.trim().slice(0, 2000) : ""
       if (!title || !description) return []
-      const priority = value.priority === "HIGH" || value.priority === "LOW" ? value.priority : "MEDIUM"
+      const priority: "HIGH" | "MEDIUM" | "LOW" =
+        value.priority === "HIGH" || value.priority === "LOW" ? value.priority : "MEDIUM"
       const suggestedDueDays = typeof value.suggestedDueDays === "number" && Number.isInteger(value.suggestedDueDays)
         ? Math.min(3650, Math.max(0, value.suggestedDueDays))
         : null
@@ -1453,12 +1528,8 @@ const obligationExtractWorker = new Worker<ObligationExtractJobData>(
   },
   {
     connection,
-    defaultJobOptions: {
-      removeOnComplete: 100,
-      removeOnFail: 200,
-      attempts: 3,
-      backoff: { type: "exponential", delay: 5000 },
-    },
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 200 },
   },
 )
 
@@ -1470,10 +1541,11 @@ obligationExtractWorker.on("failed", (job, err) =>
 )
 
 // ─── Worker: signing.sync ─────────────────────────────────────────────────────
-// Handler extracted to worker/jobs/signing-sync.ts per CLAUDE.md convention.
-// "Job handlers live in worker/ — not in apps/web/"
+// Keep provider synchronization isolated from worker bootstrap in its own
+// handler module.
 
 const signingWorker = createSigningSyncWorker(connection)
+const extractionPreviewWorker = createExtractionPreviewWorker(connection)
 
 // ─── Worker: email.send ───────────────────────────────────────────────────────
 
@@ -1481,12 +1553,18 @@ const emailWorker = new Worker<EmailJobData>(
   "email.send",
   async (job: Job<EmailJobData>) => {
     const data = job.data
+    if (isAgreementAccessEmergencyDenyAll()) return
     try {
       if (data.kind === "alert") {
         await sendAlertEmailById(data.alertId, getWorkerPrisma())
         return
       }
       if (data.kind === "approval_request") {
+        const grant = await getWorkerPrisma().contractAccessGrant.findFirst({
+          where: { contractId: data.contractId, member: { userId: data.recipientUserId } },
+          select: { id: true },
+        })
+        if (!grant) return
         await sendApprovalRequestEmail({
           to: data.to,
           assigneeName: data.assigneeName,
@@ -1497,6 +1575,11 @@ const emailWorker = new Worker<EmailJobData>(
         return
       }
       if (data.kind === "approval_rejected") {
+        const grant = await getWorkerPrisma().contractAccessGrant.findFirst({
+          where: { contractId: data.contractId, member: { userId: data.recipientUserId } },
+          select: { id: true },
+        })
+        if (!grant) return
         await sendApprovalRejectionEmail({
           to: data.to,
           requesterName: data.requesterName,
@@ -1507,6 +1590,11 @@ const emailWorker = new Worker<EmailJobData>(
         return
       }
       if (data.kind === "event_notification") {
+        const grant = await getWorkerPrisma().contractAccessGrant.findFirst({
+          where: { contractId: data.contractId, member: { userId: data.recipientUserId } },
+          select: { id: true },
+        })
+        if (!grant) return
         // orgName is looked up here so the event_notification job stays small
         // (the fanout job already loaded the full contract context).
         const contract = await getWorkerPrisma().contract.findUnique({
@@ -1526,7 +1614,10 @@ const emailWorker = new Worker<EmailJobData>(
         return
       }
       if (data.kind === "action_delivery") {
-        await processActionDelivery(data, { db: getWorkerPrisma(), send: sendActionDeliveryEmail })
+        await processActionDelivery(data, {
+          db: getWorkerPrisma() as unknown as Parameters<typeof processActionDelivery>[1]["db"],
+          send: sendActionDeliveryEmail,
+        })
         return
       }
     } catch (err: unknown) {
@@ -1537,7 +1628,7 @@ const emailWorker = new Worker<EmailJobData>(
       throw err
     }
   },
-  { connection, defaultJobOptions: { attempts: 1 } },
+  { connection },
 )
 
 emailWorker.on("completed", (job) =>
@@ -1560,11 +1651,23 @@ function appUrl(): string {
 // Use shared helper so token format stays in lockstep with verifyUnsubscribeToken()
 const unsubscribeToken = buildUnsubscribeToken
 
+// Phase 0/1 agreement access has no attributable per-agreement destination
+// identity for shared connectors. Keep configuration visible but deny contract
+// payload delivery until a later explicit destination-grant policy exists.
+function externalAgreementConnectorDeliveryEnabled(): boolean {
+  return false
+}
+
 const fanoutWorker = new Worker<NotificationFanoutJobData>(
   "notification.fanout",
   async (job: Job<NotificationFanoutJobData>) => {
     const { eventName, contractId, actorId, metadata } = job.data
     logger.info({ eventName, contractId, actorId: actorId ?? "system" }, "[fanout] processing event")
+
+    if (!isNotificationEventName(eventName)) {
+      logger.warn({ eventName, contractId }, "[fanout] unsupported notification event — skipping")
+      return
+    }
 
     const db = getWorkerPrisma()
 
@@ -1612,10 +1715,12 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
     }
 
     // 3. Slack/Teams channels (DB-configured)
-    const channels = await db.orgNotificationChannel.findMany({
-      where: { organizationId: contract.organizationId, enabled: true },
-      select: { id: true },
-    })
+    const channels = externalAgreementConnectorDeliveryEnabled()
+      ? await db.orgNotificationChannel.findMany({
+        where: { organizationId: contract.organizationId, enabled: true },
+        select: { id: true },
+      })
+      : []
     for (const ch of channels) {
       await notificationDeliverQueue.add("deliver", {
         kind: "slack", // overwritten below if teams; lookup happens in deliver worker via channelId
@@ -1631,10 +1736,12 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
     }
 
     // 4. Outbound webhooks — pre-create delivery log row, pre-compute HMAC, enqueue
-    const webhooks = await db.outboundWebhook.findMany({
-      where: { organizationId: contract.organizationId, enabled: true },
-      select: { id: true, signingSecret: true },
-    })
+    const webhooks = externalAgreementConnectorDeliveryEnabled()
+      ? await db.outboundWebhook.findMany({
+        where: { organizationId: contract.organizationId, enabled: true },
+        select: { id: true, signingSecret: true },
+      })
+      : []
     for (const wh of webhooks) {
       const payload = JSON.stringify(envelope)
       let signature: string
@@ -1680,9 +1787,15 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
       actor?.id ?? null,
       metadata,
     )
-    if (recipientIds.size > 0) {
+    const authorizedRecipientIds = new Set(await authorizedAgreementRecipientIds(
+      db,
+      contract.organizationId,
+      contract.id,
+      [...recipientIds],
+    ))
+    if (authorizedRecipientIds.size > 0) {
       const users = await db.user.findMany({
-        where: { id: { in: Array.from(recipientIds) } },
+        where: { id: { in: Array.from(authorizedRecipientIds) } },
         select: { id: true, email: true },
       })
       const prefs = await db.userNotificationPreference.findMany({
@@ -1702,6 +1815,7 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
         const token = unsubscribeToken(u.id, contract.organizationId, eventName)
         await emailQueue.add("send", {
           kind: "event_notification",
+          recipientUserId: u.id,
           eventName,
           to: u.email,
           contractId: contract.id,
@@ -1739,7 +1853,7 @@ const fanoutWorker = new Worker<NotificationFanoutJobData>(
   // attempts: 1 — fanout enqueues per-channel deliver jobs that have their own
   // retry logic. Retrying the fanout itself would re-deliver to channels that
   // already succeeded on the previous attempt.
-  { connection, defaultJobOptions: { attempts: 1 } },
+  { connection },
 )
 
 fanoutWorker.on("completed", (job) =>
@@ -1769,6 +1883,8 @@ async function createInAppNotifications(
     title: string,
     body: string,
   ): Promise<void> {
+    const authorized = await authorizedAgreementRecipientIds(db, organizationId, contractId, [userId])
+    if (authorized.length === 0) return
     await db.notification.create({
       data: {
         userId,
@@ -2072,6 +2188,10 @@ const deliverWorker = new Worker<NotificationDeliverJobData>(
     const data = job.data
 
     if (data.kind === "slack" || data.kind === "teams") {
+      if (!externalAgreementConnectorDeliveryEnabled()) {
+        logger.info({ channelId: data.channelId, contractId: data.contractId }, "[deliver] shared connector denied by agreement egress policy")
+        return
+      }
       // Channel kind is determined by the DB record, not the job's kind hint
       // (fanout enqueues every channel without lookup).
       const channel = await getWorkerPrisma().orgNotificationChannel.findUnique({
@@ -2114,6 +2234,13 @@ const deliverWorker = new Worker<NotificationDeliverJobData>(
 
     if (data.kind === "webhook") {
       const db = getWorkerPrisma()
+      if (!externalAgreementConnectorDeliveryEnabled()) {
+        await db.webhookDeliveryLog.update({
+          where: { id: data.deliveryLogId },
+          data: { status: "failed", responseBody: "policy_denied_agreement_egress" },
+        })
+        return
+      }
       const webhook = await db.outboundWebhook.findUnique({
         where: { id: data.webhookId },
         select: { url: true, enabled: true },
@@ -2262,7 +2389,7 @@ const deliverWorker = new Worker<NotificationDeliverJobData>(
       return
     }
   },
-  { connection, defaultJobOptions: { attempts: 1 } }, // retries are managed inline, never by BullMQ
+  { connection }, // retries are managed inline, never by BullMQ
 )
 
 deliverWorker.on("completed", (job) =>
@@ -2281,23 +2408,24 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
     logger.info({ jobId: job.id, contractId, fileType }, "[document.convert] processing job")
 
     const db = getWorkerPrisma()
+    try {
+    if (!await documentConversionReady(db, job.data)) {
+      throw new Error("Document conversion is no longer authorized or its source changed")
+    }
 
     let buffer: Buffer
     try {
-      const signedUrl = await storage.getSignedDownloadUrl(storageKey)
-      const res = await fetch(signedUrl)
-      if (!res.ok) throw new Error(`Failed to download file from storage: ${res.status}`)
-      buffer = Buffer.from(await res.arrayBuffer())
-    } catch (err) {
-      logger.error({ err, contractId, storageKey }, "[document.convert] download failed")
-      if (deleteSource) await storage.delete(storageKey).catch(() => {})
-      throw err
+      const object = await storage.getObject(storageKey, 50 * 1024 * 1024)
+      buffer = Buffer.from(object.body)
+    } catch {
+      logger.error({ contractId }, "[document.convert] download failed")
+      throw new Error("Document source download failed")
     }
 
     let nodes: ReturnType<typeof htmlToPlateNodes>
 
     if (fileType === "pdf") {
-      // Try LibreOffice PDF→DOCX first — preserves tables, headings, and structure.
+      // Try a derived editable projection. PDF layout fidelity is not guaranteed.
       // Falls back to plain-text extraction when LibreOffice is unavailable or fails.
       const docxBuffer = await pdfToDocxBuffer(buffer)
       if (docxBuffer) {
@@ -2357,14 +2485,18 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
     const plaintext = plateToPlaintext(nodes)
     const wordCount = countWords(plaintext)
 
-    const existing = await db.contractDocument.findUnique({
+    await withTransactionRetry(() => db.$transaction(async (tx) => {
+    if (!await documentConversionReady(tx, job.data, true)) {
+      throw new Error("Document conversion is no longer authorized or its source changed")
+    }
+    const existing = await tx.contractDocument.findUnique({
       where: { contractId },
       select: { id: true, version: true },
     })
 
     if (existing) {
-      await db.contractDocument.update({
-        where: { contractId },
+      const updated = await tx.contractDocument.updateMany({
+        where: { contractId, version: existing.version },
         data: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           content: nodes as any,
@@ -2373,8 +2505,9 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
           savedById: requestedById,
         },
       })
+      if (updated.count !== 1) throw new Error("Document changed during conversion")
     } else {
-      await db.contractDocument.create({
+      await tx.contractDocument.create({
         data: {
           contractId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2386,14 +2519,8 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
       })
     }
 
-    if (deleteSource) {
-      await storage.delete(storageKey).catch((err) =>
-        logger.warn({ err, storageKey }, "[document.convert] failed to delete tmp object"),
-      )
-    }
-
     const sourceLabel = fileType === "pdf" ? "PDF" : "Word document"
-    await db.activity.create({
+    await tx.activity.create({
       data: {
         contractId,
         userId: requestedById,
@@ -2401,10 +2528,22 @@ const documentConvertWorker = new Worker<DocumentConvertJobData>(
         detail: `Imported ${sourceLabel} (${wordCount} words)`,
       },
     })
+    }, { isolationLevel: "Serializable" }))
 
     logger.info({ contractId, wordCount, fileType }, "[document.convert] imported document")
+    } finally {
+      // Explicit imports are disposable even after revocation or a stale
+      // editor version. Original contract files must never be deleted here.
+      const prefix = `tmp/docx-imports/${contractId}/`
+      if (deleteSource && storageKey.startsWith(prefix)
+        && /^[0-9a-f-]{36}\.(pdf|docx)$/i.test(storageKey.slice(prefix.length))) {
+        await storage.delete(storageKey).catch(() =>
+          logger.warn({ contractId }, "[document.convert] failed to delete tmp object"),
+        )
+      }
+    }
   },
-  { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 } },
+  { connection, removeOnComplete: { count: 100 }, removeOnFail: { count: 200 } },
 )
 
 documentConvertWorker.on("completed", (job) =>
@@ -2419,6 +2558,10 @@ documentConvertWorker.on("failed", (job, err) =>
 const salesforcePollWorker = new Worker<SalesforcePollJobData>(
   "salesforce.poll",
   async (job: Job<SalesforcePollJobData>) => {
+    if (isAgreementAccessEmergencyDenyAll()) {
+      logger.warn({ jobId: job.id }, "[salesforce.poll] skipped by agreement emergency policy")
+      return
+    }
     logger.info({ jobId: job.id, triggeredAt: job.data.triggeredAt }, "[salesforce.poll] processing job")
 
     const db = getWorkerPrisma()
@@ -2544,7 +2687,7 @@ const salesforcePollWorker = new Worker<SalesforcePollJobData>(
       "[salesforce.poll] Polled integrations",
     )
   },
-  { connection, defaultJobOptions: { attempts: 1, removeOnComplete: 50, removeOnFail: 100 } },
+  { connection, removeOnComplete: { count: 50 }, removeOnFail: { count: 100 } },
 )
 
 salesforcePollWorker.on("completed", (job) =>
@@ -2562,7 +2705,7 @@ const importWorker = new Worker<ImportProcessJobData>(
     logger.info({ jobId: job.id, importJobId: job.data.importJobId }, "[import] Job started")
     await processImportJob(job.data)
   },
-  { connection, concurrency: 2, defaultJobOptions: { attempts: 1, removeOnComplete: 200, removeOnFail: 500 } },
+  { connection, concurrency: 2, removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } },
 )
 
 importWorker.on("completed", (job) =>
@@ -2577,45 +2720,17 @@ importWorker.on("failed", (job, err) =>
 const documentExportWorker = new Worker<DocumentExportJobData>(
   "document.export",
   async (job: Job<DocumentExportJobData>) => {
-    const { contractId, format, requestedById } = job.data
-    logger.info({ jobId: job.id, contractId, format }, "[document.export] Job started")
-
-    const db = getWorkerPrisma()
-    const document = await db.contractDocument.findUnique({
-      where: { contractId },
-      select: { content: true },
+    logger.info({ jobId: job.id }, "[document.export] Job started")
+    const result = await processDocumentExportJob(job, {
+      db: getWorkerPrisma(),
+      storage,
+      toDocx: plateToDocxBuffer,
+      toPdf: plateToPdfBuffer,
     })
-    if (!document) {
-      throw new Error(`No document found for contract ${contractId}`)
-    }
-
-    let buffer: Buffer
-    let contentType: string
-    if (format === "docx") {
-      buffer = await plateToDocxBuffer(document.content)
-      contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    } else {
-      buffer = await plateToPdfBuffer(document.content)
-      contentType = "application/pdf"
-    }
-
-    const key = `exports/${contractId}/${job.id}.${format}`
-    await storage.upload(key, buffer, contentType)
-    const downloadUrl = await storage.getSignedDownloadUrl(key, 300)
-
-    await db.activity.create({
-      data: {
-        contractId,
-        userId: requestedById,
-        action: "DOCUMENT_EXPORTED",
-        detail: `Exported as ${format.toUpperCase()}`,
-      },
-    })
-
-    logger.info({ contractId, format, bytes: buffer.length }, "[document.export] Export complete")
-    return { downloadUrl }
+    logger.info({ jobId: job.id }, "[document.export] Export complete")
+    return result
   },
-  { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 200, attempts: 1 } },
+  { connection, removeOnComplete: { count: 100 }, removeOnFail: { count: 200 } },
 )
 
 documentExportWorker.on("completed", (job) =>
@@ -2624,6 +2739,23 @@ documentExportWorker.on("completed", (job) =>
 documentExportWorker.on("failed", (job, err) =>
   logger.error({ jobId: job?.id, err }, "[document.export] Job failed"),
 )
+
+const documentExportCleanupWorker = new Worker<DocumentExportCleanupJobData>(
+  "document.export.cleanup",
+  (job) => processDocumentExportCleanup(job, { db: getWorkerPrisma(), storage }),
+  { connection, concurrency: 1, removeOnComplete: { count: 100 }, removeOnFail: { count: 200 } },
+)
+
+documentExportCleanupWorker.on("failed", (job, err) =>
+  logger.error({ jobId: job?.id, err }, "[document.export.cleanup] Job failed"),
+)
+
+registerRequiredDocumentExportCleanup(documentExportCleanupQueue)
+  .then(() => logger.info("[document.export.cleanup] Retention sweep registered (*/5 * * * *)"))
+  .catch((err) => {
+    logger.error({ err }, "[document.export.cleanup] Required retention sweep registration failed — exiting")
+    process.exit(1)
+  })
 
 // Register the daily cron (9 AM UTC). BullMQ deduplicates by name + pattern,
 // so restarting the worker is safe — no stacking of duplicate schedules.
@@ -2678,10 +2810,13 @@ const allWorkers: Worker[] = [
   deliverWorker,
   documentConvertWorker,
   documentExportWorker,
+  documentExportCleanupWorker,
   salesforcePollWorker,
   importWorker,
   obligationExtractWorker,
   riskScoreWorker,
+  extractionPreviewWorker,
+  interactiveAiWorker,
 ]
 
 async function gracefulShutdown(signal: string) {
@@ -2713,10 +2848,13 @@ async function gracefulShutdown(signal: string) {
     notificationDeliverQueue.close(),
     documentConvertQueue.close(),
     documentExportQueue.close(),
+    documentExportCleanupQueue.close(),
     salesforcePollQueue.close(),
     importProcessQueue.close(),
     obligationExtractQueue.close(),
     contractRiskScoreQueue.close(),
+    extractionPreviewQueue.close(),
+    interactiveAiQueue.close(),
   ])
 
   // The worker exclusively uses its standalone Prisma client.

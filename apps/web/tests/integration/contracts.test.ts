@@ -5,6 +5,7 @@ import { requestContext } from "@/lib/context"
 const mockCtx = {
   userId: "user-1",
   organizationId: "org-1",
+  memberId: "member-1",
   role: "admin",
   source: "session" as const,
   requestId: "test-request-id",
@@ -38,6 +39,8 @@ describe("POST /api/contracts", () => {
     }
 
     vi.mocked(prisma.contract.create).mockResolvedValue(mockContract as any)
+    vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
+    vi.mocked(prisma.activity.create).mockResolvedValue({ id: "activity-1" } as any)
 
     const { POST } = await import("@/app/api/contracts/route")
 
@@ -61,6 +64,21 @@ describe("POST /api/contracts", () => {
         }),
       }),
     )
+    expect(prisma.contractAccessGrant.create).toHaveBeenCalledWith({
+      data: {
+        organizationId: "org-1",
+        contractId: "contract-1",
+        memberId: "member-1",
+        grantedById: "user-1",
+      },
+    })
+    expect(prisma.activity.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contractId: "contract-1",
+        userId: "user-1",
+        action: "CREATED",
+      }),
+    })
   })
 })
 
@@ -119,7 +137,7 @@ describe("PATCH /api/contracts/[id]", () => {
       body: JSON.stringify({ title: "Updated Title" }),
     })
 
-    const res = await PATCH(req, { params: { id: "c1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) })
     expect(res.status).toBe(200)
     expect(writeActivity).toHaveBeenCalledWith("c1", "user-1", "UPDATED", expect.any(String))
   })
@@ -133,7 +151,7 @@ describe("DELETE /api/contracts/[id]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
 
     const req = new Request("http://localhost/api/contracts/c1", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "c1" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(204)
     expect(prisma.contract.update).toHaveBeenCalledWith(
@@ -149,7 +167,7 @@ describe("DELETE /api/contracts/[id]", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
 
     const req = new Request("http://localhost/api/contracts/ghost", { method: "DELETE" })
-    const res = await DELETE(req, { params: { id: "ghost" } })
+    const res = await DELETE(req, { params: Promise.resolve({ id: "ghost" }) })
 
     expect(res.status).toBe(404)
   })

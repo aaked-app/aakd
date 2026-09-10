@@ -4,16 +4,57 @@
  * Never import any third-party DocuSeal SDK — use fetch only.
  */
 import { logger } from "@/lib/logger"
+import { readBoundedResponseBody } from "@/lib/import/bounded-response"
+import { canonicalProviderOrigin } from "@/lib/notifications/validate-webhook-url"
+import { pinnedProviderFetch } from "@/lib/security/pinned-provider-fetch"
+import { z } from "zod"
 
 export type DocuSealConfig = { baseUrl: string; apiKey: string }
 
-const ENV_CONFIG: DocuSealConfig = {
-  baseUrl: process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com",
-  apiKey: process.env.DOCUSEAL_API_KEY ?? "",
+export const DOCUSEAL_JSON_BODY_LIMIT = 1024 * 1024
+const JSON_REQUEST_TIMEOUT_MS = 30_000
+const CONNECTION_TEST_TIMEOUT_MS = 10_000
+const CONNECT_TIMEOUT_MS = 10_000
+
+function environmentConfig(): DocuSealConfig {
+  return {
+    baseUrl: process.env.DOCUSEAL_API_URL || process.env.DOCUSEAL_BASE_URL || "https://api.docuseal.com",
+    apiKey: process.env.DOCUSEAL_API_KEY ?? "",
+  }
 }
 
 function activeConfig(config?: DocuSealConfig): DocuSealConfig {
-  return config ?? ENV_CONFIG
+  return config ?? environmentConfig()
+}
+
+async function boundedTrustedFetch(url: string, init: RequestInit, maxResponseBytes: number, timeoutMs: number) {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+  const response = await fetch(url, { ...init, signal, redirect: "error" })
+  const body = await readBoundedResponseBody(response, maxResponseBytes)
+  const headers = new Headers(response.headers)
+  headers.delete("content-encoding")
+  headers.delete("content-length")
+  return new Response(response.status === 204 ? null : new Uint8Array(body), {
+    status: response.status,
+    headers,
+  })
+}
+
+async function docuSealFetch(
+  url: string,
+  init: RequestInit,
+  configWasProvided: boolean,
+  maxResponseBytes = DOCUSEAL_JSON_BODY_LIMIT,
+  timeoutMs = JSON_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  if (!configWasProvided) return boundedTrustedFetch(url, init, maxResponseBytes, timeoutMs)
+  return pinnedProviderFetch(url, init, {
+    privateOrigins: process.env.DOCUSEAL_PRIVATE_ORIGINS,
+    timeoutMs,
+    connectTimeoutMs: CONNECT_TIMEOUT_MS,
+    maxResponseBytes,
+  })
 }
 
 /**
@@ -24,7 +65,7 @@ function activeConfig(config?: DocuSealConfig): DocuSealConfig {
  * internal address (e.g. cloud metadata service).
  */
 export function isAllowedDocuSealUrl(url: string): boolean {
-  return isAllowedDocuSealUrlFor(url, ENV_CONFIG)
+  return isAllowedDocuSealUrlFor(url, environmentConfig())
 }
 
 export function isAllowedDocuSealUrlFor(url: string, config: DocuSealConfig): boolean {
@@ -34,16 +75,25 @@ export function isAllowedDocuSealUrlFor(url: string, config: DocuSealConfig): bo
   } catch {
     return false
   }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false
+  if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password || parsed.hash) return false
 
-  let baseHost: string
+  let base: URL
   try {
-    baseHost = new URL(config.baseUrl).hostname
+    base = new URL(config.baseUrl)
   } catch {
     return false
   }
+  if ((base.protocol !== "https:" && base.protocol !== "http:") || base.username || base.password) return false
+  return canonicalProviderOrigin(parsed) === canonicalProviderOrigin(base)
+}
 
-  return parsed.hostname === baseHost
+export async function fetchDocuSealDocument(
+  url: string,
+  config?: DocuSealConfig,
+): Promise<Response> {
+  const active = activeConfig(config)
+  if (!isAllowedDocuSealUrlFor(url, active)) throw new Error("Signed document URL rejected")
+  return docuSealFetch(url, {}, config !== undefined, 50 * 1024 * 1024, JSON_REQUEST_TIMEOUT_MS)
 }
 
 function authHeaders(config: DocuSealConfig): Record<string, string> {
@@ -60,11 +110,10 @@ function warnMissing(): null {
 export async function testDocuSealConnection(config: DocuSealConfig): Promise<boolean> {
   if (!config.apiKey) return false
   try {
-    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/templates?limit=1`, {
+    const res = await docuSealFetch(`${config.baseUrl.replace(/\/$/, "")}/templates?limit=1`, {
       method: "GET",
       headers: authHeaders(config),
-      signal: AbortSignal.timeout(10_000),
-    })
+    }, true, DOCUSEAL_JSON_BODY_LIMIT, CONNECTION_TEST_TIMEOUT_MS)
     return res.ok
   } catch {
     return false
@@ -89,7 +138,7 @@ export async function createTemplate(
 
   const base64File = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`
 
-  const res = await fetch(`${active.baseUrl}/templates/pdf`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/templates/pdf`, {
     method: "POST",
     headers: {
       ...authHeaders(active),
@@ -99,17 +148,19 @@ export async function createTemplate(
       name,
       documents: [{ name: `${name}.pdf`, file: base64File }],
     }),
-  })
+  }, config !== undefined)
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    logger.error({ status: res.status, body: text }, "[docuseal] createTemplate failed")
+    logger.error({ status: res.status }, "[docuseal] createTemplate failed")
     return null
   }
 
-  const data = await res.json()
-  const attachmentUuid = (data.schema?.[0]?.attachment_uuid ?? null) as string | null
-  return { id: data.id as number, attachmentUuid }
+  const parsed = z.object({
+    id: z.number().int().positive(),
+    schema: z.array(z.object({ attachment_uuid: z.string().min(1).optional() }).passthrough()).optional(),
+  }).passthrough().safeParse(await res.json().catch(() => null))
+  if (!parsed.success) return null
+  return { id: parsed.data.id, attachmentUuid: parsed.data.schema?.[0]?.attachment_uuid ?? null }
 }
 
 // ─── addFieldsToTemplate ─────────────────────────────────────────────────────
@@ -148,18 +199,17 @@ export async function addFieldsToTemplate(
     ],
   }))
 
-  const res = await fetch(`${active.baseUrl}/templates/${templateId}`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/templates/${templateId}`, {
     method: "PUT",
     headers: {
       ...authHeaders(active),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ fields }),
-  })
+  }, config !== undefined)
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    logger.error({ templateId, status: res.status, body: text }, "[docuseal] addFieldsToTemplate failed")
+    logger.error({ templateId, status: res.status }, "[docuseal] addFieldsToTemplate failed")
     return false
   }
 
@@ -178,6 +228,13 @@ export interface DocuSealSubmission {
   submitters: DocuSealSubmitter[]
 }
 
+const submitterSchema = z.object({
+  slug: z.string().min(1),
+  embed_src: z.string().url(),
+  submission_id: z.number().int().positive().optional(),
+  id: z.number().int().positive().optional(),
+}).passthrough()
+
 /**
  * Create a submission (send for signing).
  * POST /submissions
@@ -191,7 +248,7 @@ export async function createSubmission(
   const active = activeConfig(config)
   if (!active.apiKey) return warnMissing()
 
-  const res = await fetch(`${active.baseUrl}/submissions`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/submissions`, {
     method: "POST",
     headers: {
       ...authHeaders(active),
@@ -206,15 +263,14 @@ export async function createSubmission(
         role: s.role,
       })),
     }),
-  })
+  }, config !== undefined)
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    logger.error({ templateId, status: res.status, body: text }, "[docuseal] createSubmission failed")
+    logger.error({ templateId, status: res.status }, "[docuseal] createSubmission failed")
     return null
   }
 
-  const data = await res.json()
+  const data = await res.json().catch(() => null)
 
   // DocuSeal Cloud POST /submissions returns a flat array of submitter objects:
   //   [{ id: <submitterId>, submission_id: <submissionId>, slug, embed_src, ... }]
@@ -222,19 +278,27 @@ export async function createSubmission(
   //   { id: <submissionId>, submitters: [{ slug, embed_src, ... }] }
   // Handle both shapes.
   if (Array.isArray(data)) {
-    const submissionId = (data[0]?.submission_id ?? data[0]?.id) as number
+    const parsed = z.array(submitterSchema).min(1).safeParse(data)
+    if (!parsed.success) return null
+    const submissionId = parsed.data[0].submission_id ?? parsed.data[0].id
+    if (!submissionId) return null
     return {
       id: submissionId,
-      submitters: data.map((s: Record<string, unknown>) => ({
-        slug: String(s.slug ?? ""),
-        embed_src: String(s.embed_src ?? ""),
+      submitters: parsed.data.map((s) => ({
+        slug: s.slug,
+        embed_src: s.embed_src,
       })),
     }
   }
 
+  const parsed = z.object({
+    id: z.number().int().positive(),
+    submitters: z.array(submitterSchema),
+  }).passthrough().safeParse(data)
+  if (!parsed.success) return null
   return {
-    id: data.id as number,
-    submitters: (data.submitters ?? []) as DocuSealSubmitter[],
+    id: parsed.data.id,
+    submitters: parsed.data.submitters.map(({ slug, embed_src }) => ({ slug, embed_src })),
   }
 }
 
@@ -247,10 +311,10 @@ export async function createSubmission(
 export async function remindSubmitter(slug: string, config?: DocuSealConfig): Promise<boolean> {
   const active = activeConfig(config)
   if (!active.apiKey) return false
-  const res = await fetch(`${active.baseUrl}/submitters/${slug}/remind`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/submitters/${slug}/remind`, {
     method: "POST",
     headers: authHeaders(active),
-  })
+  }, config !== undefined)
   return res.ok
 }
 
@@ -264,13 +328,12 @@ export async function remindSubmitter(slug: string, config?: DocuSealConfig): Pr
 export async function archiveSubmission(submissionId: number, config?: DocuSealConfig): Promise<boolean> {
   const active = activeConfig(config)
   if (!active.apiKey) return false
-  const res = await fetch(`${active.baseUrl}/submissions/${submissionId}/archive`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/submissions/${submissionId}/archive`, {
     method: "PUT",
     headers: authHeaders(active),
-  })
+  }, config !== undefined)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    logger.error({ submissionId, status: res.status, body: text }, "[docuseal] archiveSubmission failed")
+    logger.error({ submissionId, status: res.status }, "[docuseal] archiveSubmission failed")
     return false
   }
   return true
@@ -282,6 +345,7 @@ export interface DocuSealSubmissionDetail {
   id: number
   status: string
   documents: { url: string }[]
+  submitters: { slug: string; status: string; completed_at?: string | null }[]
 }
 
 /**
@@ -296,21 +360,31 @@ export async function getSubmission(
   const active = activeConfig(config)
   if (!active.apiKey) return warnMissing()
 
-  const res = await fetch(`${active.baseUrl}/submissions/${submissionId}`, {
+  const res = await docuSealFetch(`${active.baseUrl.replace(/\/$/, "")}/submissions/${submissionId}`, {
     method: "GET",
     headers: authHeaders(active),
-  })
+  }, config !== undefined)
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    logger.error({ submissionId, status: res.status, body: text }, "[docuseal] getSubmission failed")
+    logger.error({ submissionId, status: res.status }, "[docuseal] getSubmission failed")
     return null
   }
 
-  const data = await res.json()
+  const parsed = z.object({
+    id: z.number().int().positive(),
+    status: z.string().min(1),
+    documents: z.array(z.object({ url: z.string().url() }).passthrough()).default([]),
+    submitters: z.array(z.object({
+      slug: z.string().min(1),
+      status: z.string().min(1),
+      completed_at: z.string().nullable().optional(),
+    }).passthrough()).default([]),
+  }).passthrough().safeParse(await res.json().catch(() => null))
+  if (!parsed.success || parsed.data.id !== submissionId) return null
   return {
-    id: data.id as number,
-    status: data.status as string,
-    documents: (data.documents ?? []) as { url: string }[],
+    id: parsed.data.id,
+    status: parsed.data.status,
+    documents: parsed.data.documents,
+    submitters: parsed.data.submitters,
   }
 }

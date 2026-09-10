@@ -3,6 +3,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { requireRole } from "@/lib/auth/roles"
 import { alertsCheckQueue } from "@/lib/jobs/queues"
+import { agreementRelationWhere } from "@/lib/auth/agreement-access"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
 
     const alerts = await prisma.contractAlert.findMany({
       where: {
-        contract: { organizationId: ctx.organizationId },
+        contract: agreementRelationWhere(ctx),
         ...(contractId ? { contractId } : {}),
       },
       include: {
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   const forbidden = requireRole(ctx.role, "admin")
   if (forbidden) return forbidden

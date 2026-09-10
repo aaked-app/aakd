@@ -12,12 +12,16 @@ import { isActionLedgerUiEnabled } from "@/lib/actions/feature"
 import { useRouter } from "next/navigation"
 
 type ActionStatus = "PROPOSED" | "PENDING_REVIEW" | "ACKNOWLEDGED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED" | "STALE" | "DISMISSED"
+type ActionKind = "OBLIGATION" | "RENEWAL_NOTICE" | "EXPIRY" | "CUSTOM"
+const ACTION_KINDS: readonly ActionKind[] = ["OBLIGATION", "RENEWAL_NOTICE", "EXPIRY", "CUSTOM"]
 type ActionDetail = {
   id: string
+  kind: ActionKind
   title: string
   description: string | null
   condition: string | null
   dueDate: string | null
+  noticeDate: string | null
   sourceText?: string
   sourcePage: number | null
   confidence: number | null
@@ -25,6 +29,9 @@ type ActionDetail = {
   status: ActionStatus
   version: number
   hasCitation: boolean
+  proposalOrigin: "api_key" | "workspace_member" | null
+  proposalSourceVersion: number | null
+  proposalAttribution?: string
   evidenceRequired: string | null
   contract: { id: string; title: string; counterpartyName: string | null }
   assignee: { id: string; name: string } | null
@@ -52,6 +59,13 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
   const [assigneeId, setAssigneeId] = useState("")
   const [evidenceNote, setEvidenceNote] = useState("")
   const [blockReason, setBlockReason] = useState("")
+  const [reviewTitle, setReviewTitle] = useState("")
+  const [reviewKind, setReviewKind] = useState<ActionKind>("OBLIGATION")
+  const [reviewDescription, setReviewDescription] = useState("")
+  const [reviewCondition, setReviewCondition] = useState("")
+  const [reviewDueDate, setReviewDueDate] = useState("")
+  const [reviewNoticeDate, setReviewNoticeDate] = useState("")
+  const [reviewEvidenceRequired, setReviewEvidenceRequired] = useState("")
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,7 +90,14 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
       if (!actionResponse.ok) throw new Error("load")
       const nextAction = await actionResponse.json() as ActionDetail
       setAction(nextAction)
+      setReviewKind(nextAction.kind)
       setAssigneeId(nextAction.assignee?.id ?? "")
+      setReviewTitle(nextAction.title)
+      setReviewDescription(nextAction.description ?? "")
+      setReviewCondition(nextAction.condition ?? "")
+      setReviewDueDate(nextAction.dueDate?.slice(0, 10) ?? "")
+      setReviewNoticeDate(nextAction.noticeDate?.slice(0, 10) ?? "")
+      setReviewEvidenceRequired(nextAction.evidenceRequired ?? "completion_note")
       if (membersResponse.ok) {
         const payload = await membersResponse.json() as unknown
         if (Array.isArray(payload)) setMembers(payload.filter(isOrgMember))
@@ -182,6 +203,8 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
   const reviewed = action.reviewStatus === "reviewed" && action.status !== "STALE"
   const requiredApprovals = action.approvals.filter((approval) => approval.required)
   const approvalBlocked = requiredApprovals.some((approval) => approval.status.toLowerCase() !== "approved" || approval.actionVersion !== action.version)
+  const reviewNoticeInvalid = reviewKind === "RENEWAL_NOTICE"
+    && (!reviewNoticeDate || Boolean(reviewDueDate && reviewNoticeDate > reviewDueDate))
 
   return <main className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
     <Link href="/actions" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />{t("backToQueue")}</Link>
@@ -206,6 +229,7 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
       <div className="space-y-6">
         <section className="rounded-xl border bg-card p-5">
           <h2 className="font-semibold">{t("sourceAndRequirement")}</h2>
+          {action.proposalOrigin && <p className="mt-3 text-sm font-medium">{t(action.proposalOrigin === "api_key" ? "agentProposal" : "workspaceProposal")}{action.proposalAttribution ? `: ${action.proposalAttribution}` : ""}{action.proposalSourceVersion ? ` · ${t("proposalSourceVersion", { version: action.proposalSourceVersion })}` : ""}</p>}
           {action.sourceText ? <blockquote className="mt-4 border-s-2 border-primary/50 ps-4 text-sm leading-6">“{action.sourceText}”{action.sourcePage ? <span className="ms-2 text-xs text-muted-foreground">{t("page", { page: action.sourcePage })}</span> : null}</blockquote> : <p className="mt-3 text-sm text-muted-foreground">{t("sourceUnavailable")}</p>}
           {action.description && <p className="mt-4 text-sm text-muted-foreground">{action.description}</p>}
           {action.condition && <p className="mt-3 text-sm"><span className="font-medium">{t("condition")}:</span> {action.condition}</p>}
@@ -236,7 +260,42 @@ export default function ActionDetailPage(props: { params: Promise<{ id: string }
         <section className="rounded-xl border bg-card p-5">
           <h2 className="font-semibold">{t("nextStep")}</h2>
           <div className="mt-4 space-y-3">
-            {(action.status === "PENDING_REVIEW" || action.status === "STALE") && <Button className="min-h-11 w-full" disabled={working} onClick={() => void runCommand({ command: "validate", evidenceRequired: action.evidenceRequired ?? "completion_note" }, "reviewSaved")}>{t("reviewAndValidate")}</Button>}
+            {(action.status === "PENDING_REVIEW" || action.status === "STALE") && <>
+              <label className="block text-sm font-medium" htmlFor="review-kind">{t("reviewKindLabel")}</label>
+              <select id="review-kind" className="min-h-11 w-full rounded-md border bg-background px-3 text-sm" value={reviewKind} onChange={(event) => {
+                const nextKind = event.target.value as ActionKind
+                setReviewKind(nextKind)
+                if (nextKind !== "RENEWAL_NOTICE") setReviewNoticeDate("")
+              }}>
+                {ACTION_KINDS.map((kind) => <option key={kind} value={kind}>{t(`kinds.${kind}`)}</option>)}
+              </select>
+              <label className="block text-sm font-medium" htmlFor="review-title">{t("reviewTitleLabel")}</label>
+              <input id="review-title" className="min-h-11 w-full rounded-md border bg-background px-3 text-sm" value={reviewTitle} onChange={(event) => setReviewTitle(event.target.value)} />
+              <label className="block text-sm font-medium" htmlFor="review-description">{t("reviewDescriptionLabel")}</label>
+              <textarea id="review-description" className="min-h-24 w-full rounded-md border bg-background p-3 text-sm" value={reviewDescription} onChange={(event) => setReviewDescription(event.target.value)} />
+              <label className="block text-sm font-medium" htmlFor="review-due-date">{t("reviewDueDateLabel")}</label>
+              <input id="review-due-date" type="date" className="min-h-11 w-full rounded-md border bg-background px-3 text-sm" value={reviewDueDate} onChange={(event) => setReviewDueDate(event.target.value)} />
+              {reviewKind === "RENEWAL_NOTICE" && <>
+                <label className="block text-sm font-medium" htmlFor="review-notice-date">{t("reviewNoticeDateLabel")}</label>
+                <input id="review-notice-date" type="date" className="min-h-11 w-full rounded-md border bg-background px-3 text-sm" value={reviewNoticeDate} onChange={(event) => setReviewNoticeDate(event.target.value)} aria-describedby="review-notice-help" />
+                <p id="review-notice-help" className="text-xs text-muted-foreground">{t("reviewNoticeDateHelp")}</p>
+              </>}
+              <label className="block text-sm font-medium" htmlFor="review-condition">{t("reviewConditionLabel")}</label>
+              <textarea id="review-condition" className="min-h-20 w-full rounded-md border bg-background p-3 text-sm" value={reviewCondition} onChange={(event) => setReviewCondition(event.target.value)} />
+              <p className="text-xs text-muted-foreground">{t("reviewDeadlineHelp")}</p>
+              <label className="block text-sm font-medium" htmlFor="review-evidence">{t("reviewEvidenceLabel")}</label>
+              <input id="review-evidence" className="min-h-11 w-full rounded-md border bg-background px-3 text-sm" value={reviewEvidenceRequired} onChange={(event) => setReviewEvidenceRequired(event.target.value)} />
+              <Button className="min-h-11 w-full" disabled={working || !reviewTitle.trim() || !reviewEvidenceRequired.trim() || (!reviewDueDate && !reviewCondition.trim()) || reviewNoticeInvalid} onClick={() => void runCommand({
+                command: "validate",
+                kind: reviewKind,
+                title: reviewTitle.trim(),
+                description: reviewDescription.trim() || null,
+                condition: reviewCondition.trim() || null,
+                dueDate: reviewDueDate ? `${reviewDueDate}T00:00:00.000Z` : null,
+                noticeDate: reviewKind === "RENEWAL_NOTICE" && reviewNoticeDate ? `${reviewNoticeDate}T00:00:00.000Z` : null,
+                evidenceRequired: reviewEvidenceRequired.trim(),
+              }, "reviewSaved")}>{t("reviewAndValidate")}</Button>
+            </>}
             {action.status === "PROPOSED" && <Button className="min-h-11 w-full" disabled={working || !action.assignee} onClick={() => void runCommand({ command: "acknowledge" }, "acknowledgedSuccess")}>{t("acknowledge")}</Button>}
             {(action.status === "ACKNOWLEDGED" || action.status === "BLOCKED") && <Button className="min-h-11 w-full" disabled={working || approvalBlocked} onClick={() => void runCommand({ command: "start" }, "startedSuccess")}>{t("startWork")}</Button>}
             {(action.status === "ACKNOWLEDGED" || action.status === "IN_PROGRESS") && <Button className="min-h-11 w-full" disabled={working || !requiredEvidencePresent || approvalBlocked} onClick={() => void runCommand({ command: "complete" }, "completedSuccess")}>{t("complete")}</Button>}

@@ -2,16 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 import Link from "next/link"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import {
   ArrowLeft,
-  Bell,
   CheckCircle2,
   Clock,
   MailOpen,
-  RotateCcw,
   Send,
   Plus,
   X,
@@ -138,6 +137,7 @@ function LoadingSkeleton() {
 
 export default function SigningPage() {
   const { id } = useParams<{ id: string }>()
+  const t = useTranslations("signingSafety")
 
   const [contract, setContract] = useState<Contract | null>(null)
   const [signingData, setSigningData] = useState<SigningData | null>(null)
@@ -149,15 +149,6 @@ export default function SigningPage() {
   const [newIsInternal, setNewIsInternal] = useState(false)
   const [addingSignerLoading, setAddingSignerLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
-
-  // Sending state
-  const [sending, setSending] = useState(false)
-
-  // Track which signers are being reminded
-  const [remindingIds, setRemindingIds] = useState<Set<string>>(new Set())
-
-  // Resetting state
-  const [resetting, setResetting] = useState(false)
 
   // Track counterparty auto-populate attempt
   const autoPopulatedRef = useRef(false)
@@ -262,68 +253,6 @@ export default function SigningPage() {
       return
     }
     await fetchSigningData()
-  }
-
-  async function handleSend() {
-    setSending(true)
-    try {
-      const res = await fetch(`/api/contracts/${id}/signing/send`, { method: "POST" })
-      if (res.ok) {
-        const signerCount = signingData?.signers.length ?? 0
-        toast.success(`Sent for signature to ${signerCount} signer${signerCount !== 1 ? "s" : ""}`)
-        await fetchSigningData()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error ?? "Failed to send for signature")
-      }
-    } catch {
-      toast.error("Failed to send for signature")
-    } finally {
-      setSending(false)
-    }
-  }
-
-  async function handleRemind(signerId: string) {
-    setRemindingIds((prev) => new Set(prev).add(signerId))
-    try {
-      const res = await fetch(`/api/contracts/${id}/signing/remind`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signerId }),
-      })
-      if (res.ok) {
-        toast.success("Reminder sent")
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error ?? "Failed to send reminder")
-      }
-    } catch {
-      toast.error("Failed to send reminder")
-    } finally {
-      setRemindingIds((prev) => {
-        const next = new Set(prev)
-        next.delete(signerId)
-        return next
-      })
-    }
-  }
-
-  async function handleReset() {
-    setResetting(true)
-    try {
-      const res = await fetch(`/api/contracts/${id}/signing/reset`, { method: "POST" })
-      if (res.ok) {
-        toast.success("Signing reset — you can now reconfigure signers and re-send")
-        await fetchSigningData()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error ?? "Failed to reset signing")
-      }
-    } catch {
-      toast.error("Failed to reset signing")
-    } finally {
-      setResetting(false)
-    }
   }
 
   // Derived state
@@ -511,25 +440,24 @@ export default function SigningPage() {
             </div>
 
             {/* Send for Signature */}
-            <div className="pt-2">
+            <div className="space-y-3 pt-2">
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">{t("pausedTitle")}</p>
+                  <p className="mt-0.5 text-amber-800">{t("pausedDescription")}</p>
+                </div>
+              </div>
               <Button
                 size="sm"
-                disabled={signers.length === 0 || sending || notAwaitingSignature}
-                onClick={handleSend}
+                disabled
                 className="gap-1.5"
+                aria-describedby="signing-send-paused"
               >
-                {sending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                {sending ? "Sending..." : "Send for Signature"}
+                <Send className="h-4 w-4" />
+                {t("sendDisabled")}
               </Button>
-              {signers.length === 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Add at least one signer before sending.
-                </p>
-              )}
+              <p id="signing-send-paused" className="sr-only">{t("pausedDescription")}</p>
             </div>
           </div>
         ) : (
@@ -546,12 +474,7 @@ export default function SigningPage() {
                     {signingStatus === "failed" && "Signing failed"}
                   </p>
                   <p className="mt-0.5 text-rose-700/80 text-xs">
-                    {signingStatus === "declined" &&
-                      "One or more signers declined to sign. Reset the workflow below to reconfigure and re-send."}
-                    {signingStatus === "expired" &&
-                      "The signing request expired before all signers responded. Reset the workflow to re-send."}
-                    {signingStatus === "failed" &&
-                      "Signing failed due to an error. Reset the workflow to try again."}
+                    {t("existingActionsPaused")}
                   </p>
                 </div>
               </div>
@@ -611,28 +534,11 @@ export default function SigningPage() {
                   <RoleBadge isInternal={signer.isInternal} />
                   <StatusBadge status={signer.status} />
 
-                  {/* Remind button — only for pending signers */}
-                  {signer.status === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRemind(signer.id)}
-                      disabled={remindingIds.has(signer.id)}
-                      className="shrink-0"
-                    >
-                      {remindingIds.has(signer.id) ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                      ) : (
-                        <Bell className="h-3.5 w-3.5 mr-1" />
-                      )}
-                      Remind
-                    </Button>
-                  )}
                 </div>
               ))}
             </div>
 
-            {/* Back link + Reset */}
+            {/* Back link */}
             <div className="pt-2 flex items-center gap-3 flex-wrap">
               <Link href={`/contracts/${id}`}>
                 <Button variant="outline" size="sm" className="gap-1.5">
@@ -640,22 +546,6 @@ export default function SigningPage() {
                   Back to Contract
                 </Button>
               </Link>
-              {isResettable && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReset}
-                  disabled={resetting}
-                  className="gap-1.5"
-                >
-                  {resetting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4" />
-                  )}
-                  {resetting ? "Resetting..." : "Reset & Resend"}
-                </Button>
-              )}
             </div>
           </div>
         )}

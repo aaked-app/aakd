@@ -10,8 +10,29 @@ const obligationExtractQueueMock = {
   getJob: vi.fn().mockResolvedValue(null),
 }
 
+const extractionPreviewQueueMock = {
+  add: vi.fn().mockResolvedValue({ id: "00000000-0000-4000-8000-000000000001" }),
+  close: vi.fn(),
+  getJob: vi.fn().mockResolvedValue(null),
+}
+
+const contractExtractQueueMock = {
+  add: vi.fn().mockResolvedValue(undefined),
+  close: vi.fn(),
+  getJob: vi.fn().mockResolvedValue(null),
+}
+
+const interactiveAiPreviewStore = new Map<string, string>()
+const interactiveAiQueueMock = {
+  client: {
+    set: vi.fn(async (key: string, value: string) => { interactiveAiPreviewStore.set(key, value); return "OK" }),
+    get: vi.fn(async (key: string) => interactiveAiPreviewStore.get(key) ?? null),
+    del: vi.fn(async (key: string) => Number(interactiveAiPreviewStore.delete(key))),
+  },
+}
+
 vi.mock("@/lib/jobs/queues", () => ({
-  contractExtractQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+  contractExtractQueue: contractExtractQueueMock,
   contractAiExtractQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   contractEmbedQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   alertsCheckQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
@@ -26,14 +47,21 @@ vi.mock("@/lib/jobs/queues", () => ({
   importProcessQueue: { add: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
   obligationExtractQueue: obligationExtractQueueMock,
   contractRiskScoreQueue: { add: vi.fn().mockResolvedValue({ id: "risk-job-1" }), close: vi.fn() },
+  extractionPreviewQueue: extractionPreviewQueueMock,
   getObligationExtractQueue: vi.fn(() => obligationExtractQueueMock),
+  getContractExtractQueue: vi.fn(() => contractExtractQueueMock),
   getContractRiskScoreQueue: vi.fn(() => ({ getJob: vi.fn().mockResolvedValue(null) })),
   getContractAiExtractQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue(undefined) })),
+  getExtractionPreviewQueue: vi.fn(() => extractionPreviewQueueMock),
+  getInteractiveAiQueue: vi.fn(() => interactiveAiQueueMock),
+  extractionPreviewStorageKey: vi.fn((organizationId: string, memberId: string, jobId: string) =>
+    `previews/${encodeURIComponent(organizationId)}/${encodeURIComponent(memberId)}/${jobId}/source`),
 }))
 
 vi.mock("@/lib/db/client", () => {
   const prisma: any = {
     contract: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() },
+    contractAccessGrant: { create: vi.fn().mockResolvedValue({ id: "grant-1" }), findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue({ id: "grant-1" }), findUnique: vi.fn(), delete: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 0 }), count: vi.fn() },
     activity: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     contractFile: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     contractVersion: { create: vi.fn() },
@@ -48,10 +76,11 @@ vi.mock("@/lib/db/client", () => {
     apiKey: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn() },
     aIExtraction: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), upsert: vi.fn() },
     orgAiConfig: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
+    signatureIntegration: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
     contractAlert: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
     approval: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), aggregate: vi.fn().mockResolvedValue({ _max: { step: null } }) },
     contractSigner: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn() },
-    contractObligation: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn(), count: vi.fn() },
+    contractObligation: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn(), count: vi.fn() },
     contractObligationSuggestion: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     contractAction: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn().mockResolvedValue({ count: 0 }), update: vi.fn(), updateMany: vi.fn(), upsert: vi.fn(), count: vi.fn(), deleteMany: vi.fn() },
     contractActionEvidence: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },

@@ -12,6 +12,7 @@ import { storage } from "@/lib/storage"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import { logger } from "@/lib/logger"
 import type { ImportJob } from "@prisma/client"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 
 import { runCsvHandler } from "./handlers/csv"
 import { runBatchHandler } from "./handlers/batch"
@@ -47,6 +48,9 @@ export async function processImportJob(ctx: ImportProcessContext): Promise<void>
   }
 
   try {
+    if (isAgreementAccessEmergencyDenyAll()) {
+      throw new Error("Agreement processing disabled by emergency policy")
+    }
     await dispatch(job, ctx)
 
     const updated = await db.importJob.findUnique({ where: { id: job.id } })

@@ -72,7 +72,11 @@ export default function ForgotPasswordPage() {
             className="min-h-11"
           />
         </div>
-        <Button type="submit" className="min-h-11 w-full" disabled={loading}>
+        <Button
+          type="submit"
+          className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-3 py-2 text-center leading-5"
+          disabled={loading}
+        >
           {loading ? t("sending") : t("sendResetLink")}
         </Button>
       </form>

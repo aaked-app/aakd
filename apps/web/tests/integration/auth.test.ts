@@ -31,6 +31,11 @@ vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
 
+beforeEach(() => {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+  vi.mocked(prisma.contractAccessGrant.create).mockResolvedValue({ id: "grant-1" } as any)
+})
+
 vi.mock("@/lib/alerts/generate", () => ({
   generateAlertsForContract: vi.fn().mockResolvedValue(undefined),
 }))
@@ -107,7 +112,7 @@ describe("Auth guard — no auth header returns 401", () => {
 
     const { GET } = await import("@/app/api/contracts/[id]/route")
     const res = await GET(new Request("http://localhost/api/contracts/c1"), {
-      params: { id: "c1" },
+      params: Promise.resolve({ id: "c1" }),
     })
 
     expect(res.status).toBe(401)
@@ -118,7 +123,7 @@ describe("Auth guard — no auth header returns 401", () => {
     vi.mocked(resolveAuth).mockResolvedValue(null)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -130,7 +135,7 @@ describe("Auth guard — no auth header returns 401", () => {
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/c1", { method: "DELETE" }),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
 
     expect(res.status).toBe(401)
@@ -202,6 +207,7 @@ describe("Auth guard — valid Bearer token is accepted", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-1",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "admin",
       scopes: ["read", "write"],
       source: "api_key",
@@ -344,13 +350,14 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-v",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "viewer",
       source: "session",
       requestId: "test-request-id",
     })
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(403)
   })
@@ -360,13 +367,14 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-m",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "member",
       source: "session",
       requestId: "test-request-id",
     })
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(403)
   })
@@ -376,6 +384,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-l",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "legal",
       source: "session",
       requestId: "test-request-id",
@@ -385,7 +394,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(prisma.contract.update).mockResolvedValue(updatedContract as any)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(200)
   })
@@ -395,6 +404,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-a",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "admin",
       source: "session",
       requestId: "test-request-id",
@@ -404,7 +414,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(prisma.contract.update).mockResolvedValue(updatedContract as any)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(200)
   })
@@ -414,6 +424,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-o",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "owner",
       source: "session",
       requestId: "test-request-id",
@@ -423,7 +434,7 @@ describe("RBAC — PATCH /api/contracts/[id] requires at least 'legal' role", ()
     vi.mocked(prisma.contract.update).mockResolvedValue(updatedContract as any)
 
     const { PATCH } = await import("@/app/api/contracts/[id]/route")
-    const res = await PATCH(makePatchReq(), { params: { id: "c1" } })
+    const res = await PATCH(makePatchReq(), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(200)
   })
@@ -442,6 +453,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-v",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "viewer",
       source: "session",
       requestId: "test-request-id",
@@ -450,7 +462,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/c1", { method: "DELETE" }),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
 
     expect(res.status).toBe(403)
@@ -461,6 +473,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-m",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "member",
       source: "session",
       requestId: "test-request-id",
@@ -469,7 +482,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/c1", { method: "DELETE" }),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
 
     expect(res.status).toBe(403)
@@ -480,6 +493,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-l",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "legal",
       source: "session",
       requestId: "test-request-id",
@@ -494,7 +508,7 @@ describe("RBAC — DELETE /api/contracts/[id] requires at least 'legal' role", (
     const { DELETE } = await import("@/app/api/contracts/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/contracts/c1", { method: "DELETE" }),
-      { params: { id: "c1" } },
+      { params: Promise.resolve({ id: "c1" }) },
     )
 
     expect(res.status).toBe(204)
@@ -514,6 +528,7 @@ describe("RBAC — POST /api/contracts requires at least 'member' role", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-v",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "viewer",
       source: "session",
       requestId: "test-request-id",
@@ -536,6 +551,7 @@ describe("RBAC — POST /api/contracts requires at least 'member' role", () => {
     vi.mocked(resolveAuth).mockResolvedValue({
       userId: "user-m",
       organizationId: "org-1",
+      memberId: "member-test",
       role: "member",
       source: "session",
       requestId: "test-request-id",

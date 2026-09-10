@@ -90,7 +90,7 @@ describe("LandingPage", () => {
   })
 
   it("keeps the capability matrix contained on narrow and RTL viewports", () => {
-    render(<LandingPage />)
+    const { container } = render(<LandingPage />)
 
     expect(screen.getByRole("table", { name: "Professional CLM, without the theatre." })).toHaveClass(
       "hidden",
@@ -98,6 +98,29 @@ describe("LandingPage", () => {
     )
     expect(screen.getByRole("list", { name: "Professional CLM, without the theatre." })).toHaveClass(
       "md:hidden",
+    )
+    const capabilities = container.querySelector("#capabilities")
+    expect(capabilities?.querySelectorAll(".min-w-0")).toHaveLength(2)
+    expect(
+      within(capabilities as HTMLElement).getByRole("heading", {
+        name: "Professional CLM, without the theatre.",
+      }),
+    ).toHaveClass("break-words")
+  })
+
+  it("keeps the primary hero action above the mobile fold without shrinking body copy", () => {
+    render(<LandingPage />)
+
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Turn agreements into reviewed, owned action.",
+    })
+    expect(heading).toHaveClass("text-4xl", "sm:text-6xl", "tracking-[-0.04em]")
+    const hero = heading.closest("section")
+    expect(hero?.querySelector(".grid")).toHaveClass("gap-6")
+    expect(hero?.querySelector<HTMLAnchorElement>('a[href="/register"]')?.parentElement).toHaveClass(
+      "mt-5",
+      "sm:mt-7",
     )
   })
 

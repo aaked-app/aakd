@@ -5,10 +5,16 @@ import { requestContext } from "@/lib/context"
 const mockCtx = {
   userId: "user-1",
   organizationId: "org-1",
+  memberId: "member-1",
   role: "admin",
   source: "session" as const,
   requestId: "test-request-id",
 }
+
+const semanticMocks = vi.hoisted(() => ({
+  enqueue: vi.fn(),
+  rateLimit: vi.fn(),
+}))
 
 vi.mock("@/lib/auth/middleware", () => ({
   resolveAuth: vi.fn().mockResolvedValue(mockCtx),
@@ -18,6 +24,40 @@ vi.mock("@/lib/auth/middleware", () => ({
 vi.mock("@/lib/embedding", () => ({
   generateEmbedding: vi.fn(),
 }))
+
+vi.mock("@/lib/db/worker-client", () => ({ getWorkerPrisma: () => prisma }))
+vi.mock("@/lib/jobs/interactive-ai-client", () => ({
+  enqueueInteractiveAiRequest: semanticMocks.enqueue,
+}))
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: semanticMocks.rateLimit,
+  rateLimitResponse: (retryAfter: number) => Response.json({ error: "Too many requests", retryAfter }, { status: 429 }),
+}))
+
+beforeEach(() => {
+  semanticMocks.rateLimit.mockResolvedValue({ allowed: true, retryAfter: 0 })
+  semanticMocks.enqueue.mockImplementation(async (ctx: typeof mockCtx, operation: "contract_question" | "semantic_search", contractId: string | null, payload: any) => {
+    const { executeInteractiveAiOperation } = await import("@/lib/jobs/interactive-ai-executor")
+    if (contractId) {
+      const prior = vi.mocked(prisma.contract.findUnique).mock.results.at(-1)?.value
+      if (prior) vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce(await prior)
+    }
+    const response = await executeInteractiveAiOperation({
+      jobId: "00000000-0000-4000-8000-000000000001",
+      operation,
+      organizationId: ctx.organizationId,
+      requestedByUserId: ctx.userId,
+      requestedByMemberId: ctx.memberId,
+      source: ctx.source,
+      apiKeyId: null,
+      contractId,
+      payloadKey: "test",
+      createdAt: 0,
+      expiresAt: 300_000,
+    }, payload, async () => {})
+    return { state: "completed", jobId: "00000000-0000-4000-8000-000000000001", response }
+  })
+})
 
 // ─── /api/search/semantic ──────────────────────────────────────────────────────
 
@@ -42,9 +82,10 @@ describe("POST /api/search/semantic", () => {
     expect(res.status).toBe(401)
   })
 
-  it("returns 503 when no embedding provider is configured", async () => {
+  it("returns explicit permission-scoped keyword results when embeddings are unavailable", async () => {
     const { generateEmbedding } = await import("@/lib/embedding")
     vi.mocked(generateEmbedding).mockResolvedValueOnce(null)
+    vi.mocked(prisma.contract.findMany).mockResolvedValueOnce([{ id: "granted-contract", title: "Indemnification clause" }] as any)
 
     const { POST } = await import("@/app/api/search/semantic/route")
 
@@ -55,16 +96,18 @@ describe("POST /api/search/semantic", () => {
     })
 
     const res = await POST(req)
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.error).toBe("Embedding provider not configured")
+    expect(body.mode).toBe("keyword")
+    expect(body.results[0].id).toBe("granted-contract")
+    expect(JSON.stringify(vi.mocked(prisma.contract.findMany).mock.calls)).toContain("member-1")
   })
 
   it("returns results when embedding provider is configured", async () => {
     const fakeEmbedding = Array.from({ length: 1536 }, (_, i) => i / 1536)
 
     const { generateEmbedding } = await import("@/lib/embedding")
-    vi.mocked(generateEmbedding).mockResolvedValueOnce(fakeEmbedding)
+    vi.mocked(generateEmbedding).mockResolvedValueOnce({ vector: fakeEmbedding, model: "openai:text-embedding-3-small:1536" })
 
     const mockRows = [
       {
@@ -111,11 +154,33 @@ describe("POST /api/search/semantic", () => {
     const res = await POST(req)
     expect(res.status).toBe(400)
   })
+
+  it("fails closed without enqueueing when the rate limiter throws", async () => {
+    semanticMocks.rateLimit.mockRejectedValueOnce(new Error("secret-rate-limiter-token"))
+    const { POST } = await import("@/app/api/search/semantic/route")
+    const res = await POST(new Request("http://localhost/api/search/semantic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "confidential acquisition" }),
+    }))
+    expect(res.status).toBe(503)
+    const responseText = await res.text()
+    expect(responseText).toContain("Semantic search unavailable")
+    expect(responseText).not.toContain("secret-rate-limiter-token")
+    expect(semanticMocks.enqueue).not.toHaveBeenCalled()
+  })
 })
 
 // ─── /api/contracts/[id]/ask ───────────────────────────────────────────────────
 
 describe("POST /api/contracts/[id]/ask", () => {
+  it("rejects whitespace-only questions before reading a contract", async () => {
+    vi.clearAllMocks()
+    const { POST } = await import("@/app/api/contracts/[id]/ask/route")
+    const response = await POST(new Request("http://localhost/api/contracts/c1/ask", { method: "POST", body: JSON.stringify({ question: " \n\t " }) }), { params: Promise.resolve({ id: "c1" }) })
+    expect(response.status).toBe(400)
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     // Ensure env vars are unset for isolation
@@ -232,7 +297,7 @@ describe("POST /api/contracts/[id]/ask", () => {
 
     const { generateEmbedding } = await import("@/lib/embedding")
     vi.mocked(generateEmbedding).mockResolvedValueOnce(
-      Array.from({ length: 1536 }, () => 0.2),
+      { vector: Array.from({ length: 1536 }, () => 0.2), model: "openai:text-embedding-3-small:1536" },
     )
 
     // Caller is in org-1; the contract row also lives in org-1.
@@ -268,12 +333,9 @@ describe("POST /api/contracts/[id]/ask", () => {
       ]) as any
     }) as any)
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "Five years per Excerpt 1." } }],
-      }),
-    } as any)
+    global.fetch = vi.fn().mockResolvedValueOnce(Response.json({
+      choices: [{ message: { content: "Five years per Excerpt 1." } }],
+    }))
 
     const { POST } = await import("@/app/api/contracts/[id]/ask/route")
     const req = new Request("http://localhost/api/contracts/c1/ask", {
@@ -294,7 +356,7 @@ describe("POST /api/contracts/[id]/ask", () => {
     process.env.OPENAI_API_KEY = "test-key"
 
     const { generateEmbedding } = await import("@/lib/embedding")
-    vi.mocked(generateEmbedding).mockResolvedValueOnce(Array.from({ length: 1536 }, () => 0.1))
+    vi.mocked(generateEmbedding).mockResolvedValueOnce({ vector: Array.from({ length: 1536 }, () => 0.1), model: "openai:text-embedding-3-small:1536" })
 
     vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
       id: "c1",
@@ -310,12 +372,9 @@ describe("POST /api/contracts/[id]/ask", () => {
       },
     ] as any)
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "The notice period is 30 days. See Excerpt 1." } }],
-      }),
-    } as any)
+    global.fetch = vi.fn().mockResolvedValueOnce(Response.json({
+      choices: [{ message: { content: "The notice period is 30 days. See Excerpt 1." } }],
+    }))
 
     const { POST } = await import("@/app/api/contracts/[id]/ask/route")
 
@@ -350,12 +409,9 @@ describe("POST /api/contracts/[id]/ask", () => {
       organizationId: "org-1",
     } as any)
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "Vendor owns the IP. See Excerpt 1." } }],
-      }),
-    } as any)
+    global.fetch = vi.fn().mockResolvedValueOnce(Response.json({
+      choices: [{ message: { content: "Vendor owns the IP. See Excerpt 1." } }],
+    }))
 
     const { POST } = await import("@/app/api/contracts/[id]/ask/route")
     const req = new Request("http://localhost/api/contracts/c1/ask", {

@@ -119,8 +119,10 @@ import { ensureFreshToken } from "@/lib/crm/route-helpers"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { isZipBuffer } from "@/lib/types/import-helpers"
 import { resolveAiConfig } from "@/lib/ai/resolve"
-import OpenAI from "openai"
-import pdfParse from "pdf-parse"
+import { getContractRiskScoreQueue } from "@/lib/jobs/queues"
+import { getExtractionPreviewQueue } from "@/lib/jobs/queues"
+import { storage } from "@/lib/storage"
+import { _clearStore } from "@/lib/rate-limit"
 
 function resetMockQueues() {
   vi.mocked(resolveAuth).mockReset()
@@ -133,6 +135,7 @@ function resetMockQueues() {
 
 const adminCtx = {
   userId: "user-admin",
+  memberId: "member-admin",
   organizationId: "org-1",
   role: "admin",
   source: "session" as const,
@@ -162,12 +165,24 @@ function makeFormRequest(url: string, fd: FormData, method = "POST"): Request {
 describe("GET /api/contracts/[id]/risk-score", () => {
   beforeEach(() => { vi.clearAllMocks(); resetMockQueues() })
 
+  it("does not expose persisted upstream failure text", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce({ riskScore: null, riskScoredAt: null, riskDetails: null } as any)
+    vi.mocked(getContractRiskScoreQueue).mockReturnValueOnce({ getJob: vi.fn().mockResolvedValue({
+      data: { contractId: "contract-1", organizationId: "org-1" },
+      getState: vi.fn().mockResolvedValue("failed"), failedReason: "private-provider-body",
+    }) } as any)
+    const { GET } = await import("@/app/api/contracts/[id]/risk-score/route")
+    const response = await GET(new Request("http://localhost/api/contracts/contract-1/risk-score?jobId=risk-test"), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(await response.json()).toEqual({ state: "failed", reason: "AI risk analysis failed" })
+  })
+
   it("returns 401 when unauthenticated", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { GET } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/risk-score"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -178,7 +193,7 @@ describe("GET /api/contracts/[id]/risk-score", () => {
     const { GET } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/risk-score"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -193,7 +208,7 @@ describe("GET /api/contracts/[id]/risk-score", () => {
     const { GET } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/risk-score"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -210,7 +225,7 @@ describe("GET /api/contracts/[id]/risk-score", () => {
     const { GET } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await GET(
       new Request("http://localhost/api/contracts/contract-1/risk-score"),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -228,7 +243,7 @@ describe("POST /api/contracts/[id]/risk-score", () => {
     const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -239,7 +254,7 @@ describe("POST /api/contracts/[id]/risk-score", () => {
     const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -254,7 +269,7 @@ describe("POST /api/contracts/[id]/risk-score", () => {
     const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(400)
   })
@@ -270,7 +285,7 @@ describe("POST /api/contracts/[id]/risk-score", () => {
     const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(503)
   })
@@ -291,7 +306,7 @@ describe("POST /api/contracts/[id]/risk-score", () => {
     const { POST } = await import("@/app/api/contracts/[id]/risk-score/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/risk-score", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(202)
     expect((await res.json()).state).toBe("queued")
@@ -308,7 +323,7 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -318,7 +333,7 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -329,7 +344,7 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -344,7 +359,7 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(422)
     const body = await res.json()
@@ -361,11 +376,41 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.queued).toBe(true)
+  })
+
+  it("re-parses the latest file when legacy extracted text has no exact source binding", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
+    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+      id: "contract-1",
+      organizationId: "org-1",
+      extractedText: "Legacy contract text",
+      extractedSourceFileId: null,
+      extractedSourceFileVersion: null,
+      extractedSourceHash: null,
+      files: [{ id: "file-current", storageKey: "org/contract/current.pdf", version: 3 }],
+    } as any)
+    const { getContractExtractQueue } = await import("@/lib/jobs/queues")
+    const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
+
+    const res = await POST(
+      new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
+      { params: Promise.resolve({ id: "contract-1" }) },
+    )
+
+    expect(res.status).toBe(202)
+    expect(await res.json()).toMatchObject({ queued: true, stage: "text_extraction" })
+    expect(getContractExtractQueue().add).toHaveBeenCalledWith("extract", {
+      contractId: "contract-1",
+      organizationId: "org-1",
+      fileId: "file-current",
+      storageKey: "org/contract/current.pdf",
+      preserveUserFields: true,
+    }, { jobId: "manual-contract-text:file-current:v3" })
   })
 
   it("returns 404 when contract belongs to a different org (org isolation)", async () => {
@@ -378,110 +423,223 @@ describe("POST /api/contracts/[id]/extractions/rerun", () => {
     const { POST } = await import("@/app/api/contracts/[id]/extractions/rerun/route")
     const res = await POST(
       new Request("http://localhost/api/contracts/contract-1/extractions/rerun", { method: "POST" }),
-      { params: { id: "contract-1" } },
+      { params: Promise.resolve({ id: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
 })
 
-// ─── POST /api/contracts/extract-preview ──────────────────────────────────────
-// pdf-parse and mammoth are mocked above. We test auth and basic validation.
-// The route uses OpenAI only if OPENAI_API_KEY is set.
+// ─── POST/GET /api/contracts/extract-preview ─────────────────────────────────
 
-describe("POST /api/contracts/extract-preview", () => {
-  beforeEach(() => { vi.clearAllMocks(); resetMockQueues() })
+describe("/api/contracts/extract-preview", () => {
+  const pdfFile = () => new File([Buffer.from("%PDF-1.4")], "test.pdf", { type: "application/pdf" })
+  const jobId = "00000000-0000-4000-8000-000000000001"
+  const jobData = {
+    jobId,
+    organizationId: "org-1",
+    requestedByUserId: "user-admin",
+    requestedByMemberId: "member-admin",
+    storageKey: `previews/org-1/member-admin/${jobId}/source`,
+    fileType: "pdf" as const,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 300_000,
+  }
 
-  it("returns 401 when unauthenticated", async () => {
+  beforeEach(() => { vi.clearAllMocks(); resetMockQueues(); _clearStore() })
+
+  it("returns 401 before reading form data when unauthenticated", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/contracts/extract-preview/route")
-    const fd = new FormData()
-    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+    const req = makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData())
+    const formData = vi.spyOn(req, "formData")
+    const res = await POST(req)
     expect(res.status).toBe(401)
+    expect(formData).not.toHaveBeenCalled()
+  })
+
+  it("requires the same member role as contract creation", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(viewerCtx)
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData()))
+    expect(res.status).toBe(403)
+  })
+
+  it("rejects a read-only API key before storing a file", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...memberCtx, source: "api_key", scopes: ["read"] })
+    vi.mocked(requireWriteScope).mockReturnValueOnce(Response.json({ error: "write required" }, { status: 403 }))
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData()))
+    expect(res.status).toBe(403)
+    expect(storage.upload).not.toHaveBeenCalled()
   })
 
   it("returns 400 when no file field is provided", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData()))
+    expect(res.status).toBe(400)
+  })
+
+  it("rejects unsupported magic bytes without storing them", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
     const fd = new FormData()
+    fd.append("file", new File(["not a contract"], "contract.pdf", { type: "application/pdf" }))
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
     const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe("Missing file field")
+    expect(storage.upload).not.toHaveBeenCalled()
   })
 
-  it("returns 400 when file has unsupported magic bytes", async () => {
+  it("rejects files above 50 MiB before reading their body", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
-    const { POST } = await import("@/app/api/contracts/extract-preview/route")
-    const bogusBuffer = Buffer.from("this is not a pdf or docx")
+    const file = pdfFile()
+    Object.defineProperty(file, "size", { value: 50 * 1024 * 1024 + 1 })
+    const arrayBuffer = vi.spyOn(file, "arrayBuffer")
     const fd = new FormData()
-    fd.append("file", new File([bogusBuffer], "contract.txt", { type: "text/plain" }))
+    fd.append("file", file)
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
     const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+    expect(res.status).toBe(413)
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it("stores the source and returns a queued job without parsing or AI", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const add = vi.fn().mockImplementation(async (_name, data) => ({ id: data.jobId }))
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({ add } as never)
+    const fd = new FormData()
+    fd.append("file", pdfFile())
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+    const body = await res.json()
+    expect(res.status).toBe(202)
+    expect(body).toEqual({ jobId: expect.any(String), status: "pending" })
+    expect(storage.upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^previews\/org-1\/member-admin\/[0-9a-f-]+\/source$/),
+      expect.any(Buffer),
+      "application/pdf",
+    )
+    expect(add).toHaveBeenCalledWith("extract", expect.objectContaining({
+      organizationId: "org-1",
+      requestedByUserId: "user-admin",
+      requestedByMemberId: "member-admin",
+      fileType: "pdf",
+    }), expect.objectContaining({ jobId: body.jobId }))
+  })
+
+  it("deletes the temporary source when enqueueing fails", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({
+      add: vi.fn().mockRejectedValue(new Error("redis private detail")),
+    } as never)
+    const fd = new FormData()
+    fd.append("file", pdfFile())
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "preview_unavailable" })
+    expect(storage.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it("rate limits preview requests to five per organization per minute", async () => {
+    vi.mocked(resolveAuth).mockResolvedValue(adminCtx)
+    const { POST } = await import("@/app/api/contracts/extract-preview/route")
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData()))
+      expect(res.status).toBe(400)
+    }
+    const blocked = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", new FormData()))
+    expect(blocked.status).toBe(429)
+    expect(blocked.headers.get("Retry-After")).toBeTruthy()
+  })
+
+  it("rejects malformed job IDs before touching the queue", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request("http://localhost/api/contracts/extract-preview?jobId=../source"))
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe("unsupported_file_type")
+    expect(getExtractionPreviewQueue).not.toHaveBeenCalled()
   })
 
-  it("returns partial result (ai_unavailable) when OPENAI_API_KEY is not set", async () => {
-    const saved = process.env.OPENAI_API_KEY
-    delete process.env.OPENAI_API_KEY
-
-    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
-    const { POST } = await import("@/app/api/contracts/extract-preview/route")
-    // Use PDF magic bytes so file type detection passes
-    const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
-    const fd = new FormData()
-    fd.append("file", new File([pdfBytes], "test.pdf", { type: "application/pdf" }))
-    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.partial).toBe(true)
-    expect(body.error).toBe("ai_unavailable")
-
-    if (saved !== undefined) process.env.OPENAI_API_KEY = saved
-  })
-
-  it("keeps an explicit renewal clause when a preview provider contradicts it", async () => {
-    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
-    vi.mocked(resolveAiConfig).mockResolvedValueOnce({
-      provider: "openai",
-      apiKey: "test-key",
-      model: "test-model",
-      source: "env",
+  it("requires text_read scope before polling a preview with an API key", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce({
+      ...adminCtx,
+      source: "api_key",
+      scopes: ["read"],
     })
-    vi.mocked(pdfParse).mockResolvedValueOnce({
-      text: "This agreement automatically renews unless either party gives 45 days written notice.",
-    } as never)
-    const create = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ autoRenewal: false, noticePeriodDays: 0 }) } }],
-    })
-    vi.mocked(OpenAI).mockImplementationOnce(function () {
-      return { chat: { completions: { create } } }
-    } as never)
-
-    const { POST } = await import("@/app/api/contracts/extract-preview/route")
-    const fd = new FormData()
-    fd.append("file", new File([Buffer.from([0x25, 0x50, 0x44, 0x46])], "renewal.pdf", { type: "application/pdf" }))
-    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ autoRenewal: true, noticePeriodDays: 45 })
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: "text_read scope required" })
+    expect(getExtractionPreviewQueue).not.toHaveBeenCalled()
   })
 
-  it("does not turn conditional or negated renewal language into an affirmative preview", async () => {
+  it("returns 404 and cleans only the caller-derived key when a job is gone", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
-    vi.mocked(resolveAiConfig).mockResolvedValueOnce({ provider: "openai", apiKey: "test-key", model: "test-model", source: "env" })
-    vi.mocked(pdfParse).mockResolvedValueOnce({ text: "This agreement may automatically renew with written consent." } as never)
-    const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ autoRenewal: true }) } }] })
-    vi.mocked(OpenAI).mockImplementationOnce(function () { return { chat: { completions: { create } } } as never } as never)
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({ getJob: vi.fn().mockResolvedValue(null) } as never)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(res.status).toBe(404)
+    expect(storage.delete).toHaveBeenCalledWith(jobData.storageKey)
+  })
 
-    const { POST } = await import("@/app/api/contracts/extract-preview/route")
-    const fd = new FormData()
-    fd.append("file", new File([Buffer.from([0x25, 0x50, 0x44, 0x46])], "conditional.pdf", { type: "application/pdf" }))
-    const res = await POST(makeFormRequest("http://localhost/api/contracts/extract-preview", fd))
+  it.each([
+    ["another organization", { ...jobData, organizationId: "org-other" }],
+    ["a prior membership", { ...jobData, requestedByMemberId: "member-old" }],
+    ["another user", { ...jobData, requestedByUserId: "user-other" }],
+  ])("does not disclose a job owned by %s", async (_label, foreignData) => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({
+      getJob: vi.fn().mockResolvedValue({ data: foreignData }),
+    } as never)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(res.status).toBe(404)
+    expect(storage.delete).not.toHaveBeenCalled()
+  })
 
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.autoRenewal).toBeUndefined()
+  it("returns only validated completed results", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const result = { contractType: "MSA", confidence: { contractType: 0.9 } }
+    const get = vi.fn().mockResolvedValue(JSON.stringify(result))
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({ getJob: vi.fn().mockResolvedValue({
+      data: jobData,
+      getState: vi.fn().mockResolvedValue("completed"),
+      returnvalue: { ready: true },
+    }), client: Promise.resolve({ get }) } as never)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(await res.json()).toEqual({
+      status: "completed",
+      result: { contractType: "MSA", confidence: { contractType: 0.9 } },
+    })
+  })
+
+  it("does not disclose worker failure details", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({ getJob: vi.fn().mockResolvedValue({
+      data: jobData,
+      getState: vi.fn().mockResolvedValue("failed"),
+      failedReason: "provider body with secret",
+    }) } as never)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(await res.json()).toEqual({ status: "failed", error: "preview_failed" })
+  })
+
+  it("removes expired jobs and their caller-owned source", async () => {
+    vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const del = vi.fn().mockResolvedValue(1)
+    vi.mocked(getExtractionPreviewQueue).mockReturnValueOnce({ getJob: vi.fn().mockResolvedValue({
+      data: { ...jobData, expiresAt: Date.now() - 1 }, remove,
+    }), client: Promise.resolve({ del }) } as never)
+    const { GET } = await import("@/app/api/contracts/extract-preview/route")
+    const res = await GET(new Request(`http://localhost/api/contracts/extract-preview?jobId=${jobId}`))
+    expect(await res.json()).toEqual({ status: "expired" })
+    expect(storage.delete).toHaveBeenCalledWith(jobData.storageKey)
+    expect(del).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalled()
   })
 })
 
@@ -495,7 +653,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -505,7 +663,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -516,7 +674,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -532,7 +690,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -548,7 +706,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(409)
   })
@@ -567,7 +725,7 @@ describe("POST /api/org/invitations/[id] (resend)", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -586,7 +744,7 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
     const { DELETE } = await import("@/app/api/org/invitations/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "DELETE" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -596,7 +754,7 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
     const { DELETE } = await import("@/app/api/org/invitations/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "DELETE" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -607,7 +765,7 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
     const { DELETE } = await import("@/app/api/org/invitations/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "DELETE" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -622,7 +780,7 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
     const { DELETE } = await import("@/app/api/org/invitations/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "DELETE" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -638,7 +796,7 @@ describe("DELETE /api/org/invitations/[id] (revoke)", () => {
     const { DELETE } = await import("@/app/api/org/invitations/[id]/route")
     const res = await DELETE(
       new Request("http://localhost/api/org/invitations/inv-1", { method: "DELETE" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(204)
   })
@@ -658,7 +816,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -680,7 +838,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
 
     expect(res.status).toBe(200)
@@ -695,7 +853,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -714,7 +872,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(409)
   })
@@ -732,7 +890,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(410)
   })
@@ -753,7 +911,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(403)
     const body = await res.json()
@@ -778,7 +936,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -809,7 +967,7 @@ describe("POST /api/org/invitations/[id]/accept", () => {
     const { POST } = await import("@/app/api/org/invitations/[id]/accept/route")
     const res = await POST(
       new Request("http://localhost/api/org/invitations/inv-1/accept", { method: "POST" }),
-      { params: { id: "inv-1" } },
+      { params: Promise.resolve({ id: "inv-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1345,8 +1503,12 @@ describe("GET /api/import", () => {
         createdBy: { id: "user-admin", name: "Admin" },
       },
     ]
-    vi.mocked(prisma.importJob.findMany).mockResolvedValueOnce(mockJobs as any)
-    vi.mocked(prisma.importJob.count).mockResolvedValueOnce(1)
+    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce(mockJobs.map((job) => ({
+      ...job,
+      createdById: job.createdBy.id,
+      createdByName: job.createdBy.name,
+      accessibleTotal: BigInt(1),
+    })) as never)
     const { GET } = await import("@/app/api/import/route")
     const res = await GET(new Request("http://localhost/api/import"))
     expect(res.status).toBe(200)
@@ -1359,8 +1521,7 @@ describe("GET /api/import", () => {
 
   it("respects page and limit query params", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(adminCtx)
-    vi.mocked(prisma.importJob.findMany).mockResolvedValueOnce([])
-    vi.mocked(prisma.importJob.count).mockResolvedValueOnce(0)
+    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/import/route")
     const res = await GET(new Request("http://localhost/api/import?page=2&limit=5"))
     expect(res.status).toBe(200)
@@ -1371,8 +1532,7 @@ describe("GET /api/import", () => {
 
   it("returns empty list when no jobs exist", async () => {
     vi.mocked(resolveAuth).mockResolvedValueOnce(memberCtx)
-    vi.mocked(prisma.importJob.findMany).mockResolvedValueOnce([])
-    vi.mocked(prisma.importJob.count).mockResolvedValueOnce(0)
+    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([])
     const { GET } = await import("@/app/api/import/route")
     const res = await GET(new Request("http://localhost/api/import"))
     expect(res.status).toBe(200)
@@ -1404,7 +1564,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/hubspot/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(401)
   })
@@ -1414,7 +1574,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/bogus/sync/contract-1", { method: "POST" }),
-      { params: { provider: "bogus", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "bogus", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -1426,7 +1586,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(403)
   })
@@ -1437,7 +1597,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1452,7 +1612,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(404)
   })
@@ -1468,7 +1628,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -1491,7 +1651,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -1516,7 +1676,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(502)
     const body = await res.json()
@@ -1550,7 +1710,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -1585,7 +1745,7 @@ describe("POST /api/crm/[provider]/sync/[contractId]", () => {
     const { POST } = await import("@/app/api/crm/[provider]/sync/[contractId]/route")
     const res = await POST(
       new Request("http://localhost/api/crm/HUBSPOT/sync/contract-1", { method: "POST" }),
-      { params: { provider: "HUBSPOT", contractId: "contract-1" } },
+      { params: Promise.resolve({ provider: "HUBSPOT", contractId: "contract-1" }) },
     )
     expect(res.status).toBe(200)
     expect(vi.mocked(prisma.contract.update)).toHaveBeenCalledWith(

@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer"
 import type { ContractAlert, Contract, Organization, PrismaClient } from "@prisma/client"
+import { authorizedAgreementRecipientIds } from "@/lib/auth/agreement-access"
 
-type EmailClient = Pick<PrismaClient, "user" | "member" | "contractAlert">
+type EmailClient = Pick<PrismaClient, "user" | "member" | "contractAlert" | "contractAccessGrant">
 
 async function getDefaultEmailClient(): Promise<EmailClient> {
   const { prisma } = await import("@/lib/db/client")
@@ -87,33 +88,22 @@ function getTransporter() {
 }
 
 async function resolveAlertRecipients(alert: ContractAlertWithContract, prisma: EmailClient): Promise<string[]> {
-  const recipients = new Set<string>()
-
-  // Always include the contract owner if we can find them
-  const owner = await prisma.user.findUnique({
-    where: { id: alert.contract.ownerId },
-    select: { email: true },
-  })
-  if (owner?.email) recipients.add(owner.email)
-
-  // Plus all org admins, so a contract whose owner has left still gets attention
+  const candidateUserIds = new Set<string>([alert.contract.ownerId])
   const admins = await prisma.member.findMany({
     where: { organizationId: alert.contract.organizationId, role: "admin" },
-    select: { user: { select: { email: true } } },
+    select: { userId: true },
   })
-  for (const m of admins) {
-    if (m.user?.email) recipients.add(m.user.email)
-  }
-
-  // Optional global override / fallback for self-hosted deployments
-  if (process.env.ALERT_EMAIL_TO) {
-    for (const addr of process.env.ALERT_EMAIL_TO.split(",")) {
-      const trimmed = addr.trim()
-      if (trimmed) recipients.add(trimmed)
-    }
-  }
-
-  return Array.from(recipients)
+  for (const member of admins) candidateUserIds.add(member.userId)
+  const authorizedIds = await authorizedAgreementRecipientIds(
+    prisma,
+    alert.contract.organizationId,
+    alert.contractId,
+    [...candidateUserIds],
+  )
+  const users = authorizedIds.length > 0
+    ? await prisma.user.findMany({ where: { id: { in: authorizedIds } }, select: { email: true } })
+    : []
+  return users.map((user) => user.email).filter(Boolean)
 }
 
 export async function sendAlertEmail(alert: ContractAlertWithContract, db?: EmailClient): Promise<void> {

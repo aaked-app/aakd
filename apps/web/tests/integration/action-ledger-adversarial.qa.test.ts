@@ -8,6 +8,7 @@ import { projectObligationAction } from "@/lib/actions/project"
 
 const sessionCtx = {
   userId: "reviewer-1",
+  memberId: "member-reviewer-1",
   organizationId: "org-1",
   role: "legal",
   source: "session" as const,
@@ -69,7 +70,14 @@ vi.mock("@/lib/notifications/write-in-app", () => ({
 }))
 
 describe("Phase 1 action-ledger adversarial regressions", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never)
+    vi.mocked(prisma.contract.findFirst).mockResolvedValue({ ownerId: "owner-1" } as never)
+    vi.mocked(prisma.member.findFirst).mockResolvedValue({ userId: "user-1", role: "legal" } as never)
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-reviewer-1" } as never)
+    vi.mocked(prisma.contractAccessGrant.findMany).mockResolvedValue([{ member: { userId: "user-1" } }] as never)
+  })
 
   it("keeps action approvals isolated from contract lifecycle and generic fanout", async () => {
     vi.mocked(prisma.contract.findUnique).mockResolvedValue({
@@ -110,11 +118,31 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision: "approved" }),
       },
-    ), { params: { id: "contract-1", approvalId: "approval-action-1" } })
+    ), { params: Promise.resolve({ id: "contract-1", approvalId: "approval-action-1" }) })
 
     expect(response.status).toBe(200)
     expect.soft(prisma.contract.update).not.toHaveBeenCalled()
     expect.soft(enqueueNotification).not.toHaveBeenCalled()
+  })
+
+  it("rechecks the assigned reviewer's current membership and grant inside the decision transaction", async () => {
+    vi.mocked(prisma.contract.findUnique).mockResolvedValue({
+      id: "contract-1", organizationId: "org-1", status: "PENDING_APPROVAL", title: "Northwind MSA",
+    } as never)
+    vi.mocked(prisma.member.findFirst).mockResolvedValueOnce(null)
+
+    const { PATCH } = await import("@/app/api/contracts/[id]/approvals/[approvalId]/route")
+    const response = await PATCH(new Request("http://localhost/api/contracts/contract-1/approvals/approval-action-1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "approved" }),
+    }), { params: Promise.resolve({ id: "contract-1", approvalId: "approval-action-1" }) })
+
+    expect(response.status).toBe(404)
+    expect(prisma.$queryRaw).toHaveBeenCalled()
+    expect(prisma.approval.findUnique).not.toHaveBeenCalled()
+    expect(prisma.approval.update).not.toHaveBeenCalled()
+    expect(prisma.contractAction.updateMany).not.toHaveBeenCalled()
   })
 
   it("never returns member email addresses from minimized action-list DTOs", () => {
@@ -163,18 +191,63 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
     }), { numRuns: 100 })
   })
 
+  it("exposes reviewable proposal provenance without principal, file, or hash identifiers", () => {
+    const dto = toActionListItem({
+      ...actionRow,
+      sourceFileId: "private-file-id",
+      sourceFileVersion: 7,
+      sourceHash: "a".repeat(64),
+      proposedByPrincipalType: "api_key",
+    })
+
+    expect(dto).toMatchObject({ proposalOrigin: "api_key", proposalSourceVersion: 7 })
+    expect(dto).not.toHaveProperty("sourceFileId")
+    expect(dto).not.toHaveProperty("sourceHash")
+    expect(dto).not.toHaveProperty("proposedByPrincipalId")
+  })
+
+  it("resolves attributable provenance only for a human action-detail response", async () => {
+    const { resolveAuth } = await import("@/lib/auth/middleware")
+    const proposed = {
+      ...actionRow,
+      sourceFileId: "private-file-id",
+      sourceFileVersion: 7,
+      proposedByPrincipalType: "api_key",
+      proposedByPrincipalId: "private-key-id",
+      approvals: [],
+      _count: { evidence: 0, deliveries: 0 },
+    }
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(proposed as never)
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValueOnce({
+      organizationId: "org-1", name: "Renewal agent", prefix: "cf_live_abcd",
+    } as never)
+    const { GET } = await import("@/app/api/actions/[id]/route")
+    const human = await GET(new Request("http://localhost/api/actions/action-1"), { params: Promise.resolve({ id: "action-1" }) })
+    const humanBody = await human.json()
+    expect(humanBody.proposalAttribution).toBe("Renewal agent (cf_live_abcd)")
+    expect(JSON.stringify(humanBody)).not.toContain("private-key-id")
+
+    vi.mocked(resolveAuth).mockResolvedValueOnce({ ...sessionCtx, source: "api_key", apiKeyId: "private-key-id", scopes: ["read", "text_read"] })
+    vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce(proposed as never)
+    const apiKey = await GET(new Request("http://localhost/api/actions/action-1"), { params: Promise.resolve({ id: "action-1" }) })
+    const apiKeyBody = await apiKey.json()
+    expect(apiKeyBody.proposalAttribution).toBeUndefined()
+    expect(JSON.stringify(apiKeyBody)).not.toContain("private-key-id")
+    expect(prisma.apiKey.findUnique).toHaveBeenCalledTimes(1)
+  })
+
   it("rejects empty and huge command bodies without reading or mutating an action", async () => {
     const { PATCH } = await import("@/app/api/actions/[id]/route")
     const empty = await PATCH(new Request("http://localhost/api/actions/action-1", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
     const huge = await PATCH(new Request("http://localhost/api/actions/action-1", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "block", expectedVersion: 1, reason: "x".repeat(10 * 1024 * 1024) }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(empty.status).toBe(422)
     expect(huge.status).toBe(422)
@@ -188,7 +261,7 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "start", expectedVersion: Number.MAX_SAFE_INTEGER }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     expect(response.status).toBe(422)
     expect(prisma.contractAction.findFirst).not.toHaveBeenCalled()
@@ -207,7 +280,7 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
 
     const { POST } = await import("@/app/api/actions/[id]/deliver/route")
     const response = await POST(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), {
-      params: { id: "action-1" },
+      params: Promise.resolve({ id: "action-1" }),
     })
 
     expect(response.status).toBe(200)
@@ -228,7 +301,7 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: "complete", expectedVersion: 1 }),
-    }), { params: { id: "action-1" } })
+    }), { params: Promise.resolve({ id: "action-1" }) })
 
     vi.mocked(prisma.contractAction.findFirst).mockResolvedValueOnce({
       ...actionRow,
@@ -236,7 +309,7 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
     } as never)
     const { POST } = await import("@/app/api/actions/[id]/deliver/route")
     const delivery = await POST(new Request("http://localhost/api/actions/action-1/deliver", { method: "POST" }), {
-      params: { id: "action-1" },
+      params: Promise.resolve({ id: "action-1" }),
     })
 
     expect(completion.status).toBe(409)
@@ -283,9 +356,9 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
     }))
   })
 
-  it("rolls back MCP obligation creation when its required action projection fails", async () => {
+  it("does not expose the removed MCP obligation mutation or persist side effects", async () => {
     let obligationPersisted = false
-    vi.mocked(prisma.contract.findUnique).mockResolvedValueOnce({
+    vi.mocked(prisma.contract.findFirst).mockResolvedValueOnce({
       id: "contract-1",
       organizationId: "org-1",
       status: "ACTIVE",
@@ -322,7 +395,7 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
     })
 
     const { POST } = await import("@/app/api/mcp/route")
-    const call = POST(new Request("http://localhost/api/mcp", {
+    const response = await POST(new Request("http://localhost/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -340,8 +413,13 @@ describe("Phase 1 action-ledger adversarial regressions", () => {
       }),
     }))
 
-    await expect(call).rejects.toThrow("projection failed")
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toContain("Unknown tool")
     expect(obligationPersisted).toBe(false)
+    expect(prisma.contractObligation.create).not.toHaveBeenCalled()
+    expect(prisma.contractAction.upsert).not.toHaveBeenCalled()
   })
 
   it("rejects invalid REST and MCP action filters before querying Prisma", async () => {

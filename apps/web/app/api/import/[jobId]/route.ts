@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { hasImportJobAccess } from "@/lib/auth/import-job-access"
 
 const FULL_ROW_THRESHOLD = 200
 
@@ -31,6 +32,9 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ jobI
     if (!job || job.organizationId !== ctx.organizationId) {
       return Response.json({ error: "Not Found" }, { status: 404 })
     }
+    if (!(await hasImportJobAccess(prisma, ctx, job))) {
+      return Response.json({ error: "Not Found" }, { status: 404 })
+    }
 
     const where =
       job.totalRows > FULL_ROW_THRESHOLD
@@ -50,6 +54,11 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ jobI
       },
     })
 
-    return Response.json({ job, rows })
+    return Response.json({ job: {
+      id: job.id, source: job.source, status: job.status,
+      totalRows: job.totalRows, succeededRows: job.succeededRows, failedRows: job.failedRows,
+      createdAt: job.createdAt, startedAt: job.startedAt, completedAt: job.completedAt,
+      createdBy: job.createdBy, hasErrorReport: Boolean(job.errorReportKey),
+    }, rows })
   })
 }

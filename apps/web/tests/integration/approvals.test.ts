@@ -7,6 +7,7 @@ import { requestContext } from "@/lib/context"
 const mockCtx = {
   userId: "user-1",
   organizationId: "org-1",
+  memberId: "member-requester",
   role: "admin",
   source: "session" as const,
   requestId: "test-request-id",
@@ -20,6 +21,13 @@ vi.mock("@/lib/auth/middleware", () => ({
 vi.mock("@/lib/db/activity", () => ({
   writeActivity: vi.fn().mockResolvedValue(undefined),
 }))
+
+beforeEach(() => {
+  vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never)
+  vi.mocked(prisma.contract.findFirst).mockResolvedValue({ ownerId: "user-1" } as never)
+  vi.mocked(prisma.member.findFirst).mockResolvedValue({ role: "admin" } as never)
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 // Silence email sending + queue enqueues in tests
 vi.mock("@/lib/email/approval", () => ({
@@ -84,7 +92,7 @@ describe("GET /api/contracts/[id]/approvals", () => {
     const { GET } = await import("@/app/api/contracts/[id]/approvals/route")
 
     const req = new Request("http://localhost/api/contracts/contract-1/approvals")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -99,7 +107,7 @@ describe("GET /api/contracts/[id]/approvals", () => {
 
     const req = new Request("http://localhost/api/contracts/contract-1/approvals")
     const res = await requestContext.run(mockCtx, () =>
-      GET(req, { params: { id: "contract-1" } }),
+      GET(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(404)
@@ -113,7 +121,7 @@ describe("GET /api/contracts/[id]/approvals", () => {
 
     const req = new Request("http://localhost/api/contracts/contract-1/approvals")
     const res = await requestContext.run(mockCtx, () =>
-      GET(req, { params: { id: "contract-1" } }),
+      GET(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -143,7 +151,7 @@ describe("POST /api/contracts/[id]/approvals", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedToId: "user-2" }),
     })
-    const res = await POST(req, { params: { id: "contract-1" } })
+    const res = await POST(req, { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -163,7 +171,7 @@ describe("POST /api/contracts/[id]/approvals", () => {
       body: JSON.stringify({ assignedToId: "user-2" }),
     })
     const res = await requestContext.run({ ...mockCtx, role: "member" }, () =>
-      POST(req, { params: { id: "contract-1" } }),
+      POST(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(403)
@@ -183,7 +191,7 @@ describe("POST /api/contracts/[id]/approvals", () => {
       body: JSON.stringify({ assignedToId: "user-2" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
+      POST(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(404)
@@ -212,13 +220,20 @@ describe("POST /api/contracts/[id]/approvals", () => {
       body: JSON.stringify({ assignedToId: "user-2", message: "Please review this NDA." }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
+      POST(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.approval.id).toBe("approval-1")
     expect(body.approval.status).toBe("pending")
+    expect(prisma.member.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: "user-2",
+        organizationId: "org-1",
+        accessGrants: { some: { organizationId: "org-1", contractId: "contract-1" } },
+      },
+    }))
 
     // Should have advanced contract status
     expect(prisma.contract.update).toHaveBeenCalledWith(
@@ -251,7 +266,7 @@ describe("POST /api/contracts/[id]/approvals", () => {
       body: JSON.stringify({ assignedToId: "user-2" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
+      POST(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(201)
@@ -300,7 +315,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ decision }),
         },
-      ), { params: { id: "contract-1", approvalId: "approval-1" } }))
+      ), { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }))
 
       expect(res.status).toBe(200)
       expect(prisma.contractAction.updateMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -332,7 +347,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
         body: JSON.stringify({ decision: "approved" }),
       },
     )
-    const res = await PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -355,7 +370,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(403)
@@ -379,7 +394,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(404)
@@ -410,7 +425,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -465,7 +480,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -504,7 +519,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -539,7 +554,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -575,7 +590,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -617,7 +632,7 @@ describe("PATCH /api/contracts/[id]/approvals/[approvalId]", () => {
       },
     )
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1", approvalId: "approval-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1", approvalId: "approval-1" }) }),
     )
 
     expect(res.status).toBe(200)

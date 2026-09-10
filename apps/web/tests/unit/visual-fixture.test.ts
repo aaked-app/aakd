@@ -40,6 +40,10 @@ describe("visual fixture records", () => {
       "viewer",
     ])
     expect(fixture.contracts).toHaveLength(6)
+    expect(fixture.accessGrants).toHaveLength(7)
+    expect(fixture.accessGrants.filter(grant => grant.memberId === VISUAL_FIXTURE_IDS.ownerMember).map(grant => grant.contractId)).toEqual(fixture.contracts.map(contract => contract.id))
+    expect(fixture.accessGrants.filter(grant => grant.memberId === VISUAL_FIXTURE_IDS.legalMember).map(grant => grant.contractId)).toEqual([VISUAL_FIXTURE_IDS.contracts[0]])
+    expect(fixture.accessGrants.some(grant => grant.memberId === VISUAL_FIXTURE_IDS.viewerMember)).toBe(false)
     expect(fixture.obligations).toHaveLength(5)
     expect(fixture.actions).toHaveLength(2)
     expect(fixture.actions[0]).toEqual(expect.objectContaining({

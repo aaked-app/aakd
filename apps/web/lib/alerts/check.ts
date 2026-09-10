@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client"
 import { writeActivity } from "@/lib/db/activity"
 import { ContractAlertWithContract } from "@/lib/email"
 import { emailQueue } from "@/lib/jobs/queues"
-import { sendSlackAlert, sendTeamsAlert } from "@/lib/notifications/webhooks"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 import { enqueueNotification } from "@/lib/notifications/fanout"
 import { writeInAppToOrgMembers } from "@/lib/notifications/write-in-app"
 import { logger } from "@/lib/logger"
@@ -31,6 +31,7 @@ async function getDefaultAlertClient(): Promise<PrismaClient> {
 }
 
 export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: number; errors: number }> {
+  if (isAgreementAccessEmergencyDenyAll()) return { fired: 0, errors: 0 }
   const prisma = db ?? await getDefaultAlertClient()
   const due = await prisma.contractAlert.findMany({
     where: {
@@ -53,6 +54,7 @@ export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: nu
   let errors = 0
 
   for (const alert of due as ContractAlertWithContract[]) {
+    if (isAgreementAccessEmergencyDenyAll()) break
     // Atomic claim — concurrent workers race on this updateMany. Whoever
     // wins flips firedAt; the loser sees count=0 and skips. Without this
     // guard two workers could both read firedAt=null and double-send the
@@ -70,30 +72,8 @@ export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: nu
         errors++
       })
 
-      // Fire Slack + Teams in parallel — failures are logged inside the helpers
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ??
-        process.env.BETTER_AUTH_URL ??
-        "http://localhost:3000"
-      const daysUntilExpiry = alert.contract.endDate
-        ? Math.max(0, Math.ceil((new Date(alert.contract.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-        : 0
-      await Promise.allSettled([
-        sendSlackAlert({
-          contractTitle: alert.contract.title,
-          counterpartyName: alert.contract.counterpartyName ?? null,
-          daysUntilExpiry,
-          contractId: alert.contract.id,
-          appUrl,
-        }),
-        sendTeamsAlert({
-          contractTitle: alert.contract.title,
-          counterpartyName: alert.contract.counterpartyName ?? null,
-          daysUntilExpiry,
-          contractId: alert.contract.id,
-          appUrl,
-        }),
-      ])
+      // External destinations must pass the organization-scoped fanout policy.
+      // Deployment-global webhook URLs cannot authorize tenant contract egress.
 
       // Auto-expire contract when EXPIRY_PAST fires
       if (alert.alertType === "EXPIRY_PAST") {
@@ -143,6 +123,7 @@ export async function checkAndFireAlerts(db?: PrismaClient): Promise<{ fired: nu
   // firedAt is already set atomically per-alert above, so we only fan out
   // lifecycle notifications here. The atomic guard ensures double-fire safety.
   for (const alert of due as ContractAlertWithContract[]) {
+    if (isAgreementAccessEmergencyDenyAll()) break
     if (!firedIds.includes(alert.id)) continue
 
     if (FANOUT_EXPIRY_TYPES.has(alert.alertType)) {

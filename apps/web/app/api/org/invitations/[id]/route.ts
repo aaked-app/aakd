@@ -11,6 +11,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
   if (!hasRole(ctx.role, "admin")) return new Response("Forbidden", { status: 403 })
 
   const invitation = await prisma.invitation.findUnique({
@@ -61,6 +62,7 @@ export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ i
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
   if (!hasRole(ctx.role, "admin")) return new Response("Forbidden", { status: 403 })
 
   const invitation = await prisma.invitation.findUnique({

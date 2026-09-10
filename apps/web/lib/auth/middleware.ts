@@ -11,6 +11,9 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
   const authorization = req.headers.get("Authorization")
   const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
   const hasApiKeyAuth = bearer?.startsWith("cf_live_") === true
+  // An explicit credential is authoritative even when malformed or from an
+  // unsupported scheme. It must never borrow a browser cookie's authority.
+  if (authorization !== null && !hasApiKeyAuth) return null
 
   // Path 1: Better Auth session (browser)
   // A bearer API key is authoritative. Never fall back to a browser session
@@ -42,6 +45,7 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
           return {
             userId: session.user.id,
             organizationId: member.organizationId,
+            memberId: member.id,
             role: member.role,
             source: "session",
             requestId,
@@ -61,14 +65,14 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
 
     if (
       apiKey &&
+      // `read` is foundational, explicit authority for every software key.
+      // Never infer it from legacy write, text access, or proposal scopes.
+      apiKey.scopes?.includes("read") &&
       !apiKey.revokedAt &&
       (!apiKey.expiresAt || apiKey.expiresAt > new Date()) &&
       (await bcrypt.compare(bearer, apiKey.keyHash))
     ) {
-      prisma.apiKey.update({ where: { lookupHash }, data: { lastUsedAt: new Date() } }).catch(() => {})
-
-      // Inherit the role from the creator's org membership; fall back to "member"
-      // so an API key never silently grants more privilege than its creator has.
+      // A key cannot outlive its creator's access to this organization.
       const creatorMember = await prisma.member.findUnique({
         where: {
           userId_organizationId: {
@@ -76,14 +80,19 @@ export async function resolveAuth(req: Request): Promise<RequestContext | null> 
             organizationId: apiKey.organizationId,
           },
         },
-        select: { role: true },
+        select: { id: true, role: true },
       })
+
+      if (!creatorMember) return null
+      prisma.apiKey.update({ where: { lookupHash }, data: { lastUsedAt: new Date() } }).catch(() => {})
 
       return {
         userId: apiKey.createdById,
         organizationId: apiKey.organizationId,
-        role: creatorMember?.role ?? "member",
+        memberId: creatorMember.id,
+        role: creatorMember.role,
         scopes: apiKey.scopes,
+        apiKeyId: apiKey.id,
         source: "api_key",
         requestId,
       }
@@ -98,15 +107,16 @@ export function requireAuth(ctx: RequestContext | null): ctx is RequestContext {
 }
 
 /**
- * For API key contexts, enforce that the key carries the "write" scope.
- * Session-based contexts always pass (scopes only apply to keys).
- * Returns a 403 Response if the key is read-only, otherwise null.
+ * Legacy unrestricted bearer mutations are paused until they have governed
+ * preview, version, replay and approval contracts. Keep the compatibility
+ * helper name, but never reinterpret an existing write key as action_propose.
+ * Session routes retain their own role/resource checks. Governed proposals
+ * use a separate, narrower capability check.
  */
 export function requireWriteScope(ctx: RequestContext): Response | null {
   if (ctx.source !== "api_key") return null
-  if (ctx.scopes?.includes("write")) return null
   return Response.json(
-    { error: "API key is read-only — write scope required" },
+    { error: "legacy_api_key_mutations_disabled" },
     { status: 403 },
   )
 }

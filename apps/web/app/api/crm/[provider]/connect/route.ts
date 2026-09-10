@@ -12,6 +12,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ prov
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   const provider = normalizeProvider(params.provider)
   if (!provider) return Response.json({ error: "invalid_provider" }, { status: 400 })
@@ -58,6 +59,7 @@ export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ p
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   const provider = normalizeProvider(params.provider)
   if (!provider) return Response.json({ error: "invalid_provider" }, { status: 400 })

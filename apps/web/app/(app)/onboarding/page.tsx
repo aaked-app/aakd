@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { resolveInteractiveResponse } from "@/lib/ai/resolve-interactive-response"
 
 // ─── Logos ────────────────────────────────────────────────────────────────────
 
@@ -176,11 +177,11 @@ export default function OnboardingPage() {
         setAvailableModels(models)
       }
 
-      const res = await fetch("/api/org/ai-config/test", {
+      const res = await resolveInteractiveResponse(await fetch("/api/org/ai-config/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
+      }))
       const data = (await res.json()) as { valid: boolean; error?: string }
       if (data.valid) {
         setStatus("tested-ok")

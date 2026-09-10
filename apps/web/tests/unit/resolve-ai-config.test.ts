@@ -23,6 +23,7 @@ vi.mock("@/lib/notifications/crypto", () => ({
 
 import { resolveAiConfig } from "@/lib/ai/resolve"
 import { prisma } from "@/lib/db/client"
+import { decrypt } from "@/lib/notifications/crypto"
 
 const mockFindUnique = prisma.orgAiConfig.findUnique as ReturnType<typeof vi.fn>
 
@@ -52,6 +53,16 @@ describe("resolveAiConfig", () => {
   })
 
   describe("org-level BYOK takes priority", () => {
+    it("fails closed on an unknown persisted provider", async () => {
+      process.env.OPENAI_API_KEY = "operator-key"
+      mockFindUnique.mockResolvedValue({ provider: "custom-provider", encryptedKey: "enc:org-key", model: "test" })
+      expect(await resolveAiConfig("org-123")).toEqual({ provider: null, apiKey: null, model: null, source: null })
+    })
+    it("fails closed on whitespace-only persisted credentials", async () => {
+      process.env.OPENAI_API_KEY = "operator-key"
+      mockFindUnique.mockResolvedValue({ provider: "openai", encryptedKey: "enc:   ", model: "test" })
+      expect((await resolveAiConfig("org-123")).provider).toBeNull()
+    })
     it("returns org anthropic config when OrgAiConfig exists", async () => {
       mockFindUnique.mockResolvedValue({
         provider: "anthropic",
@@ -167,14 +178,31 @@ describe("resolveAiConfig", () => {
   })
 
   describe("error handling", () => {
-    it("falls back to env vars when OrgAiConfig DB lookup throws", async () => {
+    it("does not switch provider when the org configuration cannot be loaded", async () => {
       mockFindUnique.mockRejectedValue(new Error("DB connection failed"))
       process.env.ANTHROPIC_API_KEY = "env-fallback-key"
 
       const result = await resolveAiConfig("org-123")
 
-      expect(result.provider).toBe("anthropic")
-      expect(result.source).toBe("env")
+      expect(result.provider).toBeNull()
+      expect(result.apiKey).toBeNull()
+      expect(result.source).toBeNull()
+    })
+    it("does not switch provider when the saved key cannot be decrypted", async () => {
+      mockFindUnique.mockResolvedValue({ provider: "ollama", encryptedKey: "broken", model: "local-model" })
+      vi.mocked(decrypt).mockImplementationOnce(() => { throw new Error("invalid key") })
+      process.env.OPENAI_API_KEY = "env-fallback-key"
+      expect(await resolveAiConfig("org-123")).toEqual({ provider: null, apiKey: null, model: null, source: null })
+    })
+    it("does not switch provider when the saved key is empty", async () => {
+      mockFindUnique.mockResolvedValue({ provider: "ollama", encryptedKey: "enc:", model: "local-model" })
+      process.env.OPENAI_API_KEY = "env-fallback-key"
+      expect((await resolveAiConfig("org-123")).provider).toBeNull()
+    })
+    it("does not auto-detect a different provider when the operator explicitly selected one", async () => {
+      process.env.AI_PROVIDER = "ollama"
+      process.env.OPENAI_API_KEY = "env-fallback-key"
+      expect((await resolveAiConfig("org-123")).provider).toBeNull()
     })
   })
 })

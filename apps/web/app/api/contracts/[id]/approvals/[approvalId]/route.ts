@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess, lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
 import { hasRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
@@ -38,6 +39,7 @@ export async function PATCH(
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Org-scope check on the contract
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
@@ -63,6 +65,11 @@ export async function PATCH(
     // so that concurrent requests cannot both pass the "pending" guard.
     let preCheckError: Response | null = null
     const { updated, advancedTo, activatedNext, approval } = await prisma.$transaction(async (tx) => {
+      const permission = await lockCurrentAgreementPermission(tx, ctx, params.id)
+      if (!permission) {
+        preCheckError = Response.json({ error: "Not Found" }, { status: 404 })
+        return { updated: null, advancedTo: null, activatedNext: null, approval: null }
+      }
       // Fetch the approval inside the transaction to prevent the race condition
       // where two concurrent requests both read "pending" before either updates it.
       const approval = await tx.approval.findUnique({
@@ -296,6 +303,8 @@ export async function PATCH(
       fireAndLog(
         emailQueue.add("send", {
           kind: "approval_rejected",
+          contractId: params.id,
+          recipientUserId: updated.requestedBy.id,
           to: updated.requestedBy.email,
           requesterName: updated.requestedBy.name,
           reviewerName: updated.assignedTo.name,
@@ -326,6 +335,8 @@ export async function PATCH(
         fireAndLog(
           emailQueue.add("send", {
             kind: "approval_request",
+            contractId: params.id,
+            recipientUserId: nextAssignee.id,
             to: nextAssignee.email,
             assigneeName: nextAssignee.name,
             requesterName: nextRequesterName,
@@ -375,6 +386,7 @@ export async function DELETE(
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     // Org-scope check on the contract
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },

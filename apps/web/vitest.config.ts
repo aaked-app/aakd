@@ -12,6 +12,11 @@ export default defineConfig({
     testTimeout: 10_000,
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, ".") },
+    alias: {
+      "@": path.resolve(__dirname, "."),
+      // Worker handlers live at the repository root, outside this package.
+      // Resolve their runtime dependency from the web workspace in tests too.
+      bullmq: path.resolve(__dirname, "node_modules/bullmq"),
+    },
   },
 })

@@ -4,6 +4,7 @@ import { Pool } from "pg"
 import { getRequestContext } from "@/lib/context"
 import { logger } from "@/lib/logger"
 import { getDatabasePoolSize } from "@/lib/security/production-config"
+import { scopeAgreementOperation } from "@/lib/auth/agreement-scope"
 
 // Only models that have a direct organizationId column should be in this set.
 // ContractFile, ContractVersion, and Activity are org-scoped *indirectly*
@@ -76,6 +77,7 @@ function createPrismaClient() {
             return query(args)
           }
           if (!ORG_SCOPED_MODELS.has(model ?? "")) {
+            args = scopeAgreementOperation(model, operation, args as ScopedQueryArgs, ctx) as typeof args
             return query(args)
           }
 
@@ -104,6 +106,8 @@ function createPrismaClient() {
             scopedArgs.where = { ...scopedArgs.where, organizationId: ctx.organizationId }
             args = scopedArgs as typeof args
           }
+
+          args = scopeAgreementOperation(model, operation, args as ScopedQueryArgs, ctx) as typeof args
 
           return query(args)
         },

@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { writeActivity } from "@/lib/db/activity"
@@ -17,8 +18,10 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) return Response.json({ error: "text_read scope required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -73,6 +76,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },

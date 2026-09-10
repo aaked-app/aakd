@@ -1,4 +1,5 @@
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 
@@ -23,6 +24,7 @@ export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ i
   }
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true, docusealSubmissionId: true },

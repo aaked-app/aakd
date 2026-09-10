@@ -191,7 +191,7 @@ export function ImportHistory({ refreshKey }: ImportHistoryProps) {
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {job.failedRows > 0 && job.errorReportKey && (
+                          {job.failedRows > 0 && job.hasErrorReport && (
                             <a
                               href={`/api/import/${job.id}/error-report`}
                               target="_blank"
@@ -271,7 +271,7 @@ export function ImportHistory({ refreshKey }: ImportHistoryProps) {
                 {statusBadge(job.status)}
               </div>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-muted-foreground">{t("succeeded")}</dt><dd className="mt-1 font-medium">{job.succeededRows}</dd></div><div><dt className="text-xs text-muted-foreground">{t("failed")}</dt><dd className="mt-1 font-medium text-destructive">{job.failedRows}</dd></div></dl>
-              {job.failedRows > 0 && job.errorReportKey && <a href={`/api/import/${job.id}/error-report`} target="_blank" rel="noreferrer" className="mt-4 block text-center text-sm font-medium text-primary hover:underline">{t("downloadErrorReport")}</a>}
+              {job.failedRows > 0 && job.hasErrorReport && <a href={`/api/import/${job.id}/error-report`} target="_blank" rel="noreferrer" className="mt-4 block text-center text-sm font-medium text-primary hover:underline">{t("downloadErrorReport")}</a>}
               {isFinished && job.failedRows > 0 && <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => retry(job.id)} disabled={retrying === job.id}>{t("retryFailures")}</Button>}
             </article>
           )

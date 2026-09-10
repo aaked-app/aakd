@@ -17,6 +17,7 @@ import type { Editor } from "@tiptap/react"
 import { TrackChangeSidebar } from "@/components/editor/track-change-sidebar"
 import { SnapshotSaveDialog } from "@/components/editor/snapshot-save-dialog"
 import { SnapshotHistoryPanel } from "@/components/editor/snapshot-history-panel"
+import { resolveInteractiveResponse } from "@/lib/ai/resolve-interactive-response"
 
 const READ_ONLY_STATUSES = new Set<ContractStatus>([
   "AWAITING_SIGNATURE",
@@ -968,11 +969,11 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     if (!selectedText) return
     setExplaining(true)
     try {
-      const res = await fetch(`/api/contracts/${contractId}/clause-explain`, {
+      const res = await resolveInteractiveResponse(await fetch(`/api/contracts/${contractId}/clause-explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: selectedText }),
-      })
+      }))
       if (!res.ok) {
         toast.error("Explain failed")
         return
@@ -997,11 +998,11 @@ export function EditorTab({ contractId, contractStatus, role }: EditorTabProps) 
     setAskLoading(true)
     setAskAnswer(null)
     try {
-      const res = await fetch(`/api/contracts/${contractId}/ask`, {
+      const res = await resolveInteractiveResponse(await fetch(`/api/contracts/${contractId}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q }),
-      })
+      }))
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }
         if (body.error === "No extracted text available for this contract") {

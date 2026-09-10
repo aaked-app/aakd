@@ -3,12 +3,17 @@ export type AuthErrorMessageKey =
   | "emailAlreadyRegistered"
   | "emailInvalid"
   | "passwordTooShort"
+  | "rateLimited"
   | "authUnavailable"
 
-type AuthErrorLike = { code?: string; message?: string } | null | undefined
+type AuthErrorLike = { code?: string; message?: string; status?: number } | null | undefined
 
 /** Maps Better Auth failures to safe, actionable user-facing messages. */
 export function authErrorMessageKey(error: AuthErrorLike): AuthErrorMessageKey {
+  if (error?.status === 429) {
+    return "rateLimited"
+  }
+
   const code = error?.code?.toUpperCase() ?? ""
   const message = error?.message?.toLowerCase() ?? ""
 

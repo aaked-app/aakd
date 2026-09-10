@@ -12,6 +12,9 @@ const viewports = [
 const locales = [
   { name: "en", locale: "en-US" },
   { name: "ar", locale: "ar" },
+  { name: "fr", locale: "fr-FR" },
+  { name: "de", locale: "de-DE" },
+  { name: "es", locale: "es-ES" },
 ] as const
 
 export default defineConfig({

@@ -9,6 +9,11 @@ type ActionListRow = {
   noticeDate: Date | null
   assigneeId: string | null
   sourcePage: number | null
+  sourceFileId?: string | null
+  sourceFileVersion?: number | null
+  sourceHash?: string | null
+  proposedByPrincipalType?: string | null
+  proposedByPrincipalId?: string | null
   confidence: number | null
   reviewStatus: string
   status: string
@@ -95,6 +100,14 @@ export const ACTION_LIST_SELECT = {
   noticeDate: true,
   assigneeId: true,
   sourcePage: true,
+  sourceFileId: true,
+  sourceFileVersion: true,
+  sourceHash: true,
+  proposedByPrincipalType: true,
+  proposedByPrincipalId: true,
+  // Read internally to compute citation presence; toActionListItem never
+  // serializes the excerpt itself into metadata-only responses.
+  sourceText: true,
   confidence: true,
   reviewStatus: true,
   status: true,
@@ -120,8 +133,8 @@ export function actionDetailSelect(includeSourceText: boolean) {
       select: {
         id: true,
         kind: true,
-        note: true,
-        sourceUrl: true,
+        note: includeSourceText,
+        sourceUrl: includeSourceText,
         recordedById: true,
         reviewStatus: true,
         createdAt: true,
@@ -131,7 +144,7 @@ export function actionDetailSelect(includeSourceText: boolean) {
           select: {
             id: true,
             status: true,
-            comment: true,
+            comment: includeSourceText,
             reviewedById: true,
             createdAt: true,
             reviewedBy: { select: { id: true, name: true } },
@@ -155,8 +168,8 @@ export function actionDetailSelect(includeSourceText: boolean) {
       select: {
         id: true,
         action: true,
-        detail: true,
-        actorLabel: true,
+        detail: includeSourceText,
+        actorLabel: includeSourceText,
         createdAt: true,
         user: { select: { id: true, name: true } },
       },
@@ -169,7 +182,7 @@ export function actionDetailSelect(includeSourceText: boolean) {
         required: true,
         actionVersion: true,
         step: true,
-        comment: true,
+        comment: includeSourceText,
         decidedAt: true,
         createdAt: true,
         requestedBy: { select: { id: true, name: true } },
@@ -193,6 +206,13 @@ export function toActionListItem(action: ActionListRow) {
     sourcePage: action.sourcePage,
     confidence: action.confidence,
     hasCitation: Boolean(action.sourcePage != null || action.sourceText),
+    hasSourceText: Boolean(action.sourceText?.trim()),
+    proposalOrigin: action.proposedByPrincipalType === "api_key"
+      ? "api_key"
+      : action.proposedByPrincipalType === "session_member"
+        ? "workspace_member"
+        : null,
+    proposalSourceVersion: action.proposedByPrincipalType ? action.sourceFileVersion : null,
     reviewStatus: action.reviewStatus,
     status: action.status,
     evidenceRequired: action.evidenceRequired,
@@ -209,22 +229,22 @@ export function toActionListItem(action: ActionListRow) {
   }
 }
 
-export function toActionDetail(action: ActionDetailRow, includeSourceText: boolean) {
+export function toActionDetail(action: ActionDetailRow, includeSourceText: boolean, proposalAttribution?: string | null) {
   return {
     ...toActionListItem(action),
+    ...(proposalAttribution ? { proposalAttribution } : {}),
     ...(includeSourceText && action.sourceText ? { sourceText: action.sourceText } : {}),
     evidence: action.evidence.map((item) => ({
       id: item.id,
       kind: item.kind,
-      note: item.note,
-      sourceUrl: item.sourceUrl,
+      ...(includeSourceText ? { note: item.note, sourceUrl: item.sourceUrl } : {}),
       recordedById: item.recordedById,
       reviewStatus: item.reviewStatus,
       recordedBy: item.recordedBy,
       reviews: item.reviews?.map((review) => ({
         id: review.id,
         status: review.status,
-        comment: review.comment,
+        ...(includeSourceText ? { comment: review.comment } : {}),
         reviewedById: review.reviewedById,
         reviewedBy: review.reviewedBy,
         createdAt: review.createdAt,
@@ -242,8 +262,7 @@ export function toActionDetail(action: ActionDetailRow, includeSourceText: boole
     activities: (action.activities ?? []).map((item) => ({
       id: item.id,
       action: item.action,
-      detail: item.detail,
-      actorLabel: item.actorLabel,
+      ...(includeSourceText ? { detail: item.detail, actorLabel: item.actorLabel } : {}),
       user: item.user,
       createdAt: item.createdAt,
     })),
@@ -253,7 +272,7 @@ export function toActionDetail(action: ActionDetailRow, includeSourceText: boole
       required: item.required,
       actionVersion: item.actionVersion,
       step: item.step,
-      comment: item.comment,
+      ...(includeSourceText ? { comment: item.comment } : {}),
       decidedAt: item.decidedAt,
       createdAt: item.createdAt,
       requestedBy: item.requestedBy,

@@ -41,6 +41,8 @@ describe("Import presentation contracts", () => {
     expect(history).toContain("rtl:rotate-180")
     expect(history).toContain("md:hidden")
     expect(history).toContain("downloadErrorReport")
+    expect(history).toContain("job.hasErrorReport")
+    expect(history).not.toContain("job.errorReportKey")
   })
 
   it("localizes every import source and progress surface and labels Drive file selection", () => {

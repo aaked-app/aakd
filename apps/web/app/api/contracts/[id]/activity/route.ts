@@ -1,6 +1,8 @@
 import { resolveAuth } from "@/lib/auth/middleware"
+import { hasAgreementAccess } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { activityMetadata, canReadContractText } from "@/lib/auth/read-projections"
 
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
@@ -8,6 +10,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const url = new URL(req.url)
     const page = (() => {
       const n = parseInt(url.searchParams.get("page") ?? "1", 10)
@@ -37,6 +40,6 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       prisma.activity.count({ where: { contractId: params.id } }),
     ])
 
-    return Response.json({ activities, total, page, limit })
+    return Response.json({ activities: canReadContractText(ctx) ? activities : activities.map(activityMetadata), total, page, limit })
   })
 }

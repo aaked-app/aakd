@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { submitSignup } from "./signup-budget"
 
 async function expectResponsiveOnboarding(page: Page, uploadName: string) {
   const viewport = page.viewportSize()
@@ -28,7 +29,7 @@ test("onboarding stays usable at mobile, desktop, and Arabic RTL widths", async 
   await page.getByLabel("Name").fill("E2E Onboarding Owner")
   await page.getByLabel("Email").fill(`onboarding-owner-${suffix}@example.com`)
   await page.getByLabel("Password").fill("E2E-Test-Password-2026!")
-  await page.getByRole("button", { name: "Create account" }).click()
+  await submitSignup(page)
   await expect(page).toHaveURL(/\/create-org/, { timeout: 15_000 })
 
   await page.getByLabel("Organization name").fill(`E2E Onboarding ${suffix}`)

@@ -1,7 +1,10 @@
+import crypto from "node:crypto"
 import { resolveAuth, requireWriteScope } from "@/lib/auth/middleware"
+import { hasRole, requireRole } from "@/lib/auth/roles"
+import { hasAgreementAccess, lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
-import { writeActivity } from "@/lib/db/activity"
+import { withTransactionRetry } from "@/lib/db/transaction-retry"
 import { storage } from "@/lib/storage"
 import { contractExtractQueue, documentConvertQueue } from "@/lib/jobs/queues"
 import { enqueueNotification } from "@/lib/notifications/fanout"
@@ -11,14 +14,58 @@ import { logger } from "@/lib/logger"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { fireAndLog } from "@/lib/utils/fire-and-log"
 import { Prisma } from "@prisma/client"
+import { detectContractFileMime, MAX_CONTRACT_FILE_BYTES, sanitizeContractFilename } from "@/lib/contracts/file-validation"
+import { clearExtractedSourceBinding, invalidateAgentActionsForSourceChange } from "@/lib/contracts/source-binding"
+
+class UploadAuthorizationError extends Error {
+  constructor(readonly status: 403 | 404 | 422) {
+    super(status === 404 ? "Not Found" : status === 422 ? "read_only_status" : "Forbidden")
+  }
+}
+
+const READ_ONLY_STATUSES = new Set(["AWAITING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "ARCHIVED"])
+
+async function cleanupStagedUpload(
+  contractId: string,
+  organizationId: string,
+  storageKey: string,
+): Promise<void> {
+  try {
+    const referenced = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "Contract"
+        WHERE "id" = ${contractId} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      `)
+      const rows = await tx.$queryRaw<Array<{ referenced: boolean }>>(Prisma.sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM "ContractFile" AS file
+          INNER JOIN "Contract" AS contract ON contract."id" = file."contractId"
+          WHERE file."contractId" = ${contractId}
+            AND file."storageKey" = ${storageKey}
+            AND contract."organizationId" = ${organizationId}
+        ) AS "referenced"
+      `)
+      return rows[0]?.referenced
+    }, { isolationLevel: "ReadCommitted" })
+    if (referenced === false) await storage.delete(storageKey)
+  } catch {
+    // A transaction may commit even when its acknowledgement is lost. Retain
+    // the object whenever the exact durable reference cannot be established.
+    logger.error({ contractId }, "[upload] staged object retained after inconclusive cleanup")
+  }
+}
 
 // GET /api/contracts/[id]/upload?fileId=... — return a same-origin file URL or stream the file
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source === "api_key" && !ctx.scopes?.includes("text_read")) return Response.json({ error: "text_read scope required" }, { status: 403 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true },
@@ -60,30 +107,12 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   })
 }
 
-function validateFileType(
-  buffer: Buffer,
-): "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | null {
-  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
-    return "application/pdf"
-  }
-  // PK\x03\x04 = ZIP file header. Any DOCX is a ZIP, but not every ZIP is a DOCX.
-  // OOXML docs always contain a "word/" entry in the central directory; reject
-  // bare ZIPs (XLSX, ODT, generic .zip renamed to .docx, etc).
-  if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
-    if (buffer.includes(Buffer.from("word/"))) {
-      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    }
-    return null
-  }
-  return null
-}
-
-const MAX_SIZE = 50 * 1024 * 1024 // 50MB
-
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const roleError = requireRole(ctx.role, "member")
+  if (roleError) return roleError
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
 
@@ -92,6 +121,7 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter)
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404 })
     const existing = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, organizationId: true, title: true },
@@ -112,107 +142,143 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       return new Response("Missing file field", { status: 400 })
     }
 
-    if (file.size > MAX_SIZE) {
+    if (file.size > MAX_CONTRACT_FILE_BYTES) {
       return new Response("File exceeds 50MB limit", { status: 413 })
     }
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    const mimeType = validateFileType(buffer)
+    const mimeType = detectContractFileMime(buffer)
     if (!mimeType) {
       return new Response("Only PDF and DOCX files are accepted", { status: 415 })
     }
 
-    const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const key = storage.storageKey(existing.organizationId, params.id, filename)
+    const filename = sanitizeContractFilename(file.name)
+    const uploadAttemptId = crypto.randomUUID()
+    const key = storage.storageKey(existing.organizationId, params.id, `${uploadAttemptId}_${filename}`)
 
     try {
       await storage.upload(key, buffer, mimeType)
     } catch (err) {
-      logger.error({ err, contractId: params.id, storageKey: key }, "[upload] storage upload failed")
+      // Some object stores may persist an upload even when the acknowledgement
+      // is lost. Run the same exact-reference check used after DB failures.
+      await cleanupStagedUpload(params.id, ctx.organizationId, key)
+      logger.error({ err, contractId: params.id }, "[upload] storage upload failed")
       return new Response("Storage upload failed", { status: 502 })
     }
 
     // Atomic: find prior latest, flip it, create new file + version row.
     // Without a transaction, a crash between the updateMany and create leaves
     // the contract with zero rows marked isLatest.
-    const { contractFile } = await prisma.$transaction(async (tx) => {
-      // The extract workers lock this same parent row while validating their
-      // source and persisting derived data. Acquire it before changing the
-      // latest file marker so a replacement and an older worker serialize.
-      await tx.$queryRaw(Prisma.sql`
-        SELECT "id" FROM "Contract" WHERE "id" = ${params.id} FOR UPDATE
-      `)
-      const latestFile = await tx.contractFile.findFirst({
-        where: { contractId: params.id },
-        orderBy: { version: "desc" },
-        select: { version: true },
-      })
-      const nextVersion = (latestFile?.version ?? 0) + 1
-
-      await tx.contractFile.updateMany({
-        where: { contractId: params.id, isLatest: true },
-        data: { isLatest: false },
-      })
-
-      const contractFile = await tx.contractFile.create({
-        data: {
-          contractId: params.id,
-          filename,
-          storageKey: key,
-          mimeType,
-          sizeBytes: buffer.byteLength,
-          isLatest: true,
-          version: nextVersion,
-          uploadedById: ctx.userId,
-        },
-      })
-
-      await tx.contractVersion.create({
-        data: {
-          contractId: params.id,
-          version: nextVersion,
-          fileId: contractFile.id,
-          createdById: ctx.userId,
-          changeNote: `Uploaded ${filename}`,
-        },
-      })
-
-      // A new file invalidates derived text, risk, and unreviewed AI facts.
-      // Keep explicitly accepted metadata, but never present results from the
-      // previous document version as if they belonged to this upload.
-      await tx.contract.update({
-        where: { id: params.id },
-        data: {
-          extractedText: null,
-          isOcrExtracted: false,
-          riskScore: null,
-          riskScoredAt: null,
-          riskDetails: Prisma.JsonNull,
-        },
-      })
-      if (latestFile) {
-        // The searchable embedding index is as source-bound as extracted text.
-        // Delete it under the parent lock so old jobs cannot be served after
-        // this upload; workers repopulate it only after source verification.
-        await tx.contractEmbedding.deleteMany({ where: { contractId: params.id } })
-        await tx.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${params.id}`
-        await tx.aIExtraction.deleteMany({
-          where: { contractId: params.id, status: { not: "accepted" } },
+    let contractFile: Awaited<ReturnType<typeof prisma.contractFile.create>>
+    try {
+      contractFile = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
+        // This helper locks the contract parent first, then rechecks the current
+        // membership role and exact agreement grant before any mutation.
+        const permission = await lockCurrentAgreementPermission(tx, ctx, params.id)
+        if (!permission) throw new UploadAuthorizationError(404)
+        if (!hasRole(permission.role, "member")) throw new UploadAuthorizationError(403)
+        const current = await tx.contract.findFirst({
+          where: { id: params.id, organizationId: ctx.organizationId },
+          select: { status: true },
         })
-        // Candidates are tied to the exact document text. Accepted obligations
-        // are already durable ledger records, but pending suggestions must not
-        // survive a replacement upload.
-        await tx.contractObligationSuggestion.deleteMany({
-          where: { contractId: params.id, status: "pending" },
+        if (!current) throw new UploadAuthorizationError(404)
+        if (current.status === "ARCHIVED") throw new UploadAuthorizationError(422)
+        const latestFile = await tx.contractFile.findFirst({
+          where: { contractId: params.id },
+          orderBy: { version: "desc" },
+          select: { version: true },
         })
+        if (READ_ONLY_STATUSES.has(current.status)) {
+          // First-use ingestion of an already executed agreement is allowed,
+          // but an existing canonical source or approved editor may not change.
+          const hasDocument = latestFile ? false : Boolean(await tx.contractDocument.findUnique({
+            where: { contractId: params.id }, select: { id: true },
+          }))
+          if (latestFile || hasDocument) throw new UploadAuthorizationError(422)
+        }
+        const nextVersion = (latestFile?.version ?? 0) + 1
+
+        await tx.contractFile.updateMany({
+          where: { contractId: params.id, isLatest: true },
+          data: { isLatest: false },
+        })
+
+        const contractFile = await tx.contractFile.create({
+          data: {
+            contractId: params.id,
+            filename,
+            storageKey: key,
+            mimeType,
+            sizeBytes: buffer.byteLength,
+            isLatest: true,
+            version: nextVersion,
+            uploadedById: ctx.userId,
+          },
+        })
+
+        await tx.contractVersion.create({
+          data: {
+            contractId: params.id,
+            version: nextVersion,
+            fileId: contractFile.id,
+            createdById: ctx.userId,
+            changeNote: `Uploaded ${filename}`,
+          },
+        })
+
+        // A new file invalidates derived text, risk, and unreviewed AI facts.
+        // Keep explicitly accepted metadata, but never present results from the
+        // previous document version as if they belonged to this upload.
+        await tx.contract.update({
+          where: { id: params.id },
+          data: {
+            extractedText: null,
+            ...clearExtractedSourceBinding(),
+            isOcrExtracted: false,
+            riskScore: null,
+            riskScoredAt: null,
+            riskDetails: Prisma.JsonNull,
+          },
+        })
+        await invalidateAgentActionsForSourceChange(tx, ctx.organizationId, params.id)
+        if (latestFile) {
+          // The searchable embedding index is as source-bound as extracted text.
+          // Delete it under the parent lock so old jobs cannot be served after
+          // this upload; workers repopulate it only after source verification.
+          await tx.contractEmbedding.deleteMany({ where: { contractId: params.id } })
+          await tx.$executeRaw`DELETE FROM "ContractChunkEmbedding" WHERE "contractId" = ${params.id}`
+          await tx.aIExtraction.deleteMany({
+            where: { contractId: params.id, status: { not: "accepted" } },
+          })
+          // Candidates are tied to the exact document text. Accepted obligations
+          // are already durable ledger records, but pending suggestions must not
+          // survive a replacement upload.
+          await tx.contractObligationSuggestion.deleteMany({
+            where: { contractId: params.id, status: "pending" },
+          })
+        }
+
+        await tx.activity.create({
+          data: {
+            contractId: params.id,
+            userId: ctx.userId,
+            action: "UPLOADED",
+            detail: filename,
+            metadata: { fileId: contractFile.id },
+          },
+        })
+        return contractFile
+      }, { isolationLevel: "Serializable" }))
+    } catch (err) {
+      await cleanupStagedUpload(params.id, ctx.organizationId, key)
+      if (err instanceof UploadAuthorizationError) {
+        return Response.json({ error: err.message }, { status: err.status })
       }
-
-      return { contractFile }
-    })
-
-    await writeActivity(params.id, ctx.userId, "UPLOADED", filename)
+      logger.error({ err, contractId: params.id }, "[upload] durable file commit failed")
+      return Response.json({ error: "upload_persistence_failed" }, { status: 500 })
+    }
 
     fireAndLog(
       enqueueNotification("contract.uploaded", params.id, ctx.userId, {}),
@@ -234,6 +300,8 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     )
 
     // Enqueue text extraction job — heavy work must not block the API route
+    let extractionQueued = false
+    let conversionQueued = false
     try {
       await contractExtractQueue.add("extract", {
         contractId: params.id,
@@ -242,9 +310,9 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
         storageKey: key,
         preserveUserFields: true,
       }, { jobId: `contract-text-${contractFile.id}` })
+      extractionQueued = true
     } catch (err) {
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue extraction job")
-      return Response.json({ ...contractFile, downloadUrl: null, extractionQueued: false }, { status: 201 })
     }
 
     // Enqueue document.convert so the editor tab is populated after upload.
@@ -255,15 +323,18 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
     try {
       await documentConvertQueue.add("convert", {
         contractId: params.id,
+        organizationId: ctx.organizationId,
+        requestedByMemberId: ctx.memberId,
+        apiKeyId: ctx.apiKeyId,
+        sourceFileId: contractFile.id,
         storageKey: key,
         requestedById: ctx.userId,
         jobId: contractFile.id,
         fileType,
         deleteSource: false,
-      })
+      }, { jobId: `contract-document-${contractFile.id}` })
+      conversionQueued = true
     } catch (err) {
-      // Non-fatal — the extraction job is already queued; the editor will just
-      // start blank (user can still write from scratch or re-import later).
       logger.error({ err, contractId: params.id }, "[upload] failed to enqueue document.convert job")
     }
 
@@ -275,6 +346,6 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ id:
       isFirstFile: contractFile.version === 1,
     })
 
-    return Response.json({ ...contractFile, downloadUrl, extractionQueued: true }, { status: 201 })
+    return Response.json({ ...contractFile, downloadUrl, extractionQueued, conversionQueued }, { status: 201 })
   });
 }

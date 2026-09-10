@@ -11,6 +11,11 @@ import { alertsCheckQueue } from "@/lib/jobs/queues"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { requestLogger } from "@/lib/logger"
 import { z } from "zod"
+import { hasAgreementAccess, lockCurrentAgreementPermission } from "@/lib/auth/agreement-access"
+import { Prisma } from "@prisma/client"
+import { isTransactionConflict, withTransactionRetry } from "@/lib/db/transaction-retry"
+import { withoutContractIntakeIdentity } from "@/lib/contracts/create-schema"
+import { activityMetadata, canReadContractText } from "@/lib/auth/read-projections"
 
 // Allowed status transitions — all forward and backward moves permitted so
 // users can correct mistakes freely. Only ARCHIVED is semi-terminal (can
@@ -47,7 +52,15 @@ const UpdateContractSchema = z.object({
   notes: z.string().max(10000).nullable().optional(),
   folderId: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional(),
+  ownerId: z.string().min(1).optional(),
 })
+
+class OwnerTransferAuthorizationError extends Error {
+  constructor(readonly status: 403 | 404) {
+    super(status === 404 ? "Owner transfer agreement not found" : "Owner transfer forbidden")
+    this.name = "OwnerTransferAuthorizationError"
+  }
+}
 
 export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: string }> }) {
   const params = await props.params;
@@ -55,6 +68,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
     const contract = await prisma.contract.findUnique({
       where: { id: params.id },
       select: {
@@ -118,6 +132,29 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
       where: { id: params.id, extractedText: { not: null } },
     })
 
+    if (ctx.source === "api_key") {
+      // Explicit projection: adding a column to the human detail page must not
+      // silently grant software principals a signing capability or raw text.
+      const textAllowed = canReadContractText(ctx)
+      return Response.json({
+        id: contract.id, title: contract.title, contractType: contract.contractType,
+        status: contract.status, ownerId: contract.ownerId, owner: contract.owner,
+        counterpartyName: contract.counterpartyName, counterpartyContact: contract.counterpartyContact,
+        value: contract.value, currency: contract.currency, governingLaw: contract.governingLaw,
+        startDate: contract.startDate, endDate: contract.endDate, renewalDate: contract.renewalDate,
+        noticePeriodDays: contract.noticePeriodDays, autoRenewal: contract.autoRenewal,
+        renewalReminderEnabled: contract.renewalReminderEnabled, organizationId: contract.organizationId,
+        folderId: contract.folderId, folder: contract.folder, tags: contract.tags, files: contract.files,
+        signingStatus: contract.signingStatus, createdAt: contract.createdAt, updatedAt: contract.updatedAt,
+        ...(textAllowed ? { notes: contract.notes } : {}),
+        versions: (contract.versions ?? []).map(row => ({
+          id: row.id, version: row.version, fileId: row.fileId, createdAt: row.createdAt,
+          createdById: row.createdById, ...(textAllowed ? { changeNote: row.changeNote } : {}),
+        })),
+        activities: textAllowed ? contract.activities : (contract.activities ?? []).map(activityMetadata),
+        _count: contract._count, hasExtractedText: presence > 0,
+      }, { headers: SECURE_HEADERS })
+    }
     return Response.json({ ...contract, hasExtractedText: presence > 0 }, { headers: SECURE_HEADERS })
   })
 }
@@ -134,7 +171,19 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
   const scopeError = requireWriteScope(ctx)
   if (scopeError) return scopeError
 
+  if (ctx.source === "api_key") {
+    try {
+      const candidate = await req.clone().json()
+      if (candidate && typeof candidate === "object" && !Array.isArray(candidate) && Object.hasOwn(candidate, "ownerId")) {
+        return Response.json({ error: "human_session_required" }, { status: 403, headers: SECURE_HEADERS })
+      }
+    } catch {
+      // The normal request parser below returns the established invalid-JSON response.
+    }
+  }
+
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
     let body: unknown
     try {
       body = await req.json()
@@ -147,11 +196,11 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    let existing: { id: string; title: string; status: string; endDate: Date | null; renewalDate: Date | null; noticePeriodDays: number | null; renewalReminderEnabled: boolean } | null
+    let existing: { id: string; title: string; ownerId: string; organizationId: string; status: string; endDate: Date | null; renewalDate: Date | null; noticePeriodDays: number | null; renewalReminderEnabled: boolean } | null
     try {
       existing = await prisma.contract.findUnique({
         where: { id: params.id },
-        select: { id: true, title: true, status: true, endDate: true, renewalDate: true, noticePeriodDays: true, renewalReminderEnabled: true },
+        select: { id: true, title: true, ownerId: true, organizationId: true, status: true, endDate: true, renewalDate: true, noticePeriodDays: true, renewalReminderEnabled: true },
       })
     } catch (err) {
       log.error({ err, contractId: params.id }, "[PATCH /contracts/:id] findUnique error")
@@ -160,7 +209,7 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
     if (!existing) return new Response("Not Found", { status: 404 })
 
     // Validate status transition
-    const { tagIds, folderId, startDate, endDate, renewalDate, status, ...rest } = parsed.data
+    const { tagIds, folderId, startDate, endDate, renewalDate, status, ownerId, ...rest } = parsed.data
 
     // Strip any HTML tags from free-text fields to prevent XSS persistence
     const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "")
@@ -217,39 +266,97 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       }
     }
 
+    const isOwnerTransfer = ownerId !== undefined && ownerId !== existing.ownerId
+    if (isOwnerTransfer && ctx.userId !== existing.ownerId && ctx.role !== "owner" && ctx.role !== "admin") {
+      return Response.json({ error: "Forbidden" }, { status: 403, headers: SECURE_HEADERS })
+    }
+    const targetOwner = isOwnerTransfer
+      ? await prisma.member.findFirst({
+          where: { userId: ownerId, organizationId: ctx.organizationId },
+          select: { id: true, userId: true, organizationId: true },
+        })
+      : null
+    if (isOwnerTransfer && !targetOwner) {
+      return Response.json({ error: "Owner must be a current organization member" }, { status: 422, headers: SECURE_HEADERS })
+    }
+
+    const updateData = {
+      ...rest,
+      ownerId: isOwnerTransfer ? ownerId : undefined,
+      status: status ?? undefined,
+      folderId: folderId === undefined ? undefined : folderId,
+      startDate: startDate === undefined ? undefined : startDate ? new Date(startDate) : null,
+      endDate: endDate === undefined ? undefined : endDate ? new Date(endDate) : null,
+      renewalDate: renewalDate === undefined ? undefined : renewalDate ? new Date(renewalDate) : null,
+      renewalReminderEnabled: parsed.data.renewalReminderEnabled,
+      tags: tagIds !== undefined ? { set: tagIds.map((id) => ({ id })) } : undefined,
+    }
+    const include = {
+      owner: { select: { id: true, name: true, email: true, image: true } },
+      tags: true,
+      folder: true,
+    } as const
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let updated: any
+    let ownerTransferAudited = false
     try {
-      updated = await prisma.contract.update({
-        where: { id: params.id },
-        data: {
-          ...rest,
-          status: status ?? undefined,
-          folderId: folderId === undefined ? undefined : folderId,
-          startDate: startDate === undefined ? undefined : startDate ? new Date(startDate) : null,
-          endDate: endDate === undefined ? undefined : endDate ? new Date(endDate) : null,
-          renewalDate: renewalDate === undefined ? undefined : renewalDate ? new Date(renewalDate) : null,
-          renewalReminderEnabled: parsed.data.renewalReminderEnabled,
-          tags: tagIds !== undefined ? { set: tagIds.map((id) => ({ id })) } : undefined,
-        },
-        include: {
-          owner: { select: { id: true, name: true, email: true, image: true } },
-          tags: true,
-          folder: true,
-        },
-      })
+      if (isOwnerTransfer && targetOwner) {
+        updated = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
+          const current = await lockCurrentAgreementPermission(tx, ctx, params.id)
+          if (!current) throw new OwnerTransferAuthorizationError(404)
+          if (ctx.userId !== current.contractOwnerId && current.role !== "owner" && current.role !== "admin") {
+            throw new OwnerTransferAuthorizationError(403)
+          }
+          await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Member" WHERE "id" = ${targetOwner.id} AND "organizationId" = ${ctx.organizationId} FOR UPDATE`)
+          const currentTarget = await tx.member.findFirst({
+            where: { id: targetOwner.id, userId: ownerId, organizationId: ctx.organizationId },
+            select: { id: true },
+          })
+          if (!currentTarget) throw new Error("owner_membership_changed")
+          const existingGrant = await tx.contractAccessGrant.findUnique({
+            where: { contractId_memberId: { contractId: params.id, memberId: currentTarget.id } },
+            select: { id: true },
+          })
+          if (!existingGrant) {
+            const grant = await tx.contractAccessGrant.create({
+              data: { organizationId: ctx.organizationId, contractId: params.id, memberId: currentTarget.id, grantedById: ctx.userId },
+              select: { id: true },
+            })
+            await tx.activity.create({
+              data: { contractId: params.id, userId: ctx.userId, action: "ACCESS_GRANTED", metadata: { requestId: ctx.requestId, grantId: grant.id, targetMemberId: currentTarget.id } },
+            })
+          }
+          const result = await tx.contract.update({ where: { id: params.id }, data: updateData, include })
+          await tx.activity.create({ data: { contractId: params.id, userId: ctx.userId, action: "UPDATED", detail: Object.keys(parsed.data).join(", "), metadata: { requestId: ctx.requestId } } })
+          if (status && status !== existing.status) {
+            await tx.activity.create({ data: { contractId: params.id, userId: ctx.userId, action: "STATUS_CHANGED", detail: `${existing.status} → ${status}`, metadata: { requestId: ctx.requestId } } })
+          }
+          return result
+        }, { isolationLevel: "Serializable" }))
+        ownerTransferAudited = true
+      } else {
+        updated = await prisma.contract.update({ where: { id: params.id }, data: updateData, include })
+      }
     } catch (err) {
+      if (err instanceof OwnerTransferAuthorizationError) {
+        return Response.json(
+          { error: err.status === 404 ? "Not Found" : "Forbidden" },
+          { status: err.status, headers: SECURE_HEADERS },
+        )
+      }
+      if (isTransactionConflict(err)) return Response.json({ error: "agreement_changed_retry" }, { status: 409, headers: SECURE_HEADERS })
       log.error({ err, contractId: params.id }, "[PATCH /contracts/:id] update error")
       return Response.json({ error: "Database error updating contract" }, { status: 500 })
     }
 
     const changedFields = Object.keys(parsed.data).join(", ")
     // Audit trail — must not be fire-and-forget
-    await writeActivity(params.id, ctx.userId, "UPDATED", changedFields)
+    if (!ownerTransferAudited) await writeActivity(params.id, ctx.userId, "UPDATED", changedFields)
 
     if (status && status !== existing.status) {
       // Audit trail — must not be fire-and-forget
-      await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`)
+      if (!ownerTransferAudited) await writeActivity(params.id, ctx.userId, "STATUS_CHANGED", `${existing.status} → ${status}`)
       if (status === "AWAITING_SIGNATURE") {
         fireAndLog(
           enqueueNotification("contract.sent_for_signing", params.id, ctx.userId, {}),
@@ -301,7 +408,7 @@ export async function PATCH(req: Request, props: { params: AsyncRouteParams<{ id
       )
     }
 
-    return Response.json(updated)
+    return Response.json(withoutContractIntakeIdentity(updated))
   });
 }
 
@@ -315,6 +422,7 @@ export async function DELETE(req: Request, props: { params: AsyncRouteParams<{ i
   if (scopeError) return scopeError
 
   return requestContext.run(ctx, async () => {
+    if (!(await hasAgreementAccess(prisma, ctx, params.id))) return Response.json({ error: "Not Found" }, { status: 404, headers: SECURE_HEADERS })
     const existing = await prisma.contract.findUnique({
       where: { id: params.id },
       select: { id: true, title: true, status: true },

@@ -5,7 +5,7 @@ Aaked is currently maintained by a single maintainer ([@wassimbensalem](https://
 ## Decision making
 
 - The maintainer has final say on what gets merged, the architecture direction, and the roadmap.
-- Feature direction and locked architectural decisions are documented in [`CLAUDE.md`](CLAUDE.md). If a change conflicts with something documented there, open an issue to discuss it before submitting a PR, not after.
+- Start with the product boundaries in the [README](README.md) and the [contribution guidelines](CONTRIBUTING.md). Discuss changes to those boundaries in an issue before submitting a PR.
 - Non-trivial changes (new dependencies, schema changes, anything touching auth or multi-tenancy) should be discussed in an issue before a PR is opened, so the direction is agreed on before the work is done.
 
 ## Pull requests

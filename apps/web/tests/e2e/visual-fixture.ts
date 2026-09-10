@@ -241,7 +241,20 @@ export function buildVisualFixtureData(passwordHash: string) {
     createdAt: new Date(`2026-08-0${index + 1}T11:00:00.000Z`),
   })) satisfies Prisma.ActivityCreateManyInput[]
 
-  return { users, organization, accounts, members, contracts, obligations, actions, activities }
+  const accessGrants: Prisma.ContractAccessGrantCreateManyInput[] = contracts.map(contract => ({
+    id: `${contract.id}-owner-access`, organizationId: contract.organizationId,
+    contractId: contract.id, memberId: VISUAL_FIXTURE_IDS.ownerMember,
+    grantedById: VISUAL_FIXTURE_IDS.owner,
+  })) satisfies Prisma.ContractAccessGrantCreateManyInput[]
+  // The operational journey delegates only this agreement to the legal member.
+  // Neither role nor organization membership grants the rest of the portfolio.
+  accessGrants.push({
+    id: `${contracts[0].id}-legal-access`, organizationId: organization.id,
+    contractId: contracts[0].id, memberId: VISUAL_FIXTURE_IDS.legalMember,
+    grantedById: VISUAL_FIXTURE_IDS.owner,
+  })
+
+  return { users, organization, accounts, members, contracts, accessGrants, obligations, actions, activities }
 }
 
 export async function cleanupVisualFixture(client: PrismaClient | Prisma.TransactionClient) {
@@ -287,6 +300,7 @@ export async function seedVisualFixture(client: PrismaClient, passwordHash: stri
     await transaction.account.createMany({ data: fixture.accounts })
     await transaction.member.createMany({ data: fixture.members })
     await transaction.contract.createMany({ data: fixture.contracts })
+    await transaction.contractAccessGrant.createMany({ data: fixture.accessGrants })
     await transaction.contractObligation.createMany({ data: fixture.obligations })
     await transaction.contractAction.createMany({ data: fixture.actions })
     await transaction.activity.createMany({ data: fixture.activities })

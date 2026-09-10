@@ -71,6 +71,24 @@ services:
       - "1025:1025"   # SMTP — app/worker send here
     restart: unless-stopped
 
+  docuseal-secret-check:
+    profiles: ["signing"]
+    network_mode: "none"
+    image: redis:7-alpine
+    environment:
+      DOCUSEAL_SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:-}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        case "$$DOCUSEAL_SECRET_KEY_BASE" in
+          *[!0-9a-fA-F]*|"") echo "DOCUSEAL_SECRET_KEY_BASE must be 128 hexadecimal characters generated with openssl rand -hex 64." >&2; exit 1 ;;
+        esac
+        if [ "$${#DOCUSEAL_SECRET_KEY_BASE}" -ne 128 ]; then
+          echo "DOCUSEAL_SECRET_KEY_BASE must be 128 hexadecimal characters generated with openssl rand -hex 64." >&2
+          exit 1
+        fi
+    restart: "no"
+
   docuseal:
     profiles: ["signing"]
     image: docuseal/docuseal:latest
@@ -79,7 +97,10 @@ services:
     volumes:
       - docusealdata:/data
     environment:
-      SECRET_KEY_BASE: "${DOCUSEAL_SECRET_KEY_BASE:?DOCUSEAL_SECRET_KEY_BASE must be set in .env (generate with openssl rand -hex 64)}"
+      SECRET_KEY_BASE: ${DOCUSEAL_SECRET_KEY_BASE:-}
+    depends_on:
+      docuseal-secret-check:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   app:
@@ -94,6 +115,8 @@ services:
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env (generate with: openssl rand -base64 32)}"
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AGREEMENT_ACCESS_EMERGENCY_DENY_ALL: ${AGREEMENT_ACCESS_EMERGENCY_DENY_ALL:-false}
+      DOCUMENT_EXPORT_RETENTION_SECONDS: ${DOCUMENT_EXPORT_RETENTION_SECONDS:-86400}
       # Health and server-side self-requests must stay inside the Compose
       # network rather than using the public browser URL.
       INTERNAL_APP_URL: http://app:3000
@@ -110,6 +133,7 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+      OLLAMA_PRIVATE_ORIGINS: ${OLLAMA_PRIVATE_ORIGINS:-}
       # Email alerts (optional) — also read from .env
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -117,12 +141,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@clauseflow.io}
-      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
       # E-signature (DocuSeal)
       DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_PRIVATE_ORIGINS: ${DOCUSEAL_PRIVATE_ORIGINS:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:
@@ -147,6 +171,8 @@ services:
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_REGION: us-east-1
+      AGREEMENT_ACCESS_EMERGENCY_DENY_ALL: ${AGREEMENT_ACCESS_EMERGENCY_DENY_ALL:-false}
+      DOCUMENT_EXPORT_RETENTION_SECONDS: ${DOCUMENT_EXPORT_RETENTION_SECONDS:-86400}
       # AI provider — read from .env at project root
       AI_PROVIDER: ${AI_PROVIDER:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -155,6 +181,7 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+      OLLAMA_PRIVATE_ORIGINS: ${OLLAMA_PRIVATE_ORIGINS:-}
       # Email alerts (optional)
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -162,12 +189,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@clauseflow.io}
-      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
       # M5 Notification encryption (required for Slack/Teams/webhook routing)
       NOTIFICATION_ENCRYPTION_KEY: "${NOTIFICATION_ENCRYPTION_KEY:?NOTIFICATION_ENCRYPTION_KEY must be set in .env}"
       # E-signature (DocuSeal)
       DOCUSEAL_API_URL: ${DOCUSEAL_API_URL:-https://api.docuseal.com}
       DOCUSEAL_API_KEY: ${DOCUSEAL_API_KEY:-}
+      DOCUSEAL_PRIVATE_ORIGINS: ${DOCUSEAL_PRIVATE_ORIGINS:-}
       DOCUSEAL_WEBHOOK_SECRET: ${DOCUSEAL_WEBHOOK_SECRET:-}
     depends_on:
       db:

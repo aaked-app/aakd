@@ -5,6 +5,7 @@ import { requestContext } from "@/lib/context"
 const mockCtx = {
   userId: "user-1",
   organizationId: "org-1",
+  memberId: "member-1",
   role: "admin",
   source: "session" as const,
   requestId: "test-request-id",
@@ -23,6 +24,10 @@ const mockContract = {
   id: "contract-1",
   organizationId: "org-1",
 }
+
+beforeEach(() => {
+  vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValue({ id: "grant-1" } as any)
+})
 
 const mockExtraction = {
   id: "extraction-1",
@@ -45,6 +50,15 @@ describe("GET /api/contracts/[id]/extractions", () => {
     vi.clearAllMocks()
   })
 
+  it("denies a same-organization admin without an agreement grant", async () => {
+    vi.mocked(prisma.contractAccessGrant.findFirst).mockResolvedValueOnce(null)
+    const { GET } = await import("@/app/api/contracts/[id]/extractions/route")
+    const response = await GET(new Request("http://localhost/api/contracts/contract-1/extractions"), { params: Promise.resolve({ id: "contract-1" }) })
+    expect(response.status).toBe(404)
+    expect(prisma.contract.findUnique).not.toHaveBeenCalled()
+    expect(prisma.aIExtraction.findMany).not.toHaveBeenCalled()
+  })
+
   it("returns 401 when not authenticated", async () => {
     const { resolveAuth } = await import("@/lib/auth/middleware")
     vi.mocked(resolveAuth).mockResolvedValueOnce(null)
@@ -52,7 +66,7 @@ describe("GET /api/contracts/[id]/extractions", () => {
     const { GET } = await import("@/app/api/contracts/[id]/extractions/route")
 
     const req = new Request("http://localhost/api/contracts/contract-1/extractions")
-    const res = await GET(req, { params: { id: "contract-1" } })
+    const res = await GET(req, { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -67,7 +81,7 @@ describe("GET /api/contracts/[id]/extractions", () => {
 
     const req = new Request("http://localhost/api/contracts/contract-1/extractions")
     const res = await requestContext.run(mockCtx, () =>
-      GET(req, { params: { id: "contract-1" } }),
+      GET(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(404)
@@ -81,7 +95,7 @@ describe("GET /api/contracts/[id]/extractions", () => {
 
     const req = new Request("http://localhost/api/contracts/contract-1/extractions")
     const res = await requestContext.run(mockCtx, () =>
-      GET(req, { params: { id: "contract-1" } }),
+      GET(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -116,7 +130,7 @@ describe("POST /api/contracts/[id]/extractions", () => {
     })
 
     const res = await requestContext.run(mockCtx, () =>
-      POST(req, { params: { id: "contract-1" } }),
+      POST(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -146,7 +160,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       method: "PATCH",
       body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
     })
-    const res = await PATCH(req, { params: { id: "contract-1" } })
+    const res = await PATCH(req, { params: Promise.resolve({ id: "contract-1" }) })
 
     expect(res.status).toBe(401)
   })
@@ -162,7 +176,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ extractionId: "extraction-1" }), // missing action
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(400)
@@ -183,7 +197,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(404)
@@ -212,7 +226,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -243,7 +257,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
     })
-    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }))
     expect(res.status).toBe(409)
     expect(prisma.contract.update).not.toHaveBeenCalled()
   })
@@ -269,7 +283,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ extractionId: "extraction-1", action: "reject" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)
@@ -303,7 +317,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extractionId: "extraction-1", action: "reject" }),
     })
-    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }))
 
     expect(res.status).toBe(200)
     expect(prisma.contract.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -327,7 +341,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extractionId: "extraction-1", action: "reject", replacementValue: "2025-06-01" }),
     })
-    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: { id: "contract-1" } }))
+    const res = await requestContext.run(mockCtx, () => PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }))
 
     expect(res.status).toBe(200)
     expect(prisma.aIExtraction.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -352,7 +366,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ extractionId: "extraction-1", action: "accept" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     // Must return 404, not 403 — never leak resource existence
@@ -370,7 +384,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ action: "accept_all" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(400)
@@ -402,7 +416,7 @@ describe("PATCH /api/contracts/[id]/extractions", () => {
       body: JSON.stringify({ action: "edit", extractionId: "extraction-1", newValue: "2025-06-01" }),
     })
     const res = await requestContext.run(mockCtx, () =>
-      PATCH(req, { params: { id: "contract-1" } }),
+      PATCH(req, { params: Promise.resolve({ id: "contract-1" }) }),
     )
 
     expect(res.status).toBe(200)

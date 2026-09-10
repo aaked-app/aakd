@@ -8,8 +8,12 @@ import { z } from "zod"
 
 const CreateApiKeySchema = z.object({
   name: z.string().min(1).max(100),
-  scopes: z.array(z.enum(["read", "text_read", "write"])).default(["read"]),
+  scopes: z.array(z.enum(["read", "text_read", "action_propose"])).default(["read"]),
   expiresAt: z.string().datetime().optional(),
+}).superRefine((value, context) => {
+  if (!value.scopes.includes("read")) {
+    context.addIssue({ code: "custom", path: ["scopes"], message: "read scope is required" })
+  }
 })
 
 export async function GET(req: Request) {
@@ -42,6 +46,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (ctx.source !== "session") return Response.json({ error: "human_session_required" }, { status: 403 })
 
   const scopeErr = requireWriteScope(ctx)
   if (scopeErr) return scopeErr
@@ -60,16 +65,6 @@ export async function POST(req: Request) {
     const parsed = CreateApiKeySchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
-    }
-
-    if (
-      ctx.source === "api_key" &&
-      parsed.data.scopes.some((scope) => !ctx.scopes?.includes(scope))
-    ) {
-      return Response.json(
-        { error: "API key cannot delegate scopes it does not have" },
-        { status: 403 },
-      )
     }
 
     // Cap keys per org so a compromised admin can't mint unlimited keys.

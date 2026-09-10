@@ -92,6 +92,25 @@ describe("SearchPage", () => {
     vi.clearAllMocks()
   })
 
+  it.each(["en", "fr", "de", "es", "ar"])("announces keyword fallback in %s without hiding results", async language => {
+    locale = language
+    vi.stubGlobal("fetch", vi.fn(async () => json({ mode: "keyword", results: [result], total: 1 })))
+    render(<SearchPage />)
+    fireEvent.click(screen.getByRole("radio", { name: message("searchPage", "meaning") }))
+    await enterQuery("Northwind")
+    expect(await screen.findByRole("status")).toHaveTextContent(message("searchPage", "keywordFallbackNotice"))
+    expect(await screen.findByRole("link", { name: format(message("searchPage", "openContract"), { title: result.title }) })).toBeInTheDocument()
+  })
+
+  it("announces keyword fallback even when the fallback has no matches", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ mode: "keyword", results: [], total: 0 })))
+    render(<SearchPage />)
+    fireEvent.click(screen.getByRole("radio", { name: "Meaning" }))
+    await enterQuery("No match")
+    expect(await screen.findByRole("status")).toHaveTextContent(en.searchPage.keywordFallbackNotice)
+    expect(screen.getByRole("heading", { name: "No agreements found" })).toBeInTheDocument()
+  })
+
   it("labels keyword and meaning modes while preserving the exact keyword request and destination", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       return String(input) === "/api/search?q=Northwind&limit=100"

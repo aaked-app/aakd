@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import type { ObligationStatus } from "@/components/obligations/types"
+import { agreementRelationWhere } from "@/lib/auth/agreement-access"
 
 const VALID_STATUSES = new Set<ObligationStatus>(["PENDING", "IN_PROGRESS", "COMPLETED", "OVERDUE"])
 
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
 
     const where = {
       contract: {
-        organizationId: ctx.organizationId,
+        ...agreementRelationWhere(ctx),
         status: { not: "ARCHIVED" as const },
       },
       ...(statusFilter ? { status: statusFilter } : {}),

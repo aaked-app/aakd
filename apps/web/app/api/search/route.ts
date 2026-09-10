@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { captureServerEvent } from "@/lib/posthog-server"
 import { Prisma } from "@prisma/client"
+import { agreementAccessSql, agreementAccessWhere } from "@/lib/auth/agreement-access"
 
 export async function GET(req: Request) {
   const ctx = await resolveAuth(req)
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
     }
 
     captureServerEvent(ctx.userId, "search_performed", {
-      query: q.slice(0, 50),
+      queryLength: q.length,
       organizationId: ctx.organizationId,
     })
 
@@ -42,11 +43,10 @@ export async function GET(req: Request) {
 
     if (useIlike) {
       const contracts = await prisma.contract.findMany({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -61,11 +61,10 @@ export async function GET(req: Request) {
       })
 
       const total = await prisma.contract.count({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
-        },
+        }),
       })
 
       return Response.json({ results: contracts, total })
@@ -103,6 +102,7 @@ export async function GET(req: Request) {
             "organizationId"
           FROM "Contract"
           WHERE "organizationId" = ${orgId}
+            AND ${agreementAccessSql("contract", ctx)}
             AND "status" != 'ARCHIVED'
             AND search_tsv @@ plainto_tsquery('english', ${q})
           ORDER BY ts_rank(search_tsv, plainto_tsquery('english', ${q})) DESC
@@ -112,11 +112,10 @@ export async function GET(req: Request) {
     } catch {
       // tsquery parse failure (e.g. special chars) — fall back to ILIKE
       const contracts = await prisma.contract.findMany({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -134,11 +133,10 @@ export async function GET(req: Request) {
       })
 
       const total = await prisma.contract.count({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
-        },
+        }),
       })
 
       return Response.json({ results: contracts, total })
@@ -153,6 +151,7 @@ export async function GET(req: Request) {
           SELECT COUNT(*)::bigint AS count
           FROM "Contract"
           WHERE "organizationId" = ${orgId}
+            AND ${agreementAccessSql("contract", ctx)}
             AND "status" != 'ARCHIVED'
             AND search_tsv @@ plainto_tsquery('english', ${q})
         `
@@ -166,11 +165,10 @@ export async function GET(req: Request) {
     // If FTS returned 0 results, try ILIKE as a fallback
     if (rows.length === 0) {
       const fallbackContracts = await prisma.contract.findMany({
-        where: {
-          organizationId: orgId,
+        where: agreementAccessWhere(ctx, {
           status: { not: "ARCHIVED" },
           title: { contains: q, mode: "insensitive" },
-        },
+        }),
         select: {
           id: true,
           title: true,
@@ -189,11 +187,10 @@ export async function GET(req: Request) {
 
       if (fallbackContracts.length > 0) {
         const fallbackTotal = await prisma.contract.count({
-          where: {
-            organizationId: orgId,
+          where: agreementAccessWhere(ctx, {
             status: { not: "ARCHIVED" },
             title: { contains: q, mode: "insensitive" },
-          },
+          }),
         })
         return Response.json({ results: fallbackContracts, total: fallbackTotal })
       }

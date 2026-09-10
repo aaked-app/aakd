@@ -2,6 +2,7 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 50
@@ -29,6 +30,13 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
     if (!webhook || webhook.organizationId !== ctx.organizationId) {
       return new Response("Not Found", { status: 404 })
     }
+    const grants = isAgreementAccessEmergencyDenyAll()
+      ? []
+      : await prisma.contractAccessGrant.findMany({
+        where: { organizationId: ctx.organizationId, memberId: ctx.memberId },
+        select: { contractId: true },
+      })
+    const accessibleContractIds = grants.map((grant) => grant.contractId)
 
     const url = new URL(req.url)
     const page = parsePositiveInt(url.searchParams.get("page"), 1)
@@ -40,7 +48,7 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
 
     const [deliveries, total] = await Promise.all([
       prisma.webhookDeliveryLog.findMany({
-        where: { webhookId: webhook.id },
+        where: { webhookId: webhook.id, contractId: { in: accessibleContractIds } },
         select: {
           id: true,
           eventName: true,
@@ -55,7 +63,9 @@ export async function GET(req: Request, props: { params: AsyncRouteParams<{ id: 
         skip,
         take: limit,
       }),
-      prisma.webhookDeliveryLog.count({ where: { webhookId: webhook.id } }),
+      prisma.webhookDeliveryLog.count({
+        where: { webhookId: webhook.id, contractId: { in: accessibleContractIds } },
+      }),
     ])
 
     return Response.json({ deliveries, total })

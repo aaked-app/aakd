@@ -1,11 +1,12 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Upload, X, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface FileUploadZoneProps {
-  onFileSelect: (file: File) => void
+  onFileSelect: (file: File | null) => void
   accept?: string
   className?: string
 }
@@ -17,6 +18,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function FileUploadZone({ onFileSelect, accept = ".pdf,.docx", className }: FileUploadZoneProps) {
+  const t = useTranslations("contract.workspace")
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [selected, setSelected] = useState<File | null>(null)
@@ -40,6 +42,7 @@ export function FileUploadZone({ onFileSelect, accept = ".pdf,.docx", className 
 
   function clear() {
     setSelected(null)
+    onFileSelect(null)
     if (inputRef.current) inputRef.current.value = ""
   }
 
@@ -51,7 +54,7 @@ export function FileUploadZone({ onFileSelect, accept = ".pdf,.docx", className 
           <p className="text-sm font-medium truncate">{selected.name}</p>
           <p className="text-xs text-muted-foreground">{formatBytes(selected.size)}</p>
         </div>
-        <button type="button" onClick={clear} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button type="button" onClick={clear} aria-label={t("clearSelectedFile")} className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -60,6 +63,15 @@ export function FileUploadZone({ onFileSelect, accept = ".pdf,.docx", className 
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={t("uploadFile")}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          inputRef.current?.click()
+        }
+      }}
       className={cn(
         "flex flex-col items-center justify-center gap-2 rounded-[var(--radius)] border-2 border-dashed border-border bg-muted/40 px-6 py-10 cursor-pointer transition-colors hover:bg-muted hover:border-muted-foreground/30",
         dragging && "border-primary/50 bg-primary/5",
@@ -68,7 +80,7 @@ export function FileUploadZone({ onFileSelect, accept = ".pdf,.docx", className 
       onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
-      onClick={() => inputRef.current?.click()}
+      onClick={(event) => { if (event.target !== inputRef.current) inputRef.current?.click() }}
     >
       <div className="flex size-10 items-center justify-center rounded-full bg-background border border-border">
         <Upload className="h-5 w-5 text-muted-foreground" />

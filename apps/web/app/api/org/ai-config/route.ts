@@ -1,10 +1,11 @@
-import { resolveAuth } from "@/lib/auth/middleware"
+import { requireWriteScope, resolveAuth } from "@/lib/auth/middleware"
 import { hasRole } from "@/lib/auth/roles"
 import { prisma } from "@/lib/db/client"
 import { encrypt } from "@/lib/notifications/crypto"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { SECURE_HEADERS } from "@/lib/api-headers"
 import { logger } from "@/lib/logger"
+import { validateOllamaTestUrl } from "@/lib/notifications/validate-webhook-url"
 import { z } from "zod"
 
 const UpsertSchema = z.discriminatedUnion("provider", [
@@ -56,6 +57,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   if (!hasRole(ctx.role, "legal")) {
     return new Response("Forbidden", { status: 403 })
@@ -74,6 +77,14 @@ export async function POST(req: Request) {
   }
 
   const { provider } = parsed.data
+
+  if (parsed.data.provider === "ollama") {
+    try {
+      await validateOllamaTestUrl(parsed.data.baseUrl)
+    } catch {
+      return Response.json({ error: "This Ollama URL is not allowed" }, { status: 400 })
+    }
+  }
 
   // For Ollama we encrypt the base URL; for cloud providers we encrypt the API key.
   const credentialPlain =
@@ -112,6 +123,8 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   const ctx = await resolveAuth(req)
   if (!ctx) return new Response("Unauthorized", { status: 401 })
+  const scopeError = requireWriteScope(ctx)
+  if (scopeError) return scopeError
 
   if (!hasRole(ctx.role, "legal")) {
     return new Response("Forbidden", { status: 403 })

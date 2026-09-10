@@ -18,9 +18,13 @@ API keys are created in **Settings → API Keys**. Keys are scoped to an organiz
 
 - `read`: metadata and non-sensitive read endpoints
 - `text_read`: permission to read extracted contract text/content where supported
-- `write`: permission for mutations; the Settings UI combines this with the read scopes for a full read/write key
+- `action_propose`: permission to preview source-linked actions and submit them for human review; this also requires `read` and `text_read`
 
-Mutation endpoints (POST, PATCH, DELETE) require the `write` scope. A key is shown only once when it is created.
+Every newly issued key must explicitly include `read`. Legacy keys that omit
+`read` are rejected and must be replaced. General API-key mutations are
+temporarily disabled while the mutation boundary is hardened; an old `write`
+scope does not grant `action_propose`. Browser sessions retain the existing
+human workflows. A key is shown only once when it is created.
 
 ---
 
@@ -85,7 +89,8 @@ GET /api/contracts
 POST /api/contracts
 ```
 
-Requires the `write` scope. Rate limited to 20 requests/minute per org.
+Requires an authenticated human browser session. API keys receive
+`403 legacy_api_key_mutations_disabled`.
 
 **Request body:**
 ```json
@@ -146,7 +151,7 @@ Returns 404 if the contract does not exist or belongs to another org.
 PATCH /api/contracts/:id
 ```
 
-Requires the `write` scope. All fields are optional.
+Requires an authenticated human browser session. All fields are optional.
 
 **Request body:** Same fields as create (all optional). Setting `folderId: null` removes the folder assignment.
 
@@ -172,7 +177,8 @@ ARCHIVED → (none — terminal)
 DELETE /api/contracts/:id
 ```
 
-Requires the `write` scope. Soft-delete — sets status to `ARCHIVED`. Returns 409 if already archived.
+Requires an authenticated human browser session. Soft-delete — sets status to
+`ARCHIVED`. Returns 409 if already archived.
 
 **Response 204:** No content.
 
@@ -184,7 +190,8 @@ Requires the `write` scope. Soft-delete — sets status to `ARCHIVED`. Returns 4
 POST /api/contracts/:id/upload
 ```
 
-Requires the `write` scope. Accepts `multipart/form-data` with a `file` field.
+Requires an authenticated human browser session. Accepts `multipart/form-data`
+with a `file` field.
 
 - Accepted formats: PDF, DOCX (validated by magic bytes)
 - Max file size: 50 MB
@@ -266,7 +273,7 @@ Returns all AI-extracted metadata fields awaiting human review.
 PATCH /api/contracts/:id/extractions
 ```
 
-Requires the `write` scope. Accept or reject an extracted field.
+Requires an authenticated human browser session. Accept or reject an extracted field.
 
 **Request body:**
 ```json
@@ -312,7 +319,7 @@ GET /api/contracts/:id/activity
 POST /api/contracts/:id/approvals
 ```
 
-Requires the `write` scope.
+Requires an authenticated human browser session.
 
 ```json
 { "assignedToId": "usr_456", "message": "Please review before signing." }
@@ -340,20 +347,29 @@ PATCH /api/contracts/:id/approvals/:approvalId
 
 ### Signing
 
-**Create signing submission**
+**Signing initiation (temporarily unavailable)**
 ```
 POST /api/contracts/:id/sign
 ```
 
-Requires the `write` scope. Creates a DocuSeal submission and returns a signing URL.
+New signing submissions are paused. An API key cannot initiate signing and
+receives `403 human_session_required`, including legacy keys that contain `write`.
+Unauthenticated requests receive 401; an authenticated human session must have
+access to the agreement (otherwise 404). An authorized session receives 503:
 
-**Response 200:**
+**Response 503:**
 ```json
 {
-  "signingUrl": "https://docuseal.com/sign/abc...",
-  "submissionId": "sub_123"
+  "error": "signing_send_temporarily_unavailable",
+  "message": "Sending is paused until provider-side idempotency can be reconciled safely."
 }
 ```
+
+No provider submission is created. The newer `/signing/send` endpoint is also
+paused. Signing reminder and reset endpoints return 503 after session and
+agreement-access checks, without provider calls or signing-state changes.
+Stored signing records remain readable; automatic updates require an explicitly
+verified provider binding. Historical records are not bound automatically.
 
 ---
 
@@ -411,19 +427,19 @@ GET /api/folders
 ```
 POST /api/folders
 ```
-Requires the `write` scope. Body: `{ "name": "Customers" }` (max 255 chars).
+Requires an authenticated human browser session. Body: `{ "name": "Customers" }` (max 255 chars).
 
 ### Update folder
 ```
 PATCH /api/folders/:id
 ```
-Requires the `write` scope. Body: `{ "name": "Enterprise Customers" }`
+Requires an authenticated human browser session. Body: `{ "name": "Enterprise Customers" }`
 
 ### Delete folder
 ```
 DELETE /api/folders/:id
 ```
-Requires the `write` scope. Returns 400 if folder has contracts assigned.
+Requires an authenticated human browser session. Returns 400 if the folder has contracts assigned.
 
 ---
 
@@ -438,7 +454,7 @@ GET /api/tags
 ```
 POST /api/tags
 ```
-Requires the `write` scope. Body: `{ "name": "Enterprise", "color": "#3B82F6" }` (hex color, optional).
+Requires an authenticated human browser session. Body: `{ "name": "Enterprise", "color": "#3B82F6" }` (hex color, optional).
 
 ### Update tag
 ```
@@ -463,7 +479,7 @@ GET /api/org
 ```
 PATCH /api/org
 ```
-Requires the `write` scope + admin role. Body: `{ "name": "Acme Legal" }`
+Requires an owner or administrator browser session. Body: `{ "name": "Acme Legal" }`
 
 ---
 
@@ -506,18 +522,20 @@ Returns key metadata only — raw key values are never returned after creation.
 ```
 POST /api/org/api-keys
 ```
-Admin only. Body: `{ "name": "CI Pipeline", "scopes": ["read"] }`.
+Owner or administrator browser session only. Body:
+`{ "name": "CI Pipeline", "scopes": ["read"] }`.
 
-For a read/write integration use `{ "name": "CI Pipeline", "scopes": ["read", "text_read", "write"] }`.
+For an agent that may read contract text and propose cited actions for human
+review, use `{ "name": "Agreement agent", "scopes": ["read", "text_read", "action_propose"] }`.
 
 **Response 201:**
 ```json
 {
   "apiKey": {
     "id": "key_1",
-    "name": "CI Pipeline",
+    "name": "Agreement agent",
     "prefix": "cf_live_abc123",
-    "scopes": ["read", "text_read", "write"],
+    "scopes": ["read", "text_read", "action_propose"],
     "expiresAt": null,
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
@@ -539,7 +557,11 @@ curl https://your-aakd-host.example/api/contracts \\
   -H 'Authorization: Bearer cf_live_...'
 ```
 
-Use a key containing `read`, `text_read`, and `write` for an agent that must read contract content and create or update records. Keep the raw key in a secret manager; it cannot be recovered from Aakd after the creation dialog is closed.
+Use `read` for metadata, add `text_read` only when the client must receive
+contract text, and add `action_propose` only when it must submit cited action
+drafts for human review. The proposal scope cannot validate, assign, approve,
+execute, deliver, or edit canonical contract data. Keep the raw key in a secret
+manager; it cannot be recovered after the creation dialog is closed.
 
 ---
 
@@ -581,7 +603,43 @@ JSON-RPC 2.0 endpoint for AI agent integration (Claude, Cursor, Windsurf, etc.).
 
 Authentication: `Authorization: Bearer cf_live_...` (API key required).
 
-Supports tool calling for: listing contracts, getting contract details, searching contracts, asking questions about contracts, managing folders and tags.
+The current MCP surface supports contract search and retrieval, cited contract
+questions, obligations, reviewed actions, analytics, CRM-link reads, import-job
+reads, and the governed action-proposal flow. Legacy direct mutation tools are
+not advertised.
+
+### Governed action proposals
+
+An API key with `read`, `text_read`, and `action_propose` can use this bounded
+flow:
+
+1. Call `preview_action_proposal` with an exact current file ID and version,
+   source excerpt, excerpt SHA-256 hash, and UUID idempotency key. This creates
+   no database record. Source excerpts are limited to 8,192 characters and
+   opaque resource identifiers to 200 characters as operational safeguards.
+   `RENEWAL_NOTICE` requires `noticeDate`; other action kinds cannot carry it.
+   When both are present, `noticeDate` cannot be later than `dueDate`.
+2. Review the returned policy and unchanged proposal, then call
+   `propose_action` with the preview identity and exact source binding. Aakd
+   creates one `PENDING_REVIEW` action or returns the authorized idempotent
+   replay.
+3. A human reviews and can correct the action type, notice date, deadline or
+   condition, evidence requirement, title, and description in the browser.
+   Validation makes it `PROPOSED`; the agent cannot perform this step.
+4. Call `preview_action_approval_request` with the action version and one named
+   reviewer, then `request_action_approval` with the unchanged preview. Only
+   the assigned human can decide the request through the browser workflow.
+
+Previews expire after their server-provided `expiresAt` time. Refresh an expired
+preview with the same normalized intent and idempotency key; do not generate a
+new intent merely to retry. A changed payload with a reused idempotency key is
+rejected. Agreements with legacy, unbound extracted text must be re-extracted
+from their current PDF or DOCX before source-linked proposals are available.
+Preview and submit responses report point-in-time source freshness, the human
+review policy, a non-secret hashed principal reference, citation hash/page, and
+whether a source excerpt is present. They classify sensitivity as
+`not_classified`; Aakd does not claim an absent sensitivity classifier ran.
+Raw API keys, principal IDs, and idempotency keys are not returned.
 
 ---
 
@@ -593,7 +651,16 @@ Supports tool calling for: listing contracts, getting contract details, searchin
 POST /api/webhooks/docuseal
 ```
 
-Receives signing status updates from DocuSeal. Validates `X-DocuSeal-Signature` HMAC-SHA256 header when `DOCUSEAL_WEBHOOK_SECRET` is set. Configure this URL in your DocuSeal webhook settings.
+Receives bounded, validated signing events. Every request requires a valid
+`X-DocuSeal-Signature` HMAC-SHA256 header and matching secret; a missing secret
+fails closed. For organization integrations, use the URL returned by Settings,
+including `?integrationId=...`, and that integration's saved secret. The legacy
+environment-configured URL uses `DOCUSEAL_WEBHOOK_SECRET`.
+
+Accepted events enqueue provider-bound synchronization; acceptance is not proof
+of completion or document ingestion. The worker verifies the exact submission
+and provider identity, and requires the agreement to remain awaiting signature.
+Unbound historical records do not become bound merely by receiving a webhook.
 
 ---
 

@@ -18,11 +18,13 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
       - run: pnpm typecheck
+      - name: Type-check the standalone worker entrypoint
+        run: pnpm --filter web exec tsc -p tsconfig.worker.json --noEmit --incremental false
 
   lint:
     name: Lint
@@ -35,7 +37,7 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
@@ -63,12 +65,17 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
       - name: Run tests
         run: pnpm --filter web test
+      - name: Verify private public-export tooling when present
+        run: |
+          if [ -f scripts/test-public-export.mjs ]; then
+            node scripts/test-public-export.mjs
+          fi
 
   migrations:
     name: Prisma migrations
@@ -100,7 +107,7 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
@@ -129,7 +136,7 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web db:generate
@@ -144,6 +151,7 @@ jobs:
       - name: Validate Compose files and deployment scripts
         run: |
           bash -n scripts/deploy.sh scripts/update.sh scripts/doctor.sh scripts/backup.sh scripts/restore.sh scripts/validate-self-hosting.sh
+          bash scripts/test-self-hosting-config.sh
           bash scripts/validate-self-hosting.sh
 
   container-images:
@@ -153,24 +161,176 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+        id: image-builder
+        with:
+          driver: docker-container
       - name: Build web image
         uses: docker/build-push-action@v6
         with:
+          builder: ${{ steps.image-builder.outputs.name }}
           context: .
           file: apps/web/Dockerfile
           load: true
           tags: aakd-app:ci
+          build-args: |
+            NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED=true
           cache-from: type=gha,scope=aakd-web
           cache-to: type=gha,mode=max,scope=aakd-web
+      - name: Release web build cache
+        env:
+          CI_BUILDER_NAME: ${{ steps.image-builder.outputs.name }}
+        run: |
+          set -euo pipefail
+          test -n "$CI_BUILDER_NAME"
+          # The image is loaded in Docker and its cache has been exported above.
+          # Reclaim only this disposable builder's intermediates, not images or volumes.
+          docker image inspect aakd-app:ci >/dev/null
+          docker buildx prune --builder "$CI_BUILDER_NAME" --all --force
+          docker image inspect aakd-app:ci >/dev/null
+          df -h
       - name: Build worker image
         uses: docker/build-push-action@v6
         with:
+          builder: ${{ steps.image-builder.outputs.name }}
           context: .
           file: apps/web/Dockerfile.worker
           load: true
           tags: aakd-worker:ci
           cache-from: type=gha,scope=aakd-worker
           cache-to: type=gha,mode=max,scope=aakd-worker
+      - name: Release worker build cache
+        env:
+          CI_BUILDER_NAME: ${{ steps.image-builder.outputs.name }}
+        run: |
+          set -euo pipefail
+          test -n "$CI_BUILDER_NAME"
+          docker image inspect aakd-app:ci >/dev/null
+          docker image inspect aakd-worker:ci >/dev/null
+          docker buildx prune --builder "$CI_BUILDER_NAME" --all --force
+          docker image inspect aakd-app:ci >/dev/null
+          docker image inspect aakd-worker:ci >/dev/null
+          df -h
+      - name: Verify worker image document and operator runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker_image="aakd-worker:ci"
+          runtime_limits=(--memory=768m --memory-swap=768m --pids-limit=256 --cpus=2 --network=none)
+          fixture_mount="${GITHUB_WORKSPACE}/apps/web/tests/e2e:/app/apps/web/tests/e2e:ro"
+
+          # Exercise LibreOffice, Linux fonts, the shipped parser helper, and
+          # page attribution inside the production worker image.
+          docker run --rm "${runtime_limits[@]}" \
+            -e AAKD_NATIVE_PDF_PROBE=1 \
+            -v "${fixture_mount}" \
+            "${worker_image}" \
+            node --import tsx tests/e2e/native-pdf-probe.mts
+
+          # Image-only PDF OCR must work with the packaged model offline,
+          # preserve page citations, and leave original document bytes intact.
+          docker run --rm "${runtime_limits[@]}" \
+            -e AAKD_OCR_PDF_PROBE=1 \
+            -v "${fixture_mount}" \
+            "${worker_image}" \
+            node --import tsx tests/e2e/ocr-pdf-probe.mts
+
+          # This named 30 MiB adversarial fixture previously exhausted a 1 GiB
+          # web process. The 768 MiB cgroup is an explicit regression budget,
+          # not a claim that every accepted 50 MiB document is parseable.
+          docker run --rm -i "${runtime_limits[@]}" \
+            -v "${fixture_mount}" \
+            "${worker_image}" \
+            node --max-old-space-size=512 --require tsx/cjs - <<'NODE'
+          const { createTextPdf } = require("./tests/e2e/pdf-fixture.ts")
+          const { parsePdf } = require("./lib/pdf.ts")
+
+          function createOversizedStreamPdf(textBytes) {
+            const chunks = []
+            const offsets = [0]
+            let length = 0
+            const append = (value) => {
+              const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value, "ascii")
+              chunks.push(chunk)
+              length += chunk.byteLength
+            }
+            append("%PDF-1.4\n")
+            for (const [index, object] of [
+              "<< /Type /Catalog /Pages 2 0 R >>",
+              "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+              "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            ].entries()) {
+              offsets.push(length)
+              append(String(index + 1) + " 0 obj\n" + object + "\nendobj\n")
+            }
+            const contentPrefix = Buffer.from("BT\n/F1 12 Tf\n72 720 Td\n(", "ascii")
+            const contentSuffix = Buffer.from(") Tj\nET", "ascii")
+            offsets.push(length)
+            append("5 0 obj\n<< /Length " + (contentPrefix.length + textBytes + contentSuffix.length) + " >>\nstream\n")
+            append(contentPrefix)
+            append(Buffer.alloc(textBytes, 0x41))
+            append(contentSuffix)
+            append("\nendstream\nendobj\n")
+            const xrefOffset = length
+            append("xref\n0 6\n0000000000 65535 f \n")
+            for (const offset of offsets.slice(1)) append(String(offset).padStart(10, "0") + " 00000 n \n")
+            append("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefOffset + "\n%%EOF\n")
+            return Buffer.concat(chunks, length)
+          }
+
+          void (async () => {
+            const pathologicalBytes = 30 * 1024 * 1024
+            let largeOutcome = "parsed"
+            try {
+              const parsed = await parsePdf(createOversizedStreamPdf(pathologicalBytes))
+              if (parsed.numpages !== 1 || parsed.text.length < pathologicalBytes) {
+                throw new Error("Large PDF returned an incomplete parse")
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : ""
+              if (message !== "PDF parser exceeded its isolated resource limits") throw error
+              largeOutcome = "controlled_rejection"
+            }
+
+            let malformedRejected = false
+            try {
+              await parsePdf(Buffer.from("%PDF-1.7\nnot-a-valid-pdf", "ascii"))
+            } catch (error) {
+              const message = error instanceof Error ? error.message : ""
+              if (message !== "PDF parsing failed in isolated process") throw error
+              malformedRejected = true
+            }
+            if (!malformedRejected) throw new Error("Malformed PDF unexpectedly parsed")
+
+            const followUp = await parsePdf(createTextPdf(["Parent alive: O'Brien"]), { pageBreaks: true })
+            if (followUp.numpages !== 1 || !followUp.text.includes("O'Brien")) {
+              throw new Error("Parser parent did not recover after the adversarial corpus")
+            }
+            console.log(JSON.stringify({
+              status: "PASS",
+              cgroupMemoryMiB: 768,
+              pathologicalInputMiB: 30,
+              largeOutcome,
+              malformedRejected,
+              followUpParsed: true,
+            }))
+          })().catch((error) => {
+            console.error(error instanceof Error ? error.message : error)
+            process.exitCode = 1
+          })
+          NODE
+
+          # Execute the packaged CLI far enough to prove its TypeScript entry
+          # point and production dependencies load. Missing exact identifiers
+          # must fail before any database, Redis, or provider operation.
+          set +e
+          reindex_output="$(docker run --rm "${runtime_limits[@]}" \
+            "${worker_image}" \
+            node_modules/.bin/tsx scripts/reindex-contract.ts 2>&1)"
+          reindex_status=$?
+          set -e
+          test "${reindex_status}" -eq 1
+          grep -Fx "Invalid reindex arguments" <<<"${reindex_output}"
       - name: Boot a fresh production runtime
         shell: bash
         run: |
@@ -249,10 +409,16 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install document processing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils tesseract-ocr fonts-dejavu-core
+      - name: Verify native multilingual PDF extraction
+        run: AAKD_NATIVE_PDF_PROBE=1 pnpm --filter web exec node --import tsx tests/e2e/native-pdf-probe.mts
       - name: Create isolated E2E environment
         shell: bash
         run: |
@@ -261,12 +427,15 @@ jobs:
           cat >"${e2e_env}" <<'EOF'
           POSTGRES_PASSWORD=phase0-e2e-postgres
           REDIS_PASSWORD=phase0-e2e-redis
-          DATABASE_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/clauseflow
-          DIRECT_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/clauseflow
+          DATABASE_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/aakd_acceptance_ci
+          DIRECT_URL=postgresql://postgres:phase0-e2e-postgres@localhost:5432/aakd_acceptance_ci
           REDIS_URL=redis://:phase0-e2e-redis@localhost:6379
           BETTER_AUTH_SECRET=phase0-e2e-auth-secret-32-chars
           BETTER_AUTH_URL=http://127.0.0.1:3000
           NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+          NEXT_PUBLIC_ACTION_LEDGER_UI_ENABLED=true
+          AAKD_E2E_USE_PROCESS_ENV=1
+          AAKD_AGENT_ACTION_HTTP_PROBE=1
           INTERNAL_APP_URL=http://localhost:3000
           NOTIFICATION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000001
           STORAGE_ENDPOINT=http://localhost:9000
@@ -315,6 +484,7 @@ jobs:
           done
           test "${db_ready}" -eq 1
           test "${redis_ready}" -eq 1
+          "${compose[@]}" exec -T db createdb -U postgres aakd_acceptance_ci
       - name: Run migrations and browser tests
         shell: bash
         run: |
@@ -336,8 +506,14 @@ jobs:
           trap cleanup EXIT
           pnpm --filter web db:generate
           pnpm --filter web db:migrate:prod
+          # Exercise the deployable artifact, not cold development compilation.
+          # Keep the separate production-container smoke responsible for HTTPS
+          # configuration; this isolated browser harness uses loopback HTTP.
+          pnpm build >"${RUNNER_TEMP}/aakd-e2e-build.log" 2>&1
+          cp -R apps/web/.next/static apps/web/.next/standalone/apps/web/.next/
           pnpm --filter web exec playwright install --with-deps chromium
-          pnpm dev >"${RUNNER_TEMP}/aakd-e2e-web.log" 2>&1 &
+          RUNTIME_NODE_ENV=development HOSTNAME=127.0.0.1 PORT=3000 \
+            node apps/web/.next/standalone/apps/web/server.js >"${RUNNER_TEMP}/aakd-e2e-web.log" 2>&1 &
           web_pid=$!
           pnpm --filter web worker:start >"${RUNNER_TEMP}/aakd-e2e-worker.log" 2>&1 &
           worker_pid=$!
@@ -351,6 +527,7 @@ jobs:
           done
           test "${ready}" -eq 1
           pnpm --filter web test:e2e
+          AAKD_VISUAL_FIXTURE=1 pnpm --filter web exec playwright test --config=playwright.visual.config.ts
       - name: Upload E2E diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -358,6 +535,7 @@ jobs:
           name: functional-e2e-diagnostics
           path: |
             apps/web/playwright-report
+            ${{ runner.temp }}/aakd-e2e-build.log
             ${{ runner.temp }}/aakd-e2e-web.log
             ${{ runner.temp }}/aakd-e2e-worker.log
           if-no-files-found: ignore

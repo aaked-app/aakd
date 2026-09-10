@@ -4,6 +4,7 @@ import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
 import { enqueueImportProcess } from "@/lib/types/import-queue"
 import { logger } from "@/lib/logger"
+import { hasImportJobAccess } from "@/lib/auth/import-job-access"
 
 export async function POST(req: Request, props: { params: AsyncRouteParams<{ jobId: string }> }) {
   const params = await props.params;
@@ -18,9 +19,12 @@ export async function POST(req: Request, props: { params: AsyncRouteParams<{ job
     const claim = await prisma.$transaction(async (tx) => {
       const job = await tx.importJob.findUnique({
         where: { id: params.jobId },
-        select: { id: true, organizationId: true, status: true, failedRows: true, completedAt: true },
+        select: { id: true, organizationId: true, status: true, failedRows: true, completedAt: true, createdById: true },
       })
       if (!job || job.organizationId !== ctx.organizationId) {
+        return { error: "Not Found" as const, status: 404 as const }
+      }
+      if (!(await hasImportJobAccess(tx, ctx, job))) {
         return { error: "Not Found" as const, status: 404 as const }
       }
       if (job.status !== "COMPLETED" && job.status !== "FAILED") {

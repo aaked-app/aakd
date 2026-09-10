@@ -2,6 +2,23 @@ import { resolveAuth } from "@/lib/auth/middleware"
 import { requireRole } from "@/lib/auth/roles"
 import { requestContext } from "@/lib/context"
 import { prisma } from "@/lib/db/client"
+import { Prisma } from "@prisma/client"
+import { isAgreementAccessEmergencyDenyAll } from "@/lib/auth/agreement-access"
+
+type AccessibleImportJob = {
+  id: string
+  source: string
+  status: string
+  totalRows: number
+  succeededRows: number
+  failedRows: number
+  hasErrorReport: boolean
+  createdAt: Date
+  completedAt: Date | null
+  createdById: string
+  createdByName: string | null
+  accessibleTotal: bigint
+}
 
 // GET /api/import — list import jobs for the org, paginated
 export async function GET(req: Request) {
@@ -20,37 +37,62 @@ export async function GET(req: Request) {
       const n = parseInt(url.searchParams.get("limit") ?? "20", 10)
       return Number.isNaN(n) ? 20 : Math.min(Math.max(1, n), 100)
     })()
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const importJobModel = prisma.importJob
-    if (!importJobModel) {
-      // Prisma client not yet regenerated for M10 — return empty list
-      // gracefully instead of 500-ing the settings page.
+    if (isAgreementAccessEmergencyDenyAll()) {
       return Response.json({ jobs: [], total: 0, page, limit })
     }
 
-    const where = { organizationId: ctx.organizationId }
-    const [jobs, total] = await Promise.all([
-      importJobModel.findMany({
-        where,
-        select: {
-          id: true,
-          source: true,
-          status: true,
-          totalRows: true,
-          succeededRows: true,
-          failedRows: true,
-          createdAt: true,
-          completedAt: true,
-          createdBy: { select: { id: true, name: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      importJobModel.count({ where }),
-    ])
+    const jobs = await prisma.$queryRaw<AccessibleImportJob[]>(Prisma.sql`
+      SELECT job."id", job."source"::text AS "source", job."status"::text AS "status",
+             job."totalRows", job."succeededRows", job."failedRows", job."createdAt", job."completedAt",
+             creator."id" AS "createdById", creator."name" AS "createdByName",
+             (job."errorReportKey" IS NOT NULL AND job."errorReportKey" <> '') AS "hasErrorReport",
+             COUNT(*) OVER()::bigint AS "accessibleTotal"
+      FROM "ImportJob" AS job
+      INNER JOIN "User" AS creator ON creator."id" = job."createdById"
+      WHERE job."organizationId" = ${ctx.organizationId}
+        AND NOT EXISTS (
+          SELECT 1 FROM "ImportRow" AS inaccessible_row
+          WHERE inaccessible_row."jobId" = job."id"
+            AND inaccessible_row."contractId" IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM "ContractAccessGrant" AS access_grant
+              WHERE access_grant."organizationId" = ${ctx.organizationId}
+                AND access_grant."memberId" = ${ctx.memberId}
+                AND access_grant."contractId" = inaccessible_row."contractId"
+            )
+        )
+        AND (
+          job."createdById" = ${ctx.userId}
+          OR (
+            EXISTS (SELECT 1 FROM "ImportRow" AS present_row WHERE present_row."jobId" = job."id")
+            AND NOT EXISTS (
+              SELECT 1 FROM "ImportRow" AS unbound_row
+              WHERE unbound_row."jobId" = job."id" AND unbound_row."contractId" IS NULL
+            )
+          )
+        )
+      ORDER BY job."createdAt" DESC
+      OFFSET ${(page - 1) * limit}
+      LIMIT ${limit}
+    `)
+    const total = jobs.length > 0 ? Number(jobs[0].accessibleTotal) : 0
 
-    return Response.json({ jobs, total, page, limit })
+    return Response.json({
+      jobs: jobs.map((job) => ({
+        id: job.id,
+        source: job.source,
+        status: job.status,
+        totalRows: job.totalRows,
+        succeededRows: job.succeededRows,
+        failedRows: job.failedRows,
+        hasErrorReport: job.hasErrorReport,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt,
+        createdBy: { id: job.createdById, name: job.createdByName },
+      })),
+      total,
+      page,
+      limit,
+    })
   })
 }

@@ -33,12 +33,16 @@ describe("buildExtractionSeedPayload", () => {
     ])
   })
 
-  it("does not create rows for empty values", () => {
+  it("preserves an explicit manual clear so enrichment cannot restore it", () => {
     expect(buildExtractionSeedPayload(
       fields,
       new Set(["governingLaw"]),
       new Set(),
       {},
-    )).toEqual([])
+    )).toEqual([{ field: "governingLaw", rawValue: "", confidence: 0, extractedBy: "manual" }])
+  })
+
+  it("does not create empty AI suggestions", () => {
+    expect(buildExtractionSeedPayload(fields, new Set(), new Set(["governingLaw"]), {})).toEqual([])
   })
 })
